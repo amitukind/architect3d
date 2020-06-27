@@ -3,6 +3,7 @@ WebGL based 3D interior designing tool with 2D Floor Planer
 
 [Live Demo](http://amitukind.com/projects/architect3d/)
 
+![](./images/architect3d.jpg)
 
 ## About
 
