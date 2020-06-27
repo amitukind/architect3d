@@ -1,17 +1,12 @@
-# README #
 WebGL based 3D interior designing tool with 2D Floor Planer
 
-## DEMO ##
 
 [Live Demo](http://amitukind.com/projects/architect3d/)
 
-## DOCS ##
-Included
 
+## About
 
-## What is this?
-
-This is a customizable application built on three.js that allows users to design an interior space such as a home or apartment. Below are screenshots from our Example App (link above).
+This is a customizable application built on three.js that allows users to design an interior space such as a home or apartment. Below are screenshots from  Example App (link above).
 
 1) Create 2D floorplan:
 
@@ -61,6 +56,11 @@ The `src` directory contains the core of the project. Here is a description of t
 `model` - Data model representing both the 2D floorplan and all of the items in it
 
 `three` - 3D view/controller for viewing and modifying item placement
+
+
+## DOCS ##
+Included
+
 
 [@amitukind](https://github.com/amitukind)
 
