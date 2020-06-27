@@ -1,7 +1,7 @@
 {
-  "name": "blueprint3d-js",
+  "name": "architect3d",
   "version": "0.1.0",
-  "description": "This is the core framework of Blueprint-js for creating floorplans in 2d and 3d",
+  "description": "This is the core framework of architect3d for creating floorplans in 2d and 3d",
   "main": "build/js/bp3djs.js",
   "scripts": {
     "build": "rollup -c",
@@ -13,13 +13,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/aalavandhaann/blueprint-js.git"
+    "url": "https://github.com/amitukind/architect3D.git"
   },
-  "author": "#0K Srinivasan <ashok.srinivasan2002@gmail.com> (@aalavandhaann)",
+  "author": "#0K Amit Verma <amitverma.ukind@gmail.com> (@amitukind)",
   "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/aalavandhaann/blueprint-js/issues"
-  },
   "devDependencies": {
     "@thi.ng/geom-hull": "0.0.27",
     "babel-plugin-external-helpers": "^6.22.0",
@@ -31,9 +28,9 @@
     "eslint": "^3.19.0",
     "eslint-plugin-import": "^2.17.3",
     "event-stream": ">4.0.0",
-    "livereload": "^0.7.0",
+    "livereload": "^0.9.1",
     "npm-run-all": "^4.0.2",
-    "rollup": "^1.6.0",
+    "rollup": "^1.32.1",
     "rollup-plugin-babel": "^2.7.1",
     "rollup-plugin-commonjs": "^9.3.4",
     "rollup-plugin-eslint": "^3.0.0",
@@ -49,7 +46,7 @@
     "@calvinscofield/three-objloader": "^1.0.4",
     "braces": "^2.3.2",
     "es6-enum": "^1.1.0",
-    "jquery": "^3.4.1",
+    "jquery": "^3.5.1",
     "line-intersect": "^2.2.1",
     "nodeclipse": "^0.17.2",
     "three": "^0.98.0",
