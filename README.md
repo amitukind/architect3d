@@ -1,13 +1,12 @@
 WebGL based 3D interior designing tool with 2D Floor Planer
-
+## About
+This is a customizable application built on three.js that allows users to design an interior space such as a home or apartment.
 
 [Live Demo](http://amitukind.com/projects/architect3d/)
 
 ![](./images/architect3d.jpg)
 
-## About
-
-This is a customizable application built on three.js that allows users to design an interior space such as a home or apartment. Below are screenshots from  Example App (link above).
+ Below are screenshots from  [Live Demo](http://amitukind.com/projects/architect3d/)
 
 1) Create 2D floorplan:
 
@@ -28,7 +27,13 @@ To get started, clone the repository and ensure you npm >= 3 and rollup installe
     npm install
     rollup -c
 
-The latter command ( [enable execution](https:/go.microsoft.com/fwlink/?LinkID=135170) policy before running it) generates `build/js/bp3djs.js` from `src`. 
+Rollup will only run if you have enabled command execution . If not run the following command first :
+```bash
+//Windows 10
+Get-ExecutionPolicy -List
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+The latter command generates `build/js/bp3djs.js` from `src`. 
 
 ```
 NODE_ENV=production rollup -c
@@ -63,5 +68,6 @@ The `src` directory contains the core of the project. Here is a description of t
 Included
 
 
-[@amitukind](https://github.com/amitukind)
 
+## Author
+[@amitukind](https://github.com/amitukind/) | [Website](http://amitukind.com/) | [amitverma.ukind@gmail.com](mailto:amitverma.ukind@gmail.com)
