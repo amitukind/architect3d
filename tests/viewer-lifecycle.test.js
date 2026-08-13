@@ -585,6 +585,46 @@ describe('the OrbitControls shim', () =>
 		three.dispose();
 	});
 
+	it('draws nothing at all while the scene sits idle', () =>
+	{
+		// The other half of "starts dirty": the S9 exit gate asks for
+		// render-on-demand to be *verified*, and the claim it makes is a
+		// negative one - an untouched design costs no GPU work. Only asserting
+		// that the first frame happens would pass just as happily against a
+		// renderer drawing sixty frames a second into a still scene.
+		//
+		// setAnimationLoop keeps running either way; what render-on-demand means
+		// is that the callback returns without reaching renderer.render().
+		//
+		// pauseTheRendering(false) first, and that matters: Main constructs with
+		// pauseRender = true, so an unforced render() returns before it ever
+		// consults the dirty flags. Testing the default state would prove only
+		// that a paused view draws nothing, which is a different and much weaker
+		// claim. The application unpauses whenever the 3D pane is visible - see
+		// useCameraViews - so this is the state the gate is asking about.
+		const {three} = mount();
+		expect(typeof three.renderer.animationLoop).toBe('function');
+		three.pauseTheRendering(false);
+
+		// Let the boot frame and anything it dirtied settle.
+		for (let i = 0; i < 5; i += 1) { three.renderer.animationLoop(); }
+		const settled = three.renderer.renderCount;
+		expect(settled).toBeGreaterThan(0);
+
+		for (let i = 0; i < 120; i += 1) { three.renderer.animationLoop(); }
+		expect(three.renderer.renderCount).toBe(settled);
+
+		// And it is genuinely idle-gated, not switched off: one dirty flag and
+		// exactly one frame comes back.
+		three.needsUpdate = true;
+		three.renderer.animationLoop();
+		expect(three.renderer.renderCount).toBe(settled + 1);
+		three.renderer.animationLoop();
+		expect(three.renderer.renderCount).toBe(settled + 1);
+
+		three.dispose();
+	});
+
 	it('marks the view dirty whenever the camera changes', () =>
 	{
 		const {three, controls} = mount();
