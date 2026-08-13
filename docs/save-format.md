@@ -10,14 +10,16 @@ consumed by `model.loadSerialized(json)`. It has exactly two top-level keys:
 }
 ```
 
-Read [the two landmines](#the-two-landmines) before you write a tool that
-generates one of these.
+If you are writing a tool that reads or generates one of these, read
+[reading an older file](#reading-an-older-file) — the format changed, and the
+older one is still out there.
 
 ## `floorplan`
 
 ```json
 {
-  "version": "0.0.2a",
+  "version": "2.0.0",
+  "units": "cm",
   "corners": { },
   "walls": [ ],
   "rooms": { },
@@ -44,8 +46,9 @@ walls and rooms refer to.
 `x` and `y` place the corner on the floor plane. `elevation` is the height of
 the wall top at this corner, which is what lets a wall slope.
 
-**These three numbers are in the user's display unit, not centimetres.** See
-[the two landmines](#the-two-landmines).
+All three are **centimetres**, as the file's `units` field declares — the same
+unit as the wall control points and the item positions. In format 0.0.2a they
+were not; see [reading an older file](#reading-an-older-file).
 
 ### `walls`
 
@@ -70,8 +73,8 @@ An array. Each wall names the two corners it spans:
 | `wallType` | `"STRAIGHT"` or `"CURVED"`. |
 | `a`, `b` | Bezier control points. Only meaningful when `wallType` is `"CURVED"`, but always written. |
 
-Unlike corners, `a` and `b` are **centimetres** — they are copied straight
-across on both save and load with no unit conversion in either direction.
+`a` and `b` are centimetres, like everything else in a 2.0.0 file. They always
+were, which in 0.0.2a made them disagree with the corners.
 
 ### `rooms`
 
@@ -146,10 +149,10 @@ An array, one entry per placed object:
 | `item_type` | Which class builds it. See the table below. |
 | `format` | `"gltf"`, or absent on a pre-migration file. |
 | `model_url` | Relative URL. Rewritten on load if it names one of the 25 converted legacy models. |
-| `xpos`/`ypos`/`zpos` | Position in **centimetres** — unlike corners, these are not unit-converted. |
+| `xpos`/`ypos`/`zpos` | Position in centimetres, like everything else. |
 | `rotation` | Y rotation in radians. X and Z are not stored. |
 | `fixed` | Locked in place. |
-| `material_colors` | One `#rrggbb` per material, in material-group order. |
+| `material_colors` | Sparse: a `#rrggbb` for each material slot somebody recoloured, `null` for the rest. Absent when nothing was recoloured. |
 
 ### Item types
 
@@ -170,49 +173,96 @@ the order you would guess. It is the registry in
 contains, so it is not renumberable. Types 2, 3, 7 and 9 are the wall-bound
 ones: the catalog needs a wall to place them against.
 
-Two fields are worth knowing about because they are asymmetric:
+### `material_colors` holds choices, not appearance
 
-- **`resizable`** is read on load and handed to the item, but `getMetaData()`
-  never writes it. It survives one load and is lost on the next save — which
-  costs nothing today, because nothing reads it after construction.
-- **`material_colors`** is written on *every* save whether the user picked a
-  colour or not. For a glTF model the value came from `baseColorFactor`. See
-  below.
+The array is positional and sparse. `[null, "#abcdef", null]` means "slot 1 was
+recoloured to `#abcdef`; slots 0 and 2 keep whatever the model ships with". The
+key is omitted entirely when nothing was recoloured, which is the common case.
 
-## The two landmines
+That distinction is the point. Format 0.0.2a wrote every material's colour on
+every save, which froze the model's own appearance into the file — so updating
+a model never changed any design that already used it, and a design saved
+before colour management reloads too dark. See
+[reading an older file](#reading-an-older-file).
 
-### 1. Coordinates are in the user's display unit
-
-`Floorplan.saveFloorplan()` writes corner coordinates through
-`Dimensioning.cmToMeasureRaw()`, and `loadFloorplan()` reads them back through
-`cmFromMeasureRaw()`. Both consult the **current global display unit**.
-
-So the same design saved with the unit set to metres and to centimetres
-produces two files whose numbers differ by 100×, with nothing in the file
-recording which. Load a metres file while the app is in centimetres and the
-plan comes back a hundred times too small.
-
-In practice this holds together because the unit is a user setting that rarely
-changes mid-session, and `BlueprintJS`'s constructor sets metres. But a tool
-that generates files must know which unit the reader will be in.
-
-What is *not* affected, because it is written raw: wall control points `a`/`b`,
-and every item position and scale. A single file therefore mixes units.
-
-::: tip For the backlog
-A v2 schema storing canonical centimetres with an explicit unit stamp is the
-fix. It is on the post-migration backlog rather than done here, because it
-needs the version field to work first — see below.
+::: tip `resizable`
+Read on load and handed to the item, but `getMetaData()` never writes it back,
+so it survives one load and is lost on the next save. Costs nothing today —
+nothing reads it after construction.
 :::
 
-### 2. The version field cannot be bumped
+## Reading an older file
 
-`version` has read `"0.0.2a"` since the field was introduced.
-`Version.getTechnicalVersion()` is a hard-coded string and nothing has ever
-changed it.
+Every file written before this format says `"version": "0.0.2a"` and has no
+`units` field. They still load, and they still mean what they meant. What
+follows is what changed and why the change could not be applied retroactively.
 
-That is not merely inert. `loadFloorplan()` gates the curved-wall control
-points on it:
+The loader decides by looking at the file rather than at its version number.
+An absent `units` field means the old reading; absent `a`/`b` on a wall means
+no control points to read. That is deliberate — see
+[the version field](#the-version-field-was-a-trap) below for what happened the
+last time this was decided by a version comparison.
+
+### Coordinates were in the user's display unit
+
+0.0.2a wrote corner coordinates through `Dimensioning.cmToMeasureRaw()` and
+read them back through `cmFromMeasureRaw()`, both of which consult the current
+global display unit. Wall control points and every item position went out raw.
+
+So one file mixed two units and recorded neither. The same plan saved under
+metres and under centimetres produced two files whose corner numbers differed
+by 100×:
+
+```json
+// 500 x 400 cm, saved while the display unit was metres
+{"x": 0, "y": 0, "elevation": 2.6}
+{"x": 5, "y": 0, "elevation": 2.5}
+{"x": 5, "y": 4, "elevation": 2.5}
+```
+
+Load that under centimetres and the whole plan is 5 cm across — which is inside
+`cornerTolerance`, so every corner merges into the first and the design
+collapses to a single point with four degenerate walls.
+
+A file with no `units` field is still read this way, because it is the rule the
+file was written under and the information needed to do better is not in it.
+**Open an old file under the unit it was written in, save it, and it is
+upgraded** — there is no separate migration step. Rounding disappears with the
+conversion too: 0.0.2a quantised to 1/1000 of the display unit, which meant
+whole millimetres for anyone working in metres, and the inch constants were not
+exact inverses, so a save/load cycle in inches walked the geometry by 0.001 cm
+each time.
+
+`tests/fixtures/v1/` holds the frozen corpus, `metres-room.blueprint3d`
+included.
+
+### `material_colors` held every colour
+
+0.0.2a wrote a hex string for every material on every save. Two consequences:
+
+1. The model's own appearance was frozen into every design that used it.
+2. For a glTF model the value came from `baseColorFactor` — a raw **linear**
+   float, quantised straight to bytes under the pre-colour-management pipeline.
+   The managed pipeline reads those bytes as sRGB, so furniture in a design
+   saved before that change reloads darker than it was authored.
+
+Those values are **not** re-interpreted on load, deliberately. Nothing in a
+0.0.2a file says whether a given colour is the model's or the user's — they
+were written identically — so converting them wholesale would correct the first
+and corrupt the second. The version stamp tells you the file is old; it does
+not tell you what is in it.
+
+So old colours are applied exactly as written and written straight back, and
+opening and saving an old design cannot discard a colour somebody chose. What
+changed is that the ambiguity is no longer *created*. If pre-colour-management
+furniture loads too dark, re-pick the colour once and the file will then say
+exactly what you meant.
+
+### The version field was a trap
+
+`version` read `"0.0.2a"` for the entire life of the project before 2.0.0, and
+that was not merely inert. `loadFloorplan()` used to gate the curved-wall
+control points on it:
 
 ```js
 if (Version.isVersionHigherThan(floorplan.version, '0.0.2a'))
@@ -223,50 +273,33 @@ if (Version.isVersionHigherThan(floorplan.version, '0.0.2a'))
 }
 ```
 
-and `isVersionHigherThan` does not do what its name says. It returns true when
-the **second** argument is greater than or equal to the first, per component,
-as an AND across components. Substituting the real values:
+`isVersionHigherThan` did not do what its name said. It returned true when the
+**second** argument was greater than or equal to the first, per component, as
+an AND. So the gate accepted `0.0.2a` and anything older and rejected
+everything newer:
 
 | File's `version` | Curve data |
 |---|---|
-| absent | **dropped** |
-| `"0.0.1"` | read |
-| `"0.0.2a"` | read |
-| `"0.0.3"` | **dropped** |
-| `"0.1.0"` | **dropped** |
-| `"1.0.0"` | **dropped** |
-| `"1.0"` | **dropped** (component count differs) |
+| `"0.0.1"`, `"0.0.2a"` | read |
+| `"0.0.3"`, `"0.1.0"`, `"1.0.0"`, `"1.0"` | **silently dropped** |
 
-Stamping a file with any version above `0.0.2a` silently turns every curved
-wall straight and discards its control points.
+Stamping a file with any newer version turned every curved wall straight and
+threw its control points away, with no error — which is why the format could
+not be versioned at all, and why three separate pieces of work had to wait for
+this one.
 
-The behaviour is deliberate as it stands: S0 characterized it and
-`tests/dimensioning.test.js` pins it under `PRESERVED QUIRK`, because room
-detection and the curved-wall path were frozen for the duration of the
-migration. Anyone introducing a v2 format has to fix the comparator *first*,
-and the tests that pin it are the checklist for doing so.
+Both halves are fixed. The gate reads `wall.a && wall.b`, so it is a question
+about the file rather than about a comparison; and `Version` now offers
+`compare()`, a strict boolean `isVersionHigherThan()`, and `isVersionAtLeast()`
+for the `>=` question — a separate function rather than an inverted call,
+because writing `!isVersionHigherThan(check, version)` is precisely how the
+original went wrong.
 
-## The pre-S8 colour question
+## Writing a file by hand
 
-Sprint S8 turned three's colour management on, which changed what a hex string
-in `material_colors` means: it is now unambiguously an sRGB value, decoded by
-`Color` on the way in.
-
-Designs saved *before* S8 store something else. `getMetaData()` writes every
-material's colour on every save, and for a glTF model that colour came from
-`baseColorFactor` — a raw **linear** float, which the frozen pipeline quantised
-straight to bytes. Those files reload darker than they were authored.
-
-They are not migrated, deliberately, for two reasons that compound:
-
-1. There is no way to tell which files need it. The version field is a
-   constant, and per the section above it cannot be bumped without breaking
-   curved walls.
-2. Even given a marker, the file cannot distinguish a colour the model author
-   baked in from one the user picked. A blanket re-read would correct the first
-   and corrupt the second.
-
-The exposure is smaller than it sounds: the pre-Vue demo's item inspector never
-bound its item, so no user could pick a material colour before the migration
-began. The reasoning is written up in `src/scripts/items/item.js` for whoever
-takes it on.
+Stamp `"version": "2.0.0"` and `"units": "cm"`, put every coordinate in
+centimetres, and omit `material_colors` unless you mean to override a model's
+own colour. An unrecognised `units` value is read as centimetres with a console
+warning rather than rejected — a design that opens at the wrong scale is a
+better outcome than one that will not open, because the user can see the
+former.

@@ -40,7 +40,6 @@ deliberately. Examples pinned by this suite:
 
 | Behaviour | Where |
 |---|---|
-| Saved coordinates are stored in the **active display unit**, not centimetres | `floorplan.js` save/load via `Dimensioning.cmToMeasureRaw` |
 | `Utils.pointInPolygon` always returns false (wrong arity) — item placement relies on the stable output | `core/utils.js` |
 | `Utils.isClockwise` derives `tSubY` from `p.x` | `core/utils.js` |
 | Walls snapshot `wallHeight`/`wallThickness` at construction; later config changes do not apply retroactively | `model/wall.js` |
@@ -66,6 +65,8 @@ Expectations retired that way so far, all listed as FIX in the ledger:
 | The corner panel never followed a drag - it listened for the setter event, and `Corner.move()` dispatches only `EVENT_MOVED` | S7 | `app-inspector.test.js` |
 | The r98 colour freeze - both halves of it, plus the hex-literal consequence | S8 | `viewer-lifecycle.test.js` |
 | `Version.isVersionHigherThan` compared its arguments backwards, returned `0`/`1`/`false` from one function, and threw on a hand-edited file. Nine quirk tests replaced; the load gate that depended on it now reads the wall record | post-S9 | `dimensioning.test.js`, `serialization.test.js` |
+| Saved coordinates were stored in the **active display unit**, not centimetres. Nineteen quirk tests replaced by save format 2.0.0, which stores canonical cm and stamps `units` | post-S9 | `serialization.test.js`, `save-format-v1.test.js` |
+| `material_colors` held every material's colour on every save, freezing a model's own appearance into every design using it | post-S9 | `items-and-scene.test.js` |
 
 One S0 test **fired as designed** in S4 rather than being retired: the
 zero-length `wallSize` setter produced NaN coordinates that r98's
@@ -87,7 +88,8 @@ tests/
 ├─ fixtures/*.blueprint3d   frozen design files (generated, see below)
 │
 │  headless data layer (S0, characterization) — environment: node
-├─ serialization.test.js    save/load schema, the unit landmine, round-trips
+├─ serialization.test.js    save/load schema (format 2.0.0), units, round-trips
+├─ save-format-v1.test.js   the frozen 0.0.2a corpus under fixtures/v1/ still loads
 ├─ room-detection.test.js   findRooms: square, L-shape, shared wall, open loops
 ├─ wall-corner-ops.test.js  wall splitting, corner merge tolerance, curved walls
 ├─ dimensioning.test.js     unit conversions, Configuration, Version, Utils quirks

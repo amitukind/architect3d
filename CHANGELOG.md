@@ -1,5 +1,48 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+* **Save format 2.0.0.** Coordinates are canonical centimetres throughout and
+  the file carries `"units": "cm"` saying so. 0.0.2a wrote corner coordinates
+  in whatever display unit was active at save time while control points and
+  item positions went out raw, so one file mixed two units and recorded
+  neither — the same plan saved under metres and centimetres differed by 100×,
+  and reading a metre-era file as centimetres collapsed it to a single point.
+  All twenty-five save/load unit combinations now round-trip exactly, and the
+  rounding drift goes with the conversion.
+* **`material_colors` is sparse**, holding a colour only for a material slot
+  somebody actually recoloured and `null` for the rest — absent entirely when
+  nothing was. It used to hold every material's colour on every save, which
+  froze a model's own appearance into every design using it.
+* **`Version.isVersionHigherThan` does what its name says** — a breaking change
+  to a public API. It compared its arguments backwards, returned `1`/`0`/`false`
+  from one function, and threw on a hand-edited file. `Version.compare` and
+  `Version.isVersionAtLeast` are new.
+
+### Fixed
+
+* **The save format can be versioned at all.** `loadFloorplan` gated curved-wall
+  control points on the broken comparator, so stamping a file anything newer
+  than `0.0.2a` silently turned every curved wall straight and discarded its
+  control points. The gate now reads the wall record.
+* Saving an item with an empty material array threw a `TypeError`.
+
+### Compatibility
+
+Files written before 2.0.0 load unchanged, under the same rule they were
+written under: no `units` field means coordinates are in the current display
+unit. Open one under the unit it was written in and save it, and it is
+upgraded — there is no separate migration step. Their `material_colors` are
+applied and written straight back, so nothing anyone chose is discarded.
+
+The pre-colour-management darkening is still not re-interpreted, and
+deliberately: nothing in an old file distinguishes a colour the model author
+baked in from one the user picked, so converting them wholesale would correct
+the first and corrupt the second. Re-picking the colour once produces a file
+that says exactly what was meant.
+
 ## [1.0.0] - 2026-08-13
 
 The migration release. Ten sprints (S0–S9) moved the project from rollup +
@@ -87,19 +130,10 @@ landed. The plan, and what each sprint actually delivered, is in
 
 ### Known and deliberate
 
-* **Coordinates in a save file are written in the user's display unit.** A
-  design saved in metres and loaded in centimetres is 100× off, and nothing in
-  the file records which unit it used. Preserved because existing files depend
-  on it; a v2 schema with an explicit unit stamp is the fix. See
-  [the save format](https://amitukind.github.io/architect3d/docs/save-format).
-* **The save format's version field cannot be bumped.** Stamping anything above
-  `0.0.2a` silently discards every curved wall's control points, because the
-  comparator gating them does the opposite of what its name says.
-* **Designs saved before this release store linear colour values** in a field
-  that now reads as sRGB, so their furniture reloads darker than it was
-  authored. Not migrated: the file cannot distinguish a colour its model author
-  baked in from one the user picked, so a blanket re-read would fix the first
-  and corrupt the second.
+* **Coordinates in a save file are written in the user's display unit**, the
+  version field cannot be bumped, and pre-S8 designs store linear colour values
+  in a field that now reads as sRGB. All three are addressed in Unreleased
+  above; they were the state at 1.0.0.
 * **Two bugs in `Utils.pointInPolygon` and `isClockwise`** are asserted as they
   are, because room detection depends on them.
 * **Textures are reloaded per wall per redraw and never disposed.**

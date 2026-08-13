@@ -43,7 +43,7 @@ are checked in under `public/`, which Vite serves at the site root.
 | `npm run dev` | Dev server on port 10001, with hot reload |
 | `npm run build` | Library build &rarr; `dist/bp3djs.js`, an IIFE exposing the `BP3DJS` global |
 | `npm run build:demo` | Application build &rarr; `dist-demo/` |
-| `npm test` | The vitest suite (813 tests, headless) |
+| `npm test` | The vitest suite (828 tests, headless) |
 | `npm run lint` | ESLint |
 | `npm run docs` | The documentation site, with hot reload |
 | `npm run docs:build` | The documentation site &rarr; `docs/.vitepress/dist` |
@@ -60,7 +60,7 @@ GitHub Pages. Nothing deploys from any other branch.
 |---|---|
 | [Getting started](https://amitukind.github.io/architect3d/docs/getting-started) | Running it, the commands, embedding the library |
 | [Architecture](https://amitukind.github.io/architect3d/docs/architecture) | How the layers fit together, and where they meet |
-| [Save file format](https://amitukind.github.io/architect3d/docs/save-format) | Every field in a `.blueprint3d` file, and its two landmines |
+| [Save file format](https://amitukind.github.io/architect3d/docs/save-format) | Every field in a `.blueprint3d` file, and how an older one is read |
 | [Events](https://amitukind.github.io/architect3d/docs/events) | What fires, from where, carrying what |
 | [Migration roadmap](https://amitukind.github.io/architect3d/docs/roadmap.html) | The ten-sprint plan, and what each sprint delivered |
 
@@ -77,7 +77,7 @@ src/catalog/   the item palette and the texture list, as JSON
 public/        assets the running app loads (models, textures, thumbnails)
 asset-pipeline/ the sources those were produced from - .obj/.mtl, .blend,
                the 25 pre-migration three.js JSON models, inventory scripts
-tests/         813 headless tests; see tests/README.md
+tests/         828 headless tests; see tests/README.md
 tools/         one-off and migration tooling (conversion, goldens, parity)
 docs/          this documentation site
 ```

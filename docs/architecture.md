@@ -12,7 +12,7 @@ The arrow points one way and nothing goes back: there is no Vue anywhere under
 `src/scripts/`, and `npm run build` bundles the library alone.
 
 That is not a style preference — it is what makes the library embeddable in a
-page that has never heard of Vue, and what lets 813 tests exercise the model
+page that has never heard of Vue, and what lets 828 tests exercise the model
 with no renderer and no browser.
 
 ## The layers
@@ -149,7 +149,7 @@ one layer does *not* automatically reach the other:
 
 ## Testing
 
-`tests/` is 813 tests in 15 files, all headless. jsdom supplies the DOM, a stub
+`tests/` is 828 tests in 16 files, all headless. jsdom supplies the DOM, a stub
 renderer stands in for WebGL, and `tests/helpers/` holds the shared harness.
 
 Most of the suite is *characterization*: it was written against the pre-

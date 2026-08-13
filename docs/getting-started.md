@@ -21,7 +21,7 @@ root.
 | `npm run dev` | Dev server on port 10001, with hot reload |
 | `npm run build` | Library build → `dist/bp3djs.js`, an IIFE exposing the `BP3DJS` global |
 | `npm run build:demo` | Application build → `dist-demo/`, what the Pages deploy publishes |
-| `npm test` | The vitest suite (813 tests, headless, no GPU) |
+| `npm test` | The vitest suite (828 tests, headless, no GPU) |
 | `npm run lint` | ESLint |
 | `npm run docs` | This site, with hot reload |
 | `npm run docs:build` | This site → `docs/.vitepress/dist` |
@@ -95,7 +95,7 @@ npm test           # once
 npm run test:watch # on change
 ```
 
-813 tests across 15 files, all headless — jsdom for the DOM, a stub renderer
+828 tests across 16 files, all headless — jsdom for the DOM, a stub renderer
 for WebGL. They run in about two seconds and need no display. Most of them are
 *characterization* tests written before the code moved, and they encode
 behaviour the migration deliberately preserved, quirks included.
