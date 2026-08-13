@@ -1,12 +1,20 @@
 import js from '@eslint/js';
+import vue from 'eslint-plugin-vue';
 
 /**
  * ESLint 10 flat config, replacing the ESLint 4 .eslintrc.json (migration S1).
  *
  * The rule set is deliberately the same one the project already had - browser
  * globals, eslint:recommended, single quotes, semicolons, unix linebreaks,
- * console allowed, tab indentation unenforced. This sprint changes the
- * toolchain, not the house style.
+ * console allowed, tab indentation unenforced. S1 changed the toolchain, not
+ * the house style, and that still holds.
+ *
+ * S6 added the single-file components under src/app/. They are linted with
+ * eslint-plugin-vue's `flat/recommended`, which is what catches the mistakes
+ * that only exist in a template - an unused component import, a `v-for`
+ * without a key, a prop mutated in place. Without it the whole application
+ * layer would be invisible to the linter, since a plain JS parser cannot read
+ * a .vue file at all.
  */
 export default [
 	{
@@ -72,6 +80,41 @@ export default [
 			// rewrite those files.
 			'no-useless-assignment': 'warn',
 			'no-prototype-builtins': 'warn',
+		},
+	},
+
+	...vue.configs['flat/recommended'],
+
+	{
+		// Single-file components. Same house style as the rest of src/.
+		files: ['src/**/*.vue'],
+		languageOptions: {
+			ecmaVersion: 2022,
+			sourceType: 'module',
+			globals: {
+				window: 'readonly',
+				document: 'readonly',
+				console: 'readonly',
+			},
+		},
+		rules: {
+			'no-console': 'off',
+			'linebreak-style': ['error', 'unix'],
+			quotes: ['error', 'single'],
+			semi: ['error', 'always'],
+			'no-mixed-spaces-and-tabs': ['error', 'smart-tabs'],
+
+			// The templates are indented with tabs like everything else, and
+			// eslint-plugin-vue's default is two spaces. Matching the file rather
+			// than reformatting every template to a different convention from the
+			// script block above it.
+			'vue/html-indent': ['error', 'tab'],
+			// A closing bracket on its own line is the plugin's default; these
+			// templates keep it on the last attribute line, which reads better for
+			// the long lists of @event bindings in App.vue.
+			'vue/html-closing-bracket-newline': 'off',
+			'vue/max-attributes-per-line': 'off',
+			'vue/singleline-html-element-content-newline': 'off',
 		},
 	},
 

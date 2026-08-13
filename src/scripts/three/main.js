@@ -439,6 +439,26 @@ export class Main extends EventDispatcher
 		return this.camera;
 	}
 
+	/**
+	 * Drop the current 3D selection, dispatching EVENT_ITEM_UNSELECTED.
+	 *
+	 * Added in S6, for the same reason as Floorplanner2D.redraw(): the legacy
+	 * demo cleared the selection with
+	 * `three.getController().setSelectedObject(null)` (app.js:914) on every
+	 * switch back to the 2D view, and the Vue app should not have to know that
+	 * a Controller exists to do it.
+	 *
+	 * A no-op after dispose(), so a component's unmount path can call it without
+	 * ordering itself against the teardown.
+	 */
+	clearSelection()
+	{
+		if (this.controller)
+		{
+			this.controller.setSelectedObject(null);
+		}
+	}
+
 
 	/*
 	 * This method name conflicts with a variable so changing it to a different

@@ -131,6 +131,46 @@ export function installPointerApis(window)
 }
 
 /**
+ * `window.matchMedia`, which jsdom does not implement.
+ *
+ * Added in S6 for lil-gui: its number controller asks whether the device has a
+ * coarse pointer, to decide between a drag-to-change slider and a plain input.
+ * Not implementing it is a documented jsdom gap, and this stub answers "no
+ * media query matches" - the desktop path, which is the one the tests exercise.
+ *
+ * Same reasoning as installPointerApis above: a browser API the environment is
+ * missing gets a harness stub, not a guard inside a dependency.
+ *
+ * @returns {{restore: Function}}
+ */
+export function installMatchMedia(window)
+{
+	const original = Object.prototype.hasOwnProperty.call(window, 'matchMedia') ? window.matchMedia : null;
+
+	window.matchMedia = function (query)
+	{
+		return {
+			media: query,
+			matches: false,
+			onchange: null,
+			addEventListener() {},
+			removeEventListener() {},
+			addListener() {},
+			removeListener() {},
+			dispatchEvent() {return false;},
+		};
+	};
+
+	return {
+		restore()
+		{
+			if (original) { window.matchMedia = original; }
+			else { delete window.matchMedia; }
+		},
+	};
+}
+
+/**
  * A ResizeObserver that never fires on its own - tests drive it by hand.
  *
  * @returns {{instances: Array, trigger: Function, liveCount: Function, restore: Function}}

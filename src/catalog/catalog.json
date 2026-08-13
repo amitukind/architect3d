@@ -4,42 +4,58 @@
 		"0": {
 			"label": "Item",
 			"class": "Item",
-			"wrapper": "item-items"
+			"wrapper": "item-items",
+			"heading": "Anywhere Items",
+			"order": 8
 		},
 		"1": {
 			"label": "Floor item",
 			"class": "FloorItem",
-			"wrapper": "floor-items"
+			"wrapper": "floor-items",
+			"heading": "Floor Items",
+			"order": 1
 		},
 		"2": {
 			"label": "Wall item",
 			"class": "WallItem",
-			"wrapper": "wall-items"
+			"wrapper": "wall-items",
+			"heading": "Wall Items",
+			"order": 3
 		},
 		"3": {
 			"label": "In-wall item",
 			"class": "InWallItem",
-			"wrapper": "in-wall-items"
+			"wrapper": "in-wall-items",
+			"heading": "In Wall Items",
+			"order": 4
 		},
 		"4": {
 			"label": "Roof item",
 			"class": "RoofItem",
-			"wrapper": "roof-items"
+			"wrapper": "roof-items",
+			"heading": "Ceiling Items",
+			"order": 2
 		},
 		"7": {
 			"label": "In-wall floor item",
 			"class": "InWallFloorItem",
-			"wrapper": "in-wall-floor-items"
+			"wrapper": "in-wall-floor-items",
+			"heading": "In Wall Floor Items",
+			"order": 5
 		},
 		"8": {
 			"label": "On-floor item",
 			"class": "OnFloorItem",
-			"wrapper": "on-floor-items"
+			"wrapper": "on-floor-items",
+			"heading": "On Floor Items",
+			"order": 6
 		},
 		"9": {
 			"label": "Wall-floor item",
 			"class": "WallFloorItem",
-			"wrapper": "wall-floor-items"
+			"wrapper": "wall-floor-items",
+			"heading": "Wall-Floor Items",
+			"order": 7
 		}
 	},
 	"items": [

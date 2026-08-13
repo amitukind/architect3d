@@ -25,6 +25,8 @@ import {EVENT_CAMERA_MOVED, EVENT_CAMERA_ACTIVE_STATUS} from '../src/scripts/cor
 import {VIEW_TOP} from '../src/scripts/core/constants.js';
 import {resetAll, stubItemLoader} from './helpers/harness.js';
 import {installCanvas2D, installListenerCounter, installPointerApis, installResizeObserver, setLayout} from './helpers/dom.js';
+// Shared with the S6 application suites - see tests/helpers/renderer.js.
+import {createRendererStub} from './helpers/renderer.js';
 import {readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {dirname, join} from 'node:path';
@@ -57,35 +59,6 @@ function readFixture(name)
 function ourLeaks()
 {
 	return listeners.leaks().filter(({target}) => !(target instanceof window.HTMLImageElement));
-}
-
-/**
- * A renderer that records the calls Main makes against it. Everything Main
- * touches is here and nothing else - if Main grows a new renderer call, this
- * throws rather than silently passing.
- */
-function createRendererStub()
-{
-	const renderer = {
-		domElement: document.createElement('canvas'),
-		shadowMap: {enabled: false, type: null},
-		shadowMapSoft: false,
-		clippingPlanes: [],
-		localClippingEnabled: false,
-		disposed: false,
-		contextLost: false,
-		animationLoop: undefined,
-		size: null,
-		renderCount: 0,
-		setClearColor() {},
-		setSize(width, height) {this.size = {width, height};},
-		setAnimationLoop(fn) {this.animationLoop = fn;},
-		render() {this.renderCount++;},
-		dispose() {this.disposed = true;},
-		forceContextLoss() {this.contextLost = true;},
-	};
-	renderers.push(renderer);
-	return renderer;
 }
 
 /** The demo's DOM: a viewer container and, optionally, a floorplanner canvas. */
@@ -121,7 +94,7 @@ beforeEach(() =>
 	observer = installResizeObserver(window);
 	pointerApis = installPointerApis(window);
 
-	Main.setRendererFactory(createRendererStub);
+	Main.setRendererFactory(() => createRendererStub(renderers));
 });
 
 afterEach(() =>
@@ -531,6 +504,29 @@ describe('the OrbitControls shim', () =>
 		expect(controls.screenSpacePanning).toBe(true);
 		expect(controls.maxDistance).toBe(3000);
 		three.dispose();
+	});
+
+	it('unbinds its capture-phase keydown even if the host detaches first', () =>
+	{
+		// three's disconnect() resolves the document as `domElement.getRootNode()`,
+		// the same way connect() did. Take the element out of the page in between
+		// and the removal lands on the detached subtree, leaving a keydown
+		// listener on the real document for the life of the page.
+		//
+		// The order is not hypothetical: @vue/test-utils detaches before it
+		// unmounts, and so does any embedder that empties its container before
+		// calling dispose(). Added in S6, when the Vue shell's leak test found it.
+		const {viewer} = buildViewerDom();
+		const before = listeners.netFor(document, 'keydown');
+
+		const three = new Main(new Model(), viewer, 'three-canvas', {});
+		// The addon's capture-phase interceptor, plus the walk controls' own pair.
+		expect(listeners.netFor(document, 'keydown')).toBeGreaterThan(before);
+
+		viewer.parentNode.removeChild(viewer);
+		three.dispose();
+
+		expect(listeners.netFor(document, 'keydown')).toBe(before);
 	});
 
 	it('starts dirty, so the first frame is always drawn', () =>

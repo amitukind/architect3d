@@ -638,6 +638,25 @@ export class Floorplanner2D extends EventDispatcher
 		
 	}
 
+	/**
+	 * Redraw the 2D view.
+	 *
+	 * Added in S6. The library redraws itself on every event that changes the
+	 * plan, so this is only for the cases where something *outside* the plan
+	 * changed what a drawn plan should look like - the display unit, the grid
+	 * spacing, the zoom scale, the wall-measurement flags. All of those live in
+	 * Configuration, which dispatches nothing.
+	 *
+	 * It exists because the legacy demo reached through to `floorplanner.view.draw()`
+	 * in five places (app.js:198, 315, 321, 700, 719) and the Vue app is not
+	 * allowed to: `view` is an implementation detail that S7's inspectors would
+	 * otherwise pin in place.
+	 */
+	redraw()
+	{
+		this.view.draw();
+	}
+
 	/** */
 	reset()
 	{

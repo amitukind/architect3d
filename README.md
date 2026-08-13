@@ -22,36 +22,41 @@ This is a customizable application built on three.js that allows users to design
 
 ## Developing and Running Locally
 
-To get started, clone the repository and ensure you npm >= 3 and rollup installed, then run:
+Clone the repository and run:
 
-    npm install
-    rollup -c
-
-Rollup will only run if you have enabled command execution . If not run the following command first :
 ```bash
-//Windows 10
-Get-ExecutionPolicy -List
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
-The latter command generates `build/js/bp3djs.js` from `src`. 
-
-```
-NODE_ENV=production rollup -c
+npm install
+npm run dev
 ```
 
-The above command will generate `build/js/bp3djs.min.js` a minified and uglified version of the js. The easiest way to run locally is by
+Then visit `http://localhost:10001`.
 
-```
-     rollup -c -w
-```
-Then, visit `http://localhost:10001` in your browser.
+`npm run dev` serves the Vue 3 application from `index.html` with hot reload,
+loading the library from `src/` as ES modules. The pre-Vue jQuery demo is
+generated alongside it at `/legacy.html`, so the two can be compared while the
+migration finishes.
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Dev server on port 10001: the Vue app, plus `/legacy.html` |
+| `npm run build` | Library build &rarr; `dist/bp3djs.js`, an IIFE exposing the `BP3DJS` global |
+| `npm run build:demo` | Application build &rarr; `dist-demo/` |
+| `npm test` | The full vitest suite |
+| `npm run lint` | ESLint |
+| `npm run parity` | Renders ten states through r98 and r185 side by side (see `tests/README.md`) |
+
+The build is Vite; rollup, Babel and jQuery were removed during the migration.
 
 
 ## Directory Structure
 
 ### `src/` Directory
 
-The `src` directory contains the core of the project. Here is a description of the various sub-directories:
+`src/scripts` is the library and `src/app` is the Vue 3 application built on
+top of it. The application imports the library; nothing goes the other way, and
+the library build contains no Vue.
+
+Inside `src/scripts`:
 
 `core` - Basic utilities such as logging and generic functions
 
@@ -62,6 +67,14 @@ The `src` directory contains the core of the project. Here is a description of t
 `model` - Data model representing both the 2D floorplan and all of the items in it
 
 `three` - 3D view/controller for viewing and modifying item placement
+
+Inside `src/app`:
+
+`components` - the shell, the two viewports, the toolbars and the catalog
+
+`composables` - the blueprint's lifetime, the selection, the camera, file IO
+
+`inspector` - the interim lil-gui settings panel, replaced by native Vue in S7
 
 
 ## DOCS ##

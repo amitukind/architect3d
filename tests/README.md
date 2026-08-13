@@ -27,7 +27,7 @@ node tools/convert-legacy-json.mjs        # the 25 .glb conversions (S3)
 node tools/capture-geometry-goldens.mjs   # tests/fixtures/geometry-r98.json (S4)
 node tools/capture-model-goldens.mjs      # the two legacy-*-r98.json fixtures (S4)
 
-npm run dev       # Vite dev server - the legacy demo against live source (S1)
+npm run dev       # Vite dev server: the Vue app, plus /legacy.html (S6)
 npm run build     # Vite library build -> dist/bp3djs.js (IIFE global BP3DJS)
 npm run lint      # ESLint 10 flat config
 ```
@@ -61,6 +61,10 @@ Expectations retired that way so far, all listed as FIX in the ledger:
 | `setEnd` had its add and remove the wrong way round | S2 | `wall-corner-ops.test.js` |
 | `HalfEdge.distanceTo` threw on every curved wall (`this._bezier`) | S4 | `wall-corner-ops.test.js` |
 | The item merge dropped glTF parent node transforms on 42 models | S4 | `model-conversion.test.js` |
+| `EVENT_MODE_RESET` was read as the mode itself, so the toolbar highlight never rendered | S6 | `app-composables.test.js` |
+| The item inspector was built without its item, so every control it offered was inert | S6 | `app-shell.test.js` |
+| Adding a wall-bound item before clicking a wall threw and added nothing | S6 | `app-composables.test.js` |
+| `OrbitControls` left a document keydown behind if the host detached the element first | S6 | `viewer-lifecycle.test.js` |
 
 One S0 test **fired as designed** in S4 rather than being retired: the
 zero-length `wallSize` setter produced NaN coordinates that r98's
@@ -74,8 +78,11 @@ setter now returns early, which is what it always asserted.
 tests/
 ├─ helpers/harness.js   deterministic seeding, config reset, plan builders,
 │                       id normalisation, room signatures, stub item loader
-├─ helpers/dom.js       jsdom stubs: 2D context, ResizeObserver, element layout,
-│                       and a listener counter for proving dispose() is complete
+├─ helpers/dom.js       jsdom stubs: 2D context, ResizeObserver, pointer and
+│                       pointer-lock APIs, matchMedia, element layout, and a
+│                       listener counter for proving dispose() is complete
+├─ helpers/renderer.js  the fake WebGLRenderer handed to Main.setRendererFactory,
+│                       shared by the viewer and application suites
 ├─ fixtures/*.blueprint3d   frozen design files (generated, see below)
 │
 │  headless data layer (S0, characterization) — environment: node
@@ -97,8 +104,20 @@ tests/
 ├─ catalog-and-shim.test.js catalog integrity, legacy URL rewriting, round trip
 │
 │  engine (S4) — environment: jsdom
-└─ geometry-rewrites.test.js  every hand-built mesh, against what r98 drew
+├─ geometry-rewrites.test.js  every hand-built mesh, against what r98 drew
+│
+│  the Vue application (S6, contract) — environment: jsdom
+├─ app-composables.test.js  the blueprint's lifetime, the single selection, the
+│                           camera modes, catalog placement, file IO
+└─ app-shell.test.js        App.vue mounted for real: boot, the toolbar
+                            highlight, the flip, the catalog, mount/unmount
+                            symmetry, and the item inspector's binding
 ```
+
+The two S6 modules are contract tests, not characterization: the sprint
+deliberately replaced the demo's globals with a store and a single selection,
+and three app-layer bugs were fixed on purpose. A failure there means the new
+contract broke, not that legacy behaviour drifted.
 
 ## Frozen r98 readings
 

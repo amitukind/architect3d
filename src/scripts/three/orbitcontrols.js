@@ -59,11 +59,39 @@ export class OrbitControls extends OrbitControlsAddon
 		{
 			this.listenToKeyEvents(window);
 		}
+
+		/**
+		 * The document the addon put its capture-phase keydown on.
+		 *
+		 * `connect()` resolves it as `domElement.getRootNode()` and `disconnect()`
+		 * resolves it again the same way - so if the element has been taken out of
+		 * the page in between, the removal is aimed at the detached subtree and
+		 * the listener stays on the real document for the life of the page.
+		 *
+		 * A host that empties its container before tearing the viewer down does
+		 * exactly that. Vue itself runs beforeUnmount ahead of removing the DOM,
+		 * so the ordinary route unmount is safe, but @vue/test-utils detaches
+		 * first and the S6 leak test caught it - which is the same thing an
+		 * embedder doing `container.innerHTML = ''; blueprint.dispose();` would
+		 * hit. Remembering the node makes dispose() order-independent.
+		 */
+		this._keyInterceptRoot = domElement ? domElement.getRootNode() : null;
 	}
 
 	dispose()
 	{
 		this.removeEventListener('change', this._cameraMoved);
+
+		// Belt and braces, before super.dispose() aims its own removal at
+		// wherever the element happens to be rooted now. Removing a listener
+		// twice is a no-op, and if a future three renames this private the worst
+		// case is the status quo: super.dispose() still does the normal thing.
+		if (this._keyInterceptRoot && this._interceptControlDown)
+		{
+			this._keyInterceptRoot.removeEventListener('keydown', this._interceptControlDown, {capture: true});
+		}
+		this._keyInterceptRoot = null;
+
 		super.dispose();
 	}
 }

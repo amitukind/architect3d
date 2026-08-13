@@ -1,7 +1,14 @@
 /**
- * Generates the repo-root index.html used by `npm run dev`.
+ * Generates the repo-root legacy.html - the pre-S6 jQuery demo, runnable
+ * against live ES-module source.
  *
- *   node tools/make-dev-index.mjs      (or: npm run dev:index)
+ *   node tools/make-dev-index.mjs      (or: npm run legacy:index)
+ *
+ * Until S6 this generated index.html and was the only way to run the app. S6
+ * replaced the demo with the Vue application, which owns index.html now, and
+ * this moved aside to legacy.html: `npm run dev` serves both, so the two can be
+ * put side by side while the Vue app is finished and S7's inspectors land. It
+ * retires with build/ in S9.
  *
  * It is build/index.html with exactly two mechanical edits:
  *
@@ -28,7 +35,7 @@ import {fileURLToPath} from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE = join(ROOT, 'build', 'index.html');
-const TARGET = join(ROOT, 'index.html');
+const TARGET = join(ROOT, 'legacy.html');
 
 let html = readFileSync(SOURCE, 'utf8');
 
@@ -54,8 +61,9 @@ html = html.replace(BUNDLE_TAG,
 html = html.replace(/^<!DOCTYPE html>/i,
 	'<!DOCTYPE html>\n<!--\n  GENERATED FILE - do not edit.\n'
 	+ '  Source: build/index.html   Generator: tools/make-dev-index.mjs\n'
-	+ '  Vite dev entry: the same demo, but the library is loaded from src/\n'
-	+ '  through src/legacy-bridge.js instead of the prebuilt bundle.\n-->');
+	+ '  The pre-S6 jQuery demo, with the library loaded from src/ through\n'
+	+ '  src/legacy-bridge.js instead of the prebuilt bundle. The Vue app that\n'
+	+ '  replaced it is at /index.html.\n-->');
 
 writeFileSync(TARGET, html, 'utf8');
-console.log('wrote index.html (dev entry) from build/index.html');
+console.log('wrote legacy.html (pre-S6 demo) from build/index.html');

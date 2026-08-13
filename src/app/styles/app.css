@@ -1,0 +1,311 @@
+/*
+ * Application layout for the Vue shell (sprint S6).
+ *
+ * Derived from build/css/app.css - the rules that positioned the two panes and
+ * the bottom control bar are unchanged, so the app lands where the demo did.
+ * What is new here is the flip, and what is gone is `.dg select`, a patch for
+ * dat.GUI that no longer applies.
+ *
+ * Bootstrap's stylesheet and the glyphicon font are still loaded by index.html
+ * and still supply .btn / .glyphicon. Only their JavaScript left in this
+ * sprint; S7 replaces the CSS with inline SVG icons and the last of the
+ * legacy look.
+ */
+
+html
+{
+	overflow: hidden;
+	height: 100%;
+}
+
+body
+{
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+	height: 100%;
+}
+
+#interfaces,
+#interface-controls
+{
+	position: absolute;
+}
+
+#interfaces
+{
+	z-index: 0;
+	width: 100vw;
+	height: 100vh;
+	/*
+	 * The flip, replacing jquery.flip (build/js/app.js:903).
+	 *
+	 * jquery.flip did exactly this - a CSS 3D rotation on a preserve-3d card -
+	 * and its defaults are reproduced: 500ms, ease-out, rotation about X.
+	 *
+	 * Both faces stay laid out at full size for the whole animation and after
+	 * it, which is the property that matters most here. The library measures its
+	 * containers with clientWidth/clientHeight and watches them with a
+	 * ResizeObserver; a v-if or a display:none would collapse the hidden pane to
+	 * zero, and the viewer would come back with a zero aspect ratio. That is also
+	 * why core/dom.js measures with clientWidth rather than
+	 * getBoundingClientRect - the latter reports the *transformed* box, which is
+	 * foreshortened mid-flip.
+	 */
+	perspective: 2000px;
+}
+
+.card
+{
+	position: relative;
+	width: 100%;
+	height: 100%;
+	transform-style: preserve-3d;
+	transition: transform 0.5s ease-out;
+}
+
+.card.flipped
+{
+	transform: rotateX(180deg);
+}
+
+.card > .front,
+.card > .back
+{
+	position: absolute;
+	inset: 0;
+	backface-visibility: hidden;
+}
+
+.card > .back
+{
+	transform: rotateX(180deg);
+}
+
+/*
+ * The face turned away from the viewer is invisible but still hit-testable in
+ * some engines. Nothing behind the card should take a click.
+ */
+.card:not(.flipped) > .back,
+.card.flipped > .front
+{
+	pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce)
+{
+	.card
+	{
+		transition: none;
+	}
+}
+
+#floorplanner,
+#viewer
+{
+	position: absolute;
+	width: 100%;
+	height: 100%;
+}
+
+#floorplanner-canvas
+{
+	display: block;
+}
+
+#floorplanner-controls
+{
+	position: absolute;
+	left: 0;
+	top: 0;
+	margin: 20px 0;
+	padding: 0 20px;
+	width: 100%;
+	z-index: 10;
+}
+
+#main-controls
+{
+	position: absolute;
+	top: 20px;
+	left: 20px;
+	padding: 0;
+	z-index: 10;
+}
+
+#interface-controls
+{
+	margin: 0 auto;
+	width: 100%;
+	text-align: center;
+	bottom: 10px;
+	z-index: 100;
+}
+
+.btn-file
+{
+	display: inline-block;
+	cursor: pointer;
+	position: relative;
+	overflow: hidden;
+}
+
+.btn-file input[type=file]
+{
+	position: absolute;
+	top: 0;
+	right: 0;
+	min-width: 100%;
+	min-height: 100%;
+	opacity: 0;
+	cursor: inherit;
+	display: block;
+}
+
+.btn-hint
+{
+	position: absolute;
+	left: 20px;
+	bottom: 20px;
+	background-color: rgba(0, 0, 0, 0.50);
+	color: #ffffff;
+	padding: 5px 10px;
+	z-index: 10;
+}
+
+/*
+ * The catalog, replacing Bootstrap's modal plugin. The panel and thumbnail
+ * classes still come from Bootstrap's stylesheet; only the show/hide and the
+ * accordion behaviour moved into Vue.
+ */
+.catalog-backdrop
+{
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.5);
+	z-index: 1040;
+	display: flex;
+	align-items: flex-start;
+	justify-content: center;
+	overflow-y: auto;
+	padding: 30px 15px;
+}
+
+.catalog-dialog
+{
+	background: #ffffff;
+	border-radius: 6px;
+	box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+	width: 600px;
+	max-width: 100%;
+}
+
+.catalog-header,
+.catalog-footer
+{
+	padding: 15px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.catalog-header
+{
+	border-bottom: 1px solid #e5e5e5;
+}
+
+.catalog-footer
+{
+	border-top: 1px solid #e5e5e5;
+	justify-content: flex-end;
+}
+
+.catalog-title
+{
+	margin: 0;
+	font-size: 18px;
+}
+
+.catalog-body
+{
+	padding: 15px;
+	max-height: 65vh;
+	overflow-y: auto;
+}
+
+.catalog-section + .catalog-section
+{
+	margin-top: 8px;
+}
+
+.catalog-section-heading
+{
+	width: 100%;
+	text-align: left;
+	background: #f5f5f5;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	padding: 10px 15px;
+	font-size: 16px;
+}
+
+.catalog-grid
+{
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+	gap: 10px;
+	padding: 12px 2px;
+}
+
+.catalog-item
+{
+	display: block;
+	width: 100%;
+	text-align: center;
+	font-size: 12px;
+	line-height: 1.3;
+	padding: 6px;
+	background: #ffffff;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	cursor: pointer;
+}
+
+.catalog-item:hover,
+.catalog-item:focus
+{
+	border-color: #2e6da4;
+}
+
+.catalog-item img
+{
+	display: block;
+	width: 100%;
+	height: 110px;
+	object-fit: contain;
+	margin-bottom: 6px;
+}
+
+/* The interim lil-gui panel. Deleted in S7 with the panel itself. */
+#inspector
+{
+	position: absolute;
+	top: 0;
+	right: 0;
+	z-index: 200;
+}
+
+.app-error
+{
+	position: absolute;
+	left: 50%;
+	transform: translateX(-50%);
+	top: 12px;
+	z-index: 300;
+	background: #a94442;
+	color: #ffffff;
+	padding: 8px 14px;
+	border-radius: 4px;
+	font-family: sans-serif;
+	font-size: 13px;
+}
