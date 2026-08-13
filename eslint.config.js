@@ -21,8 +21,6 @@ export default [
 		ignores: [
 			'dist/**',
 			'dist-demo/**',
-			'docs/**',
-			'resources/**',      // dead vendored TypeScript ancestor; deleted later in S9
 			'public/**',         // deployed assets - one .gltf, no source
 			'asset-pipeline/**', // model sources: 25 three.js JSON models, .obj/.mtl, inventory scripts
 			'index.html',
