@@ -855,10 +855,12 @@ describe('Version', () =>
 		expect(Version.isVersionHigherThan('1.0.0', 'a.b.c')).toBe(true);
 	});
 
-	it('pins the informal and technical version strings', () =>
+	it('pins the save-format version strings', () =>
 	{
-		expect(Version.getInformalVersion()).toBe('0.0.2a');
-		expect(Version.getTechnicalVersion()).toBe('0.0.2a');
+		// 0.0.2a for the whole life of the project before the format became
+		// self-describing. This is the version of the FILE, not of the package.
+		expect(Version.getInformalVersion()).toBe('2.0.0');
+		expect(Version.getTechnicalVersion()).toBe('2.0.0');
 	});
 });
 

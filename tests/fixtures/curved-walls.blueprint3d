@@ -1,6 +1,7 @@
 {
   "floorplan": {
-    "version": "0.0.2a",
+    "version": "2.0.0",
+    "units": "cm",
     "corners": {
       "3d20e9da-9ccc-ed4e-0ca1-db145c690d98": {
         "x": 0,

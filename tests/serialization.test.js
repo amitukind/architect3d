@@ -86,20 +86,23 @@ afterAll(() =>
 
 describe('saveFloorplan - top level schema', () =>
 {
-	it('writes exactly eight top-level keys, in a fixed order', () =>
+	it('writes exactly nine top-level keys, in a fixed order', () =>
 	{
+		// `units` is the one 2.0.0 adds, and it sits beside `version` because the
+		// two are what a reader has to look at before anything else.
 		const {floorplan} = buildSquareRoom();
 		expect(Object.keys(floorplan.saveFloorplan())).toEqual([
-			'version', 'corners', 'walls', 'rooms',
+			'version', 'units', 'corners', 'walls', 'rooms',
 			'wallTextures', 'floorTextures', 'newFloorTextures', 'carbonSheet',
 		]);
 	});
 
-	it('stamps version with the technical version string 0.0.2a', () =>
+	it('stamps version 2.0.0 and units cm', () =>
 	{
 		const {floorplan} = buildSquareRoom();
-		expect(floorplan.saveFloorplan().version).toBe('0.0.2a');
-		expect(Version.getTechnicalVersion()).toBe('0.0.2a');
+		expect(floorplan.saveFloorplan().version).toBe('2.0.0');
+		expect(floorplan.saveFloorplan().units).toBe('cm');
+		expect(Version.getTechnicalVersion()).toBe('2.0.0');
 	});
 
 	it('writes corners as an object map and walls as an array', () =>
@@ -227,11 +230,15 @@ describe('saveFloorplan - wall entries', () =>
 	// QUIRK: a/b are written raw, with no Dimensioning conversion, while corner
 	// x/y ARE converted. In a metre-unit file the corners read 4 and the control
 	// points of the same wall read 141.42 - two different units in one record.
-	it('does not unit-convert a and b, unlike corner x and y', () =>
+	it('writes a and b in the same unit as the corners', () =>
 	{
+		// This used to assert the opposite, under "does not unit-convert a and b,
+		// unlike corner x and y": saving in metres wrote the corner at 4 and left
+		// the control point at 141.4214, in one file. Corners are centimetres now,
+		// so the two agree.
 		const {floorplan} = buildSquareRoom();
 		const inMetres = saveUnder(dimMeter, floorplan);
-		expect(savedCorners(inMetres)[1].x).toBe(4);
+		expect(savedCorners(inMetres)[1].x).toBe(400);
 		expect(round(inMetres.walls[0].a.x)).toBe(141.4214);
 	});
 
@@ -330,191 +337,152 @@ describe('saveFloorplan - corner selection comes from the walls, not from floorp
 	});
 });
 
-describe('the unit landmine - coordinates are persisted in the active display unit', () =>
+/*
+ * These three describe blocks used to be the unit landmine: nineteen tests
+ * pinning the fact that saveFloorplan wrote corner coordinates through
+ * Dimensioning.cmToMeasureRaw, in whatever display unit happened to be active,
+ * while wall control points and item positions went out raw. One file, two
+ * units, and nothing in it recording either.
+ *
+ * They pinned it because it could not be fixed while the format had no usable
+ * version field, and because designs users had already saved depend on the old
+ * reading. Format 2.0.0 stores canonical centimetres and stamps `units`, so
+ * every one of those scenarios now has the opposite outcome. The block below
+ * walks the same ground: the same plans, the same unit combinations, the same
+ * numbers - asserting that nothing happens to them.
+ *
+ * The old reading did not go away, it just stopped being the only one. Files
+ * without the stamp are still read through the display unit, exactly as before,
+ * and tests/save-format-v1.test.js holds that half against a frozen corpus.
+ */
+describe('format 2.0.0 - coordinates are centimetres whatever the display unit is', () =>
 {
-	it('persists a centimetre plan verbatim under dimCentiMeter', () =>
+	const UNITS = [
+		['centimetres', dimCentiMeter],
+		['metres', dimMeter],
+		['millimetres', dimMilliMeter],
+		['inches', dimInch],
+		['feet and inches', dimFeetAndInch],
+	];
+
+	UNITS.forEach(([label, unit]) =>
 	{
-		const {floorplan} = buildSquareRoom();
-		expect(savedCorners(saveUnder(dimCentiMeter, floorplan))).toEqual([
-			{x: 0, y: 0, elevation: 250},
-			{x: 400, y: 0, elevation: 250},
-			{x: 400, y: 300, elevation: 250},
-			{x: 0, y: 300, elevation: 250},
-		]);
-	});
-
-	it('persists the very same plan 100x smaller under dimMeter', () =>
-	{
-		const {floorplan} = buildSquareRoom();
-		expect(savedCorners(saveUnder(dimMeter, floorplan))).toEqual([
-			{x: 0, y: 0, elevation: 2.5},
-			{x: 4, y: 0, elevation: 2.5},
-			{x: 4, y: 3, elevation: 2.5},
-			{x: 0, y: 3, elevation: 2.5},
-		]);
-	});
-
-	it('converts corner elevation through the display unit too', () =>
-	{
-		const {floorplan} = buildSquareRoom();
-		expect(savedCorners(saveUnder(dimCentiMeter, floorplan))[0].elevation).toBe(250);
-		expect(savedCorners(saveUnder(dimMeter, floorplan))[0].elevation).toBe(2.5);
-	});
-
-	it('round-trips faithfully when the unit matches at save and at load (cm)', () =>
-	{
-		const {floorplan} = buildSquareRoom();
-		const file = saveUnder(dimCentiMeter, floorplan);
-		expect(cornerXY(loadUnder(dimCentiMeter, file))).toEqual([[0, 0], [400, 0], [400, 300], [0, 300]]);
-	});
-
-	it('round-trips faithfully when the unit matches at save and at load (m)', () =>
-	{
-		const {floorplan} = buildSquareRoom();
-		const file = saveUnder(dimMeter, floorplan);
-		const reloaded = loadUnder(dimMeter, file);
-		expect(cornerXY(reloaded)).toEqual([[0, 0], [400, 0], [400, 300], [0, 300]]);
-		expect(reloaded.corners[0].elevation).toBe(250);
-	});
-
-	// THE myhome1 SITUATION: a design saved while the UI was in cm, reopened
-	// under the metre default, comes back 100x too big. Nothing in the file
-	// records which unit was active when it was written.
-	it('reads a centimetre-era file 100x too large when loaded under dimMeter', () =>
-	{
-		const {floorplan} = buildSquareRoom();
-		const cmFile = saveUnder(dimCentiMeter, floorplan);
-		expect(cornerXY(loadUnder(dimMeter, cmFile))).toEqual([[0, 0], [40000, 0], [40000, 30000], [0, 30000]]);
-	});
-
-	it('blows corner elevation up 100x as well when a cm file is loaded under dimMeter', () =>
-	{
-		const {floorplan} = buildSquareRoom();
-		const cmFile = saveUnder(dimCentiMeter, floorplan);
-		expect(loadUnder(dimMeter, cmFile).corners[0].elevation).toBe(25000);
-	});
-
-	// The mirror image is worse than a scale error. 100x too small puts the whole
-	// 4x3 cm plan inside cornerTolerance (20 cm), so newCorner() merges every
-	// corner into the first one and the design collapses to a single point.
-	it('collapses a metre-era file to one corner when loaded under dimCentiMeter', () =>
-	{
-		const {floorplan} = buildSquareRoom();
-		const metreFile = saveUnder(dimMeter, floorplan);
-		expect(savedCorners(metreFile).map((c) => [c.x, c.y])).toEqual([[0, 0], [4, 0], [4, 3], [0, 3]]);
-
-		const wrong = loadUnder(dimCentiMeter, metreFile);
-		expect(cornerXY(wrong)).toEqual([[0, 0]]);
-		expect(wrong.walls).toHaveLength(4);
-		expect(wrong.rooms).toHaveLength(0);
-	});
-
-	it('re-saves that collapsed plan as four degenerate walls sharing one corner id', () =>
-	{
-		const {floorplan, corners} = buildSquareRoom();
-		const metreFile = saveUnder(dimMeter, floorplan);
-		const resaved = saveUnder(dimCentiMeter, loadUnder(dimCentiMeter, metreFile));
-
-		expect(Object.keys(resaved.corners)).toEqual([corners[0].id]);
-		resaved.walls.forEach((wall) =>
+		it(`writes the same centimetres under ${label}`, () =>
 		{
-			expect(wall.corner1).toBe(corners[0].id);
-			expect(wall.corner2).toBe(corners[0].id);
+			const {floorplan} = buildSquareRoom();
+			expect(savedCorners(saveUnder(unit, floorplan))).toEqual([
+				{x: 0, y: 0, elevation: 250},
+				{x: 400, y: 0, elevation: 250},
+				{x: 400, y: 300, elevation: 250},
+				{x: 0, y: 300, elevation: 250},
+			]);
 		});
 	});
 
-	it('leaves the wall control points untouched by the unit mismatch, desyncing them from the corners', () =>
+	it('stamps the unit it used, so a reader never has to guess', () =>
 	{
+		const {floorplan} = buildSquareRoom();
+		expect(saveUnder(dimMeter, floorplan).units).toBe('cm');
+		expect(saveUnder(dimFeetAndInch, floorplan).units).toBe('cm');
+	});
+
+	it('round-trips across every pair of save and load units', () =>
+	{
+		// The headline. Twenty-five combinations, and the display unit is now
+		// irrelevant to all of them - it is a display setting again rather than
+		// part of the file format.
+		const {floorplan} = buildSquareRoom();
+		for (const [saveLabel, saveUnit] of UNITS)
+		{
+			const file = saveUnder(saveUnit, floorplan);
+			for (const [loadLabel, loadUnit] of UNITS)
+			{
+				const reloaded = loadUnder(loadUnit, file);
+				expect(cornerXY(reloaded), `${saveLabel} -> ${loadLabel}`)
+					.toEqual([[0, 0], [400, 0], [400, 300], [0, 300]]);
+				expect(reloaded.corners[0].elevation, `${saveLabel} -> ${loadLabel}`).toBe(250);
+			}
+		}
+	});
+
+	it('cannot collapse a plan to a single corner any more', () =>
+	{
+		// The worst of the old failures: a metre-era file read as centimetres put
+		// the whole 4x3 plan inside cornerTolerance (20 cm), so newCorner merged
+		// every corner into the first and the design became one point with four
+		// degenerate walls. There is no longer a combination that does this.
+		const {floorplan} = buildSquareRoom();
+		const file = saveUnder(dimMeter, floorplan);
+		const reloaded = loadUnder(dimCentiMeter, file);
+
+		expect(reloaded.corners).toHaveLength(4);
+		expect(reloaded.walls).toHaveLength(4);
+		expect(reloaded.rooms).toHaveLength(1);
+	});
+
+	it('keeps corners and wall control points in the same unit', () =>
+	{
+		// Control points were always raw centimetres. Corners were not, so a unit
+		// mismatch moved the corners and left the curve behind. They agree now by
+		// construction rather than by luck.
 		const {floorplan} = curvedWallPlan();
-		const cmFile = saveUnder(dimCentiMeter, floorplan);
-		const wrong = loadUnder(dimMeter, cmFile);
-		// Corners moved to 0..40000, the control points stayed at 100/150.
-		expect(cornerXY(wrong)).toEqual([[0, 0], [40000, 0]]);
-		expect([wrong.walls[0].a.x, wrong.walls[0].a.y]).toEqual([100, 150]);
+		const file = saveUnder(dimMeter, floorplan);
+		const reloaded = loadUnder(dimCentiMeter, file);
+
+		expect(cornerXY(reloaded)).toEqual([[0, 0], [400, 0]]);
+		expect([reloaded.walls[0].a.x, reloaded.walls[0].a.y]).toEqual([100, 150]);
+		expect([file.walls[0].a.x, file.walls[0].a.y]).toEqual([100, 150]);
 	});
 });
 
-describe('the unit landmine - three decimal rounding from decimals=1000', () =>
+describe('format 2.0.0 - the rounding goes with the conversion', () =>
 {
-	it('rounds a saved centimetre coordinate to three decimals', () =>
+	it('writes full precision instead of quantising to three decimals', () =>
 	{
+		// cmToMeasureRaw rounded through `Math.round(decimals * value) / decimals`
+		// with decimals = 1000, so 123.4567 was stored as 123.457 and the fourth
+		// decimal was gone for good. Nothing converts now, so nothing rounds.
 		const {floorplan} = buildPolygon([[0, 0], [123.4567, 0], [123.4567, 200], [0, 200]]);
-		expect(savedCorners(saveUnder(dimCentiMeter, floorplan))[1].x).toBe(123.457);
+		expect(savedCorners(saveUnder(dimCentiMeter, floorplan))[1].x).toBe(123.4567);
 	});
 
-	// QUIRK: the roadmap calls this "truncation" but Dimensioning uses
-	// Math.round(decimals * value) / decimals, so the third decimal rounds UP
-	// when the fourth is >= 5. Truncation would have produced 98.765.
-	it('rounds rather than truncates the third decimal', () =>
-	{
-		const {floorplan} = buildPolygon([[0, 0], [300, 0], [300, 98.7659], [0, 98.7659]]);
-		expect(savedCorners(saveUnder(dimCentiMeter, floorplan))[2].y).toBe(98.766);
-	});
-
-	it('does not recover the lost fourth decimal on load, so the cm round trip is lossy', () =>
+	it('is an exact round trip, which the centimetre path never was', () =>
 	{
 		const {floorplan} = buildPolygon([[0, 0], [123.4567, 0], [123.4567, 200], [0, 200]]);
 		const file = saveUnder(dimCentiMeter, floorplan);
-		expect(loadUnder(dimCentiMeter, file).corners[1].x).toBe(123.457);
+		expect(loadUnder(dimCentiMeter, file).corners[1].x).toBe(123.4567);
 	});
 
-	// In metres the same 1/1000 budget buys only millimetres, so saving in
-	// metres quantises the plan to the nearest millimetre.
-	it('quantises to whole millimetres when the display unit is dimMeter', () =>
+	it('no longer quantises to whole millimetres when the user is in metres', () =>
 	{
+		// The same 1/1000 budget bought only millimetres once the value was in
+		// metres, so working in metres silently coarsened the plan on every save.
 		const {floorplan} = buildPolygon([[0, 0], [123.4567, 0], [123.4567, 200], [0, 200]]);
 		const file = saveUnder(dimMeter, floorplan);
-		expect(savedCorners(file)[1].x).toBe(1.235);
-		expect(loadUnder(dimMeter, file).corners[1].x).toBe(123.5);
-	});
-});
-
-describe('the unit landmine - the other display units', () =>
-{
-	it('writes millimetres exactly and round-trips them without drift', () =>
-	{
-		const {floorplan} = buildSquareRoom();
-		const file = saveUnder(dimMilliMeter, floorplan);
-		expect(savedCorners(file).map((c) => [c.x, c.y])).toEqual([[0, 0], [4000, 0], [4000, 3000], [0, 3000]]);
-		expect(savedCorners(file)[0].elevation).toBe(2500);
-		expect(cornerXY(loadUnder(dimMilliMeter, file))).toEqual([[0, 0], [400, 0], [400, 300], [0, 300]]);
+		expect(savedCorners(file)[1].x).toBe(123.4567);
+		expect(loadUnder(dimMeter, file).corners[1].x).toBe(123.4567);
 	});
 
-	// QUIRK: the inch pair is not a pair of inverses. cmToMeasureRaw multiplies
-	// by 0.393700 while cmFromMeasureRaw multiplies by 2.5400013716002578512,
-	// and both round to 3 decimals, so 400 cm comes back as 399.999 cm. Every
-	// save/load cycle in inches walks the geometry.
-	it('drifts by 0.001 cm through an inch round trip', () =>
+	it('no longer drifts through an inch round trip', () =>
 	{
+		// cmToMeasureRaw multiplied by 0.393700 and cmFromMeasureRaw by
+		// 2.5400013716002578512 - not inverses - and both rounded, so 400 cm came
+		// back as 399.999 and every save/load cycle in inches walked the geometry.
 		const {floorplan} = buildSquareRoom();
 		const file = saveUnder(dimInch, floorplan);
-		expect(savedCorners(file).map((c) => [c.x, c.y])).toEqual([[0, 0], [157.48, 0], [157.48, 118.11], [0, 118.11]]);
-		expect(cornerXY(loadUnder(dimInch, file))).toEqual([[0, 0], [399.999, 0], [399.999, 300], [0, 300]]);
+		expect(cornerXY(loadUnder(dimInch, file))).toEqual([[0, 0], [400, 0], [400, 300], [0, 300]]);
 	});
 
-	// QUIRK: the dimFeetAndInch branch of cmToMeasureRaw is the only one that
-	// skips `Math.round(decimals * ...)`, so feet files carry full float noise
-	// instead of the 3-decimal values every other unit writes.
-	it('writes unrounded full-precision floats under dimFeetAndInch', () =>
+	it('no longer writes full float noise under feet and inches', () =>
 	{
+		// The feet branch was the only one that skipped the rounding, so feet
+		// files carried values like 13.123366666667998 where every other unit
+		// wrote three decimals. Both behaviours are gone with the conversion.
 		const {floorplan} = buildSquareRoom();
 		const file = saveUnder(dimFeetAndInch, floorplan);
-		expect(savedCorners(file).map((c) => [c.x, c.y])).toEqual([
-			[0, 0],
-			[13.123366666667998, 0],
-			[13.123366666667998, 9.842525000000999],
-			[0, 9.842525000000999],
-		]);
-		expect(savedCorners(file)[0].elevation).toBe(8.2021041666675);
-	});
-
-	it('round-trips feet exactly anyway, because the two odd constants cancel', () =>
-	{
-		const {floorplan} = buildSquareRoom();
-		const file = saveUnder(dimFeetAndInch, floorplan);
-		const reloaded = loadUnder(dimFeetAndInch, file);
-		expect(cornerXY(reloaded)).toEqual([[0, 0], [400, 0], [400, 300], [0, 300]]);
-		expect(reloaded.corners[0].elevation).toBe(250);
+		expect(savedCorners(file).map((c) => [c.x, c.y]))
+			.toEqual([[0, 0], [400, 0], [400, 300], [0, 300]]);
+		expect(savedCorners(file)[0].elevation).toBe(250);
 	});
 });
 
@@ -961,7 +929,7 @@ describe('Model.exportSerialized / loadSerialized', () =>
 
 		const exported = JSON.parse(model.exportSerialized()).floorplan;
 		expect(Object.keys(exported)).toEqual([
-			'version', 'corners', 'walls', 'rooms',
+			'version', 'units', 'corners', 'walls', 'rooms',
 			'wallTextures', 'floorTextures', 'newFloorTextures', 'carbonSheet',
 		]);
 		expect(roundDeep(normalizeIds(exported)))

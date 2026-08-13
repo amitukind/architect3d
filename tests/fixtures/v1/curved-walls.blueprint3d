@@ -1,33 +1,32 @@
 {
   "floorplan": {
-    "version": "2.0.0",
-    "units": "cm",
+    "version": "0.0.2a",
     "corners": {
-      "3cbb8cf9-dfa8-c767-622b-dd6ca3076374": {
+      "3d20e9da-9ccc-ed4e-0ca1-db145c690d98": {
         "x": 0,
         "y": 0,
         "elevation": 250
       },
-      "08afc10f-286c-cac0-8b5e-bd95b115e9bc": {
-        "x": 400,
+      "119bfbe3-f909-8800-73ac-8c3f9ae3c704": {
+        "x": 600,
         "y": 0,
         "elevation": 250
       },
-      "2acd5b76-479f-4e15-991e-3aed69377659": {
-        "x": 400,
-        "y": 300,
+      "c7a16b07-795f-da26-5cca-7b441789bfc7": {
+        "x": 600,
+        "y": 450,
         "elevation": 250
       },
-      "5d579743-c813-e9d8-e1f5-fc4b1b1c7cce": {
+      "d58e5bad-2dc9-fb54-1f3f-746c74d11ba6": {
         "x": 0,
-        "y": 300,
+        "y": 450,
         "elevation": 250
       }
     },
     "walls": [
       {
-        "corner1": "3cbb8cf9-dfa8-c767-622b-dd6ca3076374",
-        "corner2": "08afc10f-286c-cac0-8b5e-bd95b115e9bc",
+        "corner1": "3d20e9da-9ccc-ed4e-0ca1-db145c690d98",
+        "corner2": "119bfbe3-f909-8800-73ac-8c3f9ae3c704",
         "frontTexture": {
           "url": "rooms/textures/wallmap.png",
           "stretch": true,
@@ -38,19 +37,19 @@
           "stretch": true,
           "scale": 0
         },
-        "wallType": "STRAIGHT",
+        "wallType": "CURVED",
         "a": {
-          "x": 141.4213562373095,
-          "y": 141.42135623730948
+          "x": 212.13203435596427,
+          "y": 212.13203435596424
         },
         "b": {
-          "x": 258.5786437626905,
-          "y": 141.4213562373095
+          "x": 387.86796564403573,
+          "y": 212.13203435596427
         }
       },
       {
-        "corner1": "08afc10f-286c-cac0-8b5e-bd95b115e9bc",
-        "corner2": "2acd5b76-479f-4e15-991e-3aed69377659",
+        "corner1": "119bfbe3-f909-8800-73ac-8c3f9ae3c704",
+        "corner2": "c7a16b07-795f-da26-5cca-7b441789bfc7",
         "frontTexture": {
           "url": "rooms/textures/wallmap.png",
           "stretch": true,
@@ -63,17 +62,17 @@
         },
         "wallType": "STRAIGHT",
         "a": {
-          "x": 293.93398282201787,
-          "y": 106.06601717798213
+          "x": 440.90097423302683,
+          "y": 159.0990257669732
         },
         "b": {
-          "x": 293.93398282201787,
-          "y": 193.93398282201787
+          "x": 440.9009742330268,
+          "y": 290.90097423302683
         }
       },
       {
-        "corner1": "2acd5b76-479f-4e15-991e-3aed69377659",
-        "corner2": "5d579743-c813-e9d8-e1f5-fc4b1b1c7cce",
+        "corner1": "c7a16b07-795f-da26-5cca-7b441789bfc7",
+        "corner2": "d58e5bad-2dc9-fb54-1f3f-746c74d11ba6",
         "frontTexture": {
           "url": "rooms/textures/wallmap.png",
           "stretch": true,
@@ -84,19 +83,19 @@
           "stretch": true,
           "scale": 0
         },
-        "wallType": "STRAIGHT",
+        "wallType": "CURVED",
         "a": {
-          "x": 258.5786437626905,
-          "y": 158.57864376269052
+          "x": 387.86796564403573,
+          "y": 237.86796564403576
         },
         "b": {
-          "x": 141.42135623730948,
-          "y": 158.5786437626905
+          "x": 212.13203435596424,
+          "y": 237.86796564403573
         }
       },
       {
-        "corner1": "5d579743-c813-e9d8-e1f5-fc4b1b1c7cce",
-        "corner2": "3cbb8cf9-dfa8-c767-622b-dd6ca3076374",
+        "corner1": "d58e5bad-2dc9-fb54-1f3f-746c74d11ba6",
+        "corner2": "3d20e9da-9ccc-ed4e-0ca1-db145c690d98",
         "frontTexture": {
           "url": "rooms/textures/wallmap.png",
           "stretch": true,
@@ -109,18 +108,18 @@
         },
         "wallType": "STRAIGHT",
         "a": {
-          "x": 106.06601717798212,
-          "y": 193.93398282201787
+          "x": 159.09902576697317,
+          "y": 290.9009742330268
         },
         "b": {
-          "x": 106.06601717798213,
-          "y": 106.06601717798212
+          "x": 159.0990257669732,
+          "y": 159.09902576697317
         }
       }
     ],
     "rooms": {
-      "3cbb8cf9-dfa8-c767-622b-dd6ca3076374,08afc10f-286c-cac0-8b5e-bd95b115e9bc,2acd5b76-479f-4e15-991e-3aed69377659,5d579743-c813-e9d8-e1f5-fc4b1b1c7cce": {
-        "name": "A New Room"
+      "3d20e9da-9ccc-ed4e-0ca1-db145c690d98,119bfbe3-f909-8800-73ac-8c3f9ae3c704,c7a16b07-795f-da26-5cca-7b441789bfc7,d58e5bad-2dc9-fb54-1f3f-746c74d11ba6": {
+        "name": "Curved Hall"
       }
     },
     "wallTextures": [],

@@ -17,6 +17,42 @@ import {Room} from './room.js';
 export const defaultFloorPlanTolerance = 10.0;
 
 /**
+ * The unit every coordinate in a save file this build writes is expressed in,
+ * and the value of the file's `units` field.
+ *
+ * Centimetres, because that is what the model itself holds - so writing the
+ * file in them makes the numbers in it the numbers in memory, and makes a
+ * design independent of the display unit the user happened to have selected.
+ */
+export const SAVE_UNITS = 'cm';
+
+/**
+ * Choose how to turn a stored coordinate into centimetres.
+ *
+ * @param {?string} units The file's `units` field, absent on 0.0.2a and older.
+ * @returns {function(number): number}
+ */
+function cornerReader(units)
+{
+	if (units === undefined || units === null)
+	{
+		// Pre-2.0.0: written in the display unit active at save time.
+		return (value) => Dimensioning.cmFromMeasureRaw(value);
+	}
+	if (units !== SAVE_UNITS)
+	{
+		// Nothing writes anything else, so this is a file from a build that does
+		// not exist yet, or a hand-edited one. Warn and read it as centimetres
+		// rather than throw: refusing to open a design is a worse outcome than
+		// opening one whose scale the user can see is wrong.
+		console.warn(
+			`architect3d: save file declares units "${units}", which this build does not know. ` +
+			`Reading coordinates as ${SAVE_UNITS}.`);
+	}
+	return (value) => value;
+}
+
+/**
  * A Floorplan represents a number of Walls, Corners and Rooms. This is an
  * abstract that keeps the 2d and 3d in sync
  */
@@ -509,11 +545,29 @@ export class Floorplan extends EventDispatcher
 
 	// Save the floorplan as a json object file
 	/**
-	 * @return {void}
+	 * Serialize the plan.
+	 *
+	 * Writes save format 2.0.0, whose one difference from 0.0.2a is that it says
+	 * what unit its coordinates are in - and that they are always the same one.
+	 *
+	 * 0.0.2a wrote corner coordinates through `Dimensioning.cmToMeasureRaw()`,
+	 * which converts centimetres into whatever display unit happened to be
+	 * active when the user pressed save. Wall control points and every item
+	 * position went out raw. So one file mixed two units and recorded neither:
+	 * the same plan saved under metres and under centimetres produced two files
+	 * whose corner numbers differed by 100x, and loading either under the wrong
+	 * unit rescaled the whole plan silently. `tests/fixtures/v1/metres-room`
+	 * is that, frozen.
+	 *
+	 * 2.0.0 stores canonical centimetres throughout and stamps `units`. Corners
+	 * therefore agree with the control points and the items for the first time,
+	 * and a file is now independent of the setting it was written under.
+	 *
+	 * @return {Object} The serialized floorplan.
 	 */
 	saveFloorplan()
 	{
-		var floorplans = {version:Version.getTechnicalVersion(), corners: {}, walls: [], rooms: {}, wallTextures: [], floorTextures: {}, newFloorTextures: {}, carbonSheet:{}};
+		var floorplans = {version:Version.getTechnicalVersion(), units: SAVE_UNITS, corners: {}, walls: [], rooms: {}, wallTextures: [], floorTextures: {}, newFloorTextures: {}, carbonSheet:{}};
 		var cornerIds = [];
 // writing all the corners based on the corners array
 // is having a bug. This is because some walls have corners
@@ -540,8 +594,11 @@ export class Floorplan extends EventDispatcher
 			}
 		});
 
+		// Raw, not Dimensioning.cmToMeasureRaw. The model holds centimetres and
+		// so does the file - see the docblock above. This is the whole of the
+		// 2.0.0 change on the write side.
 		cornerIds.forEach((corner)=>{
-			floorplans.corners[corner.id] = {'x': Dimensioning.cmToMeasureRaw(corner.x),'y': Dimensioning.cmToMeasureRaw(corner.y), 'elevation': Dimensioning.cmToMeasureRaw(corner.elevation)};
+			floorplans.corners[corner.id] = {'x': corner.x,'y': corner.y, 'elevation': corner.elevation};
 		});
 
 // this.rooms.forEach((room)=>{
@@ -587,13 +644,26 @@ export class Floorplan extends EventDispatcher
 		{
 			return;
 		}
+		// How to read the corner coordinates, decided by the file rather than by
+		// its version number - the same rule as the wall records below.
+		//
+		// A stamped file says what unit it is in and this build only writes one,
+		// so `toCentimetres` is the identity for everything 2.0.0 and later. An
+		// unstamped file is 0.0.2a or older, where coordinates were written in
+		// whatever display unit was active at save time and the only guess
+		// available is the unit active now. That guess is wrong whenever the two
+		// differ, it always was, and no amount of care here can recover
+		// information the file does not contain - which is the entire reason the
+		// stamp exists. tests/fixtures/v1/ has the corpus, metres-room included.
+		var toCentimetres = cornerReader(floorplan.units);
+
 		for (var id in floorplan.corners)
 		{
 			var corner = floorplan.corners[id];
-			corners[id] = this.newCorner(Dimensioning.cmFromMeasureRaw(corner.x), Dimensioning.cmFromMeasureRaw(corner.y), id);
+			corners[id] = this.newCorner(toCentimetres(corner.x), toCentimetres(corner.y), id);
 			if(corner.elevation)
 			{
-				corners[id].elevation = Dimensioning.cmFromMeasureRaw(corner.elevation);
+				corners[id].elevation = toCentimetres(corner.elevation);
 			}
 		}
 		var scope = this;

@@ -54,16 +54,17 @@ describe('fixture files are well formed', () =>
 			expect(Array.isArray(raw.items)).toBe(true);
 		});
 
-		it(`${name} carries the current schema version`, () =>
+		it(`${name} carries the current schema version and unit stamp`, () =>
 		{
-			expect(readFixture(name).floorplan.version).toBe('0.0.2a');
+			expect(readFixture(name).floorplan.version).toBe('2.0.0');
+			expect(readFixture(name).floorplan.units).toBe('cm');
 		});
 
 		it(`${name} declares every key saveFloorplan writes`, () =>
 		{
 			expect(Object.keys(readFixture(name).floorplan).sort()).toEqual([
 				'carbonSheet', 'corners', 'floorTextures', 'newFloorTextures',
-				'rooms', 'version', 'wallTextures', 'walls',
+				'rooms', 'units', 'version', 'wallTextures', 'walls',
 			]);
 		});
 
@@ -242,24 +243,25 @@ describe('fixtures round-trip through the model layer', () =>
 	});
 });
 
-describe('the unit landmine applies to the fixtures too', () =>
+describe('the fixtures are immune to the display unit now', () =>
 {
-	it('loading a centimetre fixture under metres inflates every coordinate 100x', () =>
+	// This block used to be "the unit landmine applies to the fixtures too",
+	// asserting that loading simple-room under metres inflated every coordinate
+	// 100x. The fixtures carry a unit stamp as of format 2.0.0, so the display
+	// unit no longer touches them. Their v1 selves are frozen under
+	// tests/fixtures/v1/, where the old reading is still exercised.
+	it('reads simple-room identically under every display unit', () =>
 	{
-		resetAll();
 		const raw = readFixture('simple-room');
 
-		Configuration.setValue(configDimUnit, dimMeter);
-		const asMetres = new Floorplan();
-		asMetres.loadFloorplan(raw.floorplan);
-		const metreXs = asMetres.getCorners().map((c) => c.x).sort((p, q) => p - q);
-
-		Configuration.setValue(configDimUnit, dimCentiMeter);
-		const asCm = new Floorplan();
-		asCm.loadFloorplan(raw.floorplan);
-		const cmXs = asCm.getCorners().map((c) => c.x).sort((p, q) => p - q);
-
-		expect(Math.max(...cmXs)).toBe(400);
-		expect(Math.max(...metreXs)).toBe(40000);
+		for (const unit of [dimCentiMeter, dimMeter])
+		{
+			resetAll();
+			Configuration.setValue(configDimUnit, unit);
+			const floorplan = new Floorplan();
+			floorplan.loadFloorplan(raw.floorplan);
+			const xs = floorplan.getCorners().map((c) => c.x).sort((p, q) => p - q);
+			expect(Math.max(...xs), String(unit)).toBe(400);
+		}
 	});
 });

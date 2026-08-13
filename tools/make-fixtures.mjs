@@ -44,14 +44,17 @@ function seed(value)
 }
 
 /**
- * Fixtures are written in CENTIMETRES on purpose.
+ * Build the plans in CENTIMETRES, which is what the model holds.
  *
- * Saved coordinates are persisted in whatever display unit is active
- * (Dimensioning.cmToMeasureRaw on save, cmFromMeasureRaw on load), so a file is
- * only faithful when the unit matches at both ends. BlueprintJS forces metres at
- * construction; these fixtures pin centimetres so the numbers in the file read
- * as the same numbers used to build them. Any consumer must set
- * configDimUnit = dimCentiMeter before loading them.
+ * This used to matter for the output as well: saved coordinates were persisted
+ * in whatever display unit was active, so a file was only faithful when the
+ * unit matched at both ends, and the whole corpus had to pin centimetres to
+ * stay readable. Save format 2.0.0 stores canonical centimetres and stamps
+ * `units`, so the display unit no longer reaches the file and a consumer no
+ * longer has to set anything before loading one.
+ *
+ * The v1 corpus under tests/fixtures/v1/ is what that used to look like, and
+ * this script cannot reproduce it - see the README beside those files.
  */
 function useCentimetres()
 {
@@ -204,4 +207,4 @@ write('rich-design.blueprint3d', buildRich(),
 write('curved-walls.blueprint3d', buildCurved(),
 	'2 curved walls - kept apart from wall-bound items (half_edge.js:298)');
 
-console.log('\nFixtures are saved in CENTIMETRES. Set configDimUnit = dimCentiMeter before loading.');
+console.log('\nFixtures are save format 2.0.0: canonical centimetres, stamped "units": "cm".');

@@ -37,11 +37,18 @@
 /**
  * The version stamped into files this build writes.
  *
- * Still 0.0.2a here, and moves in the commit that makes the format
- * self-describing. Bumping it on its own would stamp a new number onto bytes
- * that had not changed, which is the opposite of what a version is for.
+ * 0.0.2a for the whole life of the project before this. 2.0.0 marks the format
+ * becoming self-describing: coordinates are canonical centimetres and the file
+ * carries a `units` field saying so (see Floorplan.saveFloorplan). Reading is
+ * driven by that field rather than by this number, so an old file is still
+ * recognised by what it contains; the bump is for humans and for tools.
+ *
+ * A major bump rather than a minor one because an older build reading a 2.0.0
+ * file gets the coordinates wrong unless its display unit happens to be
+ * centimetres - the change is not backwards compatible in that direction, and
+ * saying so is what the number is for.
  */
-const SAVE_FORMAT_VERSION = '0.0.2a';
+const SAVE_FORMAT_VERSION = '2.0.0';
 
 /**
  * Split a version string into numeric components.
