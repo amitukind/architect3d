@@ -220,15 +220,24 @@ export class Edge extends EventDispatcher
 			//   r185   indirectDiffuse += texel * lightMapIntensity * RECIPROCAL_PI
 			//
 			// so an unchanged lightmap arrives pi times darker and every wall in
-			// the app renders muddy. (Note this is the *basic* material's chunk.
-			// The lit materials' lights_fragment_maps had a leading PI in r98 and
-			// does not now, which is a different factor on a path this app does
-			// not use for walls.)
+			// the app renders muddy. The r185 line is inlined in
+			// ShaderLib/meshbasic.glsl.js rather than living in an includable
+			// ShaderChunk; the r98 line is in the frozen bundle, at
+			// `git show legacy-demo:build/js/bp3djs.js`, in meshbasic_frag.
 			//
-			// Belongs to the S4 parity freeze and was missed there, because the
-			// freeze had no golden screenshots to be checked against. It showed up
-			// in the first frame tools/capture-parity.mjs produced. S8 removes it
-			// with the rest of the freeze.
+			// Only the *basic* material is involved, and walls are the only thing
+			// in this app carrying a lightMap. The lit materials moved by the same
+			// factor in the opposite direction - r98's lights_fragment_maps had a
+			// leading PI under #ifndef PHYSICALLY_CORRECT_LIGHTS and r185's does
+			// not - but nothing here puts a lightMap on a lit material, so that
+			// path never runs.
+			//
+			// NOT part of the S4 colour freeze, despite arriving with it. This
+			// cancels a constant inside a shader; it is untouched by
+			// ColorManagement.enabled and by outputColorSpace, both of which act
+			// on values entering and leaving that shader rather than on the
+			// arithmetic inside it. S8 turns the freeze off and deliberately keeps
+			// this: deleting it would darken every wall in the application by pi.
 			lightMapIntensity: Math.PI,
 			opacity: 1.0,
 			wireframe: false,

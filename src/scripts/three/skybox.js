@@ -53,15 +53,44 @@ export class Skybox extends EventDispatcher
 		this.sky = null;
 
 		this.plainVertexShader = ['varying vec3 vWorldPosition;','void main() {','vec4 worldPosition = modelMatrix * vec4( position, 1.0 );','vWorldPosition = worldPosition.xyz;','gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0 );','}'].join('\n');
-		this.plainFragmentShader = ['uniform vec3 bottomColor;','uniform vec3 topColor;','uniform float offset;','uniform float exponent;','varying vec3 vWorldPosition;','void main() {',' float h = normalize( vWorldPosition + offset ).y;',' gl_FragColor = vec4( mix( bottomColor, topColor, max( pow( max(h, 0.0 ), exponent ), 0.0 ) ), 1.0 );','}'].join('\n');
-		
+		// --- Why these two shaders carry an explicit encode ---------------------
+		//
+		// A ShaderMaterial writes gl_FragColor itself, so it opts out of the one
+		// thing three does to every built-in material on the way out: the
+		// conversion into the renderer's output colour space. Every stock
+		// material ends its fragment shader with `#include <colorspace_fragment>`,
+		// which is one line - `gl_FragColor = linearToOutputTexel( gl_FragColor )`
+		// (ShaderChunk/colorspace_fragment.glsl.js) - and a raw shader that omits
+		// it is simply not in the pipeline.
+		//
+		// While the S4 freeze held, the omission was invisible: with
+		// outputColorSpace = Linear the function is the identity. S8 makes it
+		// real. Without these includes the sky would be the only surface in the
+		// scene still writing linear values into an sRGB frame, and the default
+		// gradient would drop from (146,178,206) to (73,114,157) - a much darker,
+		// bluer sky against correctly-encoded walls.
+		//
+		// The include must be its own array element: WebGLProgram's include
+		// pattern is line-anchored (`/^[ \t]*#include +<([\w\d./]+)>/gm`,
+		// WebGLProgram.js:243) and it is `.join('\n')` below that supplies the
+		// newline. Appending it to the previous string would leave the directive
+		// mid-line and it would never be substituted - and, because an
+		// unrecognised `#include` is left in place rather than reported, the
+		// failure would be a shader compile error at runtime, not a build error.
+		//
+		// Added in S8 ahead of the colour flip, deliberately: before the flip
+		// they expand to an identity and the parity grid is pixel-identical,
+		// which is what proves the includes resolved at all.
+		this.plainFragmentShader = ['uniform vec3 bottomColor;','uniform vec3 topColor;','uniform float offset;','uniform float exponent;','varying vec3 vWorldPosition;','void main() {',' float h = normalize( vWorldPosition + offset ).y;',' gl_FragColor = vec4( mix( bottomColor, topColor, max( pow( max(h, 0.0 ), exponent ), 0.0 ) ), 1.0 );','#include <colorspace_fragment>','}'].join('\n');
+
 		this.vertexShader = ['varying vec2 vUV;','void main() {','  vUV=uv;','  vec4 pos = vec4(position, 1.0);', '   gl_Position = projectionMatrix * modelViewMatrix * pos;','}'].join('\n');
 		// `texture` and `sample` are both reserved words in GLSL ES 3.00, which is
-		// what three emits for any material tagged GLSL3 - and `texture` shadows
-		// the built-in sampling function besides. Renamed to envMap/texel; the
-		// shader is otherwise unchanged. setEnvironmentMap() below builds the
-		// matching uniform.
-		this.fragmentShader = ['uniform sampler2D envMap;', 'varying vec2 vUV;', 'void main() {  ', 'vec4 texel = texture2D(envMap, vUV);', 'gl_FragColor = vec4(texel.xyz, texel.w);' ,'}'].join('\n');
+		// what three emits for every material that is not a RawShaderMaterial
+		// (WebGLProgram.js:801,805) - and `texture` shadows the built-in sampling
+		// function besides. Renamed to envMap/texel; the shader is otherwise
+		// unchanged. setEnvironmentMap() below builds the matching uniform, and
+		// tags the texture sRGB so this shader receives linear values to encode.
+		this.fragmentShader = ['uniform sampler2D envMap;', 'varying vec2 vUV;', 'void main() {  ', 'vec4 texel = texture2D(envMap, vUV);', 'gl_FragColor = vec4(texel.xyz, texel.w);', '#include <colorspace_fragment>' ,'}'].join('\n');
 		
 		this.texture = new TextureLoader();
 		this.plainSkyMat = new ShaderMaterial({vertexShader: this.plainVertexShader,fragmentShader: this.plainFragmentShader,uniforms: uniforms, side: DoubleSide});

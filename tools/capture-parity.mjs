@@ -1,18 +1,36 @@
 /**
- * Capture the r98 vs r185 parity grid the S5 exit gate asks for.
+ * Capture the rendering-parity grid the S5 and S8 exit gates ask for.
  *
  * S0 was meant to leave golden screenshots of the legacy demo and never did, so
- * the bump has had no pixel reference. This produces one, late but valid: the
+ * the bump had no pixel reference. This produces one, late but valid: the
  * `legacy-demo` tag ships a fully prebuilt `build/` - the rollup r98 bundle,
  * jQuery, every texture - so the old engine can be served as static files
  * without installing any of its packages. The new engine is the current `dist/`
  * bundle served the same way.
  *
- *     npm run parity            # capture both sides and write the report
+ *     npm run parity                      # r98 and the working tree
  *     npm run parity -- --only=current
+ *     npm run parity -- --frozen          # add the pre-S8 column (see below)
+ *     npm run parity -- --frozen=<ref>
  *
- * No setup: the worktree at the frozen tag is created on demand under
- * tools/parity/, and the current bundle is built if it is missing.
+ * ## The third column
+ *
+ * S5's question was "does r185 still draw what r98 drew", so two columns were
+ * enough. S8's is different: it turns colour management ON deliberately, which
+ * means the r98 column stops being the target and starts being history. What
+ * needs reviewing is the change S8 itself makes.
+ *
+ * `--frozen` adds that column by building the library from a git ref - by
+ * default the commit before S8 began - so the grid reads
+ * r98 | r185 frozen | r185 managed, left to right in the order the pixels
+ * actually moved. Unlike the r98 side, this one has to be compiled, so its
+ * worktree borrows this tree's node_modules rather than installing its own.
+ * That is sound as long as the ref's dependencies match the working tree's,
+ * which for a within-sprint comparison they do; it is checked below and the run
+ * stops if they have drifted.
+ *
+ * No setup: both worktrees are created on demand under tools/parity/, and the
+ * current bundle is built if it is missing.
  *
  * Both sides run the identical page (tools/parity-goldens.html) against the
  * identical design (tests/fixtures/rich-design.blueprint3d) at the identical
@@ -26,7 +44,7 @@
  */
 import {createServer} from 'node:http';
 import {execFile, execFileSync} from 'node:child_process';
-import {copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync} from 'node:fs';
+import {copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync} from 'node:fs';
 import {dirname, extname, join, normalize, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {promisify} from 'node:util';
@@ -39,6 +57,12 @@ const OUT = join(HERE, 'parity');
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 /** The frozen pre-migration commit the r98 side is rendered from. */
 const LEGACY_TAG = 'legacy-demo';
+/**
+ * The default ref for the `--frozen` column: the state of the library before
+ * the colour pipeline changed. `HEAD` while S8 is being written, since S8's
+ * commit does not exist yet; pass `--frozen=<ref>` to pin it afterwards.
+ */
+const FROZEN_REF = process.env.FROZEN_REF || 'HEAD';
 const VIEWPORT = {width: 1000, height: 700};
 
 /** The states tools/parity-goldens.html knows how to set up. */
@@ -52,6 +76,7 @@ const STATES = [
 	['inside', 'camera inside the plan - near walls fade to 0.3 opacity'],
 	['floors', 'straight down, close in - floor textures and tiling scale'],
 	['wireframe', 'wireframe toggle'],
+	['checker', 'the colour-space fixture on every wall, floor and the ground (S8)'],
 	['floorplan2d', 'the 2D floorplanner canvas'],
 ];
 
@@ -60,6 +85,11 @@ const ENGINES = {
 		label: 'three r98 (legacy-demo tag)',
 		root: join(OUT, 'root-legacy'),
 		port: 10011,
+	},
+	frozen: {
+		label: 'three r185, colour frozen',
+		root: join(OUT, 'root-frozen'),
+		port: 10013,
 	},
 	current: {
 		label: 'three r185 (working tree)',
@@ -111,6 +141,7 @@ function prepare(engine, source, bundle)
 	mkdirSync(join(engine.root, 'js'), {recursive: true});
 	copyFileSync(bundle, join(engine.root, 'js', 'bp3djs.js'));
 	copyFileSync(join(HERE, 'parity-goldens.html'), join(engine.root, 'parity-goldens.html'));
+	copyFileSync(join(HERE, 'parity-checker.png'), join(engine.root, 'parity-checker.png'));
 	copyFileSync(join(ROOT, 'tests', 'fixtures', 'rich-design.blueprint3d'),
 		join(engine.root, 'parity-design.blueprint3d'));
 }
@@ -230,10 +261,78 @@ function legacyWorktree()
 	return worktree;
 }
 
+/**
+ * A checkout of `ref` with this tree's node_modules borrowed, and the library
+ * built from it.
+ *
+ * The r98 side needs no build because the tag ships one. This side does, and
+ * installing a second copy of three to compile one bundle would cost more disk
+ * than the whole rest of the harness. Symlinking node_modules is safe for the
+ * comparison this exists to make - the same dependencies, different source -
+ * and the check below refuses to run if the ref's dependencies have drifted
+ * from the working tree's, which is the one case where the shortcut would
+ * quietly compare the wrong thing.
+ *
+ * @param {string} ref Any commit-ish.
+ * @returns {string} Path to the built bundle.
+ */
+function frozenBundle(ref)
+{
+	const worktree = join(OUT, 'frozen-worktree');
+	const bundle = join(worktree, 'dist', 'bp3djs.js');
+
+	let head;
+	try
+	{
+		head = execFileSync('git', ['rev-parse', `${ref}^{commit}`], {cwd: ROOT, encoding: 'utf8'}).trim();
+	}
+	catch
+	{
+		console.error(`--frozen=${ref} does not name a commit in this repository.`);
+		process.exit(1);
+	}
+
+	// Reuse the worktree only if it is already at the ref we want.
+	const stamp = join(OUT, 'frozen-worktree.ref');
+	if (existsSync(bundle) && existsSync(stamp) && readFileSync(stamp, 'utf8').trim() === head)
+	{
+		console.log(`Reusing the frozen build at ${head.slice(0, 7)}`);
+		return bundle;
+	}
+
+	rmSync(worktree, {recursive: true, force: true});
+	execFileSync('git', ['worktree', 'prune'], {cwd: ROOT, stdio: 'pipe'});
+	console.log(`Building the frozen library from ${ref} (${head.slice(0, 7)})`);
+	execFileSync('git', ['worktree', 'add', '--detach', worktree, head], {cwd: ROOT, stdio: 'inherit'});
+
+	const ours = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).dependencies || {};
+	const theirs = JSON.parse(readFileSync(join(worktree, 'package.json'), 'utf8')).dependencies || {};
+	const drifted = Object.keys({...ours, ...theirs}).filter((name) => ours[name] !== theirs[name]);
+	if (drifted.length)
+	{
+		console.error(
+			`\nThe dependencies at ${ref} differ from the working tree's: ${drifted.join(', ')}.\n` +
+			'This column borrows the working tree\'s node_modules, so it would compile that\n' +
+			'ref against the wrong versions and the comparison would be meaningless.\n' +
+			`Run \`npm install\` inside ${worktree} and build it by hand, or pick a nearer ref.\n`);
+		process.exit(1);
+	}
+
+	symlinkSync(join(ROOT, 'node_modules'), join(worktree, 'node_modules'), 'dir');
+	execFileSync('npx', ['vite', 'build', '--mode', 'lib'], {cwd: worktree, stdio: 'inherit'});
+	writeFileSync(stamp, `${head}\n`);
+	return bundle;
+}
+
 /* ------------------------------------------------------------------ run -- */
 
 const only = process.argv.find((argument) => argument.startsWith('--only='));
-const wanted = only ? only.slice('--only='.length).split(',') : ['legacy', 'current'];
+const frozenArg = process.argv.find((argument) => argument === '--frozen' || argument.startsWith('--frozen='));
+const frozenRef = frozenArg && frozenArg.includes('=') ? frozenArg.slice('--frozen='.length) : FROZEN_REF;
+
+const wanted = only
+	? only.slice('--only='.length).split(',')
+	: ['legacy', ...(frozenArg ? ['frozen'] : []), 'current'];
 
 mkdirSync(OUT, {recursive: true});
 
@@ -242,6 +341,12 @@ if (wanted.includes('legacy'))
 	const build = join(legacyWorktree(), 'build');
 	prepare(ENGINES.legacy, build, join(build, 'js', 'bp3djs.js'));
 	await capture('legacy', ENGINES.legacy);
+}
+
+if (wanted.includes('frozen'))
+{
+	prepare(ENGINES.frozen, join(ROOT, 'build'), frozenBundle(frozenRef));
+	await capture('frozen', ENGINES.frozen);
 }
 
 if (wanted.includes('current'))
@@ -256,28 +361,47 @@ if (wanted.includes('current'))
 	await capture('current', ENGINES.current);
 }
 
-writeReport();
+writeReport(wanted.filter((name) => existsSync(join(OUT, name))));
 console.log('\nGrid written to tools/parity/index.html');
 
-/** A side-by-side page, so the pairs are reviewed rather than hunted for. */
-function writeReport()
+/**
+ * A side-by-side page, so the pairs are reviewed rather than hunted for.
+ *
+ * Columns are whichever engines were actually captured, in the order the pixels
+ * moved: r98, then the frozen r185, then the working tree.
+ *
+ * @param {Array<string>} captured
+ */
+function writeReport(captured)
 {
+	const order = ['legacy', 'frozen', 'current'].filter((name) => captured.includes(name));
+	const columns = order.length || 1;
+
 	const rows = STATES.map(([state, description]) =>
 	{
-		const pane = (engine) => existsSync(join(OUT, engine, `${state}.png`))
-			? `<img src="${engine}/${state}.png" alt="${engine} ${state}">`
-			: '<div class="missing">not captured</div>';
+		const panes = order.map((name) =>
+		{
+			const image = existsSync(join(OUT, name, `${state}.png`))
+				? `<img src="${name}/${state}.png" alt="${name} ${state}" loading="lazy">`
+				: '<div class="missing">not captured</div>';
+			return `<figure><figcaption>${ENGINES[name].label}</figcaption>${image}</figure>`;
+		}).join('');
 		return `<section>
 	<h2>${state}<span>${description}</span></h2>
-	<div class="pair">
-		<figure><figcaption>three r98 &mdash; legacy-demo</figcaption>${pane('legacy')}</figure>
-		<figure><figcaption>three r185 &mdash; working tree</figcaption>${pane('current')}</figure>
-	</div>
+	<div class="pair">${panes}</div>
 </section>`;
 	}).join('\n');
 
+	const frozenNote = order.includes('frozen')
+		? `<p><strong>Three columns.</strong> The middle one is the library built from
+<code>${frozenRef}</code> - r185 with S4's colour freeze still in place. Read left to
+right and you get the two changes in the order they happened: the engine bump,
+which was meant to change nothing, and then S8's colour pipeline, which is meant
+to change exactly this.</p>`
+		: '';
+
 	writeFileSync(join(OUT, 'index.html'), `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><title>architect3d - r98 vs r185 parity grid</title>
+<html lang="en"><head><meta charset="UTF-8"><title>architect3d - rendering parity grid</title>
 <style>
 :root{color-scheme:light dark;--ink:#16181d;--paper:#f7f7f9;--panel:#fff;--line:#d6d8de;--muted:#5f6470}
 @media(prefers-color-scheme:dark){:root{--ink:#e8e9ec;--paper:#101216;--panel:#191c22;--line:#333844;--muted:#9aa0ac}}
@@ -288,17 +412,17 @@ p{color:var(--muted);max-width:76ch;margin:0 0 8px}
 section{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:12px;margin-top:14px}
 h2{font:600 13px ui-monospace,SFMono-Regular,Menlo,monospace;margin:0 0 10px}
 h2 span{font-weight:400;color:var(--muted);margin-left:10px;font-family:inherit}
-.pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pair{display:grid;grid-template-columns:repeat(${columns},1fr);gap:10px}
 figure{margin:0}
 figcaption{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
 img{width:100%;display:block;border-radius:5px;border:1px solid var(--line)}
 .missing{aspect-ratio:${VIEWPORT.width}/${VIEWPORT.height};display:grid;place-items:center;color:var(--muted);border:1px dashed var(--line);border-radius:5px}
 </style></head><body>
-<h1>three r98 vs r185 &mdash; rendering parity</h1>
-<p>The reference S0 was meant to capture and did not. Left is the frozen
-<code>legacy-demo</code> tag served from its own prebuilt bundle; right is the
-working tree. Same page, same design, same ${VIEWPORT.width}&times;${VIEWPORT.height} viewport, software
-WebGL on both sides &mdash; the engine is the only variable.</p>
+<h1>architect3d &mdash; rendering parity</h1>
+<p>The reference S0 was meant to capture and did not. Same page, same design,
+same ${VIEWPORT.width}&times;${VIEWPORT.height} viewport, software WebGL throughout &mdash; the library is the
+only variable.</p>
+${frozenNote}
 <p>No catalog items appear: S3 and S4 changed how a loaded model looks
 deliberately and reviewed those changes separately, so including one would bake
 a known difference into the reference. These are the states the S5 exit gate

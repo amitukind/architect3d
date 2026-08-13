@@ -150,6 +150,55 @@
 			three.controls.update();
 		},
 
+		// Every texture-carrying surface wearing the same known image.
+		//
+		// This is the S8 exit gate's "checker fixture on every surface type",
+		// and the fixture is built to make one specific mistake visible: the
+		// two greys in it are #808080 and #bcbcbc, which swap roles depending on
+		// whether the texture is decoded as sRGB or as linear. Decoded right,
+		// #bcbcbc is the patch that reads as half brightness. Decoded wrong,
+		// #808080 is. See tools/make-checker.mjs.
+		//
+		// Walls and floors go through the same setTexture the inspector calls;
+		// the ground has no such API, so its existing texture keeps its wrapping
+		// and repeat and only its image is swapped. The repeat drops from 40 to
+		// 2 because a checker tiled forty times is a grey blur.
+		checker: function ()
+		{
+			var CHECKER = 'parity-checker.png';
+			var floorplan = blueprint.model.floorplan;
+
+			floorplan.wallEdges().forEach(function (edge)
+			{
+				edge.setTexture(CHECKER, false, 200);
+			});
+			floorplan.getRooms().forEach(function (room)
+			{
+				room.setTexture(CHECKER, false, 200);
+			});
+
+			var ground = three.skybox && three.skybox.groundMat;
+			if (ground && ground.map)
+			{
+				var image = new Image();
+				image.onload = function ()
+				{
+					ground.map.image = image;
+					ground.map.repeat.set(2, 2);
+					ground.map.needsUpdate = true;
+					ground.needsUpdate = true;
+					three.ensureNeedsUpdate();
+				};
+				image.src = CHECKER;
+			}
+
+			var centre = floorplan.getCenter();
+			var size = floorplan.getSize();
+			three.controls.object.position.set(centre.x - size.x * 1.1, 320, centre.z + size.z * 0.8);
+			three.controls.target.set(centre.x, 90, centre.z);
+			three.controls.update();
+		},
+
 		floorplan2d: function ()
 		{
 			viewer.classList.add('hidden');

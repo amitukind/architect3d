@@ -22,18 +22,25 @@ export class Lights extends EventDispatcher
 
 	init()
 	{
-		// x pi: r165 removed the legacy lighting mode, in which light intensity
-		// was scaled by 1/pi before reaching the shader. Physical units are the
-		// only mode now, so the r98 numbers - 1.1 and 0.5 - arrive pi times
-		// dimmer than they used to and every lit surface (the Phong floors and
-		// the loaded items) darkens. Unlit materials, which is most of this
-		// scene, would not move at all, so the result would be an inconsistent
-		// half-darkening rather than an even one.
+		// x pi: a unit conversion, not a workaround, and not part of the S4
+		// colour freeze.
 		//
-		// Multiplying restores the r98 look exactly. S5 recalibrates these to
-		// values chosen for the physical model rather than derived from the old
-		// one; the constants are written as products so that pass can see where
-		// they came from.
+		// r165 removed the legacy lighting mode. Under it the renderer scaled a
+		// light's contribution by 1/pi on the way into the shader; now it does
+		// not - WebGLLights writes `color * intensity` straight into the uniform
+		// - while `BRDF_Lambert` still divides the diffuse response by pi
+		// (common.glsl.js). So an intensity of N * PI reaches an up-facing
+		// diffuse surface as a multiplier of exactly N, which is what N alone
+		// used to mean.
+		//
+		// Written as products so the provenance stays visible: 1.1 and 0.5 are
+		// the numbers this app has always used. S8 reviewed them again when it
+		// turned colour management on and kept them - the conversion is exact,
+		// and re-picking them would have meant baking a new constant to
+		// compensate for something else. Note how little of this scene is lit at
+		// all: the walls, roof, sky and ground are all MeshBasicMaterial, so
+		// these two lights reach the Phong floors and the loaded items and
+		// nothing else.
 		var light = new HemisphereLight(0xffffff, 0x888888, 1.1 * Math.PI);
 		light.position.set(0, this.height, 0);
 		this.scene.add(light);

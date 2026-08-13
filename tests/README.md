@@ -200,11 +200,32 @@ What still needs a real browser, and is checked by hand:
 
   There is no setup — `npm run parity` creates the worktree at the tag itself
   (sparse, so it costs ~15 MB rather than 219 MB) and builds the current bundle
-  if it is missing. Everything it writes lives under `tools/parity/`, which is
+  if it is missing.
+
+  **A third column, for S8.** S5's question was "does r185 still draw what r98
+  drew". S8's is the opposite: it turns colour management on deliberately, so
+  r98 stops being the target and becomes history. `npm run parity -- --frozen`
+  adds a middle column built from a git ref — by default `HEAD` — so the grid
+  reads r98 │ r185 frozen │ r185 managed, in the order the pixels actually
+  moved. That column has to be compiled, so its worktree borrows this tree's
+  `node_modules`; the run stops with an explanation if the ref's dependencies
+  have drifted from the working tree's, which is the one case where borrowing
+  would quietly compare the wrong thing. Pin it with `--frozen=<ref>` once S8 is
+  committed.
+
+  **The checker state** is S8's exit-gate fixture: `tools/parity-checker.png`
+  on every wall, every floor and the ground at once. Its two greys are `#808080`
+  and `#bcbcbc`, which swap roles depending on whether the texture is decoded as
+  sRGB or as linear — decoded right, `#bcbcbc` is the patch that reads as half
+  brightness. Regenerate it with `node tools/make-checker.mjs`.
+
+  Everything the capture writes lives under `tools/parity/`, which is
   gitignored. To reclaim the space:
 
   ```bash
-  git worktree remove tools/parity/legacy-worktree && rm -rf tools/parity
+  git worktree remove tools/parity/legacy-worktree
+  git worktree remove tools/parity/frozen-worktree   # only if --frozen was used
+  rm -rf tools/parity
   ```
 
   This is what caught the S4 lightmap regression — walls were rendering pi
