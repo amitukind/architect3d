@@ -1,4 +1,4 @@
-import {EventDispatcher, TextureLoader, RepeatWrapping, BufferAttribute, Vector2, Vector3, MeshBasicMaterial, FrontSide, DoubleSide, BackSide, Shape, Path, ShapeGeometry, Mesh, } from 'three';
+import {EventDispatcher, TextureLoader, RepeatWrapping, BufferAttribute, Vector2, Vector3, MeshBasicMaterial, FrontSide, DoubleSide, BackSide, Shape, Path, ShapeGeometry, Mesh, SRGBColorSpace} from 'three';
 import {Utils} from '../core/utils.js';
 import {triangleFanGeometry} from '../core/geometry_builders.js';
 import {EVENT_REDRAW, EVENT_CAMERA_MOVED, EVENT_CAMERA_ACTIVE_STATUS} from '../core/events.js';
@@ -26,6 +26,25 @@ export class Edge extends EventDispatcher
 		this.texture = new TextureLoader();
 
 		this.lightMap = new TextureLoader().load('rooms/textures/walllightmap.png');
+		// sRGB, and written out rather than left to default (S8).
+		//
+		// three's own guidance is that a lightMap holds linear data, and for a
+		// baked irradiance buffer that is right. This one is not that: it is a
+		// hand-painted greyscale vignette, authored and looked at as an image, so
+		// sRGB is the honest description of what its bytes mean.
+		//
+		// It also happens to be the answer that preserves the picture, for a
+		// reason worth writing down. The walls are unlit MeshBasicMaterial, so a
+		// lightmap texel is decoded on the way in and the shaded result is
+		// re-encoded on the way out - and sRGB decode followed by sRGB encode is
+		// the identity. Tagging it sRGB therefore passes the authored bytes
+		// through untouched: the asset spans 232-253 and still renders 232-253,
+		// a 21-byte vignette. Leaving it linear skips the decode but not the
+		// encode, which lifts it to 244.6-254.1 and flattens the vignette to 9.5
+		// bytes - and no scalar lightMapIntensity can undo that, because the
+		// factor varies across the texture.
+		this.lightMap.colorSpace = SRGBColorSpace;
+
 		this.fillerColor = 0xdddddd;
 		this.sideColor = 0xcccccc;
 		this.baseColor = 0xdddddd;
@@ -181,6 +200,8 @@ export class Edge extends EventDispatcher
 		var url = textureData.url;
 		var scale = textureData.scale;
 		this.texture = new TextureLoader().load(url, callback);
+		// A wall texture is a picture of a wall (S8).
+		this.texture.colorSpace = SRGBColorSpace;
 
 		if (!stretch)
 		{

@@ -1,5 +1,5 @@
 import {Mesh, Matrix4, Vector2, Vector3, BoxGeometry, BoxHelper, Box3, MeshBasicMaterial, MeshStandardMaterial, AdditiveBlending} from 'three';
-import {CanvasTexture, PlaneGeometry, DoubleSide} from 'three';
+import {CanvasTexture, PlaneGeometry, DoubleSide, SRGBColorSpace} from 'three';
 import {Color} from 'three';
 import {Utils} from '../core/utils.js';
 import {Dimensioning} from '../core/dimensioning.js';
@@ -46,7 +46,14 @@ export class Item extends Mesh
 		/** */
 		this.error = false;
 		/** */
-		this.emissiveColor = 0x444444;
+		// Re-picked in S8, from 0x444444, to hold the hover highlight at the same
+		// strength it has always had. This value is never read back or
+		// serialized - setHex() writes it onto material.emissive and nothing
+		// round-trips it - so it is purely how bright a hovered item glows.
+		// Under the S4 freeze 0x444444 reached the shader as linear 0.2667; with
+		// colour management on the same literal decodes to 0.0578, which is a
+		// highlight 4.6x dimmer and easy to miss. 0x8d8d8d decodes to 0.2664.
+		this.emissiveColor = 0x8d8d8d;
 		/** Does this object affect other floor items */
 		this.obstructFloorMoves = true;
 		/** */
@@ -117,6 +124,11 @@ export class Item extends Mesh
 
 		this.canvascontextWH = this.canvasWH.getContext('2d');
 		this.canvasTextureWH = new CanvasTexture(this.canvasWH);
+		// A 2D canvas paints in sRGB, so say so (S8). Affects the label card's
+		// translucent backing and the glyph antialiasing; the pure-black and
+		// pure-red ink is unmoved, since 0 and 255 are the fixed points of the
+		// transfer function.
+		this.canvasTextureWH.colorSpace = SRGBColorSpace;
 		this.canvasMaterialWH = new MeshBasicMaterial({map:this.canvasTextureWH, side: DoubleSide, transparent:true});
 		this.canvasPlaneWH = new Mesh(new PlaneGeometry(this.getWidth(), this.getHeight(), 1, 1), this.canvasMaterialWH);
 		this.canvasPlaneWH.scale.set(1, 1, 1);
@@ -128,6 +140,7 @@ export class Item extends Mesh
 
 		this.canvascontextWD = this.canvasWD.getContext('2d');
 		this.canvasTextureWD = new CanvasTexture(this.canvasWD);
+		this.canvasTextureWD.colorSpace = SRGBColorSpace;
 		this.canvasMaterialWD = new MeshBasicMaterial({map:this.canvasTextureWD, side: DoubleSide, transparent:true});
 		this.canvasPlaneWD = new Mesh(new PlaneGeometry(this.getWidth(), this.getDepth(), 1, 1), this.canvasMaterialWD);
 		this.canvasPlaneWD.rotateX(-Math.PI * 0.5);
@@ -284,6 +297,41 @@ export class Item extends Mesh
 	}
 
 	// Always send an hexadecimal string value for color - ex. '#FFFFFF'
+	/**
+	 * Set one material's colour from a CSS hex string.
+	 *
+	 * ## The working-space convention, pinned in S8
+	 *
+	 * Hex in, hex out, and the hex is always **sRGB** - the space the value was
+	 * picked in, and the space `<input type="color">` hands over. `new Color(hex)`
+	 * decodes it into the linear working space and `getHexString()` encodes it
+	 * back, so `new Color('#' + item.getMaterialColor(i).slice(1))` returns the
+	 * same eight bits it started with. That round trip is byte-exact and, worth
+	 * knowing, was byte-exact under the S4 freeze too - both halves moved
+	 * together. It is not evidence the pipeline is right, which is why the tests
+	 * assert the linear value a Color holds rather than the hex it prints.
+	 *
+	 * ## What this does not fix
+	 *
+	 * `getMetaData()` writes every material's colour into the save file on every
+	 * save, whether the user picked it or not - and for a glTF model that colour
+	 * came from `baseColorFactor`, which GLTFLoader sets as a raw *linear* float.
+	 * Under the freeze those linear floats were quantised straight to bytes, so a
+	 * design saved before S8 stores linear numbers in a field that now reads as
+	 * sRGB, and its furniture reloads darker than it was authored.
+	 *
+	 * Not migrated here, deliberately. Re-interpreting old files needs a format
+	 * version to know which files to re-interpret, and the file cannot tell an
+	 * authored colour from a colour the user actually chose - so a blanket
+	 * re-read would fix the first and corrupt the second. S9 owns the save
+	 * format; this is written down for it rather than guessed at now. The
+	 * exposure is smaller than it looks: the legacy demo's item inspector never
+	 * bound its item (see S6), so no user could have picked a material colour
+	 * before this migration began.
+	 *
+	 * @param {string} color A CSS hex string, interpreted as sRGB.
+	 * @param {number} index Which material, for a multi-material item.
+	 */
 	setMaterialColor(color, index)
 	{
 		var c = new Color(color);

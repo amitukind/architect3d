@@ -441,32 +441,54 @@ describe('BlueprintJS mount and unmount', () =>
  * three are one-liners that a later refactor could silently drop. S8 removes
  * them deliberately, and these tests with them.
  */
-describe('the r98 parity freeze', () =>
+describe('the colour pipeline', () =>
 {
-	it('disables colour management at import time, not at renderer construction', () =>
+	// S4 froze colour management off so the engine bump could be reviewed as a
+	// geometry change; these two were the tripwires for the sprint that undid
+	// that, and they fired on it. Rewritten in S8 to pin the new contract rather
+	// than deleted - the property they guard is the same one, and it is exactly
+	// as easy to break in the other direction.
+
+	it('enables colour management at import time, not at renderer construction', () =>
 	{
 		// A Color converts when it is built, and materials are built long before
 		// any renderer exists - so setting this inside getARenderer() would be too
 		// late for every colour the app has already picked.
-		expect(THREE.ColorManagement.enabled).toBe(false);
+		expect(THREE.ColorManagement.enabled).toBe(true);
 	});
 
-	it('leaves hex colours exactly as authored, with no sRGB-to-linear conversion', () =>
+	it('reads hex literals as sRGB and stores them linear', () =>
 	{
-		// The observable consequence. With management on, 0x808080 arrives in the
-		// shader as roughly 0.216; r98 passed 0.5019 straight through.
+		// The observable consequence, and the reason a hex round-trip test proves
+		// nothing: `new Color('#' + c.getHexString())` is byte-exact whether
+		// management is on or off, because both halves move together. What
+		// actually changed is the value the shader receives.
 		const colour = new THREE.Color(0x808080);
-		expect(colour.r).toBeCloseTo(128 / 255, 6);
-		expect(colour.g).toBeCloseTo(128 / 255, 6);
-		expect(colour.b).toBeCloseTo(128 / 255, 6);
+		expect(colour.r).toBeCloseTo(0.21586050010324417, 9);
+		expect(colour.g).toBeCloseTo(0.21586050010324417, 9);
+		expect(colour.b).toBeCloseTo(0.21586050010324417, 9);
+		// Under the freeze this was 128/255 = 0.5019607843137255.
+		expect(colour.r).not.toBeCloseTo(128 / 255, 4);
+	});
+
+	it('renders into sRGB, so the decode on the way in has a matching encode', () =>
+	{
+		// The two halves must agree. A decoded texture written into an unencoded
+		// frame lands a full gamma too dark; an undecoded one into an encoded
+		// frame lands far too bright.
+		const {viewer} = buildViewerDom();
+		const three = new Main(new Model(), viewer, 'three-canvas', {});
+		expect(three.renderer.outputColorSpace).toBe(THREE.SRGBColorSpace);
+		three.dispose();
 	});
 
 	it('scales light intensities by pi to replace the legacy lighting mode', () =>
 	{
-		// r165 removed the 1/pi scaling three used to apply, so the r98 constants
-		// would arrive pi times dimmer and darken every lit surface - the Phong
-		// floors and the loaded items - while leaving the unlit walls, sky and
-		// ground untouched. That uneven result is worse than either look.
+		// A unit conversion, not a colour workaround, which is why S8 kept it
+		// while lifting everything around it. r165 stopped applying the 1/pi
+		// scaling on the way into the shader; BRDF_Lambert still divides the
+		// diffuse response by pi. So N * PI reaches an up-facing surface as
+		// exactly N, which is what N alone used to mean.
 		const scene = {add() {}};
 		const floorplan = new THREE.EventDispatcher();
 		floorplan.getSize = () => new THREE.Vector3(1, 1, 1);

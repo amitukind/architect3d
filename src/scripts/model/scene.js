@@ -1,4 +1,4 @@
-import {EventDispatcher, Color, LinearSRGBColorSpace} from 'three';
+import {EventDispatcher, Color} from 'three';
 // three's own addons since S4, replacing the three-gltf-loader and
 // @calvinscofield/three-objloader repacks. Each of those bundled its own copy
 // of three (r105 and r94), so `instanceof` silently failed across the seam and
@@ -204,11 +204,18 @@ export class Scene extends EventDispatcher
 		};
 		var gltfCallback = function(gltfModel)
 		{
+			// S3 built a restoreLegacyTextureEncoding() here, undoing GLTFLoader's
+			// sRGB tagging on the 25 converted models so they matched a renderer
+			// that was deliberately not colour-managed. S8 made the renderer
+			// colour-managed, so the shim is gone and GLTFLoader's tagging stands.
+			//
+			// It also removes an inconsistency the freeze created: the catalog
+			// lists all 25 as .glb, so a chair placed from the palette already
+			// rendered differently from the same chair restored out of an old save
+			// - only the restored one carried the legacyConverted flag. They agree
+			// again now. metadata.legacyConverted is still written, since the URL
+			// shim reports through it.
 			var merged = mergeMeshes(gltfModel.scene);
-			if(metadata.legacyConverted)
-			{
-				restoreLegacyTextureEncoding(merged.materials);
-			}
 			loaderCallback(merged.geometry, merged.materials);
 		};
 
@@ -259,35 +266,3 @@ export class Scene extends EventDispatcher
  */
 Scene.unloadableItemCount = 0;
 
-/**
- * Undo GLTFLoader's sRGB tagging on the models converted in S3.
- *
- * GLTFLoader marks every baseColorTexture as sRGB, which is right for a
- * colour-managed pipeline. This renderer is deliberately not one yet - the S4
- * parity freeze keeps output in linear sRGB - so a decoded texture is written
- * out without being re-encoded and lands about a gamma darker than the same
- * bytes did under the legacy JSONLoader, which tagged nothing.
- *
- * Restoring a linear colour space on exactly these 25 models keeps them looking
- * as they always have, which is what makes their per-model A/B review passable.
- * Deliberately scoped to converted legacy models - the 142 Kenney glTF models
- * have rendered as sRGB all along and are left alone. S8 replaces all of this
- * with a real colour pipeline and deletes this function.
- *
- * `encoding` became `colorSpace` in r152. The decode is now done by the GPU,
- * choosing an SRGB8_ALPHA8 internal format when the texture says sRGB, so this
- * has to be set before the texture is first uploaded - which it is, since the
- * item has not been added to the scene yet.
- */
-function restoreLegacyTextureEncoding(materials)
-{
-	materials.forEach(function (material)
-	{
-		if(material && material.map)
-		{
-			material.map.colorSpace = LinearSRGBColorSpace;
-			material.map.needsUpdate = true;
-			material.needsUpdate = true;
-		}
-	});
-}

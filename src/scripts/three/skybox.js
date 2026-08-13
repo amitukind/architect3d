@@ -1,4 +1,4 @@
-import {EventDispatcher, PlaneGeometry, SphereGeometry, MeshBasicMaterial, ShaderMaterial, Mesh, TextureLoader, Color, DoubleSide} from 'three';
+import {EventDispatcher, PlaneGeometry, SphereGeometry, MeshBasicMaterial, ShaderMaterial, Mesh, TextureLoader, Color, DoubleSide, SRGBColorSpace} from 'three';
 import {RepeatWrapping} from 'three';
 
 
@@ -102,6 +102,8 @@ export class Skybox extends EventDispatcher
 		
 		
 		var groundT = new TextureLoader().load('rooms/textures/Ground_4K.jpg', function(){});
+		// A photograph of gravel (S8).
+		groundT.colorSpace = SRGBColorSpace;
 		groundT.wrapS = groundT.wrapT = RepeatWrapping;
 		// 40, not 10 - see GROUND_REFLECTOR_ENABLED. The reflector used to replace
 		// this material entirely and tiled its own copy of the same image at
@@ -219,6 +221,12 @@ export class Skybox extends EventDispatcher
 		var scope = this;
 		scope.texture.load(url, function (t)
 		{
+			// The environment photograph, decoded on the way in so the shader's
+			// #include <colorspace_fragment> has linear values to encode (S8).
+			// Before S8 the two omissions cancelled - no decode, no encode - so
+			// this and the include have to arrive together or the sky doubles or
+			// halves its gamma.
+			t.colorSpace = SRGBColorSpace;
 			var textureUniform = {type: 't', value: t};
 			var uniforms = {envMap: textureUniform};
 			scope.skyMat = new ShaderMaterial({vertexShader: scope.vertexShader, fragmentShader: scope.fragmentShader, uniforms: uniforms, side: DoubleSide});

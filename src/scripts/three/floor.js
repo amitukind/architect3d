@@ -1,4 +1,4 @@
-import {EventDispatcher, TextureLoader, RepeatWrapping, MeshBasicMaterial, MeshPhongMaterial,  FrontSide, DoubleSide, Vector2, Vector3, Shape, ShapeGeometry, Mesh} from 'three';
+import {EventDispatcher, TextureLoader, RepeatWrapping, MeshBasicMaterial, MeshPhongMaterial,  FrontSide, DoubleSide, Vector2, Vector3, Shape, ShapeGeometry, Mesh, SRGBColorSpace} from 'three';
 import {triangleFanGeometry} from '../core/geometry_builders.js';
 import {EVENT_CHANGED} from '../core/events.js';
 import {Configuration, configWallHeight} from '../core/configuration.js';
@@ -47,6 +47,11 @@ export class Floor extends EventDispatcher
 		// setup texture
 //		var floorTexture = ImageUtils.loadTexture(textureSettings.url);
 		var floorTexture = new TextureLoader().load(textureSettings.url);
+		// sRGB (S8). This one matters more than the others: the floor is
+		// MeshPhongMaterial and so the only lit surface in most views, which
+		// makes an untagged floor texture the obvious thing to mistake for the
+		// lights being wrong and "fix" by cutting the hemisphere intensity.
+		floorTexture.colorSpace = SRGBColorSpace;
 		floorTexture.wrapS = RepeatWrapping;
 		floorTexture.wrapT = RepeatWrapping;
 		floorTexture.repeat.set(1, 1);

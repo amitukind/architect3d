@@ -1,5 +1,5 @@
 import {EventDispatcher, Vector2, Vector3, WebGLRenderer, PerspectiveCamera, OrthographicCamera} from 'three';
-import {ColorManagement, LinearSRGBColorSpace} from 'three';
+import {ColorManagement, SRGBColorSpace} from 'three';
 import {Plane} from 'three';
 import {PCFSoftShadowMap} from 'three';
 // import {FirstPersonControls} from './first-person-controls.js';
@@ -19,20 +19,25 @@ import {Floorplan3D} from './floorPlan.js';
 import {Lights} from './lights.js';
 import {Skybox} from './skybox.js';
 
-// --- S4 parity freeze, input half ------------------------------------------
+// --- S8: colour management, on ---------------------------------------------
 //
-// r152 made `new Color(0xRRGGBB)` convert from sRGB into a linear working
-// space at construction. r98 stored the bytes as given, and every colour in
-// this app - wall fillers, roof grey, HUD handles, the skybox gradient - was
-// picked against that behaviour. Leaving it on would darken all of them.
+// r152 turned this on by default and S4 turned it back off, so that the engine
+// bump could be reviewed as a geometry change rather than a colour one. This is
+// the sprint that reverses that decision, deliberately and with its own review.
 //
-// This runs at import time rather than in getARenderer() because the
-// conversion happens when a Color is built, and materials are built long
-// before any renderer exists. It is a global in three, so it applies to
-// anything else the host page draws with three as well - accepted for the
-// duration of the freeze, and removed in S8 when the colour pipeline is
-// modernised deliberately and the goldens are re-based.
-ColorManagement.enabled = false;
+// With it on, `new Color(0xRRGGBB)` reads the literal as sRGB and stores the
+// linear value, every colour texture is decoded by the GPU on the way in, and
+// the frame is encoded back to sRGB on the way out. That is one coherent
+// pipeline instead of three-quarters of one, and it is what every other three
+// application and every glTF asset already assumes.
+//
+// `true` is three's own default, so this line changes nothing on its own. It
+// is written out because S4 wrote `false` here: a reader needs to see that the
+// freeze was lifted on purpose, and a deleted line says nothing. It also has to
+// stay at module scope rather than move into the renderer setup - a Color
+// converts when it is constructed, and materials are built long before any
+// renderer exists.
+ColorManagement.enabled = true;
 
 export class Main extends EventDispatcher
 {
@@ -133,31 +138,27 @@ export class Main extends EventDispatcher
 
 	getARenderer()
 	{
-		if (Main._rendererFactory)
-		{
-			return Main._rendererFactory(this);
-		}
+		// The seam swaps the *renderer*, not the configuration of it. Until S8
+		// this returned the fake immediately, so everything below - the colour
+		// space, the shadow map, the clear colour - ran only against a real
+		// WebGL context and no test could see any of it. Configuring whatever
+		// renderer we were handed costs nothing, keeps the fake honest, and is
+		// what lets tests/viewer-lifecycle.test.js assert on the output colour
+		// space at all.
 // scope.renderer = new WebGLRenderer({antialias: true, preserveDrawingBuffer:
 // true, alpha:true}); // preserveDrawingBuffer:true - required to support
 // .toDataURL()
-		var renderer = new WebGLRenderer({antialias: true, alpha:true});
+		var renderer = Main._rendererFactory
+			? Main._rendererFactory(this)
+			: new WebGLRenderer({antialias: true, alpha:true});
 
-		// --- S4 parity freeze -------------------------------------------------
-		//
-		// r152 turned colour management on by default: hex colours are converted
-		// from sRGB into the linear working space, and the frame is encoded back
-		// to sRGB on the way out. r98 did neither. None of it fails to compile;
-		// it just makes every colour in the app different.
-		//
-		// Freezing both halves keeps this sprint's job answerable - a shading
-		// difference now means the geometry rewrite broke something, not that the
-		// colour pipeline moved underneath it. S8 turns them back on deliberately
-		// and re-bases the golden screenshots against the result.
-		//
-		// The input half is frozen at module scope (see the top of this file),
-		// because a Color converts when it is constructed and materials are built
-		// long before any renderer exists.
-		renderer.outputColorSpace = LinearSRGBColorSpace;
+		// sRGB out. This is three's default too, and is written explicitly for
+		// the same reason as the line at the top of the file: S4 set it to
+		// Linear, and an S8 reader needs to see that it was changed rather than
+		// left alone. The two halves must move together - a decoded texture
+		// written into an unencoded frame lands a full gamma too dark, and an
+		// undecoded one into an encoded frame lands far too bright.
+		renderer.outputColorSpace = SRGBColorSpace;
 
 // scope.renderer.autoClear = false;
 		renderer.shadowMap.enabled = true;
