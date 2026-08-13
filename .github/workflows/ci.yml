@@ -1,0 +1,60 @@
+# Continuous integration for architect3d.
+#
+# BRANCH POLICY (deliberate, to conserve Actions minutes and storage):
+#   - Runs ONLY on pushes to `dev` and `master`.
+#   - Does NOT run on the `amit` working branch, or on any other branch.
+#   - Can always be started by hand from the Actions tab (workflow_dispatch).
+#
+# There is intentionally no `pull_request:` trigger. Add one only if you want
+# checks on PRs raised from working branches - it will consume minutes per PR
+# update. Nothing here uploads artifacts or populates the Actions cache, so the
+# workflow consumes no repository storage.
+name: CI
+
+on:
+  push:
+    branches:
+      - dev
+      - master
+  workflow_dispatch:
+
+# A newer push to the same branch cancels the older run instead of paying for both.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests (headless data layer)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          # No `cache:` on purpose - npm ci here takes ~20s, and caching would
+          # consume repository cache storage for a marginal time saving.
+
+      - name: Install dependencies
+        # `npm ci` respects lockfileVersion 1; plain `npm install` would silently
+        # rewrite the lockfile to v3 and produce a ~12k-line diff.
+        run: npm ci --no-audit --no-fund
+
+      - name: Run characterization tests
+        run: npm test
+
+      - name: Lint (report only)
+        # ESLint 4 against this source reports ~89 pre-existing style errors
+        # (missing semicolons and similar) that predate the migration. Lint is
+        # therefore informational until sprint S1 migrates to ESLint 10 flat
+        # config and clears them; at that point drop continue-on-error.
+        continue-on-error: true
+        run: npx eslint src/scripts tests tools --ext .js

@@ -3,3 +3,8 @@ gitpush.sh~
 /.babelrc~
 *.blend1
 .vscode/
+
+# Test tooling output. tests/fixtures/*.blueprint3d ARE committed on purpose -
+# they are the frozen migration baseline (regenerate with `npm run fixtures`).
+coverage/
+.vitest/

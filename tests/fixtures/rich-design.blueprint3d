@@ -1,0 +1,231 @@
+{
+  "floorplan": {
+    "version": "0.0.2a",
+    "corners": {
+      "3c885e88-8116-b473-0cf0-5e98c6568e62": {
+        "x": 0,
+        "y": 0,
+        "elevation": 260
+      },
+      "0438a3a5-401d-6c20-9737-d6413c2dfb18": {
+        "x": 500,
+        "y": 0,
+        "elevation": 250
+      },
+      "dc6353ae-aebf-880d-3747-1ac2120f51a2": {
+        "x": 500,
+        "y": 400,
+        "elevation": 240
+      },
+      "213bb50e-9538-611a-4350-c03bee422d61": {
+        "x": 0,
+        "y": 400,
+        "elevation": 250
+      },
+      "558afbb5-637a-8c4c-7753-fe8de003b61e": {
+        "x": 900,
+        "y": 0,
+        "elevation": 250
+      },
+      "f52df999-27ab-5f4d-afa8-29de7e002c84": {
+        "x": 900,
+        "y": 400,
+        "elevation": 280
+      }
+    },
+    "walls": [
+      {
+        "corner1": "3c885e88-8116-b473-0cf0-5e98c6568e62",
+        "corner2": "0438a3a5-401d-6c20-9737-d6413c2dfb18",
+        "frontTexture": {
+          "url": "rooms/textures/marbletiles.jpg",
+          "stretch": false,
+          "scale": 300
+        },
+        "backTexture": {
+          "url": "rooms/textures/light_brick.jpg",
+          "stretch": false,
+          "scale": 300
+        },
+        "wallType": "STRAIGHT",
+        "a": {
+          "x": 176.7766952966369,
+          "y": 176.77669529663686
+        },
+        "b": {
+          "x": 323.22330470336317,
+          "y": 176.7766952966369
+        }
+      },
+      {
+        "corner1": "0438a3a5-401d-6c20-9737-d6413c2dfb18",
+        "corner2": "dc6353ae-aebf-880d-3747-1ac2120f51a2",
+        "frontTexture": {
+          "url": "rooms/textures/light_brick.jpg",
+          "stretch": false,
+          "scale": 300
+        },
+        "backTexture": {
+          "url": "rooms/textures/wallmap_yellow.png",
+          "stretch": true,
+          "scale": 0
+        },
+        "wallType": "STRAIGHT",
+        "a": {
+          "x": 358.5786437626905,
+          "y": 141.4213562373095
+        },
+        "b": {
+          "x": 358.5786437626905,
+          "y": 258.5786437626905
+        }
+      },
+      {
+        "corner1": "dc6353ae-aebf-880d-3747-1ac2120f51a2",
+        "corner2": "213bb50e-9538-611a-4350-c03bee422d61",
+        "frontTexture": {
+          "url": "rooms/textures/wallmap_yellow.png",
+          "stretch": true,
+          "scale": 0
+        },
+        "backTexture": {
+          "url": "rooms/textures/marbletiles.jpg",
+          "stretch": false,
+          "scale": 300
+        },
+        "wallType": "STRAIGHT",
+        "a": {
+          "x": 323.2233047033631,
+          "y": 223.22330470336314
+        },
+        "b": {
+          "x": 176.77669529663686,
+          "y": 223.2233047033631
+        }
+      },
+      {
+        "corner1": "213bb50e-9538-611a-4350-c03bee422d61",
+        "corner2": "3c885e88-8116-b473-0cf0-5e98c6568e62",
+        "frontTexture": {
+          "url": "rooms/textures/marbletiles.jpg",
+          "stretch": false,
+          "scale": 300
+        },
+        "backTexture": {
+          "url": "rooms/textures/light_brick.jpg",
+          "stretch": false,
+          "scale": 300
+        },
+        "wallType": "STRAIGHT",
+        "a": {
+          "x": 141.42135623730948,
+          "y": 258.5786437626905
+        },
+        "b": {
+          "x": 141.4213562373095,
+          "y": 141.42135623730948
+        }
+      },
+      {
+        "corner1": "0438a3a5-401d-6c20-9737-d6413c2dfb18",
+        "corner2": "558afbb5-637a-8c4c-7753-fe8de003b61e",
+        "frontTexture": {
+          "url": "rooms/textures/light_brick.jpg",
+          "stretch": false,
+          "scale": 300
+        },
+        "backTexture": {
+          "url": "rooms/textures/wallmap_yellow.png",
+          "stretch": true,
+          "scale": 0
+        },
+        "wallType": "STRAIGHT",
+        "a": {
+          "x": 641.4213562373095,
+          "y": 141.42135623730948
+        },
+        "b": {
+          "x": 758.5786437626905,
+          "y": 141.4213562373095
+        }
+      },
+      {
+        "corner1": "558afbb5-637a-8c4c-7753-fe8de003b61e",
+        "corner2": "f52df999-27ab-5f4d-afa8-29de7e002c84",
+        "frontTexture": {
+          "url": "rooms/textures/wallmap_yellow.png",
+          "stretch": true,
+          "scale": 0
+        },
+        "backTexture": {
+          "url": "rooms/textures/marbletiles.jpg",
+          "stretch": false,
+          "scale": 300
+        },
+        "wallType": "STRAIGHT",
+        "a": {
+          "x": 758.5786437626905,
+          "y": 141.4213562373095
+        },
+        "b": {
+          "x": 758.5786437626905,
+          "y": 258.5786437626905
+        }
+      },
+      {
+        "corner1": "f52df999-27ab-5f4d-afa8-29de7e002c84",
+        "corner2": "dc6353ae-aebf-880d-3747-1ac2120f51a2",
+        "frontTexture": {
+          "url": "rooms/textures/marbletiles.jpg",
+          "stretch": false,
+          "scale": 300
+        },
+        "backTexture": {
+          "url": "rooms/textures/light_brick.jpg",
+          "stretch": false,
+          "scale": 300
+        },
+        "wallType": "STRAIGHT",
+        "a": {
+          "x": 758.5786437626905,
+          "y": 258.5786437626905
+        },
+        "b": {
+          "x": 641.4213562373095,
+          "y": 258.5786437626905
+        }
+      }
+    ],
+    "rooms": {
+      "3c885e88-8116-b473-0cf0-5e98c6568e62,0438a3a5-401d-6c20-9737-d6413c2dfb18,dc6353ae-aebf-880d-3747-1ac2120f51a2,213bb50e-9538-611a-4350-c03bee422d61": {
+        "name": "Living Room"
+      },
+      "0438a3a5-401d-6c20-9737-d6413c2dfb18,558afbb5-637a-8c4c-7753-fe8de003b61e,f52df999-27ab-5f4d-afa8-29de7e002c84,dc6353ae-aebf-880d-3747-1ac2120f51a2": {
+        "name": "Study"
+      }
+    },
+    "wallTextures": [],
+    "floorTextures": {},
+    "newFloorTextures": {
+      "0438a3a5-401d-6c20-9737-d6413c2dfb18,213bb50e-9538-611a-4350-c03bee422d61,3c885e88-8116-b473-0cf0-5e98c6568e62,dc6353ae-aebf-880d-3747-1ac2120f51a2": {
+        "url": "rooms/textures/light_fine_wood.jpg",
+        "scale": 400
+      },
+      "0438a3a5-401d-6c20-9737-d6413c2dfb18,558afbb5-637a-8c4c-7753-fe8de003b61e,dc6353ae-aebf-880d-3747-1ac2120f51a2,f52df999-27ab-5f4d-afa8-29de7e002c84": {
+        "url": "rooms/textures/hardwood.png",
+        "scale": 300
+      }
+    },
+    "carbonSheet": {
+      "url": "rooms/textures/hardwood.png",
+      "transparency": 0.5,
+      "x": 10,
+      "y": 20,
+      "anchorX": 5,
+      "anchorY": 6,
+      "width": 800,
+      "height": 600
+    }
+  },
+  "items": []
+}

@@ -668,7 +668,12 @@ export class Floorplan extends EventDispatcher
 		this.metaroomsdata = floorplan.rooms;
 		this.update();
 
-		if('carbonSheet' in floorplan)
+		// The CarbonSheet is injected by the 2D floorplanner view. In widget mode
+		// (blueprint.js `options.widget`) and in headless use there is no 2D view,
+		// so this.carbonSheet is undefined and the block below used to throw on a
+		// design that carries a carbonSheet entry. Skip it instead: the data is
+		// still round-tripped by saveFloorplan only when a sheet exists.
+		if('carbonSheet' in floorplan && this.carbonSheet)
 		{
 			this.carbonSheet.clear();
 			this.carbonSheet.maintainProportion = false;

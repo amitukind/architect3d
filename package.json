@@ -7,7 +7,9 @@
     "build": "rollup -c",
     "dev": "rollup -c -w",
     "reload": "livereload 'build/'",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "fixtures": "node tools/make-fixtures.mjs",
     "watch": "npm-run-all --parallel reload dev",
     "docs": "esdoc"
   },
@@ -40,7 +42,8 @@
     "rollup-plugin-serve": "^0.3.0",
     "rollup-plugin-uglify": "^2.0.1",
     "rollup-plugin-uglify-es": "0.0.1",
-    "rollup-watch": "^4.0.0"
+    "rollup-watch": "^4.0.0",
+    "vitest": "^4.1.10"
   },
   "dependencies": {
     "@calvinscofield/three-objloader": "^1.0.4",

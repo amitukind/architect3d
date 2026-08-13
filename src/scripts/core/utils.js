@@ -166,14 +166,32 @@ export class Utils
 		return (tSum >= 0);
 	}
 
+	/**
+	 * Override the random source backing {@link Utils.guide}.
+	 * Tests use this to make generated corner/wall ids deterministic; passing
+	 * no argument (or null) restores Math.random. Production behaviour is
+	 * unchanged - guide() falls back to Math.random whenever nothing is set.
+	 *
+	 * Assigned onto the class object rather than declared as a static field:
+	 * the legacy rollup 1 + Babel 6 toolchain cannot parse static class
+	 * properties. Remove that constraint only after the Vite migration (S1).
+	 *
+	 * @param {function(): number} [fn] Returns a float in [0, 1).
+	 */
+	static setRandomSource(fn)
+	{
+		Utils._randomSource = (typeof fn === 'function') ? fn : null;
+	}
+
 	/** Creates a Guide.
 	 * @returns A new Guide.
 	 */
 	static guide()
 	{
+		var tRandom = Utils._randomSource || Math.random;
 		var tS4 = function ()
 		{
-			return Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
+			return Math.floor((1 + tRandom()) * 0x10000).toString(16).substring(1);
 		};
 		return tS4() + tS4() + '-' + tS4() + '-' + tS4() + '-' + tS4() + '-' + tS4() + tS4() + tS4();
 	}

@@ -38,6 +38,17 @@ export class Scene extends EventDispatcher
 		this.objloader = new OBJLoader();
 		this.gltfloader.setCrossOrigin('');
 
+		/**
+		 * Optional loader override, used by tests to run the model layer without
+		 * network I/O (the loaders above are the data layer's only environment
+		 * dependency). When set, addItem() calls this instead of the real loader:
+		 *
+		 *   setItemLoader((fileName, metadata, onLoad) => onLoad(geometry, materials))
+		 *
+		 * Null in production, where the format-based dispatch below is used.
+		 */
+		this.itemLoader = null;
+
 		this.itemLoadingCallbacks = null;
 		this.itemLoadedCallbacks = null;
 		this.itemRemovedCallbacks = null;
@@ -121,6 +132,21 @@ export class Scene extends EventDispatcher
 		this.items.forEach((item)=>{
 			item.switchWireframe(flag);
 		});
+	}
+
+	/**
+	 * Override how item models are fetched. The data layer's only network
+	 * dependency lives in addItem(); supplying a loader here makes the whole
+	 * model layer runnable headlessly (vitest, Node) and lets an embedder
+	 * supply its own asset pipeline.
+	 * @param {?function(string, Object, function(Object, Array))} fn
+	 *        Receives (fileName, metadata, onLoad) and must call
+	 *        onLoad(geometry, materials). Pass null to restore the built-in
+	 *        format-based loaders.
+	 */
+	setItemLoader(fn)
+	{
+		this.itemLoader = (typeof fn === 'function') ? fn : null;
 	}
 
 	/**
@@ -256,7 +282,12 @@ export class Scene extends EventDispatcher
 		};
 
 		this.dispatchEvent({type:EVENT_ITEM_LOADING});
-		if(!metadata.format)
+		if(this.itemLoader)
+		{
+			// Test/embedding seam - see this.itemLoader in the constructor.
+			this.itemLoader(fileName, metadata, loaderCallback);
+		}
+		else if(!metadata.format)
 		{
 			this.loader.load(fileName, loaderCallback, undefined); // third parameter is undefined - TODO_Ekki
 		}
