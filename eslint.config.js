@@ -19,15 +19,15 @@ import vue from 'eslint-plugin-vue';
 export default [
 	{
 		ignores: [
-			'build/**',        // frozen legacy demo + prebuilt bundles (S0 reference)
 			'dist/**',
 			'dist-demo/**',
-			'docs/**',         // generated esdoc output
-			'resources/**',    // dead vendored TypeScript ancestor
-			'models/**',
+			'docs/**',
+			'resources/**',      // dead vendored TypeScript ancestor; deleted later in S9
+			'public/**',         // deployed assets - one .gltf, no source
+			'asset-pipeline/**', // model sources: 25 three.js JSON models, .obj/.mtl, inventory scripts
 			'index.html',
 			'node_modules/**',
-			'tools/parity/**',  // capture output: served copies of both engines' build/
+			'tools/parity/**',   // capture output: served copies of every engine's asset root
 		],
 	},
 

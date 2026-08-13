@@ -20,7 +20,6 @@
  * of them because the format did not exist yet.
  */
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
-import {execFileSync} from 'node:child_process';
 import {readFileSync, existsSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {dirname, join} from 'node:path';
@@ -64,7 +63,6 @@ describe('the unified catalog', () =>
 		// 27 legacy entries + 142 glTF entries, less the one that pointed at a
 		// cabinet.json that has never existed in this repository.
 		expect(CATALOG.items.length).toBe(168);
-		expect(existsSync(join(ROOT, 'build/js/items_gltf.js'))).toBe(false);
 	});
 
 	it('has dropped the entry whose model file was never in the repository', () =>
@@ -82,7 +80,7 @@ describe('the unified catalog', () =>
 	{
 		const missing = CATALOG.items
 			.flatMap((item) => [item.model, item.image])
-			.filter((path) => !existsSync(join(ROOT, 'build', path)));
+			.filter((path) => !existsSync(join(ROOT, 'public', path)));
 		expect(missing).toEqual([]);
 	});
 
@@ -106,14 +104,12 @@ describe('the unified catalog', () =>
 		expect(names).toEqual([...LEGACY_MODEL_NAMES].sort());
 	});
 
-	it('is the source the demo palette is generated from', () =>
-	{
-		// build/js/items.js is generated. If it has drifted from catalog.json,
-		// someone edited the output instead of the input.
-		const before = readFileSync(join(ROOT, 'build/js/items.js'), 'utf8');
-		execFileSync('node', [join(ROOT, 'tools/make-demo-catalog.mjs')], {cwd: ROOT});
-		expect(readFileSync(join(ROOT, 'build/js/items.js'), 'utf8')).toBe(before);
-	});
+	// Removed in S9: a drift check that regenerated build/js/items.js from this
+	// catalog and compared the two. It guarded a GENERATED file - the jQuery
+	// palette the frozen demo appended to its Bootstrap modal - against someone
+	// editing the output instead of the input. Both the demo and its generator
+	// are gone, and the Vue catalog reads catalog.json directly (S7), so there
+	// is no longer an output to drift.
 });
 
 describe('resolveModelUrl', () =>
@@ -208,7 +204,7 @@ describe('loading a pre-migration design', () =>
 			expect(request.fileName).toMatch(/^models\/js-glb\/.*\.glb$/);
 			expect(request.format).toBe('gltf');
 			expect(request.legacyConverted).toBe(true);
-			expect(existsSync(join(ROOT, 'build', request.fileName))).toBe(true);
+			expect(existsSync(join(ROOT, 'public', request.fileName))).toBe(true);
 		}
 	});
 

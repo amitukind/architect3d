@@ -3,8 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- Model URLs resolve relative to build/, exactly as the app resolves them. -->
-<base href="/build/">
+<!-- Model URLs are relative ('models/gltf/...'), exactly as the app composes
+     them, and this page is served from /tools/. <base> resolves them against
+     the site root instead, where the dev server mounts public/. -->
+<base href="/">
 <title>architect3d - node transform A/B</title>
 <style>
 	:root

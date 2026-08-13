@@ -37,8 +37,8 @@ import {
 } from './helpers/models.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const LEGACY_DIR = join(ROOT, 'build/models/js');
-const CONVERTED_DIR = join(ROOT, 'build/models/js-glb');
+const LEGACY_DIR = join(ROOT, 'asset-pipeline/legacy-json');
+const CONVERTED_DIR = join(ROOT, 'public/models/js-glb');
 const CATALOG = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog.json'), 'utf8'));
 const REPORT = JSON.parse(readFileSync(join(CONVERTED_DIR, 'conversion-report.json'), 'utf8'));
 
@@ -299,7 +299,7 @@ describe('the merge pipeline rewrite', () =>
 		const differences = [];
 		for (const model of models)
 		{
-			const path = join(ROOT, 'build', model);
+			const path = join(ROOT, 'public', model);
 			const gltf = await loadGltf(path, `${dirname(path)}/`);
 			const after = mergeMeshes(gltf.scene);
 			const before = LEGACY_MERGE_RESULTS[model];
@@ -336,7 +336,7 @@ describe('the merge pipeline rewrite', () =>
 
 		for (const model of models)
 		{
-			const path = join(ROOT, 'build', model);
+			const path = join(ROOT, 'public', model);
 			const gltf = await loadGltf(path, `${dirname(path)}/`);
 			const record = LEGACY_MERGE_RESULTS[model];
 			const actual = boundsOf(mergeMeshes(gltf.scene).geometry);
@@ -369,7 +369,7 @@ describe('the merge pipeline rewrite', () =>
 		const moved = [];
 		for (const model of unaffected)
 		{
-			const path = join(ROOT, 'build', model);
+			const path = join(ROOT, 'public', model);
 			const gltf = await loadGltf(path, `${dirname(path)}/`);
 			const actual = boundsOf(mergeMeshes(gltf.scene).geometry);
 			const record = LEGACY_MERGE_RESULTS[model].localBounds;
@@ -387,7 +387,7 @@ describe('the merge pipeline rewrite', () =>
 		// matrix scales by 0.01, and the old merge dropped it - so the duck was
 		// drawn a hundred times too BIG: 154 units tall, in a catalog where a
 		// fridge is 0.92 and a bookcase 0.85.
-		const path = join(ROOT, 'build/models/js/Duck.gltf');
+		const path = join(ROOT, 'public/models/js/Duck.gltf');
 		const gltf = await loadGltf(path, `${dirname(path)}/`);
 		const merged = boundsOf(mergeMeshes(gltf.scene).geometry);
 		const local = boundsOf(mergeWithLocalMatrices(gltf.scene));
@@ -418,7 +418,7 @@ describe('the merge pipeline rewrite', () =>
 		for (const model of models)
 		{
 			if (!LEGACY_MERGE_RESULTS[model].nodeTransformAffected) { continue; }
-			const path = join(ROOT, 'build', model);
+			const path = join(ROOT, 'public', model);
 			const gltf = await loadGltf(path, `${dirname(path)}/`);
 			const kind = classifyNodeTransform(gltf.scene);
 			counts[kind] += 1;

@@ -2,18 +2,25 @@
   "name": "architect3d",
   "version": "0.1.0",
   "description": "This is the core framework of architect3d for creating floorplans in 2d and 3d",
-  "main": "build/js/bp3djs.js",
   "type": "module",
+  "main": "./src/scripts/blueprint.js",
+  "exports": {
+    ".": "./src/scripts/blueprint.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src/scripts",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "dev": "npm run legacy:index && vite",
-    "legacy:index": "node tools/make-dev-index.mjs",
+    "dev": "vite",
     "build": "vite build --mode lib",
     "build:demo": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
     "fixtures": "node tools/make-fixtures.mjs",
-    "catalog": "node tools/make-demo-catalog.mjs",
     "parity": "node tools/capture-parity.mjs",
     "lint": "eslint .",
     "docs": "esdoc"

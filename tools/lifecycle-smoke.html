@@ -3,9 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- Textures are composed as relative URLs at runtime ('rooms/textures/...'),
-     so this page has to resolve them the same way the demo does. -->
-<base href="/build/">
+<!-- Textures are composed as relative URLs at runtime ('rooms/textures/...').
+     This page is served from /tools/, so they would resolve under /tools/ too;
+     <base> puts them back at the site root, where the dev server mounts
+     public/. Was /build/ before S9 moved the asset root. -->
+<base href="/">
 <title>architect3d - mount/unmount smoke test</title>
 <style>
 	:root

@@ -27,6 +27,6 @@ export default defineConfig({
 		include: ['tests/**/*.test.js'],
 		globals: false,
 		reporters: ['default'],
-		exclude: ['node_modules/**', 'build/**', 'resources/**', 'docs/**'],
+		exclude: ['node_modules/**', 'public/**', 'asset-pipeline/**', 'docs/**'],
 	},
 });

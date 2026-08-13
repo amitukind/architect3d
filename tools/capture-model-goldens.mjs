@@ -35,7 +35,7 @@ import {JSDOM} from 'jsdom';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
 const FIXTURES = join(ROOT, 'tests', 'fixtures');
-const LEGACY_DIR = join(ROOT, 'build', 'models', 'js');
+const LEGACY_DIR = join(ROOT, 'asset-pipeline', 'legacy-json');
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>');
 globalThis.window = dom.window;
@@ -203,7 +203,7 @@ let transformAffected = 0;
 
 for (const model of models)
 {
-	const path = join(ROOT, 'build', model);
+	const path = join(ROOT, 'public', model);
 	const gltf = await loadGltf(path, `${dirname(path)}/`);
 
 	const before = legacyMergeMeshes(gltf.scene);

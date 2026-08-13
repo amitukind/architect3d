@@ -59,10 +59,18 @@ const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const LEGACY_TAG = 'legacy-demo';
 /**
  * The default ref for the `--frozen` column: the state of the library before
- * the colour pipeline changed. `HEAD` while S8 is being written, since S8's
- * commit does not exist yet; pass `--frozen=<ref>` to pin it afterwards.
+ * the colour pipeline changed.
+ *
+ * This was `HEAD` while S8 was being written, since the commit it names did not
+ * exist yet. S9 pins it, which is the whole point of the column - left on HEAD
+ * it silently renders the working tree twice and the grid shows a difference of
+ * zero, which reads exactly like "S8 changed nothing".
+ *
+ * fd22dea is S8's pre-work: the two sky shaders already carry their output
+ * encode, but ColorManagement is still off, so it is the last commit with the
+ * S4 freeze fully intact. Override with `--frozen=<ref>` or FROZEN_REF.
  */
-const FROZEN_REF = process.env.FROZEN_REF || 'HEAD';
+const FROZEN_REF = process.env.FROZEN_REF || 'fd22dea';
 const VIEWPORT = {width: 1000, height: 700};
 
 /** The states tools/parity-goldens.html knows how to set up. */
@@ -125,12 +133,16 @@ function serve(root, port)
 }
 
 /**
- * Assemble a servable build/ for one engine.
+ * Assemble a servable asset root for one engine.
  *
- * The legacy side is the tag's own build directory verbatim; the current side
- * is this tree's build directory with the freshly built library dropped in
- * where the demo expects it. Both then receive the same capture page and the
- * same design, so nothing about the harness differs between them.
+ * The legacy side is the tag's own build/ verbatim; the r185 sides are this
+ * tree's public/ with the freshly built library dropped in at js/bp3djs.js,
+ * where the capture page loads it from. S9 moved the assets out of build/ and
+ * the two roots stopped being the same directory, but they still resolve the
+ * same URLs - `rooms/textures/...` is what the library asks for either way,
+ * which is exactly why the move needed no code changes in the library. Both
+ * roots then receive the same capture page and the same design, so nothing
+ * about the harness differs between them.
  */
 function prepare(engine, source, bundle)
 {
@@ -146,7 +158,11 @@ function prepare(engine, source, bundle)
 		join(engine.root, 'parity-design.blueprint3d'));
 }
 
-/** Recursive copy, skipping the heavy model libraries neither side renders. */
+/**
+ * Recursive copy, skipping what neither side renders: the model libraries (heavy,
+ * and the capture page places no items) and vrtest, which only the legacy tag's
+ * build/ still has.
+ */
 function linkTree(from, to)
 {
 	for (const entry of readdirSync(from, {withFileTypes: true}))
@@ -345,7 +361,7 @@ if (wanted.includes('legacy'))
 
 if (wanted.includes('frozen'))
 {
-	prepare(ENGINES.frozen, join(ROOT, 'build'), frozenBundle(frozenRef));
+	prepare(ENGINES.frozen, join(ROOT, 'public'), frozenBundle(frozenRef));
 	await capture('frozen', ENGINES.frozen);
 }
 
@@ -357,7 +373,7 @@ if (wanted.includes('current'))
 		console.error(`No ${bundle} yet - building it.`);
 		execFileSync('npm', ['run', 'build'], {cwd: ROOT, stdio: 'inherit'});
 	}
-	prepare(ENGINES.current, join(ROOT, 'build'), bundle);
+	prepare(ENGINES.current, join(ROOT, 'public'), bundle);
 	await capture('current', ENGINES.current);
 }
 

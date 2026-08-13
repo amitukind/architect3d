@@ -2,32 +2,34 @@
 <html lang="en">
 <head>
 <!--
-  The Vue application (migration sprints S6-S7). This file is hand-written
-  source; it replaced a generated copy of the jQuery demo, which now lives at
-  /legacy.html (run `npm run legacy:index`) for as long as build/ is the frozen
-  reference.
+  The Vue application (migration sprints S6-S7). Hand-written source: it
+  replaced a generated copy of the jQuery demo, which S9 retired along with the
+  build/ directory both of them lived in.
 
-  As of S7 nothing is loaded from build/js: no jQuery, no Bootstrap, no dat.GUI,
-  and no glyphicon webfont. The stylesheet is the application's own and the
-  icons are inline SVG.
+  Nothing here loads a vendored script. No jQuery, no Bootstrap, no dat.GUI, no
+  glyphicon webfont - the stylesheet is the application's own and the icons are
+  inline SVG.
 
-  <base href="/build/">
-  ---------------------
-  Every asset URL in this project is a bare relative string composed at
-  RUNTIME, not at build time: the library asks for 'rooms/textures/wallmap.png',
-  the catalog for 'models/js-glb/....glb' and the inspector for
-  'rooms/thumbnails/....png', and saved designs carry the same form inside them.
-  Those resolve against the page URL, and the files live under build/.
+  Why there is no <base> tag
+  --------------------------
+  There used to be one, pointing at /build/. Every asset URL in this project is
+  a bare relative string composed at RUNTIME, not at build time: the library
+  asks for 'rooms/textures/wallmap.png', the catalog for 'models/js-glb/*.glb',
+  the inspector for 'rooms/thumbnails/*.png', and every saved .blueprint3d file
+  carries the same form inside it. While the files lived under build/, one
+  <base> redirected all of them without rewriting a single URL.
 
-  One <base> tag points all of them at the right place without rewriting a
-  single URL - in the library, in either catalog, or in any .blueprint3d file
-  anyone has ever saved. S9 moves build/ to public/ and this tag goes away;
-  until then the alternative is an asset-base parameter threaded through every
-  loader, which is churn for a directory that is already scheduled to move.
+  S9 moved them to public/, which Vite serves at the site root in dev and copies
+  to the root of dist-demo/ on build - so those same strings now resolve without
+  help. That they are relative rather than root-absolute is what makes the
+  GitHub Pages deploy work: under --base=/architect3d/ the page is served from
+  /architect3d/, and 'models/x.glb' resolves against it to /architect3d/models/
+  x.glb. A leading slash would have sent it to the domain root instead, and a
+  <base> would have had to know the deploy path.
 
-  The entry below is root-absolute on purpose, so <base> does not apply to it.
+  The module entry below is root-absolute because Vite rewrites it at build
+  time - it is the one URL here that is not resolved by the browser at runtime.
 -->
-<base href="/build/">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Architect3D - Floorplan</title>
