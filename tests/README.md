@@ -66,6 +66,7 @@ Expectations retired that way so far, all listed as FIX in the ledger:
 | Adding a wall-bound item before clicking a wall threw and added nothing | S6 | `app-composables.test.js` |
 | `OrbitControls` left a document keydown behind if the host detached the element first | S6 | `viewer-lifecycle.test.js` |
 | The corner panel never followed a drag - it listened for the setter event, and `Corner.move()` dispatches only `EVENT_MOVED` | S7 | `app-inspector.test.js` |
+| The r98 colour freeze - both halves of it, plus the hex-literal consequence | S8 | `viewer-lifecycle.test.js` |
 
 One S0 test **fired as designed** in S4 rather than being retired: the
 zero-length `wallSize` setter produced NaN coordinates that r98's
@@ -107,6 +108,11 @@ tests/
 │  engine (S4) — environment: jsdom
 ├─ geometry-rewrites.test.js  every hand-built mesh, against what r98 drew
 │
+│  the colour pipeline (S8, contract) — environment: jsdom
+├─ color-pipeline.test.js   every texture's colour space after a redraw, the
+│                           two sky shader includes, and the two constants the
+│                           flip must not sweep up
+│
 │  the Vue application (S6-S7, contract) — environment: jsdom
 ├─ app-composables.test.js  the blueprint's lifetime, the single selection, the
 │                           camera modes, catalog placement, file IO
@@ -117,7 +123,7 @@ tests/
                             object, the texture grid, and the unit switch
 ```
 
-The three application modules are contract tests, not characterization: the
+The application and colour-pipeline modules are contract tests, not characterization: the
 sprints deliberately replaced the demo's globals with a store and a single
 selection, replaced dat.GUI with native panels, and fixed four app-layer bugs on
 purpose. A failure there means the new contract broke, not that legacy

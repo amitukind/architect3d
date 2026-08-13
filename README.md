@@ -43,7 +43,7 @@ migration finishes.
 | `npm run build:demo` | Application build &rarr; `dist-demo/` |
 | `npm test` | The full vitest suite |
 | `npm run lint` | ESLint |
-| `npm run parity` | Renders ten states through r98 and r185 side by side (see `tests/README.md`) |
+| `npm run parity` | Renders eleven states through r98 and r185 side by side; `-- --frozen` adds a pre-S8 column (see `tests/README.md`) |
 
 The build is Vite. rollup, Babel, jQuery, Bootstrap, dat.GUI and the glyphicon
 webfont were all removed during the migration; the application's only runtime
