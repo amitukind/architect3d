@@ -210,7 +210,7 @@ if (wanted.includes('current'))
 }
 
 writeReport();
-console.log(`\nGrid written to tools/parity/index.html`);
+console.log('\nGrid written to tools/parity/index.html');
 
 /** A side-by-side page, so the pairs are reviewed rather than hunted for. */
 function writeReport()

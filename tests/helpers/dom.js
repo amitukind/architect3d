@@ -85,9 +85,55 @@ export function installCanvas2D(window)
 }
 
 /**
+ * jsdom implements pointer events but neither pointer capture nor pointer lock.
+ *
+ * three calls into both: OrbitControls takes pointer capture on pointerdown,
+ * and PointerLockControls calls exitPointerLock on unlock - which Main does at
+ * boot, when it puts the viewer into orbit mode. Neither exists in jsdom, so
+ * both throw from inside the addon and take an unrelated test down with them.
+ *
+ * Nothing here depends on the semantics, only on the calls existing, so these
+ * are no-ops. Real browsers have shipped both for years; the guards belong in
+ * the harness rather than in the library.
+ */
+export function installPointerApis(window)
+{
+	const element = window.Element.prototype;
+	const elementOriginals = {
+		setPointerCapture: element.setPointerCapture,
+		releasePointerCapture: element.releasePointerCapture,
+		hasPointerCapture: element.hasPointerCapture,
+		requestPointerLock: element.requestPointerLock,
+		requestFullscreen: element.requestFullscreen,
+	};
+
+	element.setPointerCapture = function () {};
+	element.releasePointerCapture = function () {};
+	element.hasPointerCapture = function () {return false;};
+	element.requestPointerLock = function () {};
+	element.requestFullscreen = function () {return Promise.resolve();};
+
+	const documentOriginal = window.document.exitPointerLock;
+	window.document.exitPointerLock = function () {};
+
+	return {
+		restore()
+		{
+			Object.entries(elementOriginals).forEach(([name, fn]) =>
+			{
+				if (fn) { element[name] = fn; }
+				else { delete element[name]; }
+			});
+			if (documentOriginal) { window.document.exitPointerLock = documentOriginal; }
+			else { delete window.document.exitPointerLock; }
+		},
+	};
+}
+
+/**
  * A ResizeObserver that never fires on its own - tests drive it by hand.
  *
- * @returns {{observed: Array, trigger: Function, restore: Function}}
+ * @returns {{instances: Array, trigger: Function, liveCount: Function, restore: Function}}
  */
 export function installResizeObserver(window)
 {
@@ -174,18 +220,52 @@ export function installListenerCounter(window)
 		perType.set(type, (perType.get(type) || 0) + delta);
 	};
 
+	/**
+	 * Which (target, type, listener) triples are actually attached.
+	 *
+	 * Counting raw calls is not enough: removeEventListener for something that
+	 * was never added is a legitimate no-op in the DOM, and library teardown
+	 * does it routinely - three's OrbitControls.disconnect() unconditionally
+	 * removes pointermove, pointerup and pointercancel, which it only attaches
+	 * once a drag has started. Counting those pushed the net negative and made
+	 * a clean teardown look like it had over-removed.
+	 */
+	const live = new Map();
+	// The DOM matches a removal on type, callback and the capture flag alone.
+	const slotFor = (type, options) =>
+		`${type}|${(typeof options === 'boolean') ? options : Boolean(options && options.capture)}`;
+
+	const attach = (target, type, listener, options) =>
+	{
+		if (!live.has(target)) { live.set(target, new Map()); }
+		const slots = live.get(target);
+		const slot = slotFor(type, options);
+		if (!slots.has(slot)) { slots.set(slot, new Set()); }
+		const listeners = slots.get(slot);
+		if (listeners.has(listener)) { return false; }
+		listeners.add(listener);
+		return true;
+	};
+
+	const detach = (target, type, listener, options) =>
+	{
+		const slots = live.get(target);
+		const listeners = slots && slots.get(slotFor(type, options));
+		return Boolean(listeners && listeners.delete(listener));
+	};
+
 	const proto = window.EventTarget.prototype;
 	const originalAdd = proto.addEventListener;
 	const originalRemove = proto.removeEventListener;
 
 	proto.addEventListener = function (type, listener, options)
 	{
-		bump(this, type, 1);
+		if (attach(this, type, listener, options)) { bump(this, type, 1); }
 		return originalAdd.call(this, type, listener, options);
 	};
 	proto.removeEventListener = function (type, listener, options)
 	{
-		bump(this, type, -1);
+		if (detach(this, type, listener, options)) { bump(this, type, -1); }
 		return originalRemove.call(this, type, listener, options);
 	};
 
@@ -198,7 +278,7 @@ export function installListenerCounter(window)
 	{
 		window.addEventListener = function (type, listener, options)
 		{
-			bump(window, type, 1);
+			if (attach(window, type, listener, options)) { bump(window, type, 1); }
 			return windowAdd.call(window, type, listener, options);
 		};
 	}
@@ -206,7 +286,7 @@ export function installListenerCounter(window)
 	{
 		window.removeEventListener = function (type, listener, options)
 		{
-			bump(window, type, -1);
+			if (detach(window, type, listener, options)) { bump(window, type, -1); }
 			return windowRemove.call(window, type, listener, options);
 		};
 	}

@@ -16,12 +16,15 @@ import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 import * as THREE from 'three';
 import {Main} from '../src/scripts/three/main.js';
 import {Lights} from '../src/scripts/three/lights.js';
+import {PointerLockControls} from '../src/scripts/three/pointerlockcontrols.js';
 import {Model} from '../src/scripts/model/model.js';
 import {BlueprintJS} from '../src/scripts/blueprint.js';
 import {Configuration, configDimUnit} from '../src/scripts/core/configuration.js';
 import {dimCentiMeter} from '../src/scripts/core/units.js';
+import {EVENT_CAMERA_MOVED, EVENT_CAMERA_ACTIVE_STATUS} from '../src/scripts/core/events.js';
+import {VIEW_TOP} from '../src/scripts/core/constants.js';
 import {resetAll, stubItemLoader} from './helpers/harness.js';
-import {installCanvas2D, installListenerCounter, installResizeObserver, setLayout} from './helpers/dom.js';
+import {installCanvas2D, installListenerCounter, installPointerApis, installResizeObserver, setLayout} from './helpers/dom.js';
 import {readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {dirname, join} from 'node:path';
@@ -33,6 +36,7 @@ const VIEWPORT_HEIGHT = 768;
 
 let canvasStub;
 let observer;
+let pointerApis;
 let listeners;
 /** Every fake renderer handed out, so a test can check they were all disposed. */
 let renderers;
@@ -115,6 +119,7 @@ beforeEach(() =>
 	listeners = installListenerCounter(window);
 	canvasStub = installCanvas2D(window);
 	observer = installResizeObserver(window);
+	pointerApis = installPointerApis(window);
 
 	Main.setRendererFactory(createRendererStub);
 });
@@ -123,6 +128,7 @@ afterEach(() =>
 {
 	Main.setRendererFactory(null);
 	observer.restore();
+	pointerApis.restore();
 	canvasStub.restore();
 	listeners.restore();
 	document.body.innerHTML = '';
@@ -273,10 +279,40 @@ describe('Controller picking', () =>
 		};
 
 		const three = new Main(new Model(), viewer, 'three-canvas', {});
-		const pointerTypes = seen.filter((s) => s.type.startsWith('pointer'));
-		expect(pointerTypes.map((s) => s.type).sort())
+
+		// Since S5 the viewer carries two independent pointer consumers: the
+		// Controller for picking and dragging, and three's own OrbitControls for
+		// orbit/pan/zoom - the vendored fork used mouse and touch events, the
+		// addon uses pointer events. Both are legitimate, so this checks the
+		// Controller's four registrations specifically rather than counting
+		// everything on the element.
+		const controllerOptions = {passive: false};
+		const controllerPointers = seen.filter((s) =>
+			s.type.startsWith('pointer') && s.options && s.options.passive === false);
+
+		expect(controllerPointers.map((s) => s.type).sort())
 			.toEqual(['pointercancel', 'pointerdown', 'pointermove', 'pointerup']);
-		pointerTypes.forEach((s) => {expect(s.options).toEqual({passive: false});});
+		controllerPointers.forEach((s) => {expect(s.options).toEqual(controllerOptions);});
+		three.dispose();
+	});
+
+	it('lets OrbitControls take pointer input on the same element', () =>
+	{
+		// The other half of that split, asserted so the swap cannot silently
+		// regress to no orbit input at all. The addon registers pointerdown on
+		// the container itself; move and up arrive on capture once a drag starts.
+		const {viewer} = buildViewerDom();
+		const seen = [];
+		const originalAdd = viewer.addEventListener.bind(viewer);
+		viewer.addEventListener = (type, listener, options) =>
+		{
+			seen.push({type, options});
+			return originalAdd(type, listener, options);
+		};
+
+		const three = new Main(new Model(), viewer, 'three-canvas', {});
+		const fromControls = seen.filter((s) => !s.options || s.options.passive !== false);
+		expect(fromControls.map((s) => s.type)).toContain('pointerdown');
 		three.dispose();
 	});
 });
@@ -465,5 +501,271 @@ describe('the r98 parity freeze', () =>
 
 		const lights = new Lights(scene, floorplan);
 		expect(lights.getDirLight().intensity).toBeCloseTo(0.5 * Math.PI, 6);
+	});
+});
+
+/**
+ * Sprint S5: OrbitControls became a shim over three's addon.
+ *
+ * The vendored fork was 1,045 lines of stale three with two app-specific edits
+ * woven through it. Those two are all that survives, so they are the two things
+ * worth pinning: without them the viewer stops redrawing after a camera move,
+ * and wall faces stop re-evaluating which way they point.
+ */
+describe('the OrbitControls shim', () =>
+{
+	function mount()
+	{
+		const {viewer} = buildViewerDom();
+		const three = new Main(new Model(), viewer, 'three-canvas', {});
+		return {three, controls: three.controls};
+	}
+
+	it('is three\'s addon, not a fork of it', () =>
+	{
+		const {three, controls} = mount();
+		// Properties the addon owns and the app configures. If the swap ever
+		// regressed to a hand-rolled object these would be undefined.
+		expect(typeof controls.listenToKeyEvents).toBe('function');
+		expect(typeof controls.connect).toBe('function');
+		expect(controls.screenSpacePanning).toBe(true);
+		expect(controls.maxDistance).toBe(3000);
+		three.dispose();
+	});
+
+	it('starts dirty, so the first frame is always drawn', () =>
+	{
+		// The flag is initialised true and consumed by the very first render, so
+		// by the time a test can look it is already false. What is observable is
+		// that the frame happened.
+		const {three} = mount();
+		expect(three.renderer.renderCount).toBeGreaterThan(0);
+		expect(three.controls.needsUpdate).toBe(false);
+		three.dispose();
+	});
+
+	it('marks the view dirty whenever the camera changes', () =>
+	{
+		const {three, controls} = mount();
+		// shouldRender consumes the flag; that is the contract Main relies on.
+		three.shouldRender();
+		expect(controls.needsUpdate).toBe(false);
+
+		controls.dispatchEvent({type: 'change'});
+		expect(controls.needsUpdate).toBe(true);
+		expect(three.shouldRender()).toBe(true);
+		expect(controls.needsUpdate).toBe(false);
+		three.dispose();
+	});
+
+	it('re-dispatches EVENT_CAMERA_MOVED, which wall culling depends on', () =>
+	{
+		const {three, controls} = mount();
+		let moved = 0;
+		const listener = () => {moved += 1;};
+		controls.addEventListener(EVENT_CAMERA_MOVED, listener);
+
+		controls.dispatchEvent({type: 'change'});
+		expect(moved).toBe(1);
+
+		controls.removeEventListener(EVENT_CAMERA_MOVED, listener);
+		controls.dispatchEvent({type: 'change'});
+		expect(moved).toBe(1);
+		three.dispose();
+	});
+
+	it('is still an EventDispatcher target for EVENT_CAMERA_ACTIVE_STATUS', () =>
+	{
+		// Main dispatches this ON the controls and Edge listens for it, to force
+		// every wall visible when a view preset is applied.
+		const {three, controls} = mount();
+		let shown = 0;
+		controls.addEventListener(EVENT_CAMERA_ACTIVE_STATUS, () => {shown += 1;});
+		three.switchView(VIEW_TOP);
+		expect(shown).toBe(1);
+		three.dispose();
+	});
+
+	it('hot-swaps the camera when the orthographic view is toggled', () =>
+	{
+		const {three, controls} = mount();
+		expect(controls.object).toBe(three.perspectivecamera);
+		three.switchOrthographicMode(true);
+		expect(controls.object).toBe(three.orthocamera);
+		three.switchOrthographicMode(false);
+		expect(controls.object).toBe(three.perspectivecamera);
+		three.dispose();
+	});
+
+	it('unbinds its key listener on dispose', () =>
+	{
+		const listeners = installListenerCounter(window);
+		const {three} = mount();
+		expect(listeners.netFor(window, 'keydown')).toBeGreaterThan(0);
+		three.dispose();
+		expect(listeners.netFor(window, 'keydown')).toBe(0);
+		listeners.restore();
+	});
+});
+
+/**
+ * Sprint S5: the walk-through physics, ported onto three's addon.
+ *
+ * The addon rotates the camera directly; the fork parented it into a yaw/pitch
+ * rig and translated that. Everything below is a consequence of that change,
+ * and none of it is exercised by the app's own tests because the FPS button is
+ * commented out of the legacy demo's markup.
+ */
+describe('PointerLockControls walk physics', () =>
+{
+	function walker()
+	{
+		const camera = new THREE.PerspectiveCamera(60, 1, 1, 10000);
+		const element = document.createElement('div');
+		document.body.appendChild(element);
+		const controls = new PointerLockControls(camera, element);
+		controls.characterHeight = 160;
+		controls.enabled = true;
+		return {controls, camera};
+	}
+
+	const press = (code) => document.dispatchEvent(new window.KeyboardEvent('keydown', {code}));
+	const release = (code) => document.dispatchEvent(new window.KeyboardEvent('keyup', {code}));
+
+	it('exposes the camera through getObject(), where the yaw rig used to be', () =>
+	{
+		const {controls, camera} = walker();
+		expect(controls.getObject()).toBe(camera);
+		controls.dispose();
+	});
+
+	it('falls to eye height and stops there', () =>
+	{
+		const {controls, camera} = walker();
+		camera.position.set(0, 400, 0);
+		for (let i = 0; i < 60; i++) {controls.update(1 / 60);}
+		expect(camera.position.y).toBe(160);
+		controls.dispose();
+	});
+
+	it('walks forward along the way the camera faces', () =>
+	{
+		const {controls, camera} = walker();
+		camera.position.set(0, 160, 0);
+		camera.rotation.set(0, 0, 0, 'YXZ'); // looking down -Z
+
+		press('KeyW');
+		for (let i = 0; i < 30; i++) {controls.update(1 / 60);}
+		release('KeyW');
+
+		expect(camera.position.z).toBeLessThan(-1);
+		expect(Math.abs(camera.position.x)).toBeLessThan(1e-6);
+		controls.dispose();
+	});
+
+	it('stays on the floor when walking while looking up', () =>
+	{
+		// The reason walking goes through moveForward rather than translateZ. The
+		// fork translated a yaw-only object, so pitch could not leak into motion;
+		// the camera carries pitch, and translating along its local -Z would fly.
+		const {controls, camera} = walker();
+		camera.position.set(0, 160, 0);
+		camera.rotation.set(Math.PI / 4, 0, 0, 'YXZ'); // looking 45 degrees up
+
+		press('KeyW');
+		for (let i = 0; i < 30; i++) {controls.update(1 / 60);}
+		release('KeyW');
+
+		expect(camera.position.y).toBe(160);
+		expect(camera.position.z).toBeLessThan(-1);
+		controls.dispose();
+	});
+
+	it('turns with the camera - walking east after a quarter turn', () =>
+	{
+		const {controls, camera} = walker();
+		camera.position.set(0, 160, 0);
+		camera.rotation.set(0, -Math.PI / 2, 0, 'YXZ'); // now facing +X
+
+		press('KeyW');
+		for (let i = 0; i < 30; i++) {controls.update(1 / 60);}
+		release('KeyW');
+
+		expect(camera.position.x).toBeGreaterThan(1);
+		expect(Math.abs(camera.position.z)).toBeLessThan(1e-6);
+		controls.dispose();
+	});
+
+	it('jumps, and lands', () =>
+	{
+		const {controls, camera} = walker();
+		camera.position.set(0, 160, 0);
+		controls.update(1 / 60);            // one frame on the ground arms the jump
+
+		press('Space');
+		controls.update(1 / 60);
+		expect(camera.position.y).toBeGreaterThan(160);
+
+		for (let i = 0; i < 120; i++) {controls.update(1 / 60);}
+		expect(camera.position.y).toBe(160);
+		controls.dispose();
+	});
+
+	it('cannot double-jump in mid-air', () =>
+	{
+		const {controls, camera} = walker();
+		camera.position.set(0, 160, 0);
+		controls.update(1 / 60);
+
+		press('Space');
+		controls.update(1 / 60);
+		const first = camera.position.y;
+
+		press('Space');                     // still airborne
+		controls.update(1 / 60);
+		// Rising, but only under the original impulse - not boosted again.
+		expect(camera.position.y - first).toBeLessThan(first - 160);
+		controls.dispose();
+	});
+
+	it('ignores the keyboard while disabled', () =>
+	{
+		const {controls, camera} = walker();
+		controls.enabled = false;
+		camera.position.set(0, 160, 0);
+
+		press('KeyW');
+		for (let i = 0; i < 30; i++) {controls.update(1 / 60);}
+		release('KeyW');
+
+		expect(camera.position.z).toBe(0);
+		controls.dispose();
+	});
+
+	it('clamps a huge delta instead of falling through the floor', () =>
+	{
+		// THREE.Clock handed over the whole gap since its last read, so entering
+		// walk mode from a backgrounded tab applied seconds of gravity in one
+		// frame. The internal clock caps it.
+		const {controls, camera} = walker();
+		camera.position.set(0, 5000, 0);
+		controls.update();                  // first call establishes the baseline
+		const before = camera.position.y;
+		controls.update();
+		expect(before - camera.position.y).toBeLessThan(200);
+		controls.dispose();
+	});
+
+	it('detaches its key listeners on dispose', () =>
+	{
+		const listeners = installListenerCounter(window);
+		const {controls, camera} = walker();
+		camera.position.set(0, 160, 0);
+
+		expect(listeners.netFor(document, 'keydown')).toBeGreaterThan(0);
+		controls.dispose();
+		expect(listeners.netFor(document, 'keydown')).toBe(0);
+		expect(listeners.netFor(document, 'keyup')).toBe(0);
+		listeners.restore();
 	});
 });

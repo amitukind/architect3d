@@ -2,7 +2,6 @@ import {EventDispatcher, Vector2, Vector3, WebGLRenderer, PerspectiveCamera, Ort
 import {ColorManagement, LinearSRGBColorSpace} from 'three';
 import {Plane} from 'three';
 import {PCFSoftShadowMap} from 'three';
-import {Clock} from 'three';
 // import {FirstPersonControls} from './first-person-controls.js';
 import {PointerLockControls} from './pointerlockcontrols.js';
 
@@ -77,7 +76,6 @@ export class Main extends EventDispatcher
 
 		this.controls = null;
 		this.fpscontrols = null;
-		this.fpsclock = new Clock(true);
 		this.firstpersonmode = false;
 
 		this.renderer = null;
@@ -212,7 +210,10 @@ export class Main extends EventDispatcher
 		scope.controls.minZoom = 0.9;
 		scope.controls.screenSpacePanning = true;
 
-		scope.fpscontrols = new PointerLockControls(scope.fpscamera);
+		// domElement is what gets pointer-locked and taken fullscreen. The fork
+		// defaulted it to document.body and the addon requires it explicitly;
+		// the viewer is the better target and is what the user is looking at.
+		scope.fpscontrols = new PointerLockControls(scope.fpscamera, scope.domElement);
 		scope.fpscontrols.characterHeight = 160;
 
 		this.scene.add(scope.fpscontrols.getObject());
@@ -386,10 +387,25 @@ export class Main extends EventDispatcher
 		scope.controls.autoRotate = scope.options.spin && !scope.mouseOver && !scope.hasClicked;
 	}
 
+	/**
+	 * A PNG data URL of the current view.
+	 *
+	 * Restored in S5 rather than deprecated. It was silently unreliable: the
+	 * renderer is built without `preserveDrawingBuffer`, so the drawing buffer is
+	 * cleared as soon as a frame is presented, and any read that is not in the
+	 * same task as a render comes back blank or stale. Whether it worked depended
+	 * on when the caller happened to ask.
+	 *
+	 * Drawing a frame first, synchronously, makes it deterministic. The other
+	 * option - `preserveDrawingBuffer: true` - taxes every frame of a viewer that
+	 * runs continuously, to serve an API most embedders never call.
+	 *
+	 * @returns {string} `data:image/png;base64,...`
+	 */
 	dataUrl()
 	{
-		var dataUrl = this.renderer.domElement.toDataURL('image/png');
-		return dataUrl;
+		this.render(true);
+		return this.renderer.domElement.toDataURL('image/png');
 	}
 
 	stopSpin()
@@ -694,7 +710,9 @@ export class Main extends EventDispatcher
 		scope.spin();
 		if(scope.firstpersonmode)
 		{
-			scope.fpscontrols.update(scope.fpsclock.getDelta());
+			// No argument: the controls keep their own clock now. THREE.Clock was
+			// deprecated in r183 in favour of a Timer that 0.185.1 does not ship.
+			scope.fpscontrols.update();
 			scope.renderer.render(scope.scene.getScene(), scope.fpscamera);
 
 		}

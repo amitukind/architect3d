@@ -48,9 +48,11 @@ export class Lights extends EventDispatcher
 
 		this.dirLight.shadow.camera.far = this.height + this.tol;
 		this.dirLight.shadow.bias = -0.0001;
-		this.dirLight.shadowDarkness = 0.2;
 		this.dirLight.visible = true;
-		this.dirLight.shadowCameraVisible = false;
+		// Removed in S5: shadowDarkness and shadowCameraVisible. Both moved onto
+		// light.shadow around r73 and were deleted outright well before r98, so
+		// they have been inert properties on a plain object for the life of this
+		// file - assigning them did nothing then and does nothing now.
 
 		this.scene.add(this.dirLight);
 		this.scene.add(this.dirLight.target);
@@ -74,14 +76,19 @@ export class Lights extends EventDispatcher
 		this.dirLight.shadow.camera.right = d;
 		this.dirLight.shadow.camera.top = d;
 		this.dirLight.shadow.camera.bottom = -d;
-		// this is necessary for updates
-		if (this.dirLight.shadowCamera) 
-		{
-			this.dirLight.shadow.camera.left = this.dirLight.shadowCameraLeft;
-			this.dirLight.shadow.camera.right = this.dirLight.shadowCameraRight;
-			this.dirLight.shadow.camera.top = this.dirLight.shadowCameraTop;
-			this.dirLight.shadow.camera.bottom = this.dirLight.shadowCameraBottom;
-			this.dirLight.shadowCamera.updateProjectionMatrix();
-		}
+
+		// The frustum above only takes effect once the projection is rebuilt, and
+		// it never was. The call sat inside `if (this.dirLight.shadowCamera)`,
+		// guarding on a property removed from three around r73 - so the branch has
+		// been dead for the whole life of this file, and with it the update. The
+		// shadow camera therefore kept whatever frustum it was born with, and
+		// shadows were sized for the wrong plan as soon as the room changed shape.
+		//
+		// Fixing it changes what shadows look like, which is why it is scheduled
+		// here rather than smuggled into the S4 bump: the parity grid shows it as
+		// an intended difference from r98, not a regression. The four assignments
+		// the dead branch made are gone with it - they read from properties
+		// (shadowCameraLeft and friends) that nothing has ever set.
+		this.dirLight.shadow.camera.updateProjectionMatrix();
 	}
 }

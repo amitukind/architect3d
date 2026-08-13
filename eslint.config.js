@@ -19,6 +19,7 @@ export default [
 			'models/**',
 			'index.html',
 			'node_modules/**',
+			'tools/parity/**',  // capture output: served copies of both engines' build/
 		],
 	},
 

@@ -217,5 +217,13 @@ None changes default behaviour, and nothing in the library calls them.
 | `Main.setRendererFactory(fn)` | S2 | mounting the 3D viewer without a WebGL context |
 | `Scene.unloadableItemCount` | S4 | evidence that no design asks for a model this build cannot open (replaces S3's `legacyJsonLoadCount`, whose branch S4 deleted) |
 
+Since S5 the jsdom harness also stubs pointer capture and pointer lock
+(`installPointerApis`). three calls into both — OrbitControls captures the
+pointer on `pointerdown`, PointerLockControls calls `exitPointerLock` when Main
+puts the viewer into orbit mode at boot — and jsdom implements neither, so an
+unstubbed test dies inside the addon with an error that has nothing to do with
+what it was testing. Real browsers have shipped both for years, so the guard
+belongs here and not in the library.
+
 `Floorplan.loadFloorplan` also null-guards `this.carbonSheet` (S0), so headless
 and widget-mode loads of designs containing a carbon sheet no longer throw.

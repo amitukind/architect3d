@@ -1,7 +1,6 @@
 import {EventDispatcher, PlaneGeometry, SphereGeometry, MeshBasicMaterial, ShaderMaterial, Mesh, TextureLoader, Color, DoubleSide} from 'three';
 import {RepeatWrapping} from 'three';
 
-import {AxesHelper} from 'three';
 
 /**
  * Whether the ground plane gets the mirror-blend reflector.
@@ -11,12 +10,22 @@ import {AxesHelper} from 'three';
  * which does `import {Math} from 'three'` - an alias removed in r113 - so it
  * cannot even be parsed against r185; it had to go for the build to succeed.
  *
- * Its replacement is a live question, not an oversight. Rebuilding it on
- * three's own addons `Reflector` means reimplementing the two-texture blend it
- * did on top of the mirror, and the effect it produced was subtle to begin with
- * (intensity 0.1, blend 0.05). Keeping the static textured ground may simply be
- * the better answer. S5 decides, with both options rendered side by side; until
- * then the ground is the plain textured plane it falls back to.
+ * S5 settled it: the static ground stays, and the flag stays false.
+ *
+ * The parity grid (`npm run parity`) made the choice easy by showing exactly
+ * what was lost. The reflector *replaced* this material with a shader blending
+ * two ground textures at wrap 40x40 and 50x50 over a mirror pass at intensity
+ * 0.1 and blend 0.05. Almost all of the visible difference turned out to be the
+ * tiling frequency, not the mirror - the reflection was barely perceptible at
+ * those intensities, and a mirror-polished floor is a strange default for a
+ * room-planning tool anyway. Matching the tiling (`repeat.set(40, 40)` below)
+ * recovers the look; a second render target per frame recovers very little
+ * else.
+ *
+ * Left as an exported constant rather than deleted so the decision stays
+ * legible and reversible. Turning it back on means building on three's addons
+ * `Reflector` - the old package cannot be revived, it imports the `Math` alias
+ * removed in r113.
  */
 export const GROUND_REFLECTOR_ENABLED = false;
 
@@ -63,9 +72,15 @@ export class Skybox extends EventDispatcher
 //		this.sky.position.x += this.sphereRadius*0.5;
 		
 		
-		var groundT = new TextureLoader().load('rooms/textures/Ground_4K.jpg', function(){});		
+		var groundT = new TextureLoader().load('rooms/textures/Ground_4K.jpg', function(){});
 		groundT.wrapS = groundT.wrapT = RepeatWrapping;
-		groundT.repeat.set(10,10);
+		// 40, not 10 - see GROUND_REFLECTOR_ENABLED. The reflector used to replace
+		// this material entirely and tiled its own copy of the same image at
+		// 40x40, so 10 was never what anyone actually saw. At 10 the ground reads
+		// as big flat squares with obvious seams; 40 restores the fine gravel the
+		// reflector produced, which is the whole of the difference the parity grid
+		// showed between r98 and r185.
+		groundT.repeat.set(40, 40);
 		
 //		var uniforms2 = {topColor: {type: 'c',value: new Color(0xFFFFFF)},bottomColor: {type: 'c',value: new Color(0x999999)},offset: {type: 'f',value: this.verticalOffset}, exponent: {type:'f', value: this.exponent}};
 		this.groundGeo = new PlaneGeometry(10000, 10000, 10);
@@ -82,8 +97,9 @@ export class Skybox extends EventDispatcher
 		this.scene.add(this.sky);
 		this.scene.add(this.ground);
 
-		this.axesHelper = new AxesHelper( 100 );
-		this.scene.add( this.axesHelper );
+		// Removed in S5: a debug AxesHelper(100) that shipped to every user,
+		// drawing three coloured lines out of the origin of every design. It was
+		// never behind a flag. dispose() no longer has anything to clean up here.
 
 		this._disposed = false;
 		this.init();
@@ -109,7 +125,6 @@ export class Skybox extends EventDispatcher
 
 		this.scene.remove(this.sky);
 		this.scene.remove(this.ground);
-		this.scene.remove(this.axesHelper);
 
 		// The reflector replaces ground.material, so dispose what is actually on
 		// the mesh as well as the MeshBasicMaterial it was built with.
@@ -127,14 +142,6 @@ export class Skybox extends EventDispatcher
 		{
 			this.skyMat.dispose();
 			this.skyMat = undefined;
-		}
-		if(this.axesHelper.geometry)
-		{
-			this.axesHelper.geometry.dispose();
-		}
-		if(this.axesHelper.material)
-		{
-			this.axesHelper.material.dispose();
 		}
 	}
 	

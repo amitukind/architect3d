@@ -24,6 +24,7 @@
  * rather than estimated.
  */
 import {afterAll, beforeAll, describe, expect, it} from 'vitest';
+import {createHash} from 'node:crypto';
 import {readFileSync, readdirSync, existsSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {dirname, join} from 'node:path';
@@ -88,12 +89,15 @@ describe('every legacy model converted', () =>
 	{
 		// The whole reason the converter runs in Node instead of a browser: no
 		// canvas round-trip, so the baked maps are the original files.
+		// Hashed rather than deep-compared: vitest's toEqual walks two 4 MB
+		// Buffers byte by byte and the whole suite spent five seconds in here.
+		const digest = (path) => createHash('sha256').update(readFileSync(path)).digest('hex');
 		const copied = readdirSync(join(CONVERTED_DIR, 'textures'));
 		expect(copied.length).toBeGreaterThan(0);
 		for (const name of copied)
 		{
-			expect(readFileSync(join(CONVERTED_DIR, 'textures', name)))
-				.toEqual(readFileSync(join(LEGACY_DIR, name)));
+			expect(digest(join(CONVERTED_DIR, 'textures', name)), name)
+				.toBe(digest(join(LEGACY_DIR, name)));
 		}
 	});
 });
