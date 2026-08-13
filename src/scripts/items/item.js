@@ -102,6 +102,27 @@ export class Item extends Mesh
 
 		this.errorColor = 0xff0000;
 
+		/**
+		 * Which material slots carry a colour somebody chose, as opposed to the
+		 * colour the model shipped with.
+		 *
+		 * getMetaData() used to write every material's colour into the save file
+		 * on every save. That turned "what this model looks like" into persisted
+		 * user data, and it is why a design saved before S8 reloads darker than it
+		 * was authored: for a glTF model the value came from `baseColorFactor`, a
+		 * raw linear float, and the frozen pipeline quantised it straight to bytes
+		 * that the managed pipeline now reads as sRGB. The field could not be
+		 * cleaned up because nothing could tell an authored colour from a chosen
+		 * one - they were written identically.
+		 *
+		 * This is what tells them apart. A slot lands here when setMaterialColor
+		 * puts a colour in it, or when a save file supplies one; anything else is
+		 * the model's own and is not the save file's business.
+		 *
+		 * @type {Set<number>}
+		 */
+		this._pickedColorSlots = new Set();
+
 		this.resizable = metadata.resizable;
 
 		this.castShadow = true;
@@ -166,16 +187,27 @@ export class Item extends Mesh
 		{
 			if(this.metadata.materialColors.length)
 			{
+				// A null entry means "this slot was never picked, use the model's
+				// own colour" - the sparse form save format 2.0.0 writes. A 0.0.2a
+				// file has a colour in every slot, because that is what the old
+				// writer emitted, and every one of them is applied exactly as
+				// before. Nothing anyone has saved changes appearance.
 				if(this.material.length)
 				{
 					for (var i=0;i<this.metadata.materialColors.length;i++)
 					{
+						if(this.metadata.materialColors[i] == null)
+						{
+							continue;
+						}
 						this.material[i].color = new Color(this.metadata.materialColors[i]);
+						this._pickedColorSlots.add(i);
 					}
 				}
-				else
+				else if(this.metadata.materialColors[0] != null)
 				{
 					this.material.color = new Color(this.metadata.materialColors[0]);
+					this._pickedColorSlots.add(0);
 				}
 			}
 		}
@@ -311,23 +343,23 @@ export class Item extends Mesh
 	 * together. It is not evidence the pipeline is right, which is why the tests
 	 * assert the linear value a Color holds rather than the hex it prints.
 	 *
-	 * ## What this does not fix
+	 * ## Why this records the slot
 	 *
-	 * `getMetaData()` writes every material's colour into the save file on every
-	 * save, whether the user picked it or not - and for a glTF model that colour
-	 * came from `baseColorFactor`, which GLTFLoader sets as a raw *linear* float.
-	 * Under the freeze those linear floats were quantised straight to bytes, so a
-	 * design saved before S8 stores linear numbers in a field that now reads as
-	 * sRGB, and its furniture reloads darker than it was authored.
+	 * See `_pickedColorSlots` in the constructor. `getMetaData()` used to write
+	 * every material's colour on every save, which is what made a design saved
+	 * before S8 reload darker than it was authored - the value came from
+	 * `baseColorFactor`, a raw linear float, and the managed pipeline reads it as
+	 * sRGB. That could not be cleaned up while an authored colour and a chosen
+	 * one were written identically. Recording the slot here is what separates
+	 * them, so a save file carries choices and nothing else.
 	 *
-	 * Not migrated here, deliberately. Re-interpreting old files needs a format
-	 * version to know which files to re-interpret, and the file cannot tell an
-	 * authored colour from a colour the user actually chose - so a blanket
-	 * re-read would fix the first and corrupt the second. S9 owns the save
-	 * format; this is written down for it rather than guessed at now. The
-	 * exposure is smaller than it looks: the legacy demo's item inspector never
-	 * bound its item (see S6), so no user could have picked a material colour
-	 * before this migration began.
+	 * Old files are still read exactly as they were written, and there is
+	 * deliberately no re-interpretation of their values: nothing in a 0.0.2a file
+	 * says whether a given colour is the model's or the user's, so converting
+	 * them wholesale would correct the first and corrupt the second. What changes
+	 * is that the ambiguity stops being created. Anyone whose pre-S8 furniture
+	 * loads too dark can re-pick the colour once, and the file it saves will say
+	 * exactly what they meant.
 	 *
 	 * @param {string} color A CSS hex string, interpreted as sRGB.
 	 * @param {number} index Which material, for a multi-material item.
@@ -339,9 +371,11 @@ export class Item extends Mesh
 		{
 			index = (index) ? index : 0;
 			this.material[index].color = c;
+			this._pickedColorSlots.add(index);
 			return;
 		}
 		this.material.color = c;
+		this._pickedColorSlots.add(0);
 	}
 
 	/** */
@@ -651,25 +685,54 @@ export class Item extends Mesh
 	}
 
 
+	/**
+	 * The item's record in a save file.
+	 *
+	 * `material_colors` is sparse as of save format 2.0.0: an entry is a hex
+	 * string only for a slot somebody actually chose a colour for, and `null`
+	 * everywhere else, meaning "the model's own". The key is omitted entirely
+	 * when nothing was chosen, which is the common case - most items are placed
+	 * from the catalog and never recoloured.
+	 *
+	 * A full array of every material's colour is what 0.0.2a wrote, and it is
+	 * why furniture in a pre-S8 design reloads too dark. See `_pickedColorSlots`
+	 * in the constructor for the whole story. The sparse form is still read by
+	 * the same loop that reads the dense one, so an old file needs no special
+	 * case: it simply has no nulls in it.
+	 *
+	 * @returns {Object} The serialized item.
+	 */
 	getMetaData()
 	{
-		var matattribs = [];
-		if(this.material.length)
-		{
-			this.material.forEach((mat)=>{
-				matattribs.push('#'+mat.color.getHexString());
-			});
+		var scope = this;
+		var matattribs = null;
 
-		}
-		else
+		if(this._pickedColorSlots.size)
 		{
-			matattribs.push('#'+this.material.color.getHexString());
+			var slots = this.material.length ? this.material.length : 1;
+			matattribs = [];
+			for (var i = 0; i < slots; i++)
+			{
+				if(!scope._pickedColorSlots.has(i))
+				{
+					matattribs.push(null);
+					continue;
+				}
+				var material = scope.material.length ? scope.material[i] : scope.material;
+				matattribs.push('#'+material.color.getHexString());
+			}
 		}
-		return {item_name: this.metadata.itemName,
+
+		var data = {item_name: this.metadata.itemName,
 			item_type: this.metadata.itemType, format: this.metadata.format, model_url: this.metadata.modelUrl,
 			xpos: this.position.x, ypos: this.position.y, zpos: this.position.z,
 			rotation: this.rotation.y,
-			scale_x: this.scale.x, scale_y: this.scale.y,scale_z: this.scale.z,fixed: this.fixed,
-			material_colors: matattribs};
+			scale_x: this.scale.x, scale_y: this.scale.y,scale_z: this.scale.z,fixed: this.fixed};
+
+		if(matattribs)
+		{
+			data.material_colors = matattribs;
+		}
+		return data;
 	}
 }

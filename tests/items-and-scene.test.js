@@ -83,18 +83,25 @@ class FakeItem extends three.Mesh
 		{
 			this.scale.set(scale.x, scale.y, scale.z);
 		}
+		// Mirrors the real Item: applying a colour from the file marks the slot
+		// as chosen, which is what getMetaData writes back. A null entry is the
+		// sparse form of format 2.0.0 and means "leave the model's own colour".
+		this._pickedColorSlots = new Set();
 		if (metadata.materialColors && metadata.materialColors.length)
 		{
 			if (this.material.length)
 			{
 				for (let i = 0; i < metadata.materialColors.length; i++)
 				{
+					if (metadata.materialColors[i] == null) { continue; }
 					this.material[i].color = new three.Color(metadata.materialColors[i]);
+					this._pickedColorSlots.add(i);
 				}
 			}
-			else
+			else if (metadata.materialColors[0] != null)
 			{
 				this.material.color = new three.Color(metadata.materialColors[0]);
+				this._pickedColorSlots.add(0);
 			}
 		}
 	}
@@ -175,6 +182,9 @@ function metaDataSource(overrides)
 		rotation: {y: 0.5},
 		scale: new three.Vector3(2, 3, 4),
 		fixed: true,
+		// Nothing recoloured, which is what an item straight out of the catalog
+		// looks like. Pass a populated Set to model a user pick.
+		_pickedColorSlots: new Set(),
 	}, overrides);
 }
 
@@ -690,8 +700,29 @@ describe('Scene container bookkeeping', () => {
 });
 
 describe('Item.getMetaData - the save-file item contract', () => {
-	it('emits exactly the thirteen save-file keys, in this order', () => {
+	/*
+	 * material_colors became sparse in save format 2.0.0. It used to hold every
+	 * material's colour on every save, which is what turned "what this model
+	 * looks like" into persisted user data and why pre-S8 furniture reloads too
+	 * dark - the value came from baseColorFactor, a raw linear float, and the
+	 * managed pipeline reads it as sRGB. It now holds a hex string only where
+	 * somebody actually picked one, null elsewhere, and is omitted entirely when
+	 * nothing was picked.
+	 */
+	it('emits twelve keys and no material_colors when nothing was recoloured', () => {
 		const md = Item.prototype.getMetaData.call(metaDataSource());
+		expect(Object.keys(md)).toEqual([
+			'item_name', 'item_type', 'format', 'model_url',
+			'xpos', 'ypos', 'zpos',
+			'rotation',
+			'scale_x', 'scale_y', 'scale_z',
+			'fixed',
+		]);
+		expect('material_colors' in md).toBe(false);
+	});
+
+	it('adds material_colors as the thirteenth key once a colour is picked', () => {
+		const md = Item.prototype.getMetaData.call(metaDataSource({_pickedColorSlots: new Set([0])}));
 		expect(Object.keys(md)).toEqual([
 			'item_name', 'item_type', 'format', 'model_url',
 			'xpos', 'ypos', 'zpos',
@@ -703,7 +734,7 @@ describe('Item.getMetaData - the save-file item contract', () => {
 	});
 
 	it('maps metadata, position, rotation.y, scale and fixed onto those keys', () => {
-		const md = Item.prototype.getMetaData.call(metaDataSource());
+		const md = Item.prototype.getMetaData.call(metaDataSource({_pickedColorSlots: new Set([0])}));
 		expect(md).toEqual({
 			item_name: 'Sofa',
 			item_type: 1,
@@ -717,8 +748,9 @@ describe('Item.getMetaData - the save-file item contract', () => {
 		});
 	});
 
-	// QUIRK (item.js:598-618): metadata.resizable is read by Model.newRoom on
-	// load but getMetaData never writes it back, so it is dropped on every save.
+	// QUIRK (item.js): metadata.resizable is read by Model.newRoom on load but
+	// getMetaData never writes it back, so it is dropped on every save. Harmless
+	// today - nothing reads it after construction.
 	it('drops metadata.resizable - it survives a load but never a save', () => {
 		const source = metaDataSource();
 		expect(source.metadata.resizable).toBe(true);
@@ -727,29 +759,58 @@ describe('Item.getMetaData - the save-file item contract', () => {
 	});
 
 	it('reads the colour off the live material, not off metadata.materialColors', () => {
-		const source = metaDataSource({material: new three.MeshBasicMaterial({color: 0x00ff00})});
+		const source = metaDataSource({
+			material: new three.MeshBasicMaterial({color: 0x00ff00}),
+			_pickedColorSlots: new Set([0]),
+		});
 		source.metadata.materialColors = ['#ff0000'];
 		const md = Item.prototype.getMetaData.call(source);
 		expect(md.material_colors).toEqual(['#00ff00']);
 	});
 
-	it('emits one lowercase #rrggbb entry per material when material is an array', () => {
-		const source = metaDataSource({material: [
-			new three.MeshBasicMaterial({color: 0xff0000}),
-			new three.MeshBasicMaterial({color: 0x00ff00}),
-			new three.MeshBasicMaterial({color: 0xabcdef}),
-		]});
+	it('writes null for the slots nobody touched', () => {
+		// The sparse form. Only slot 1 was picked, so slots 0 and 2 keep whatever
+		// the model shipped with and the file says so rather than freezing them.
+		const source = metaDataSource({
+			material: [
+				new three.MeshBasicMaterial({color: 0xff0000}),
+				new three.MeshBasicMaterial({color: 0x00ff00}),
+				new three.MeshBasicMaterial({color: 0xabcdef}),
+			],
+			_pickedColorSlots: new Set([1]),
+		});
+		const md = Item.prototype.getMetaData.call(source);
+		expect(md.material_colors).toEqual([null, '#00ff00', null]);
+	});
+
+	it('emits one lowercase #rrggbb entry per material when every slot was picked', () => {
+		const source = metaDataSource({
+			material: [
+				new three.MeshBasicMaterial({color: 0xff0000}),
+				new three.MeshBasicMaterial({color: 0x00ff00}),
+				new three.MeshBasicMaterial({color: 0xabcdef}),
+			],
+			_pickedColorSlots: new Set([0, 1, 2]),
+		});
 		const md = Item.prototype.getMetaData.call(source);
 		expect(md.material_colors).toEqual(['#ff0000', '#00ff00', '#abcdef']);
 	});
 
-	// QUIRK (item.js:601): the array/single branch is chosen by `this.material.length`,
-	// which is 0 - falsy - for an empty material array. The code then takes the
-	// single-material branch and dereferences `[].color`.
-	it('throws on an empty material array, because length 0 is treated as "not an array"', () => {
+	// This used to throw a TypeError. `this.material.length` is 0 - falsy - for an
+	// empty material array, so the old code took the single-material branch and
+	// dereferenced `[].color`. Saving no longer reaches the materials at all
+	// unless something was picked, so the common case is simply safe now.
+	it('does not throw on an empty material array when nothing was picked', () => {
 		const source = metaDataSource({material: []});
+		expect(() => Item.prototype.getMetaData.call(source)).not.toThrow();
+		expect('material_colors' in Item.prototype.getMetaData.call(source)).toBe(false);
+	});
+
+	it('still throws on an empty material array if a slot claims to be picked', () => {
+		// Unreachable in practice - setMaterialColor is what fills the set, and it
+		// would have thrown first. Pinned so the branch is not mistaken for dead.
+		const source = metaDataSource({material: [], _pickedColorSlots: new Set([0])});
 		expect(() => Item.prototype.getMetaData.call(source)).toThrow(TypeError);
-		expect(() => Item.prototype.getMetaData.call(source)).toThrow(/getHexString/);
 	});
 
 	// QUIRK: absent metadata fields become undefined properties, which
@@ -760,10 +821,10 @@ describe('Item.getMetaData - the save-file item contract', () => {
 		const md = Item.prototype.getMetaData.call(source);
 		expect(md.format).toBeUndefined();
 		expect(md.model_url).toBeUndefined();
-		expect(Object.keys(md)).toHaveLength(13);
+		expect(Object.keys(md)).toHaveLength(12);
 		expect(Object.keys(JSON.parse(JSON.stringify(md)))).toEqual([
 			'item_name', 'item_type', 'xpos', 'ypos', 'zpos',
-			'rotation', 'scale_x', 'scale_y', 'scale_z', 'fixed', 'material_colors',
+			'rotation', 'scale_x', 'scale_y', 'scale_z', 'fixed',
 		]);
 	});
 });
@@ -922,6 +983,78 @@ describe('Model.exportSerialized', () => {
 	// End-to-end over the pieces that run headlessly: Model.newRoom's field
 	// mapping, Scene.addItem's fixed coercion, the item's own field copying and
 	// Item.prototype.getMetaData. Only the Item constructor is stubbed.
+	/** A loader that supplies three materials, for the multi-material paths. */
+	function threeMaterialLoader()
+	{
+		return (fileName, metadata, onLoad) => {
+			onLoad(new three.BoxGeometry(50, 50, 50), [
+				new three.MeshBasicMaterial({color: 0x111111}),
+				new three.MeshBasicMaterial({color: 0x222222}),
+				new three.MeshBasicMaterial({color: 0x333333}),
+			]);
+		};
+	}
+
+	it('loses nothing from a v1 item that carried a colour in every slot', () => {
+		// The compatibility guarantee for material_colors. A 0.0.2a file wrote
+		// every material's colour whether or not anyone chose it; those values are
+		// applied and written straight back, so opening and saving an old design
+		// cannot quietly discard a colour somebody did choose. There is no way to
+		// tell the two apart inside such a file, so nothing is thrown away.
+		const model = new Model('/textures/');
+		withFakeFactory(() => {
+			model.scene.setItemLoader(threeMaterialLoader());
+			model.loadSerialized(JSON.stringify(makeDesign([
+				Object.assign({}, SOFA, {material_colors: ['#ff0000', '#00ff00', '#0000ff']}),
+			])));
+
+			const out = JSON.parse(model.exportSerialized());
+			expect(out.items[0].material_colors).toEqual(['#ff0000', '#00ff00', '#0000ff']);
+		});
+	});
+
+	it('writes no material_colors for an item nobody recoloured', () => {
+		// The common case, and the one that used to freeze the model's own
+		// appearance into the file. The key is absent, so the item renders with
+		// whatever the model ships with next time - including after the model
+		// itself is updated.
+		const model = new Model('/textures/');
+		withFakeFactory(() => {
+			model.scene.setItemLoader(threeMaterialLoader());
+			const item = Object.assign({}, SOFA);
+			delete item.material_colors;
+			model.loadSerialized(JSON.stringify(makeDesign([item])));
+
+			const out = JSON.parse(model.exportSerialized());
+			expect('material_colors' in out.items[0]).toBe(false);
+		});
+	});
+
+	it('writes only the slot that was recoloured, and reloads it', () => {
+		const model = new Model('/textures/');
+		withFakeFactory(() => {
+			model.scene.setItemLoader(threeMaterialLoader());
+			const item = Object.assign({}, SOFA);
+			delete item.material_colors;
+			model.loadSerialized(JSON.stringify(makeDesign([item])));
+
+			Item.prototype.setMaterialColor.call(model.scene.getItems()[0], '#abcdef', 1);
+
+			const out = JSON.parse(model.exportSerialized());
+			expect(out.items[0].material_colors).toEqual([null, '#abcdef', null]);
+
+			// And the null slots do not overwrite the model's own colours on the
+			// way back in.
+			const reloaded = new Model('/textures/');
+			reloaded.scene.setItemLoader(threeMaterialLoader());
+			reloaded.loadSerialized(JSON.stringify(out));
+			const materials = reloaded.scene.getItems()[0].material;
+			expect('#' + materials[0].color.getHexString()).toBe('#111111');
+			expect('#' + materials[1].color.getHexString()).toBe('#abcdef');
+			expect('#' + materials[2].color.getHexString()).toBe('#333333');
+		});
+	});
+
 	it('round-trips every item field except resizable, which is silently dropped', () => {
 		const model = new Model('/textures/');
 		withFakeFactory(() => {
