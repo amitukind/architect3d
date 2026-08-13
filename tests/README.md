@@ -173,11 +173,15 @@ What still needs a real browser, and is checked by hand:
   Nothing is committed as a golden PNG on purpose. A software-GL screenshot is
   not portable between machines or Chrome versions, so a checked-in reference
   would drift into noise; capturing both sides in the same run, in the same
-  environment, is what stays meaningful. It needs a worktree at the tag:
+  environment, is what stays meaningful.
+
+  There is no setup — `npm run parity` creates the worktree at the tag itself
+  (sparse, so it costs ~15 MB rather than 219 MB) and builds the current bundle
+  if it is missing. Everything it writes lives under `tools/parity/`, which is
+  gitignored. To reclaim the space:
 
   ```bash
-  git worktree add --detach ../legacy legacy-demo
-  npm run build && npm run parity
+  git worktree remove tools/parity/legacy-worktree && rm -rf tools/parity
   ```
 
   This is what caught the S4 lightmap regression — walls were rendering pi

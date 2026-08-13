@@ -11,6 +11,9 @@
  *     npm run parity            # capture both sides and write the report
  *     npm run parity -- --only=current
  *
+ * No setup: the worktree at the frozen tag is created on demand under
+ * tools/parity/, and the current bundle is built if it is missing.
+ *
  * Both sides run the identical page (tools/parity-goldens.html) against the
  * identical design (tests/fixtures/rich-design.blueprint3d) at the identical
  * viewport, so the engine is the only variable. Output lands in
@@ -22,7 +25,7 @@
  * the opacity fade, lightmap, shadows, sky gradient and the view presets.
  */
 import {createServer} from 'node:http';
-import {execFile} from 'node:child_process';
+import {execFile, execFileSync} from 'node:child_process';
 import {copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync} from 'node:fs';
 import {dirname, extname, join, normalize, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -34,6 +37,8 @@ const ROOT = join(HERE, '..');
 const OUT = join(HERE, 'parity');
 
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+/** The frozen pre-migration commit the r98 side is rendered from. */
+const LEGACY_TAG = 'legacy-demo';
 const VIEWPORT = {width: 1000, height: 700};
 
 /** The states tools/parity-goldens.html knows how to set up. */
@@ -173,6 +178,58 @@ async function capture(name, engine)
 	}
 }
 
+/**
+ * A checkout of the frozen tag, created on demand.
+ *
+ * r98 is not installable any more and does not need to be: the `legacy-demo`
+ * tag carries a prebuilt `build/` - the rollup bundle, jQuery, every texture -
+ * so a plain worktree is the whole setup. Doing it here rather than printing
+ * instructions keeps `npm run parity` a single command, which is the difference
+ * between a comparison people run and one they read about.
+ *
+ * It lives under tools/parity/ so it shares the gitignore with the rest of the
+ * capture output and never appears in `git status`. Remove it with
+ * `git worktree remove tools/parity/legacy-worktree`, or delete the directory
+ * and run `git worktree prune`.
+ */
+function legacyWorktree()
+{
+	const worktree = process.env.LEGACY_WORKTREE || join(OUT, 'legacy-worktree');
+	if (existsSync(join(worktree, 'build')))
+	{
+		return worktree;
+	}
+
+	try
+	{
+		execFileSync('git', ['rev-parse', '--verify', `${LEGACY_TAG}^{commit}`], {cwd: ROOT, stdio: 'pipe'});
+	}
+	catch
+	{
+		console.error(
+			`This needs the "${LEGACY_TAG}" tag, which is not in this repository.\n` +
+			'It marks the last commit before the migration began and is what the r98\n' +
+			'side of the comparison is rendered from. Fetch it with:\n\n' +
+			'    git fetch --tags\n');
+		process.exit(1);
+	}
+
+	console.log(`Creating a worktree at ${LEGACY_TAG} (no npm install needed - the tag ships a built bundle)`);
+	// Prune first: a directory deleted by hand leaves a stale registration
+	// behind, and `worktree add` then refuses the path it is already using.
+	execFileSync('git', ['worktree', 'prune'], {cwd: ROOT, stdio: 'pipe'});
+
+	// Sparse, because the full tree is 219 MB and the capture reads two
+	// directories of it. Most of the rest is generated esdoc output and the
+	// model library, neither of which appears in any of these ten states.
+	execFileSync('git', ['worktree', 'add', '--no-checkout', '--detach', worktree, LEGACY_TAG],
+		{cwd: ROOT, stdio: 'inherit'});
+	execFileSync('git', ['sparse-checkout', 'set', '--cone', 'build/js', 'build/rooms'],
+		{cwd: worktree, stdio: 'pipe'});
+	execFileSync('git', ['checkout'], {cwd: worktree, stdio: 'pipe'});
+	return worktree;
+}
+
 /* ------------------------------------------------------------------ run -- */
 
 const only = process.argv.find((argument) => argument.startsWith('--only='));
@@ -182,17 +239,7 @@ mkdirSync(OUT, {recursive: true});
 
 if (wanted.includes('legacy'))
 {
-	const worktree = process.env.LEGACY_WORKTREE || join(OUT, '..', '..', 'legacy');
-	const build = join(worktree, 'build');
-	if (!existsSync(build))
-	{
-		console.error(
-			`No legacy worktree at ${build}.\n\n` +
-			'Create one from the frozen tag - it needs no npm install, the tag ships a\n' +
-			'prebuilt bundle:\n\n' +
-			`    git worktree add --detach ${worktree} legacy-demo\n`);
-		process.exit(1);
-	}
+	const build = join(legacyWorktree(), 'build');
 	prepare(ENGINES.legacy, build, join(build, 'js', 'bp3djs.js'));
 	await capture('legacy', ENGINES.legacy);
 }
@@ -202,8 +249,8 @@ if (wanted.includes('current'))
 	const bundle = join(ROOT, 'dist', 'bp3djs.js');
 	if (!existsSync(bundle))
 	{
-		console.error(`No ${bundle}. Run: npm run build`);
-		process.exit(1);
+		console.error(`No ${bundle} yet - building it.`);
+		execFileSync('npm', ['run', 'build'], {cwd: ROOT, stdio: 'inherit'});
 	}
 	prepare(ENGINES.current, join(ROOT, 'build'), bundle);
 	await capture('current', ENGINES.current);
