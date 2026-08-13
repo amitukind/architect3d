@@ -1,16 +1,31 @@
 /*
- * Application layout for the Vue shell (sprint S6).
+ * Application styles (sprints S6-S7).
  *
- * Derived from build/css/app.css - the rules that positioned the two panes and
- * the bottom control bar are unchanged, so the app lands where the demo did.
- * What is new here is the flip, and what is gone is `.dg select`, a patch for
- * dat.GUI that no longer applies.
+ * S6 kept Bootstrap's stylesheet and the glyphicon webfont so the shell rewrite
+ * would not also be a visual rewrite. S7 drops both: 115 KB of CSS and 220 KB
+ * of font in four formats, for a button style, a panel border and sixteen
+ * icons. The buttons below are deliberately close to what Bootstrap 3 drew -
+ * this sprint retires a dependency, and S8 is the one allowed to move pixels.
  *
- * Bootstrap's stylesheet and the glyphicon font are still loaded by index.html
- * and still supply .btn / .glyphicon. Only their JavaScript left in this
- * sprint; S7 replaces the CSS with inline SVG icons and the last of the
- * legacy look.
+ * Layout rules for the two panes and the bottom bar come from build/css/app.css
+ * unchanged, so the app still lands where the demo did.
  */
+
+:root
+{
+	--ink: #333333;
+	--ink-soft: #6b6b6b;
+	--line: #cccccc;
+	--line-soft: #e2e2e2;
+	--surface: #ffffff;
+	--surface-sunk: #f5f5f5;
+	--accent: #337ab7;
+	--accent-dark: #2e6da4;
+	--danger: #c9302c;
+	--danger-dark: #ac2925;
+	--radius: 3px;
+	--font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
 
 html
 {
@@ -24,7 +39,115 @@ body
 	padding: 0;
 	overflow: hidden;
 	height: 100%;
+	font-family: var(--font);
+	font-size: 14px;
+	line-height: 1.42857;
+	color: var(--ink);
 }
+
+*,
+*::before,
+*::after
+{
+	box-sizing: border-box;
+}
+
+/* ---------------------------------------------------------------- buttons */
+
+.btn
+{
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 5px 10px;
+	margin: 0;
+	font-family: inherit;
+	font-size: 12px;
+	line-height: 1.5;
+	color: var(--ink);
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: var(--radius);
+	cursor: pointer;
+	user-select: none;
+	white-space: nowrap;
+}
+
+.btn:hover:not(:disabled)
+{
+	background: #e6e6e6;
+	border-color: #adadad;
+}
+
+.btn:focus-visible
+{
+	outline: 2px solid var(--accent);
+	outline-offset: 1px;
+}
+
+.btn:disabled
+{
+	opacity: 0.55;
+	cursor: default;
+}
+
+.btn.is-active
+{
+	color: #ffffff;
+	background: var(--accent);
+	border-color: var(--accent-dark);
+}
+
+.btn.is-active:hover
+{
+	background: var(--accent-dark);
+}
+
+.btn-danger
+{
+	color: #ffffff;
+	background: var(--danger);
+	border-color: var(--danger-dark);
+}
+
+.btn-danger:hover:not(:disabled)
+{
+	background: var(--danger-dark);
+	border-color: var(--danger-dark);
+}
+
+.btn-block
+{
+	display: flex;
+	justify-content: center;
+	width: 100%;
+	margin-top: 10px;
+}
+
+/* A file input dressed as a button. */
+.btn-file
+{
+	position: relative;
+	overflow: hidden;
+}
+
+.btn-file input[type=file]
+{
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	opacity: 0;
+	cursor: pointer;
+}
+
+.btn-row
+{
+	display: inline-flex;
+	gap: 4px;
+}
+
+/* ------------------------------------------------------------------ panes */
 
 #interfaces,
 #interface-controls
@@ -140,44 +263,65 @@ body
 	text-align: center;
 	bottom: 10px;
 	z-index: 100;
+	display: flex;
+	align-items: flex-end;
+	justify-content: center;
+	gap: 6px;
+	pointer-events: none;
 }
 
-.btn-file
+#interface-controls > *
 {
-	display: inline-block;
-	cursor: pointer;
-	position: relative;
-	overflow: hidden;
+	pointer-events: auto;
 }
 
-.btn-file input[type=file]
+/*
+ * The camera cross: presets arranged as they point, with the two toggles under
+ * them. The demo built this out of nested Bootstrap button groups that
+ * overflowed the bottom of the window; a grid keeps it inside the bar.
+ */
+#viewcontrols
 {
-	position: absolute;
-	top: 0;
-	right: 0;
-	min-width: 100%;
-	min-height: 100%;
-	opacity: 0;
-	cursor: inherit;
-	display: block;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 4px;
+	padding: 4px;
+	background: rgba(255, 255, 255, 0.85);
+	border: 1px solid var(--line);
+	border-radius: var(--radius);
 }
+
+.view-cube
+{
+	display: grid;
+	grid-template-columns: repeat(3, auto);
+	gap: 2px;
+	align-items: center;
+	justify-items: center;
+}
+
+.view-cube .cube-left {grid-area: 2 / 1;}
+.view-cube .cube-top {grid-area: 1 / 2;}
+.view-cube .cube-iso {grid-area: 2 / 2;}
+.view-cube .cube-front {grid-area: 3 / 2;}
+.view-cube .cube-right {grid-area: 2 / 3;}
 
 .btn-hint
 {
 	position: absolute;
 	left: 20px;
 	bottom: 20px;
-	background-color: rgba(0, 0, 0, 0.50);
+	background-color: rgba(0, 0, 0, 0.5);
 	color: #ffffff;
 	padding: 5px 10px;
+	border-radius: var(--radius);
 	z-index: 10;
+	font-size: 13px;
 }
 
-/*
- * The catalog, replacing Bootstrap's modal plugin. The panel and thumbnail
- * classes still come from Bootstrap's stylesheet; only the show/hide and the
- * accordion behaviour moved into Vue.
- */
+/* --------------------------------------------------------------- catalog */
+
 .catalog-backdrop
 {
 	position: fixed;
@@ -193,17 +337,17 @@ body
 
 .catalog-dialog
 {
-	background: #ffffff;
+	background: var(--surface);
 	border-radius: 6px;
 	box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
-	width: 600px;
+	width: 620px;
 	max-width: 100%;
 }
 
 .catalog-header,
 .catalog-footer
 {
-	padding: 15px;
+	padding: 14px 16px;
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -211,12 +355,12 @@ body
 
 .catalog-header
 {
-	border-bottom: 1px solid #e5e5e5;
+	border-bottom: 1px solid var(--line-soft);
 }
 
 .catalog-footer
 {
-	border-top: 1px solid #e5e5e5;
+	border-top: 1px solid var(--line-soft);
 	justify-content: flex-end;
 }
 
@@ -224,11 +368,23 @@ body
 {
 	margin: 0;
 	font-size: 18px;
+	font-weight: 600;
+}
+
+.catalog-close
+{
+	border: 0;
+	background: none;
+	font-size: 22px;
+	line-height: 1;
+	color: var(--ink-soft);
+	cursor: pointer;
+	padding: 0 4px;
 }
 
 .catalog-body
 {
-	padding: 15px;
+	padding: 12px 16px;
 	max-height: 65vh;
 	overflow-y: auto;
 }
@@ -242,11 +398,19 @@ body
 {
 	width: 100%;
 	text-align: left;
-	background: #f5f5f5;
-	border: 1px solid #ddd;
-	border-radius: 4px;
-	padding: 10px 15px;
-	font-size: 16px;
+	font-family: inherit;
+	font-size: 15px;
+	background: var(--surface-sunk);
+	border: 1px solid var(--line-soft);
+	border-radius: var(--radius);
+	padding: 10px 14px;
+	cursor: pointer;
+	color: var(--ink);
+}
+
+.catalog-section-heading:hover
+{
+	background: #ececec;
 }
 
 .catalog-grid
@@ -262,19 +426,21 @@ body
 	display: block;
 	width: 100%;
 	text-align: center;
+	font-family: inherit;
 	font-size: 12px;
 	line-height: 1.3;
+	color: var(--ink);
 	padding: 6px;
-	background: #ffffff;
-	border: 1px solid #ddd;
-	border-radius: 4px;
+	background: var(--surface);
+	border: 1px solid var(--line-soft);
+	border-radius: var(--radius);
 	cursor: pointer;
 }
 
 .catalog-item:hover,
-.catalog-item:focus
+.catalog-item:focus-visible
 {
-	border-color: #2e6da4;
+	border-color: var(--accent);
 }
 
 .catalog-item img
@@ -286,14 +452,364 @@ body
 	margin-bottom: 6px;
 }
 
-/* The interim lil-gui panel. Deleted in S7 with the panel itself. */
+/* ------------------------------------------------------------- inspector */
+
 #inspector
 {
 	position: absolute;
 	top: 0;
 	right: 0;
+	bottom: 0;
+	width: 300px;
 	z-index: 200;
+	display: flex;
+	flex-direction: column;
+	background: var(--surface);
+	border-left: 1px solid var(--line);
+	box-shadow: -2px 0 8px rgba(0, 0, 0, 0.08);
+	font-size: 13px;
 }
+
+.inspector-tabs
+{
+	display: flex;
+	flex: none;
+	border-bottom: 1px solid var(--line);
+}
+
+.inspector-tab
+{
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 10px 8px;
+	font-family: inherit;
+	font-size: 13px;
+	color: var(--ink-soft);
+	background: var(--surface-sunk);
+	border: 0;
+	border-bottom: 2px solid transparent;
+	cursor: pointer;
+}
+
+.inspector-tab.is-active
+{
+	color: var(--ink);
+	background: var(--surface);
+	border-bottom-color: var(--accent);
+	font-weight: 600;
+}
+
+.inspector-body
+{
+	flex: 1;
+	overflow-y: auto;
+	padding: 12px;
+}
+
+.inspector-section
+{
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.inspector-heading
+{
+	margin: 0 0 2px;
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.inspector-subheading
+{
+	margin: 8px 0 0;
+	font-size: 12px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--ink-soft);
+}
+
+.inspector-empty,
+.inspector-note
+{
+	margin: 0;
+	color: var(--ink-soft);
+	line-height: 1.5;
+}
+
+.inspector-readout
+{
+	margin: 0;
+	color: var(--ink-soft);
+}
+
+/* ------------------------------------------------------------- settings */
+
+.settings
+{
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.group
+{
+	border: 1px solid var(--line-soft);
+	border-radius: var(--radius);
+}
+
+.group-title
+{
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	padding: 8px 10px;
+	font-family: inherit;
+	font-size: 13px;
+	font-weight: 600;
+	text-align: left;
+	color: var(--ink);
+	background: var(--surface-sunk);
+	border: 0;
+	border-radius: var(--radius);
+	cursor: pointer;
+}
+
+.group.is-open .group-title
+{
+	border-radius: var(--radius) var(--radius) 0 0;
+	border-bottom: 1px solid var(--line-soft);
+}
+
+.group-caret
+{
+	display: inline-block;
+	width: 12px;
+	text-align: center;
+	color: var(--ink-soft);
+}
+
+.group-body
+{
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 10px;
+}
+
+/* ---------------------------------------------------------------- fields */
+
+.field
+{
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.field-label
+{
+	color: var(--ink-soft);
+}
+
+.field-input
+{
+	width: 100%;
+	padding: 5px 7px;
+	font-family: inherit;
+	font-size: 13px;
+	color: var(--ink);
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: var(--radius);
+}
+
+.field-input:focus
+{
+	outline: none;
+	border-color: var(--accent);
+}
+
+.field-check
+{
+	flex-direction: row;
+	align-items: center;
+	gap: 8px;
+	cursor: pointer;
+}
+
+.field-check .field-label
+{
+	color: var(--ink);
+}
+
+.field-checkbox
+{
+	flex: none;
+	margin: 0;
+}
+
+.field-range-row,
+.field-color-row
+{
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.field-slider
+{
+	flex: 1;
+	min-width: 0;
+}
+
+.field-output
+{
+	flex: none;
+	min-width: 44px;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	color: var(--ink-soft);
+}
+
+.field-swatch
+{
+	flex: none;
+	width: 34px;
+	height: 26px;
+	padding: 0;
+	border: 1px solid var(--line);
+	border-radius: var(--radius);
+	background: none;
+	cursor: pointer;
+}
+
+.field-hex
+{
+	color: var(--ink-soft);
+	font-size: 12px;
+}
+
+.radio-list
+{
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.radio-row
+{
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	cursor: pointer;
+}
+
+.radio-suffix
+{
+	margin-left: auto;
+	color: var(--ink-soft);
+	font-size: 11px;
+}
+
+.segmented
+{
+	display: flex;
+}
+
+.segment
+{
+	flex: 1;
+	padding: 5px 8px;
+	font-family: inherit;
+	font-size: 12px;
+	color: var(--ink);
+	background: var(--surface);
+	border: 1px solid var(--line);
+	cursor: pointer;
+}
+
+.segment:first-child
+{
+	border-radius: var(--radius) 0 0 var(--radius);
+}
+
+.segment:last-child
+{
+	border-left-width: 0;
+	border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.segment.is-active
+{
+	color: #ffffff;
+	background: var(--accent);
+	border-color: var(--accent-dark);
+}
+
+/* ---------------------------------------------------------- texture grid */
+
+.texture-grid
+{
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+	gap: 6px;
+}
+
+.texture-swatch
+{
+	display: block;
+	padding: 3px;
+	font-family: inherit;
+	font-size: 11px;
+	line-height: 1.2;
+	color: var(--ink-soft);
+	background: var(--surface);
+	border: 2px solid var(--line-soft);
+	border-radius: var(--radius);
+	cursor: pointer;
+}
+
+.texture-swatch:hover:not(:disabled)
+{
+	border-color: var(--line);
+}
+
+.texture-swatch.is-current
+{
+	border-color: var(--accent);
+	color: var(--ink);
+}
+
+.texture-swatch:disabled
+{
+	opacity: 0.45;
+	cursor: default;
+}
+
+.texture-swatch img
+{
+	display: block;
+	width: 100%;
+	height: 44px;
+	object-fit: cover;
+	border-radius: 2px;
+	margin-bottom: 3px;
+}
+
+.texture-name
+{
+	display: block;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ misc */
 
 .app-error
 {
@@ -305,7 +821,6 @@ body
 	background: #a94442;
 	color: #ffffff;
 	padding: 8px 14px;
-	border-radius: 4px;
-	font-family: sans-serif;
+	border-radius: var(--radius);
 	font-size: 13px;
 }

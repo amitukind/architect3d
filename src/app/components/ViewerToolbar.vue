@@ -1,4 +1,6 @@
 <script setup>
+import AppIcon from './AppIcon.vue';
+
 /**
  * The 3D pane's toolbar: the same file actions as the 2D one, plus the two mesh
  * exports.
@@ -26,31 +28,30 @@ function onFile(event)
 </script>
 
 <template>
-	<div id="main-controls">
+	<div id="main-controls" class="btn-row">
 		<button
-			type="button" class="btn btn-default btn-sm" title="New Layout"
-			aria-label="New layout" @click="emit('new-design')">
-			<span class="glyphicon glyphicon-floppy-disk" />
+			type="button" class="btn" title="New Layout" aria-label="New layout"
+			@click="emit('new-design')">
+			<AppIcon name="file-plus" />
 		</button>
 		<button
-			type="button" class="btn btn-default btn-sm" title="Save Layout"
-			aria-label="Save layout" @click="emit('save-design')">
-			<span class="glyphicon glyphicon-floppy-save" />
+			type="button" class="btn" title="Save Layout" aria-label="Save layout"
+			@click="emit('save-design')">
+			<AppIcon name="save" />
 		</button>
-		<label class="btn btn-sm btn-default btn-file" title="Open Layout">
-			<span class="glyphicon glyphicon-floppy-open" />
+		<label class="btn btn-file" title="Open Layout">
+			<AppIcon name="folder-open" />
 			<input type="file" accept=".blueprint3d,application/json" @change="onFile">
 		</label>
 		<button
-			type="button" class="btn btn-default btn-sm" title="Save Scene as a mesh"
-			aria-label="Save scene as OBJ" @click="emit('save-mesh')">
-			<span class="glyphicon glyphicon-asterisk" />
+			type="button" class="btn" title="Save Scene as a mesh" aria-label="Save scene as OBJ"
+			@click="emit('save-mesh')">
+			<AppIcon name="cube" />
 		</button>
 		<button
-			type="button" class="btn btn-default btn-sm" title="Save Scene as a GLTF"
-			aria-label="Save scene as glTF" :disabled="props.exporting"
-			@click="emit('save-gltf')">
-			<span class="glyphicon glyphicon-export" />
+			type="button" class="btn" title="Save Scene as a GLTF" aria-label="Save scene as glTF"
+			:disabled="props.exporting" @click="emit('save-gltf')">
+			<AppIcon name="share" />
 		</button>
 	</div>
 </template>

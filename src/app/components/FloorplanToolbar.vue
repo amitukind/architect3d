@@ -1,4 +1,5 @@
 <script setup>
+import AppIcon from './AppIcon.vue';
 import {floorplannerModes} from '../../scripts/blueprint.js';
 
 /**
@@ -7,6 +8,10 @@ import {floorplannerModes} from '../../scripts/blueprint.js';
  * Reproduces `#floorplanner-controls` (build/index.html:33-56) and the click
  * handlers at build/js/app.js:68-81, with the mode highlight working - see
  * useFloorplannerMode for why it never did.
+ *
+ * S7 swapped glyphicons for inline SVG. The tooltips are unchanged; the icons
+ * are not, because the demo's did not match them - "New Layout" was a floppy
+ * disk, the same glyph family as Save.
  */
 
 const props = defineProps({
@@ -24,9 +29,9 @@ const HELP = [
 ].join('\n');
 
 const MODES = [
-	{id: floorplannerModes.MOVE, icon: 'glyphicon-move', title: 'Move Walls', label: 'Move walls'},
-	{id: floorplannerModes.DRAW, icon: 'glyphicon-pencil', title: 'Draw New Walls', label: 'Draw new walls'},
-	{id: floorplannerModes.DELETE, icon: 'glyphicon-remove', title: 'Delete Walls', label: 'Delete walls'},
+	{id: floorplannerModes.MOVE, icon: 'move', title: 'Move Walls', label: 'Move walls'},
+	{id: floorplannerModes.DRAW, icon: 'pencil', title: 'Draw New Walls', label: 'Draw new walls'},
+	{id: floorplannerModes.DELETE, icon: 'x', title: 'Delete Walls', label: 'Delete walls'},
 ];
 
 function onFile(event)
@@ -43,33 +48,38 @@ function onFile(event)
 
 <template>
 	<div id="floorplanner-controls">
-		<button
-			type="button" class="btn btn-default btn-sm" title="New Layout"
-			aria-label="New layout" @click="emit('new-design')">
-			<span class="glyphicon glyphicon-floppy-disk" />
-		</button>
-		<button
-			type="button" class="btn btn-default btn-sm" title="Save Layout"
-			aria-label="Save layout" @click="emit('save-design')">
-			<span class="glyphicon glyphicon-floppy-save" />
-		</button>
-		<label class="btn btn-sm btn-default btn-file" title="Open Layout">
-			<span class="glyphicon glyphicon-floppy-open" />
-			<input type="file" accept=".blueprint3d,application/json" @change="onFile">
-		</label>
+		<span class="btn-row">
+			<button
+				type="button" class="btn" title="New Layout" aria-label="New layout"
+				@click="emit('new-design')">
+				<AppIcon name="file-plus" />
+			</button>
+			<button
+				type="button" class="btn" title="Save Layout" aria-label="Save layout"
+				@click="emit('save-design')">
+				<AppIcon name="save" />
+			</button>
+			<label class="btn btn-file" title="Open Layout">
+				<AppIcon name="folder-open" />
+				<input type="file" accept=".blueprint3d,application/json" @change="onFile">
+			</label>
+		</span>
 
-		<button
-			v-for="entry in MODES" :key="entry.title" type="button"
-			class="btn btn-sm btn-default"
-			:class="{'btn-primary': props.mode === entry.id}"
-			:aria-pressed="props.mode === entry.id"
-			:title="entry.title" :aria-label="entry.label"
-			@click="emit('set-mode', entry.id)">
-			<span class="glyphicon" :class="entry.icon" />
-		</button>
+		<span class="btn-row" style="margin-left: 8px">
+			<button
+				v-for="entry in MODES" :key="entry.title" type="button" class="btn"
+				:class="{'is-active': props.mode === entry.id}"
+				:aria-pressed="props.mode === entry.id"
+				:title="entry.title" :aria-label="entry.label"
+				@click="emit('set-mode', entry.id)">
+				<AppIcon :name="entry.icon" />
+			</button>
+		</span>
 
-		<button type="button" class="btn btn-sm btn-default" :title="HELP" aria-label="Tips">
-			<span class="glyphicon glyphicon-info-sign" />
-		</button>
+		<span class="btn-row" style="margin-left: 8px">
+			<button type="button" class="btn" :title="HELP" aria-label="Tips">
+				<AppIcon name="info" />
+			</button>
+		</span>
 	</div>
 </template>

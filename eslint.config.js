@@ -119,6 +119,26 @@ export default [
 	},
 
 	{
+		// The inspector panels (S7).
+		//
+		// `vue/no-mutating-props` exists to stop a child writing to its parent's
+		// reactive state, which is a real bug when the prop is data Vue owns. The
+		// props here are not that: each one is a live model object - a Corner, a
+		// Room, an Item - deliberately passed raw (see the markRaw note in
+		// useBlueprint), and writing to it is what an inspector *is*. There is no
+		// parent state to desynchronise, and the objects broadcast their own
+		// changes through EventDispatcher.
+		//
+		// Scoped to this directory rather than switched off globally, and
+		// deliberately not worked around by aliasing the prop to a local const -
+		// that would satisfy the linter without changing anything real.
+		files: ['src/app/inspector/**/*.vue'],
+		rules: {
+			'vue/no-mutating-props': 'off',
+		},
+	},
+
+	{
 		// Tests and tooling: Node environment.
 		files: ['tests/**/*.js', 'tools/**/*.mjs', '*.config.js', '*.config.mjs'],
 		languageOptions: {

@@ -14,17 +14,13 @@
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 import {nextTick} from 'vue';
 import {mount} from '@vue/test-utils';
-import GUI from 'lil-gui';
 
 import App from '../src/app/App.vue';
 import {Main} from '../src/scripts/three/main.js';
 import {floorplannerModes} from '../src/scripts/floorplanner/floorplanner_view.js';
-import {Dimensioning} from '../src/scripts/core/dimensioning.js';
-import {buildSelectionFolder} from '../src/app/inspector/selection-folders.js';
-import {SELECTION_ITEM} from '../src/app/composables/useSelection.js';
 
 import {resetAll} from './helpers/harness.js';
-import {installCanvas2D, installListenerCounter, installMatchMedia, installPointerApis, installResizeObserver} from './helpers/dom.js';
+import {installCanvas2D, installListenerCounter, installPointerApis, installResizeObserver} from './helpers/dom.js';
 import {createRendererStub} from './helpers/renderer.js';
 
 const VIEWPORT_WIDTH = 1024;
@@ -33,7 +29,6 @@ const VIEWPORT_HEIGHT = 768;
 let canvasStub;
 let observer;
 let pointerApis;
-let media;
 let listeners;
 let renderers;
 
@@ -100,7 +95,6 @@ beforeEach(() =>
 	canvasStub = installCanvas2D(window);
 	observer = installResizeObserver(window);
 	pointerApis = installPointerApis(window);
-	media = installMatchMedia(window);
 	Main.setRendererFactory(() => createRendererStub(renderers));
 });
 
@@ -108,7 +102,6 @@ afterEach(() =>
 {
 	Main.setRendererFactory(null);
 	observer.restore();
-	media.restore();
 	pointerApis.restore();
 	canvasStub.restore();
 	listeners.restore();
@@ -170,14 +163,14 @@ describe('the 2D toolbar highlight', () =>
 		const draw = toolbarButton(wrapper, 'Draw New Walls');
 		const remove = toolbarButton(wrapper, 'Delete Walls');
 
-		expect(move.classes()).toContain('btn-primary');
-		expect(draw.classes()).not.toContain('btn-primary');
+		expect(move.classes()).toContain('is-active');
+		expect(draw.classes()).not.toContain('is-active');
 
 		await draw.trigger('click');
 
-		expect(draw.classes()).toContain('btn-primary');
-		expect(move.classes()).not.toContain('btn-primary');
-		expect(remove.classes()).not.toContain('btn-primary');
+		expect(draw.classes()).toContain('is-active');
+		expect(move.classes()).not.toContain('is-active');
+		expect(remove.classes()).not.toContain('is-active');
 		expect(draw.attributes('aria-pressed')).toBe('true');
 
 		wrapper.unmount();
@@ -204,7 +197,7 @@ describe('the 2D toolbar highlight', () =>
 		wrapper.vm.$.setupState.editor.setMode(floorplannerModes.MOVE);
 		await wrapper.vm.$nextTick();
 
-		expect(toolbarButton(wrapper, 'Move Walls').classes()).toContain('btn-primary');
+		expect(toolbarButton(wrapper, 'Move Walls').classes()).toContain('is-active');
 
 		wrapper.unmount();
 	});
@@ -293,122 +286,12 @@ describe('lifecycle', () =>
 		expect(realLeaks()).toEqual([]);
 	});
 
-	it('leaves no lil-gui panel behind', async () =>
+	it('leaves no inspector behind', async () =>
 	{
 		const wrapper = await mountApp();
-		expect(document.querySelectorAll('#inspector .lil-gui').length).toBeGreaterThan(0);
+		expect(document.querySelectorAll('#inspector').length).toBe(1);
 
 		wrapper.unmount();
-		expect(document.querySelectorAll('.lil-gui')).toHaveLength(0);
-	});
-});
-
-describe('the item inspector binds the selected item', () =>
-{
-	/**
-	 * Enough of an Item for the inspector: the getters it reads and the mutators
-	 * it calls. `resize` records rather than scaling anything, which is exactly
-	 * what has to be shown to happen - in the demo it never was.
-	 */
-	function fakeItem()
-	{
-		return {
-			metadata: {itemName: 'Sofa - Grey'},
-			fixed: false,
-			material: {name: 'grey', color: {getHexString: () => 'cccccc'}},
-			width: 200, height: 80, depth: 90,
-			proportional: false,
-			resized: null,
-			removed: false,
-			colored: [],
-			getWidth() {return this.width;},
-			getHeight() {return this.height;},
-			getDepth() {return this.depth;},
-			getProportionalResize() {return this.proportional;},
-			setProportionalResize(flag) {this.proportional = flag;},
-			setFixed(flag) {this.fixed = flag;},
-			setMaterialColor(color, index) {this.colored.push({color, index});},
-			resize(height, width, depth) {this.resized = {height, width, depth};},
-			remove() {this.removed = true;},
-		};
-	}
-
-	let gui;
-
-	beforeEach(() => {gui = new GUI({autoPlace: false});});
-	afterEach(() => {gui.destroy();});
-
-	function build(item)
-	{
-		return buildSelectionFolder(gui, {type: SELECTION_ITEM, object: item}, {floorplanner: null});
-	}
-
-	function controllerNamed(built, name)
-	{
-		return built.folder.controllersRecursive().find((controller) => controller._name === name);
-	}
-
-	it('shows the selected item, not a 10x10x10 placeholder', () =>
-	{
-		const item = fakeItem();
-		const built = build(item);
-
-		expect(controllerNamed(built, 'Name').getValue()).toBe('Sofa - Grey');
-		expect(controllerNamed(built, 'width').getValue()).toBeCloseTo(Dimensioning.cmToMeasureRaw(200), 6);
-		expect(controllerNamed(built, 'height').getValue()).toBeCloseTo(Dimensioning.cmToMeasureRaw(80), 6);
-		expect(controllerNamed(built, 'depth').getValue()).toBeCloseTo(Dimensioning.cmToMeasureRaw(90), 6);
-
-		built.destroy();
-	});
-
-	it('resizes the item when a dimension is edited', () =>
-	{
-		const item = fakeItem();
-		const built = build(item);
-
-		controllerNamed(built, 'width').setValue(Dimensioning.cmToMeasureRaw(250));
-
-		expect(item.resized).not.toBeNull();
-		expect(item.resized.width).toBeCloseTo(250, 4);
-		expect(item.resized.height).toBeCloseTo(80, 4);
-		expect(item.resized.depth).toBeCloseTo(90, 4);
-
-		built.destroy();
-	});
-
-	it('drives the lock, the proportional flag and delete', () =>
-	{
-		const item = fakeItem();
-		const built = build(item);
-
-		controllerNamed(built, 'Locked in place').setValue(true);
-		expect(item.fixed).toBe(true);
-
-		controllerNamed(built, 'Maintain Size Ratio').setValue(true);
-		expect(item.proportional).toBe(true);
-
-		controllerNamed(built, 'Delete Item').$button.dispatchEvent(new window.MouseEvent('click'));
-		expect(item.removed).toBe(true);
-
-		built.destroy();
-	});
-
-	it('gives every material its own colour swatch', () =>
-	{
-		const item = fakeItem();
-		item.material = [
-			{name: 'frame', color: {getHexString: () => 'ff0000'}},
-			{name: 'cushion', color: {getHexString: () => '00ff00'}},
-		];
-		const built = build(item);
-
-		controllerNamed(built, 'cushion').setValue('#0000ff');
-
-		expect(item.colored).toEqual([{color: '#0000ff', index: 1}]);
-		// A colour change is not a resize. The demo routed both through the same
-		// handler, so picking a colour also re-applied the dimensions.
-		expect(item.resized).toBeNull();
-
-		built.destroy();
+		expect(document.querySelectorAll('#inspector')).toHaveLength(0);
 	});
 });

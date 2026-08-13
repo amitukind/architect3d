@@ -45,7 +45,9 @@ migration finishes.
 | `npm run lint` | ESLint |
 | `npm run parity` | Renders ten states through r98 and r185 side by side (see `tests/README.md`) |
 
-The build is Vite; rollup, Babel and jQuery were removed during the migration.
+The build is Vite. rollup, Babel, jQuery, Bootstrap, dat.GUI and the glyphicon
+webfont were all removed during the migration; the application's only runtime
+dependencies are Vue, three and bezier-js.
 
 
 ## Directory Structure
@@ -74,7 +76,7 @@ Inside `src/app`:
 
 `composables` - the blueprint's lifetime, the selection, the camera, file IO
 
-`inspector` - the interim lil-gui settings panel, replaced by native Vue in S7
+`inspector` - native selection panels, the texture grid and the settings panel
 
 
 ## DOCS ##

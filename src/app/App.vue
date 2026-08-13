@@ -15,10 +15,11 @@ import {useCameraViews, MODE_FLOORPLAN} from './composables/useCameraViews.js';
 import {useFloorplannerMode} from './composables/useFloorplannerMode.js';
 import {useDesignIO} from './composables/useDesignIO.js';
 import {useCatalog} from './composables/useCatalog.js';
+import {syncDisplayUnit} from './composables/useDisplayUnit.js';
 import {floorplannerModes, Configuration, configSystemUI} from '../scripts/blueprint.js';
 
 /**
- * The application shell (sprint S6), replacing build/js/app.js.
+ * The application shell (sprints S6-S7), replacing build/js/app.js.
  *
  * ## Where construction happens, and why here
  *
@@ -59,10 +60,17 @@ onMounted(() =>
 
 	// The library asks for corner elevations and room names through
 	// window.prompt when this is false, and draws its own in-canvas editors when
-	// it is true. The demo set it false (build/js/app.js:655) and the in-canvas
-	// path has never been exercised; changing it is an S7 decision, with the
-	// native inspectors that would replace both.
+	// it is true. The demo set it false (build/js/app.js:655).
+	//
+	// S7 looked at this and kept it false. The in-canvas editors have never run
+	// in this application's life, they are not covered by a single test, and the
+	// native inspectors now offer both edits with a real form - so the prompt is
+	// a fallback for a double-click, not the primary path it used to be.
 	Configuration.setValue(configSystemUI, false);
+
+	// BlueprintJS's constructor sets dimMeter as its first statement, so the
+	// panel has to re-read the unit rather than trust what it last showed.
+	syncDisplayUnit();
 
 	io.newDesign();
 });
@@ -122,7 +130,7 @@ function onAddItem(entry)
 		@close="catalogOpen = false"
 		@add-item="onAddItem" />
 
-	<InspectorPanel :selection="selection.selection.value" />
+	<InspectorPanel :selection="selection.selection.value" :camera="camera" />
 
 	<div v-if="io.lastError.value" class="app-error" role="alert">{{ io.lastError.value }}</div>
 </template>

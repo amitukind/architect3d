@@ -1,0 +1,57 @@
+{
+	"version": 1,
+	"_comment": "Wall and floor surfaces offered by the inspector. Added in sprint S7, when the dat.GUI dropdowns became a thumbnail grid: the demo carried this list as a bare array of [url, stretch, scale] triples inside build/js/app.js with the names living separately in two dropdown maps, so a texture could be renamed in one place and not the other. Names, urls, stretch and scale are all the demo's; the thumbnails are the ones build/index2.html already referenced and nothing else did. Note that Checker and Bricks are the same image at different scales - odd names for brickwork, and the demo's own.",
+	"wall": [
+		{
+			"name": "Grey",
+			"url": "rooms/textures/wallmap.png",
+			"thumbnail": "rooms/thumbnails/thumbnail_wallmap.png",
+			"stretch": true,
+			"scale": 1
+		},
+		{
+			"name": "Yellow",
+			"url": "rooms/textures/wallmap_yellow.png",
+			"thumbnail": "rooms/thumbnails/thumbnail_wallmap_yellow.png",
+			"stretch": true,
+			"scale": 1
+		},
+		{
+			"name": "Checker",
+			"url": "rooms/textures/light_brick.jpg",
+			"thumbnail": "rooms/thumbnails/thumbnail_light_brick.jpg",
+			"stretch": false,
+			"scale": 50
+		},
+		{
+			"name": "Marble",
+			"url": "rooms/textures/marbletiles.jpg",
+			"thumbnail": "rooms/thumbnails/thumbnail_marbletiles.jpg",
+			"stretch": false,
+			"scale": 300
+		},
+		{
+			"name": "Bricks",
+			"url": "rooms/textures/light_brick.jpg",
+			"thumbnail": "rooms/thumbnails/thumbnail_light_brick.jpg",
+			"stretch": false,
+			"scale": 100
+		}
+	],
+	"floor": [
+		{
+			"name": "Fine Wood",
+			"url": "rooms/textures/light_fine_wood.jpg",
+			"thumbnail": "rooms/thumbnails/thumbnail_light_fine_wood.jpg",
+			"stretch": false,
+			"scale": 300
+		},
+		{
+			"name": "Hard Wood",
+			"url": "rooms/textures/hardwood.png",
+			"thumbnail": "rooms/thumbnails/thumbnail_hardwood.png",
+			"stretch": false,
+			"scale": 300
+		}
+	]
+}

@@ -1,5 +1,6 @@
 <script setup>
 import ViewCube from './ViewCube.vue';
+import AppIcon from './AppIcon.vue';
 import {MODE_FLOORPLAN, MODE_DESIGN, MODE_WALKTHROUGH} from '../composables/useCameraViews.js';
 
 /**
@@ -13,8 +14,8 @@ import {MODE_FLOORPLAN, MODE_DESIGN, MODE_WALKTHROUGH} from '../composables/useC
  * One addition: the walk-through button. It is in the demo's markup but
  * commented out (build/index.html:113-115), which is why parity scenario P10
  * says "unreachable from the legacy UI - capture via console". S5 rebuilt those
- * controls on three's addon and the exit path (EVENT_FPS_EXIT) is wired here,
- * so there is no longer a reason to hide it.
+ * controls on three's addon and the exit path (EVENT_FPS_EXIT) is wired in
+ * useCameraViews, so there is no longer a reason to hide it.
  */
 
 const props = defineProps({
@@ -33,48 +34,50 @@ const emit = defineEmits([
 <template>
 	<div id="interface-controls">
 		<button
-			type="button" class="btn btn-sm btn-default"
-			:class="{active: props.mode === MODE_FLOORPLAN}"
+			type="button" class="btn"
+			:class="{'is-active': props.mode === MODE_FLOORPLAN}"
 			:aria-pressed="props.mode === MODE_FLOORPLAN"
 			title="Edit 2D floorplan" @click="emit('show-floorplan')">
-			<span class="glyphicon glyphicon-move" /> Floor Plan
+			<AppIcon name="move" /> Floor Plan
 		</button>
 		<button
-			type="button" class="btn btn-sm btn-default"
-			:class="{active: props.mode === MODE_DESIGN}"
+			type="button" class="btn"
+			:class="{'is-active': props.mode === MODE_DESIGN}"
 			:aria-pressed="props.mode === MODE_DESIGN"
 			title="Edit 3D floorplan" @click="emit('show-design')">
-			<span class="glyphicon glyphicon-move" /> 3D
+			<AppIcon name="cube" /> 3D
 		</button>
 
-		<div v-show="props.mode !== MODE_FLOORPLAN" id="viewcontrols" class="btn-group-vertical">
+		<div v-show="props.mode !== MODE_FLOORPLAN" id="viewcontrols">
 			<ViewCube :active-view="props.activeView" @switch-view="emit('switch-view', $event)" />
-			<button
-				type="button" class="btn btn-sm btn-default"
-				:class="{active: props.orthographic}" :aria-pressed="props.orthographic"
-				title="Switch Camera ortho/perspective" @click="emit('toggle-orthographic')">
-				<span class="glyphicon glyphicon-camera" />
-			</button>
-			<button
-				type="button" class="btn btn-sm btn-default"
-				:class="{active: props.wireframe}" :aria-pressed="props.wireframe"
-				title="Switch wireframe mode" @click="emit('toggle-wireframe')">
-				<span class="glyphicon glyphicon-pencil" />
-			</button>
+			<div class="btn-row">
+				<button
+					type="button" class="btn"
+					:class="{'is-active': props.orthographic}" :aria-pressed="props.orthographic"
+					title="Switch Camera ortho/perspective" @click="emit('toggle-orthographic')">
+					<AppIcon name="camera" />
+				</button>
+				<button
+					type="button" class="btn"
+					:class="{'is-active': props.wireframe}" :aria-pressed="props.wireframe"
+					title="Switch wireframe mode" @click="emit('toggle-wireframe')">
+					<AppIcon name="grid" />
+				</button>
+			</div>
 		</div>
 
 		<button
-			v-show="props.mode !== MODE_FLOORPLAN" type="button" class="btn btn-sm btn-default"
+			v-show="props.mode !== MODE_FLOORPLAN" type="button" class="btn"
 			title="Add/Remove items in 3D" @click="emit('open-catalog')">
-			<span class="glyphicon glyphicon-plus" />
+			<AppIcon name="plus" />
 		</button>
 
 		<button
-			type="button" class="btn btn-sm btn-default"
-			:class="{active: props.mode === MODE_WALKTHROUGH}"
+			type="button" class="btn"
+			:class="{'is-active': props.mode === MODE_WALKTHROUGH}"
 			:aria-pressed="props.mode === MODE_WALKTHROUGH"
 			title="Walk through" @click="emit('show-walkthrough')">
-			<span class="glyphicon glyphicon-eye-open" />
+			<AppIcon name="eye" />
 		</button>
 	</div>
 </template>

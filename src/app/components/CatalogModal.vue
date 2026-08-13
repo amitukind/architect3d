@@ -62,7 +62,7 @@ onBeforeUnmount(() => {window.removeEventListener('keydown', onKeydown);});
 			aria-label="Furniture Inventory" tabindex="-1">
 			<div class="catalog-header">
 				<h4 class="catalog-title">Furniture Inventory</h4>
-				<button type="button" class="close" aria-label="Close" @click="emit('close')">&times;</button>
+				<button type="button" class="catalog-close" aria-label="Close" @click="emit('close')">&times;</button>
 			</div>
 
 			<div class="catalog-body">
@@ -85,7 +85,7 @@ onBeforeUnmount(() => {window.removeEventListener('keydown', onKeydown);});
 			</div>
 
 			<div class="catalog-footer">
-				<button type="button" class="btn btn-default" @click="emit('close')">Close</button>
+				<button type="button" class="btn" @click="emit('close')">Close</button>
 			</div>
 		</div>
 	</div>

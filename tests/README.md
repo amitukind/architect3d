@@ -65,6 +65,7 @@ Expectations retired that way so far, all listed as FIX in the ledger:
 | The item inspector was built without its item, so every control it offered was inert | S6 | `app-shell.test.js` |
 | Adding a wall-bound item before clicking a wall threw and added nothing | S6 | `app-composables.test.js` |
 | `OrbitControls` left a document keydown behind if the host detached the element first | S6 | `viewer-lifecycle.test.js` |
+| The corner panel never followed a drag - it listened for the setter event, and `Corner.move()` dispatches only `EVENT_MOVED` | S7 | `app-inspector.test.js` |
 
 One S0 test **fired as designed** in S4 rather than being retired: the
 zero-length `wallSize` setter produced NaN coordinates that r98's
@@ -79,8 +80,8 @@ tests/
 ├─ helpers/harness.js   deterministic seeding, config reset, plan builders,
 │                       id normalisation, room signatures, stub item loader
 ├─ helpers/dom.js       jsdom stubs: 2D context, ResizeObserver, pointer and
-│                       pointer-lock APIs, matchMedia, element layout, and a
-│                       listener counter for proving dispose() is complete
+│                       pointer-lock APIs, element layout, and a listener
+│                       counter for proving dispose() is complete
 ├─ helpers/renderer.js  the fake WebGLRenderer handed to Main.setRendererFactory,
 │                       shared by the viewer and application suites
 ├─ fixtures/*.blueprint3d   frozen design files (generated, see below)
@@ -106,18 +107,21 @@ tests/
 │  engine (S4) — environment: jsdom
 ├─ geometry-rewrites.test.js  every hand-built mesh, against what r98 drew
 │
-│  the Vue application (S6, contract) — environment: jsdom
+│  the Vue application (S6-S7, contract) — environment: jsdom
 ├─ app-composables.test.js  the blueprint's lifetime, the single selection, the
 │                           camera modes, catalog placement, file IO
-└─ app-shell.test.js        App.vue mounted for real: boot, the toolbar
-                            highlight, the flip, the catalog, mount/unmount
-                            symmetry, and the item inspector's binding
+├─ app-shell.test.js        App.vue mounted for real: boot, the toolbar
+│                           highlight, the flip, the catalog, mount/unmount
+│                           symmetry
+└─ app-inspector.test.js    the native panels: each one against a real model
+                            object, the texture grid, and the unit switch
 ```
 
-The two S6 modules are contract tests, not characterization: the sprint
-deliberately replaced the demo's globals with a store and a single selection,
-and three app-layer bugs were fixed on purpose. A failure there means the new
-contract broke, not that legacy behaviour drifted.
+The three application modules are contract tests, not characterization: the
+sprints deliberately replaced the demo's globals with a store and a single
+selection, replaced dat.GUI with native panels, and fixed four app-layer bugs on
+purpose. A failure there means the new contract broke, not that legacy
+behaviour drifted.
 
 ## Frozen r98 readings
 

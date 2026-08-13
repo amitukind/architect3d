@@ -1,127 +1,124 @@
 <script setup>
-import {onBeforeUnmount, onMounted, ref, watch} from 'vue';
-import GUI from 'lil-gui';
+import {computed, ref, watch} from 'vue';
+
+import CornerInspector from './CornerInspector.vue';
+import RoomInspector from './RoomInspector.vue';
+import Wall2DInspector from './Wall2DInspector.vue';
+import ItemInspector from './ItemInspector.vue';
+import SurfaceInspector from './SurfaceInspector.vue';
+import SettingsPanel from './SettingsPanel.vue';
+import AppIcon from '../components/AppIcon.vue';
+
 import {useBlueprint} from '../composables/useBlueprint.js';
-import {buildConfigFolders} from './config-folders.js';
-import {buildSelectionFolder} from './selection-folders.js';
+import {
+	SELECTION_ITEM, SELECTION_WALL, SELECTION_FLOOR,
+	SELECTION_CORNER_2D, SELECTION_WALL_2D, SELECTION_ROOM_2D,
+} from '../composables/useSelection.js';
 
 /**
- * The interim inspector: one lil-gui panel reproducing the demo's dat.GUI
- * folders so the app keeps every setting it had while the shell is rewritten.
+ * The inspector sidebar (sprint S7).
  *
- * Sprint S6, and deliberately temporary. S7 replaces it with native Vue
- * inspectors (a real texture picker, a settings panel, per-selection forms) and
- * deletes this directory along with the lil-gui dependency. Treating the
- * inspector as a separate, later sprint is what lets S6 change the shell
- * without also changing the twenty-odd controls inside it.
+ * Native Vue, replacing the interim lil-gui panel S6 stood up and the dat.GUI
+ * one before it. Two tabs rather than the two nested accordions dat.GUI forced:
+ * what is selected, and everything that is not about a selection.
  *
- * The panel is rebuilt from scratch whenever the blueprint is remounted, and
- * the selection folder whenever the selection changes. Nothing here caches a
- * controller across a rebuild - that was the source of the demo's stale
- * displays.
+ * Selecting something switches to the Selection tab, because a click on the
+ * plan or in the 3D view is a request to look at that thing. Nothing switches
+ * back on its own - if you are in the middle of adjusting the grid, a stray
+ * click should not throw the panel away.
+ *
+ * Each inspector is keyed on the selected object, so switching from one corner
+ * to another remounts rather than trying to re-point a live component at a new
+ * model object. That keeps every listener attach/detach pair inside one
+ * component's lifetime.
  */
 
 const props = defineProps({
 	selection: {type: Object, default: null},
+	camera: {type: Object, required: true},
 });
 
 const store = useBlueprint();
-const container = ref(null);
+const tab = ref('settings');
 
-let gui = null;
-let configFolders = null;
-let selectionsFolder = null;
-let selectionFolder = null;
+const INSPECTORS = {
+	[SELECTION_CORNER_2D]: CornerInspector,
+	[SELECTION_ROOM_2D]: RoomInspector,
+	[SELECTION_WALL_2D]: Wall2DInspector,
+	[SELECTION_ITEM]: ItemInspector,
+	[SELECTION_WALL]: SurfaceInspector,
+	[SELECTION_FLOOR]: SurfaceInspector,
+};
 
-function destroySelectionFolder()
+const component = computed(() =>
+	(props.selection ? INSPECTORS[props.selection.type] || null : null));
+
+/**
+ * Each inspector takes the model object under the name it uses, so its own
+ * props stay readable; the surface inspector is the exception because it needs
+ * to know whether it was a wall or a floor that was clicked.
+ */
+const bindings = computed(() =>
 {
-	if (selectionFolder)
+	if (!props.selection)
 	{
-		selectionFolder.destroy();
-		selectionFolder = null;
+		return {};
 	}
-}
-
-function destroyPanel()
-{
-	destroySelectionFolder();
-	if (configFolders)
+	var floorplanner = store.floorplanner.value;
+	switch (props.selection.type)
 	{
-		configFolders.destroy();
-		configFolders = null;
-	}
-	if (gui)
-	{
-		gui.destroy();
-		gui = null;
-	}
-	selectionsFolder = null;
-}
-
-function buildPanel(blueprint)
-{
-	if (!container.value || !blueprint.floorplanner)
-	{
-		// Widget mode has no 2D view, and every configuration folder below is
-		// about the 2D view or needs it to redraw. Nothing to show.
-		return;
-	}
-
-	gui = new GUI({container: container.value, title: 'Architect3D'});
-	configFolders = buildConfigFolders(gui, {
-		floorplanner: blueprint.floorplanner,
-		three: blueprint.three,
-	});
-	// Closed until something is selected, as in the demo - see the note about
-	// dat.GUI's default in config-folders.js.
-	selectionsFolder = gui.addFolder('Selections').close();
-	rebuildSelection();
-}
-
-function rebuildSelection()
-{
-	destroySelectionFolder();
-	if (!selectionsFolder)
-	{
-		return;
-	}
-	selectionFolder = buildSelectionFolder(selectionsFolder, props.selection, {
-		floorplanner: store.floorplanner.value,
-	});
-	if (selectionFolder)
-	{
-		selectionFolder.folder.open();
-		selectionsFolder.open();
-	}
-}
-
-// Not `immediate`, and mount is handled separately: the panel needs both a
-// blueprint and a container element, and which of the two arrives last depends
-// on whether this component mounts before or after the blueprint is created.
-// App.vue creates it in its own onMounted, so normally the watcher wins; a
-// panel toggled on later would find the blueprint already there.
-watch(store.instance, (blueprint) =>
-{
-	destroyPanel();
-	if (blueprint)
-	{
-		buildPanel(blueprint);
+	case SELECTION_CORNER_2D:
+		return {corner: props.selection.object};
+	case SELECTION_ROOM_2D:
+		return {room: props.selection.object, floorplanner};
+	case SELECTION_WALL_2D:
+		return {wall: props.selection.object, floorplanner};
+	case SELECTION_ITEM:
+		return {item: props.selection.object};
+	default:
+		return {selection: props.selection};
 	}
 });
 
-onMounted(() =>
+watch(() => props.selection, (selection) =>
 {
-	if (store.instance.value && !gui)
+	if (selection)
 	{
-		buildPanel(store.instance.value);
+		tab.value = 'selection';
 	}
 });
-
-watch(() => props.selection, rebuildSelection);
-
-onBeforeUnmount(destroyPanel);
 </script>
 
 <template>
-	<div id="inspector" ref="container" />
+	<aside id="inspector" aria-label="Inspector">
+		<div class="inspector-tabs" role="tablist">
+			<button
+				type="button" class="inspector-tab" role="tab"
+				:class="{'is-active': tab === 'selection'}" :aria-selected="tab === 'selection'"
+				@click="tab = 'selection'">
+				<AppIcon name="cursor" /> Selection
+			</button>
+			<button
+				type="button" class="inspector-tab" role="tab"
+				:class="{'is-active': tab === 'settings'}" :aria-selected="tab === 'settings'"
+				@click="tab = 'settings'">
+				<AppIcon name="sliders" /> Settings
+			</button>
+		</div>
+
+		<div class="inspector-body">
+			<template v-if="tab === 'selection'">
+				<component
+					:is="component" v-if="component"
+					:key="props.selection.object.id || props.selection.object"
+					v-bind="bindings" />
+				<p v-else class="inspector-empty">
+					Nothing selected. Click a corner, a wall or a room on the plan, or an item,
+					a wall or a floor in the 3D view.
+				</p>
+			</template>
+
+			<SettingsPanel v-else :store="store" :camera="props.camera" />
+		</div>
+	</aside>
 </template>
