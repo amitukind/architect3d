@@ -44,17 +44,18 @@ jobs:
           # consume repository cache storage for a marginal time saving.
 
       - name: Install dependencies
-        # `npm ci` respects lockfileVersion 1; plain `npm install` would silently
-        # rewrite the lockfile to v3 and produce a ~12k-line diff.
         run: npm ci --no-audit --no-fund
 
       - name: Run characterization tests
         run: npm test
 
-      - name: Lint (report only)
-        # ESLint 4 against this source reports ~89 pre-existing style errors
-        # (missing semicolons and similar) that predate the migration. Lint is
-        # therefore informational until sprint S1 migrates to ESLint 10 flat
-        # config and clears them; at that point drop continue-on-error.
-        continue-on-error: true
-        run: npx eslint src/scripts tests tools --ext .js
+      - name: Lint
+        # Blocking since S1 (ESLint 10 flat config). Two rules new to ESLint 10
+        # are set to 'warn' in eslint.config.js rather than silenced - see the
+        # comment there.
+        run: npm run lint
+
+      - name: Build library
+        # Proves the Vite lib build still produces the IIFE bundle the demo
+        # loads. Output goes to dist/, which is gitignored and not uploaded.
+        run: npm run build

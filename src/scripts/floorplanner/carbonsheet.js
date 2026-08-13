@@ -105,12 +105,12 @@ export class CarbonSheet extends EventDispatcher
 			scope._loaded = true;
 			scope._calibrate();
 			scope._updated();
-		}
+		};
 		this._image.onerror = function()
 		{
 			scope._loaded = false;
 			scope._url = '';
-		}
+		};
 		this._image.src = this._url;
 	}
 	
@@ -173,7 +173,7 @@ export class CarbonSheet extends EventDispatcher
 	set anchorX(val)
 	{
 		this._anchorX = val;
-		this._updated()
+		this._updated();
 	}
 	
 	get anchorX()

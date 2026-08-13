@@ -101,8 +101,8 @@ export class Floorplanner2D extends EventDispatcher
 		this.canvasElement.bind('mouseleave', (event) => {scope.mouseleave(event);});
 		this.canvasElement.bind('dblclick', (event) => {scope.doubleclick(event);});
 
-		document.addEventListener('keyup', function(event){scope.keyUp(event)});
-		document.addEventListener('keydown', function(event){scope.keyDown(event)});
+		document.addEventListener('keyup', function(event){scope.keyUp(event);});
+		document.addEventListener('keydown', function(event){scope.keyDown(event);});
 		floorplan.addEventListener(EVENT_LOADED, function(){scope.reset();});
 		
 		function updateView()

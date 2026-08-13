@@ -33,15 +33,12 @@ export class Corner extends EventDispatcher
 		/**
 			* @deprecated Not in use. The EventDispatcher from threejs is used for emit and listen events
 		**/
-		this.moved_callbacks = null;
 		/**
 			* @deprecated Not in use. The EventDispatcher from threejs is used for emit and listen events
 		**/
-		this.deleted_callbacks = null;
 		/**
 			* @deprecated Not in use. The EventDispatcher from threejs is used for emit and listen events
 		**/
-		this.action_callbacks = null;
 		/**
 			* @property {Floorplan} floorplan Reference to the model floorplan
 			* @type {Floorplan}
@@ -120,7 +117,7 @@ export class Corner extends EventDispatcher
 	
 	set location(xy)
 	{
-		this._co.x = xy.x
+		this._co.x = xy.x;
 		this._co.y = xy.y;
 		this.x = xy.x;
 		this.y = xy.y;
@@ -219,29 +216,13 @@ export class Corner extends EventDispatcher
 		this.attachedRooms = [];
 	}
 
-	/** Add function to moved callbacks.
-	 * @param func The function to be added.
-	 */
-	fireOnMove(func)
-	{
-		this.moved_callbacks.add(func);
-	}
 
-	/** Add function to deleted callbacks.
-	 * @param func The function to be added.
-	 */
-	fireOnDelete(func)
-	{
-		this.deleted_callbacks.add(func);
-	}
 
-	/** Add function to action callbacks.
-	 * @param func The function to be added.
-	 */
-	fireOnAction(func)
-	{
-		this.action_callbacks.add(func);
-	}
+
+	// Removed in S1: the fireOnMove / fireOnDelete / dontFireOnDelete /
+	// fireOnAction registrars. Each called .add() or .remove() on a null
+	// field, so any call was a guaranteed TypeError; nothing called them.
+	// fireAction() below is live - it dispatches a real EVENT_ACTION.
 
 	fireAction(action)
 	{

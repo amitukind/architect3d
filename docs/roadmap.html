@@ -525,7 +525,8 @@ footer{margin-top:70px; padding-top:18px; border-top:1px solid var(--line); colo
       <li><code>vite dev</code> serves the demo behaviorally identical to the frozen reference; <code>vite build</code> output passes the full manual oracle</li>
       <li>All S0 tests green; npm audit count collapses (babel/esdoc/rollup chains gone)</li>
     </ul></div>
-    <p class="risk-note"><b>Risk:</b> hidden reliance on rollup's declaration reordering beyond the known cycle — mitigated by booting Vite dev early in week 1, not at the end.</p>
+    <p class="risk-note"><b>Delivered:</b> Vite 8 dev server + IIFE lib build; the bundle's export surface is identical to the frozen rollup one bar the three intentionally-deleted dead exports. 419 tests still green. <b>npm audit 129 → 25</b> (879 → 332 packages). Dead code removed: 9 files, <code>updateArea2</code>, 12 registrars that would have thrown on call. <code>es6-enum</code> and <code>line-intersect</code> inlined (the enum keeps emitting <code>"STRAIGHT"</code>/<code>"CURVED"</code> Symbol descriptions — the save-file contract); bezier-js 2 → 6 (named export). ESLint 10 flat config, lint now blocking in CI. <b>Two decisions worth knowing:</b> the lockfile moved to <code>lockfileVersion</code> 3 — holding it at 1 was an S0-specific choice for review clarity, and npm 11 emits 3 natively; and two rules new to ESLint 10 (<code>no-useless-assignment</code> ×24, <code>no-prototype-builtins</code> ×4) are <em>warnings</em>, since clearing them means source edits that do not belong in a toolchain sprint.</p>
+    <p class="risk-note"><b>Risk (retired):</b> hidden reliance on rollup's declaration reordering — Vite dev was booted in the first hour, not at the end. The only such reliance was the import cycle, already fixed in S0.</p>
   </div>
 
   <!-- S2 -->

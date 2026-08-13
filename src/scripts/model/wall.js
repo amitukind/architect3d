@@ -1,5 +1,9 @@
 import {EventDispatcher, Vector2} from 'three';
-import Bezier from 'bezier-js';
+// bezier-js v3+ is ESM and exports Bezier as a NAMED export; v2 was a default
+// export. Upgraded in S1 (2.4.0 -> 6.x); the APIs this file uses - the 8-scalar
+// constructor, .points mutation + .update(), .length(), .get(t), .project(p)
+// and .intersects(line) - are unchanged across that jump.
+import {Bezier} from 'bezier-js';
 import {WallTypes} from '../core/constants.js';
 import {EVENT_ACTION,EVENT_MOVED,EVENT_DELETED} from '../core/events.js';
 import {Configuration,configWallThickness,configWallHeight} from '../core/configuration.js';
@@ -100,13 +104,10 @@ export class Wall extends EventDispatcher
 		this.height = Configuration.getNumericValue(configWallHeight);
 
 		/** Actions to be applied after movement. */
-		this.moved_callbacks = null;
 
 		/** Actions to be applied on removal. */
-		this.deleted_callbacks = null;
 
 		/** Actions to be applied explicitly. */
-		this.action_callbacks = null;
 		
 //		this.start.addEventListener(EVENT_MOVED, ()=>{
 //			scope.updateControlVectors();
@@ -216,25 +217,14 @@ export class Wall extends EventDispatcher
 		this.end.snapToAxis(tolerance);
 	}
 
-	fireOnMove(func)
-	{
-		this.moved_callbacks.add(func);
-	}
 
-	fireOnDelete(func)
-	{
-		this.deleted_callbacks.add(func);
-	}
 
-	dontFireOnDelete(func)
-	{
-		this.deleted_callbacks.remove(func);
-	}
 
-	fireOnAction(func)
-	{
-		this.action_callbacks.add(func);
-	}
+
+	// Removed in S1: the fireOnMove / fireOnDelete / dontFireOnDelete /
+	// fireOnAction registrars. Each called .add() or .remove() on a null
+	// field, so any call was a guaranteed TypeError; nothing called them.
+	// fireAction() below is live - it dispatches a real EVENT_ACTION.
 
 	fireAction(action)
 	{

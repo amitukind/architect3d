@@ -9,6 +9,10 @@ changed nothing they did not intend to change.
 npm test          # run once
 npm run test:watch
 npm run fixtures  # regenerate tests/fixtures/*.blueprint3d
+
+npm run dev       # Vite dev server - the legacy demo against live source (S1)
+npm run build     # Vite library build -> dist/bp3djs.js (IIFE global BP3DJS)
+npm run lint      # ESLint 10 flat config
 ```
 
 ## These are characterization tests, not specifications

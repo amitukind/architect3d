@@ -59,9 +59,12 @@ export {RoofItem} from './items/roof_item.js';
 //Classes from three module
 export {states, Controller} from './three/controller.js';
 export {OrbitControls} from './three/orbitcontrols.js';
-export {FirstPersonControls} from './three/first-person-controls.js';
 export {PointerLockControls} from './three/pointerlockcontrols.js';
-export {STATE, Controls} from './three/controls.js';
+// Removed in S1 as dead code: FirstPersonControls (three/first-person-controls.js)
+// and STATE/Controls (three/controls.js, a pre-r70 OrbitControls fork superseded
+// by orbitcontrols.js). Both were exported here but imported nowhere - their only
+// references in main.js were already commented out - and controls.js carried a
+// TypeError on its three-finger-pan path. Neither is reachable from the demo.
 export {Edge} from './three/edge.js';
 export {Floor} from './three/floor.js';
 export {Floorplan3D} from './three/floorPlan.js';

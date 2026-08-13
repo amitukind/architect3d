@@ -1,4 +1,4 @@
-import Enum from 'es6-enum';
+import Enum from './enum.js';
 
 export var ELogContext = Enum('None', 'All', 'Interaction2d', 'Item', 'Wall', 'Room');
 export var ELogLevel = Enum('Information', 'Warning', 'Error', 'Fatal', 'Debug');

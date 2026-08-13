@@ -57,31 +57,11 @@ export class Floorplan extends EventDispatcher
 		 * @type {Object}
 		 */
 		this.metaroomsdata = {};
-		// List with reference to callback on a new wall insert event
-		/**
-		 * @deprecated
-		 */
-		this.new_wall_callbacks = [];
-		// List with reference to callbacks on a new corner insert event
-		/**
-		 * @deprecated
-		 */
-		this.new_corner_callbacks = [];
-		// List with reference to callbacks on redraw event
-		/**
-		 * @deprecated
-		 */
-		this.redraw_callbacks = [];
-		// List with reference to callbacks for updated_rooms event
-		/**
-		 * @deprecated
-		 */
-		this.updated_rooms = [];
-		// List with reference to callbacks for roomLoaded event
-		/**
-		 * @deprecated
-		 */
-		this.roomLoadedCallbacks = [];
+		// Removed in S1: new_wall_callbacks, new_corner_callbacks,
+		// redraw_callbacks, updated_rooms and roomLoadedCallbacks. They were
+		// plain Arrays whose only registrars (fireOnNewWall and friends) called
+		// .add() on them - a TypeError had anything ever called them. Nothing
+		// did; every event on this class goes through EventDispatcher.
 
 		this.floorTextures = {};
 		/**
@@ -181,25 +161,9 @@ export class Floorplan extends EventDispatcher
 		});
 	}
 
-	fireOnNewWall(callback)
-	{
-		this.new_wall_callbacks.add(callback);
-	}
 
-	fireOnNewCorner(callback)
-	{
-		this.new_corner_callbacks.add(callback);
-	}
 
-	fireOnRedraw(callback)
-	{
-		this.redraw_callbacks.add(callback);
-	}
 
-	fireOnUpdatedRooms(callback)
-	{
-		this.updated_rooms.add(callback);
-	}
 
 	// This method needs to be called from the 2d floorplan whenever
 	// the other method newWall is called.
@@ -770,7 +734,7 @@ export class Floorplan extends EventDispatcher
 //			console.log('UPDATE CORNER ANGLES ::: ', updatecorners.length);
 			updatecorners.forEach((corner)=>{
 				corner.updateAngles();
-			})
+			});
 		} 
 		
 		if(!updateroomconfiguration)
