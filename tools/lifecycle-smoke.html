@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Textures are composed as relative URLs at runtime ('rooms/textures/...'),
+     so this page has to resolve them the same way the demo does. -->
+<base href="/build/">
+<title>architect3d - mount/unmount smoke test</title>
+<style>
+	:root
+	{
+		color-scheme: light dark;
+		--ink: #16181d;
+		--paper: #f7f7f9;
+		--line: #d6d8de;
+		--ok: #1a7f4b;
+		--bad: #b3261e;
+		--muted: #5f6470;
+	}
+	@media (prefers-color-scheme: dark)
+	{
+		:root
+		{
+			--ink: #e8e9ec;
+			--paper: #16181d;
+			--line: #343842;
+			--ok: #4ec98a;
+			--bad: #f2837c;
+			--muted: #9aa0ac;
+		}
+	}
+	*
+	{
+		box-sizing: border-box;
+	}
+	body
+	{
+		margin: 0;
+		font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+		color: var(--ink);
+		background: var(--paper);
+	}
+	#panel
+	{
+		position: fixed;
+		z-index: 10;
+		top: 12px;
+		left: 12px;
+		width: 460px;
+		max-height: calc(100vh - 24px);
+		overflow: auto;
+		padding: 14px 16px;
+		border: 1px solid var(--line);
+		border-radius: 8px;
+		background: var(--paper);
+		box-shadow: 0 6px 24px rgb(0 0 0 / 18%);
+	}
+	h1
+	{
+		margin: 0 0 2px;
+		font-size: 15px;
+		letter-spacing: .02em;
+	}
+	p.lede
+	{
+		margin: 0 0 12px;
+		color: var(--muted);
+	}
+	button
+	{
+		font: inherit;
+		padding: 5px 10px;
+		margin: 0 6px 8px 0;
+		border: 1px solid var(--line);
+		border-radius: 5px;
+		background: transparent;
+		color: inherit;
+		cursor: pointer;
+	}
+	button:hover
+	{
+		border-color: var(--ink);
+	}
+	table
+	{
+		width: 100%;
+		border-collapse: collapse;
+		margin-top: 8px;
+	}
+	th, td
+	{
+		text-align: left;
+		padding: 3px 6px 3px 0;
+		border-bottom: 1px solid var(--line);
+		font-variant-numeric: tabular-nums;
+	}
+	th
+	{
+		color: var(--muted);
+		font-weight: 400;
+	}
+	td.n
+	{
+		text-align: right;
+		width: 5em;
+	}
+	.ok
+	{
+		color: var(--ok);
+	}
+	.bad
+	{
+		color: var(--bad);
+	}
+	#verdict
+	{
+		margin-top: 10px;
+		font-weight: 700;
+	}
+	#stage
+	{
+		position: relative;
+	}
+	#floorplanner, #viewer
+	{
+		position: absolute;
+		inset: 0;
+		width: 100vw;
+		height: 100vh;
+	}
+	#floorplanner
+	{
+		z-index: 1;
+	}
+</style>
+</head>
+<body>
+
+<div id="panel">
+	<h1>Mount / unmount smoke test</h1>
+	<p class="lede">
+		Sprint S2 exit gate. Counts DOM listeners and live WebGL contexts across
+		mount &rarr; destroy &rarr; remount cycles. Both columns must return to
+		their baseline after every unmount.
+	</p>
+
+	<button id="mount">Mount</button>
+	<button id="unmount">Unmount</button>
+	<button id="cycle">Run 5 cycles</button>
+	<button id="reset">Reset counters</button>
+
+	<table>
+		<thead>
+			<tr><th>Target</th><th class="n">Listeners</th></tr>
+		</thead>
+		<tbody id="rows"></tbody>
+	</table>
+
+	<table>
+		<thead>
+			<tr><th>WebGL contexts</th><th class="n">Count</th></tr>
+		</thead>
+		<tbody>
+			<tr><td>created</td><td class="n" id="ctx-created">0</td></tr>
+			<tr><td>lost (released)</td><td class="n" id="ctx-lost">0</td></tr>
+			<tr><td>live</td><td class="n" id="ctx-live">0</td></tr>
+		</tbody>
+	</table>
+
+	<div id="verdict"></div>
+</div>
+
+<div id="stage">
+	<div id="floorplanner"><canvas id="floorplanner-canvas"></canvas></div>
+	<div id="viewer"></div>
+</div>
+
+<script type="module">
+import {BlueprintJS} from '/src/scripts/blueprint.js';
+
+/*
+ * Listener accounting.
+ *
+ * Patch EventTarget.prototype before anything else runs, so every add and
+ * remove is seen. Window in a real browser inherits from EventTarget, unlike
+ * jsdom, so one patch covers everything.
+ */
+const counts = new Map();
+const label = (target) =>
+{
+	if (target === window) { return 'window'; }
+	if (target === document) { return 'document'; }
+	if (target && target.id) { return `#${target.id}`; }
+	if (target && target.tagName) { return `<${target.tagName.toLowerCase()}>`; }
+	return String(target);
+};
+
+const bump = (target, delta) =>
+{
+	const key = label(target);
+	counts.set(key, (counts.get(key) || 0) + delta);
+};
+
+const originalAdd = EventTarget.prototype.addEventListener;
+const originalRemove = EventTarget.prototype.removeEventListener;
+EventTarget.prototype.addEventListener = function (type, listener, options)
+{
+	bump(this, 1);
+	return originalAdd.call(this, type, listener, options);
+};
+EventTarget.prototype.removeEventListener = function (type, listener, options)
+{
+	bump(this, -1);
+	return originalRemove.call(this, type, listener, options);
+};
+
+/*
+ * WebGL context accounting. A context that is never released keeps its slot;
+ * browsers cap live contexts at roughly 16, so a leak here breaks the app after
+ * a handful of remounts rather than immediately.
+ */
+let contextsCreated = 0;
+let contextsLost = 0;
+const originalGetContext = HTMLCanvasElement.prototype.getContext;
+HTMLCanvasElement.prototype.getContext = function (type, ...rest)
+{
+	const context = originalGetContext.call(this, type, ...rest);
+	if (context && /webgl/i.test(type))
+	{
+		contextsCreated++;
+		this.addEventListener('webglcontextlost', () => {contextsLost++; render();}, {once: true});
+	}
+	return context;
+};
+
+let baseline = null;
+let blueprint = null;
+
+function snapshot()
+{
+	return new Map(counts);
+}
+
+function render()
+{
+	const rows = document.getElementById('rows');
+	rows.textContent = '';
+	const keys = [...counts.keys()].sort();
+	let leaked = 0;
+
+	for (const key of keys)
+	{
+		const now = counts.get(key);
+		const base = baseline ? (baseline.get(key) || 0) : 0;
+		const delta = now - base;
+		if (delta !== 0)
+		{
+			leaked += delta;
+		}
+		const tr = document.createElement('tr');
+		const name = document.createElement('td');
+		name.textContent = key;
+		const n = document.createElement('td');
+		n.className = `n ${delta === 0 ? 'ok' : 'bad'}`;
+		n.textContent = delta === 0 ? '0' : (delta > 0 ? `+${delta}` : String(delta));
+		tr.append(name, n);
+		rows.append(tr);
+	}
+
+	const live = contextsCreated - contextsLost;
+	document.getElementById('ctx-created').textContent = String(contextsCreated);
+	document.getElementById('ctx-lost').textContent = String(contextsLost);
+	document.getElementById('ctx-live').textContent = String(live);
+
+	const verdict = document.getElementById('verdict');
+	if (blueprint)
+	{
+		verdict.className = '';
+		verdict.textContent = 'Mounted - unmount to check the balance.';
+		return;
+	}
+	const clean = leaked === 0 && live === 0;
+	verdict.className = clean ? 'ok' : 'bad';
+	verdict.textContent = clean
+		? 'PASS - every listener detached, every context released.'
+		: `FAIL - ${leaked} listener(s) and ${live} WebGL context(s) still held.`;
+}
+
+function mount()
+{
+	if (blueprint)
+	{
+		return;
+	}
+	blueprint = new BlueprintJS({
+		floorplannerElement: document.getElementById('floorplanner-canvas'),
+		threeElement: document.getElementById('viewer'),
+		threeCanvasElement: 'three-canvas',
+		textureDir: 'models/textures/',
+		widget: false,
+	});
+	render();
+}
+
+function unmount()
+{
+	if (!blueprint)
+	{
+		return;
+	}
+	blueprint.dispose();
+	blueprint = null;
+	// forceContextLoss fires webglcontextlost asynchronously in some browsers.
+	setTimeout(render, 50);
+	render();
+}
+
+document.getElementById('mount').addEventListener('click', mount);
+document.getElementById('unmount').addEventListener('click', unmount);
+document.getElementById('cycle').addEventListener('click', () =>
+{
+	for (let i = 0; i < 5; i++)
+	{
+		mount();
+		unmount();
+	}
+	setTimeout(render, 100);
+});
+document.getElementById('reset').addEventListener('click', () =>
+{
+	baseline = snapshot();
+	contextsCreated = 0;
+	contextsLost = 0;
+	render();
+});
+
+// Everything attached above this line is the page's own; the baseline makes the
+// table read as "what the library is still holding", not "what exists".
+baseline = snapshot();
+render();
+</script>
+
+</body>
+</html>

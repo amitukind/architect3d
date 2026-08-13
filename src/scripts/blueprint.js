@@ -90,13 +90,17 @@ export class BlueprintJS
 	 * Creates an instance of BlueprintJS. This is the entry point for the application
 	 *
 	 * @param {Object} - options The initialization options.
-	 * @param {string} options.floorplannerElement - Id of the html element to use as canvas. Needs to exist in the html
-	 * @param {string} options.threeElement - Id of the html element to use as canvas. Needs to exist in the html and should be #idofhtmlelement
-	 * @param {string} options.threeCanvasElement - Id of the html element to use as threejs-canvas. This is created automatically
+	 * @param {(HTMLCanvasElement|string)} options.floorplannerElement - The 2D canvas, or its element id. Ignored in widget mode.
+	 * @param {(HTMLElement|string)} options.threeElement - The container for the 3D view, or its element id / CSS selector.
+	 * @param {string} options.threeCanvasElement - Unused; kept for signature compatibility.
 	 * @param {string} options.textureDir - path to texture directory. No effect
-	 * @param {boolean} options.widget - If widget mode then disable the controller from interactions
+	 * @param {boolean} options.widget - If widget mode then no 2D floorplanner is created and the 3D controller is disabled
 	 * @example
 	 * let blueprint3d = new BP3DJS.BlueprintJS(opts);
+	 *
+	 * Passing element ids is the deprecated path, kept so existing embedders keep
+	 * working. Prefer real elements - they need no document lookup and work in a
+	 * component that mounts before its ids are unique.
 	 */
 	constructor(options)
 	{
@@ -128,7 +132,33 @@ export class BlueprintJS
 		}
 		else
 		{
+			// Widget mode has no 2D view, so nothing ever assigns
+			// floorplan.carbonSheet. Loading a design that carries one used to
+			// dereference null in Floorplan.loadFloorplan; that call is guarded as
+			// of S0 and this property makes the absence explicit.
+			this.floorplanner = null;
 			this.three.getController().enabled = false;
+		}
+	}
+
+	/**
+	 * Unmount: dispose the 2D floorplanner (if any) and the 3D view, releasing
+	 * every DOM listener and the WebGL context. Safe to call more than once.
+	 *
+	 * The model is left alone on purpose - it is plain data, it holds no DOM or
+	 * GPU resources, and callers often want to serialize it after teardown.
+	 */
+	dispose()
+	{
+		if (this.floorplanner)
+		{
+			this.floorplanner.dispose();
+			this.floorplanner = null;
+		}
+		if (this.three)
+		{
+			this.three.dispose();
+			this.three = null;
 		}
 	}
 }

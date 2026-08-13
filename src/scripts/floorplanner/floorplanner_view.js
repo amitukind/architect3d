@@ -1,4 +1,3 @@
-import $ from 'jquery';
 import {Vector2} from 'three';
 import {WallTypes} from '../core/constants.js';
 import {Utils} from '../core/utils.js';
@@ -6,6 +5,7 @@ import {EVENT_UPDATED} from '../core/events.js';
 
 import {Dimensioning} from '../core/dimensioning.js';
 import {Configuration, gridSpacing, configWallThickness, wallInformation} from '../core/configuration.js';
+import {resolveElement, measureViewport, pixelRatio} from '../core/dom.js';
 import {CarbonSheet} from './carbonsheet.js';
 
 /** */
@@ -48,25 +48,58 @@ export const cornerColorSelected = '#00ba8c';
  */
 export class FloorplannerView2D
 {
+	/**
+	 * @param {Floorplan} floorplan
+	 * @param {Floorplanner2D} viewmodel
+	 * @param {(HTMLCanvasElement|string)} canvas The canvas to draw into, or its
+	 * element id. The id form is the deprecated back-compat path.
+	 */
 	constructor(floorplan, viewmodel, canvas)
 	{
-		this.canvasElement = document.getElementById(canvas);
-		this.canvas = canvas;
+		this.canvasElement = resolveElement(canvas, 'floorplanner canvas');
+		/** Kept for back-compat: callers used to read `.canvas` as an element id. */
+		this.canvas = (typeof canvas === 'string') ? canvas : this.canvasElement.id;
 		this.context = this.canvasElement.getContext('2d');
 		this.floorplan = floorplan;
 		this.viewmodel = viewmodel;
 
+		/** Canvas size in CSS pixels. Every drawing routine works in these units;
+		 * the backing bitmap is `pixelRatio()` times larger (see _resizeCanvas). */
+		this.canvasWidth = 0;
+		this.canvasHeight = 0;
+		this._pixelRatio = 1;
+		this._container = this.canvasElement.parentElement;
+		this._disposed = false;
+
 		var scope = this;
-		this._carbonsheet = new CarbonSheet(floorplan, viewmodel, canvas);
-		this._carbonsheet.addEventListener(EVENT_UPDATED, function()
-				{
-					scope.draw();
-				});
+		this._carbonsheet = new CarbonSheet(floorplan, viewmodel, this.canvasElement);
+		this._carbonSheetUpdatedEvent = function()
+		{
+			scope.draw();
+		};
+		this._carbonsheet.addEventListener(EVENT_UPDATED, this._carbonSheetUpdatedEvent);
 
 		this.floorplan.carbonSheet = this._carbonsheet;
 
-		$(window).resize(() => {scope.handleWindowResize();});
-		$(window).on('orientationchange', () => {scope.orientationChange();});
+		// Named handlers, so dispose() can actually take them off again.
+		this._windowResizeEvent = function() {scope.handleWindowResize();};
+		this._orientationChangeEvent = function() {scope.orientationChange();};
+		this._containerResizeEvent = function() {scope.containerResized();};
+
+		// Container-driven sizing. The window listeners stay as a fallback for the
+		// case measureViewport() covers - a container with no layout size of its
+		// own, where the viewport is the only thing that can change.
+		if (typeof ResizeObserver === 'function' && this._container)
+		{
+			this._resizeObserver = new ResizeObserver(this._containerResizeEvent);
+			this._resizeObserver.observe(this._container);
+		}
+		else
+		{
+			this._resizeObserver = null;
+		}
+		window.addEventListener('resize', this._windowResizeEvent);
+		window.addEventListener('orientationchange', this._orientationChangeEvent);
 		this.handleWindowResize();
 	}
 
@@ -74,32 +107,95 @@ export class FloorplannerView2D
 	{
 		return this._carbonsheet;
 	}
-	
+
 	orientationChange()
 	{
 		this.handleWindowResize();
 	}
 
-	/** */
+	/**
+	 * Resize to the container and redraw.
+	 *
+	 * Named for the jQuery-era window handler it replaces - app.js and example.js
+	 * both call it through Floorplanner2D.resizeView(), so the name is API.
+	 */
 	handleWindowResize()
 	{
-		var canvasSel = $('#' + this.canvas);
-		var parent = canvasSel.parent();
-		
-		parent.css({width: window.innerWidth, height: window.innerHeight});
-		
-		var w = window.innerWidth;//parent.innerWidth();
-		var h = window.innerHeight;//parent.innerHeight();
-		
-//		console.log(window.innerWidth, window.innerHeight);
-//		console.log(w, h);
-		
-		canvasSel.height(h);
-		canvasSel.width(w);
-		this.canvasElement.height = h;
-		this.canvasElement.width = w;
-		
+		var size = measureViewport(this._container, window.innerWidth, window.innerHeight);
+		this._resizeCanvas(size.width, size.height);
 		this.draw();
+	}
+
+	/**
+	 * ResizeObserver callback. Unlike handleWindowResize this is a no-op when the
+	 * measured size has not actually changed, which keeps the observer from
+	 * re-triggering itself through the canvas it just resized.
+	 */
+	containerResized()
+	{
+		var size = measureViewport(this._container, window.innerWidth, window.innerHeight);
+		if (size.width === this.canvasWidth && size.height === this.canvasHeight)
+		{
+			return;
+		}
+		this._resizeCanvas(size.width, size.height);
+		this.draw();
+	}
+
+	/**
+	 * Size the canvas in CSS pixels while giving it a backing bitmap scaled by the
+	 * device pixel ratio, then scale the context to match. Everything downstream
+	 * keeps drawing in CSS pixels and comes out crisp on a retina display.
+	 */
+	_resizeCanvas(cssWidth, cssHeight)
+	{
+		var dpr = pixelRatio();
+		var bitmapWidth = Math.max(1, Math.round(cssWidth * dpr));
+		var bitmapHeight = Math.max(1, Math.round(cssHeight * dpr));
+
+		this.canvasWidth = cssWidth;
+		this.canvasHeight = cssHeight;
+		this._pixelRatio = dpr;
+
+		this.canvasElement.style.width = `${cssWidth}px`;
+		this.canvasElement.style.height = `${cssHeight}px`;
+		if (this.canvasElement.width !== bitmapWidth || this.canvasElement.height !== bitmapHeight)
+		{
+			this.canvasElement.width = bitmapWidth;
+			this.canvasElement.height = bitmapHeight;
+		}
+		// Assigning width/height resets the 2D context - transform included - so
+		// this has to happen after, every time.
+		this.context.setTransform(dpr, 0, 0, dpr, 0, 0);
+	}
+
+	/**
+	 * Detach from the window, the container and the carbon sheet. Safe to call
+	 * more than once.
+	 */
+	dispose()
+	{
+		if (this._disposed)
+		{
+			return;
+		}
+		this._disposed = true;
+
+		if (this._resizeObserver)
+		{
+			this._resizeObserver.disconnect();
+			this._resizeObserver = null;
+		}
+		window.removeEventListener('resize', this._windowResizeEvent);
+		window.removeEventListener('orientationchange', this._orientationChangeEvent);
+
+		this._carbonsheet.removeEventListener(EVENT_UPDATED, this._carbonSheetUpdatedEvent);
+		this._carbonsheet.dispose();
+		if (this.floorplan.carbonSheet === this._carbonsheet)
+		{
+			this.floorplan.carbonSheet = null;
+		}
+		this._container = null;
 	}
 
 	/** */
@@ -109,7 +205,8 @@ export class FloorplannerView2D
 		wallWidthHover = Dimensioning.cmToPixel(Configuration.getNumericValue(configWallThickness))*0.7;
 		wallWidthSelected = Dimensioning.cmToPixel(Configuration.getNumericValue(configWallThickness))*0.9;
 		
-		this.context.clearRect(0, 0, this.canvasElement.width, this.canvasElement.height);
+		// CSS pixels, not bitmap pixels - the context carries the DPR scale.
+		this.context.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
 		
 		this._carbonsheet.draw();
 		this.drawGrid();
@@ -182,20 +279,18 @@ export class FloorplannerView2D
 	 */
 	zoom()
 	{
-		var originx = this.viewmodel.canvasElement.innerWidth() / 2.0;
-		var originy = this.viewmodel.canvasElement.innerHeight() / 2.0;
-		
+		var originx = this.canvasWidth / 2.0;
+		var originy = this.canvasHeight / 2.0;
+		var dpr = this._pixelRatio;
+
+		// The DPR scale is the identity for everything drawn here, so a reset means
+		// "back to the DPR transform", never "back to 1:1".
+		this.context.setTransform(dpr, 0, 0, dpr, 0, 0);
 		if(Configuration.getNumericValue('scale') != 1)
 		{
-			this.context.setTransform(1, 0, 0, 1, 0, 0);
 			this.context.translate(originx, originy);
 			this.context.scale(Configuration.getNumericValue('scale'), Configuration.getNumericValue('scale'));
 			this.context.translate(-originx, -originy);
-		}		
-		else
-		{
-//			this.context.restore();
-			this.context.setTransform(1, 0, 0, 1, 0, 0);
 		}
 		this.draw();
 	}
@@ -474,7 +569,9 @@ export class FloorplannerView2D
 				this.drawCornerAngles(wall.end);
 			}
 		}
-		this.drawCircle(this.viewmodel.canvasElement.innerWidth() / 2.0, this.viewmodel.canvasElement.innerHeight() / 2.0, 3, '#FF0000');
+		// Removed in S2: a 3px red dot was drawn at the canvas centre on every
+		// single wall draw. It was a debugging leftover, not a feature - nothing
+		// referenced it and no UI explained it.
 	}
 
 	/** */
@@ -741,8 +838,8 @@ export class FloorplannerView2D
 		var gspacing = Dimensioning.cmToPixel(Configuration.getNumericValue(gridSpacing));
 		var offsetX = this.calculateGridOffset(-this.viewmodel.originX);
 		var offsetY = this.calculateGridOffset(-this.viewmodel.originY);
-		var width = this.canvasElement.width;
-		var height = this.canvasElement.height;
+		var width = this.canvasWidth;
+		var height = this.canvasHeight;
 		var scale = Configuration.getNumericValue('scale');
 		if(scale < 1.0)
 		{

@@ -184,8 +184,13 @@ function PointerLockControls( camera, domElement ) {
 	};
 
 	this.disconnect = function () {
-		document.addEventListener( 'keydown', onKeyDown, false );
-		document.addEventListener( 'keyup', onKeyUp, false );
+		// S2: these two said addEventListener, so disconnect() *added* a second
+		// pair of key handlers every time instead of removing them - two document
+		// listeners leaked per mount/unmount cycle, and the walk-through keyboard
+		// stayed live after exit. Pulled forward from S5, which retires this file
+		// for the r185 addon, because the S2 exit gate is "no listener growth".
+		document.removeEventListener( 'keydown', onKeyDown, false );
+		document.removeEventListener( 'keyup', onKeyUp, false );
 		document.removeEventListener( 'mousedown', onMouseDown, false );
 		document.removeEventListener( 'mousemove', onMouseMove, false );
 		document.removeEventListener( 'pointerlockchange', onPointerlockChange, false );

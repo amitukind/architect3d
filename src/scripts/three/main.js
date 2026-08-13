@@ -1,4 +1,3 @@
-import $ from 'jquery';
 import {EventDispatcher, Vector2, Vector3, WebGLRenderer,ImageUtils, PerspectiveCamera, OrthographicCamera} from 'three';
 import {Plane} from 'three';
 import {PCFSoftShadowMap} from 'three';
@@ -9,6 +8,7 @@ import {PointerLockControls} from './pointerlockcontrols.js';
 import {EVENT_UPDATED, EVENT_WALL_CLICKED, EVENT_NOTHING_CLICKED, EVENT_FLOOR_CLICKED, EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED, EVENT_GLTF_READY} from '../core/events.js';
 import {EVENT_CAMERA_ACTIVE_STATUS, EVENT_FPS_EXIT, EVENT_CAMERA_VIEW_CHANGE} from '../core/events.js';
 import {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY} from '../core/constants.js';
+import {resolveElement, elementBox, measureViewport} from '../core/dom.js';
 
 import {OrbitControls} from './orbitcontrols.js';
 
@@ -21,6 +21,14 @@ import {Skybox} from './skybox.js';
 
 export class Main extends EventDispatcher
 {
+	/**
+	 * @param {Model} model
+	 * @param {(HTMLElement|string)} element The container to render into, or its
+	 * element id / CSS selector. The string form is the deprecated back-compat
+	 * path.
+	 * @param {string} canvasElement Unused; kept for signature compatibility.
+	 * @param {Object} opts
+	 */
 	constructor(model, element, canvasElement, opts)
 	{
 		super();
@@ -36,9 +44,10 @@ export class Main extends EventDispatcher
 		this.pauseRender = true;
 		this.model = model;
 		this.scene = model.scene;
-		this.element = $(element);
+		this.element = resolveElement(element, '3D viewer container');
 		this.canvasElement = canvasElement;
 		this.options = options;
+		this._disposed = false;
 
 		this.domElement = null;
 		this.orthocamera = null;
@@ -71,13 +80,11 @@ export class Main extends EventDispatcher
 		this.elementHeight = null;
 		this.elementWidth = null;
 
-
-		this.itemSelectedCallbacks = $.Callbacks(); // item
-		this.itemUnselectedCallbacks = $.Callbacks();
-
-		this.wallClicked = $.Callbacks(); // wall
-		this.floorClicked = $.Callbacks(); // floor
-		this.nothingClicked = $.Callbacks();
+		// Removed in S2: five $.Callbacks lists (itemSelected / itemUnselected /
+		// wallClicked / floorClicked / nothingClicked). Every .fire() and .add()
+		// against them was already commented out - the EventDispatcher events
+		// dispatched by itemIsSelected() and friends replaced them - so they were
+		// jQuery's last foothold in this file and nothing but dead weight.
 
 		this.floorplan = null;
 
@@ -96,8 +103,26 @@ export class Main extends EventDispatcher
 		this.init();
 	}
 
+	/**
+	 * Enabling seam, in the same shape as Utils.setRandomSource and
+	 * Scene.setItemLoader from S0: swap in a renderer so the viewer can be mounted
+	 * and unmounted under test without a WebGL context. Pass null to restore the
+	 * real WebGLRenderer. Nothing in the library calls this - it exists so the
+	 * mount/destroy/remount contract can be a CI test rather than a manual page.
+	 *
+	 * @param {?function(Main): Object} fn
+	 */
+	static setRendererFactory(fn)
+	{
+		Main._rendererFactory = (typeof fn === 'function') ? fn : null;
+	}
+
 	getARenderer()
 	{
+		if (Main._rendererFactory)
+		{
+			return Main._rendererFactory(this);
+		}
 // scope.renderer = new WebGLRenderer({antialias: true, preserveDrawingBuffer:
 // true, alpha:true}); // preserveDrawingBuffer:true - required to support
 // .toDataURL()
@@ -122,10 +147,13 @@ export class Main extends EventDispatcher
 		ImageUtils.crossOrigin = '';
 
 		var orthoScale = 100;
-		var orthoWidth = window.innerWidth;
-		var orthoHeight = window.innerHeight;
+		// Provisional frustum only - updateWindowSize() below recomputes it from
+		// the container before the first frame is drawn.
+		var initialSize = measureViewport(scope.element, window.innerWidth, window.innerHeight);
+		var orthoWidth = initialSize.width;
+		var orthoHeight = initialSize.height;
 
-		scope.domElement = scope.element.get(0);
+		scope.domElement = scope.element;
 
 		scope.fpscamera = new PerspectiveCamera(60, 1, 1, 10000 );
 		scope.perspectivecamera = new PerspectiveCamera(45, 10, scope.cameraNear, scope.cameraFar);
@@ -154,10 +182,11 @@ export class Main extends EventDispatcher
 		this.scene.add(scope.fpscontrols.getObject());
 		this.fpscontrols.getObject().position.set(0, 200, 0);
 
-		this.fpscontrols.addEventListener('unlock', function(){
+		this._fpsUnlockEvent = function(){
 			scope.switchFPSMode(false);
 			scope.dispatchEvent({type:EVENT_FPS_EXIT});
-		});
+		};
+		this.fpscontrols.addEventListener('unlock', this._fpsUnlockEvent);
 
 
 		scope.hud = new HUD(scope, scope.scene);
@@ -166,9 +195,18 @@ export class Main extends EventDispatcher
 		// handle window resizing
 		scope.updateWindowSize();
 
+		// Container-driven, with the window listener kept as the fallback for a
+		// container that has no layout size of its own (see core/dom.js).
+		this._resizeEvent = () => {scope.updateWindowSize();};
+		this._resizeObserver = null;
 		if (scope.options.resize)
 		{
-			$(window).resize(() => {scope.updateWindowSize();});
+			if (typeof ResizeObserver === 'function')
+			{
+				this._resizeObserver = new ResizeObserver(this._resizeEvent);
+				this._resizeObserver.observe(scope.element);
+			}
+			window.addEventListener('resize', this._resizeEvent);
 		}
 		// setup camera nicely
 		scope.centerCamera();
@@ -181,14 +219,91 @@ export class Main extends EventDispatcher
 
 		function animate()
 		{
-//			requestAnimationFrame(animate);
 			scope.renderer.setAnimationLoop(function(){scope.render();});
 			scope.render();
 		}
 		scope.switchFPSMode(false);
 		animate();
 
-		scope.element.mouseenter(function () {scope.mouseOver = true;}).mouseleave(function () {scope.mouseOver = false;}).click(function () {scope.hasClicked = true;});
+		// Auto-spin gating: the model stops rotating while the pointer is over the
+		// viewer, and stops for good once the user has clicked in it.
+		this._mouseEnterEvent = function () {scope.mouseOver = true;};
+		this._mouseLeaveEvent = function () {scope.mouseOver = false;};
+		this._clickEvent = function () {scope.hasClicked = true;};
+		scope.element.addEventListener('mouseenter', this._mouseEnterEvent);
+		scope.element.addEventListener('mouseleave', this._mouseLeaveEvent);
+		scope.element.addEventListener('click', this._clickEvent);
+	}
+
+	/**
+	 * Tear the viewer down: stop the render loop, detach every listener this
+	 * instance attached, release the WebGL context, and take the canvas back out
+	 * of the container. Safe to call more than once.
+	 *
+	 * After this the instance is spent - construct a new Main to mount again.
+	 */
+	dispose()
+	{
+		if (this._disposed)
+		{
+			return;
+		}
+		this._disposed = true;
+		this.pauseRender = true;
+
+		if (this.renderer)
+		{
+			this.renderer.setAnimationLoop(null);
+		}
+
+		if (this._resizeObserver)
+		{
+			this._resizeObserver.disconnect();
+			this._resizeObserver = null;
+		}
+		window.removeEventListener('resize', this._resizeEvent);
+
+		this.element.removeEventListener('mouseenter', this._mouseEnterEvent);
+		this.element.removeEventListener('mouseleave', this._mouseLeaveEvent);
+		this.element.removeEventListener('click', this._clickEvent);
+
+		this.model.floorplan.removeEventListener(EVENT_UPDATED, this.updatedevent);
+		this.model.removeEventListener(EVENT_GLTF_READY, this.gltfreadyevent);
+
+		if (this.controller)
+		{
+			this.controller.dispose();
+		}
+		if (this.fpscontrols)
+		{
+			this.fpscontrols.removeEventListener('unlock', this._fpsUnlockEvent);
+			this.scene.remove(this.fpscontrols.getObject());
+			this.fpscontrols.dispose();
+		}
+		if (this.controls)
+		{
+			this.controls.dispose();
+		}
+		if (this.skybox)
+		{
+			this.skybox.dispose();
+		}
+
+		if (this.renderer)
+		{
+			var canvas = this.renderer.domElement;
+			this.renderer.dispose();
+			// Without this the browser keeps the context alive until GC, and a
+			// mount/unmount loop walks straight into the ~16 live context limit.
+			if (this.renderer.forceContextLoss)
+			{
+				this.renderer.forceContextLoss();
+			}
+			if (canvas && canvas.parentNode)
+			{
+				canvas.parentNode.removeChild(canvas);
+			}
+		}
 	}
 	exportForBlender()
 	{
@@ -302,23 +417,23 @@ export class Main extends EventDispatcher
 	{
 		var scope = this;
 
-		scope.heightMargin = scope.element.offset().top;
-		scope.widthMargin = scope.element.offset().left;
-		scope.elementWidth = scope.element.innerWidth();
+		// Viewport-relative, so these line up with the clientX/clientY the
+		// Controller normalizes against. jQuery's .offset() was document-relative
+		// and silently wrong on a scrolled page.
+		var box = elementBox(scope.element);
+		scope.heightMargin = box.top;
+		scope.widthMargin = box.left;
 
-		if (scope.options.resize)
-		{
-			scope.elementHeight = window.innerHeight - scope.heightMargin;
-		}
-		else
-		{
-			scope.elementHeight = scope.element.innerHeight();
-		}
+		// Container first; the viewport remainder only when the container has no
+		// size of its own, which is what the jQuery code did unconditionally.
+		var size = measureViewport(scope.element, window.innerWidth - box.left, window.innerHeight - box.top);
+		scope.elementWidth = size.width;
+		scope.elementHeight = size.height;
 
-		scope.orthocamera.left = -window.innerWidth / 1.0;
-		scope.orthocamera.right = window.innerWidth / 1.0;
-		scope.orthocamera.top = window.innerHeight / 1.0;
-		scope.orthocamera.bottom = -window.innerHeight / 1.0;
+		scope.orthocamera.left = -scope.elementWidth / 1.0;
+		scope.orthocamera.right = scope.elementWidth / 1.0;
+		scope.orthocamera.top = scope.elementHeight / 1.0;
+		scope.orthocamera.bottom = -scope.elementHeight / 1.0;
 		scope.orthocamera.updateProjectionMatrix();
 
 		scope.perspectivecamera.aspect = scope.elementWidth / scope.elementHeight;

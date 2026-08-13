@@ -27,13 +27,13 @@
     "esdoc": "^1.1.0",
     "esdoc-standard-plugin": "^1.0.0",
     "eslint": "^10.8.1",
+    "jsdom": "^30.0.1",
     "vite": "^8.2.1",
     "vitest": "^4.1.10"
   },
   "dependencies": {
     "@calvinscofield/three-objloader": "^1.0.4",
     "bezier-js": "^6.1.4",
-    "jquery": "^3.5.1",
     "three": "^0.98.0",
     "three-gltf-exporter": "0.0.1",
     "three-gltf-loader": "^1.105.0",

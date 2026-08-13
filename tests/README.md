@@ -1,9 +1,16 @@
-# Characterization test suite (Sprint S0)
+# Test suite
 
 The safety net for the Vue 3 + Vite + three 0.185 migration described in
 [`docs/roadmap.html`](../docs/roadmap.html). Before S0 this repository had no
 tests at all; everything here exists so that later sprints can prove they
 changed nothing they did not intend to change.
+
+Two kinds of test live here, and the distinction matters when one fails:
+
+- **Characterization tests** (S0, the six headless modules) pin what the legacy
+  code *does*. A failure means you changed behaviour - probably by accident.
+- **Contract tests** (S2, the two jsdom modules) pin what a sprint deliberately
+  *changed*. A failure means the new contract broke.
 
 ```bash
 npm test          # run once
@@ -36,18 +43,31 @@ change is wrong — not the expectation.** Re-read the roadmap's preserve/fix
 ledger (section 01) before editing an expectation. Genuine fixes are scheduled
 per-sprint and land together with an intentional test update.
 
+Two expectations have been retired that way so far, both in S2, both listed as
+FIX in the ledger: `Wall.setStart`/`setEnd` no longer leak an `EVENT_MOVED`
+listener per re-attachment, and `setEnd` no longer has its add and remove the
+wrong way round. See `wall-corner-ops.test.js`.
+
 ## Layout
 
 ```
 tests/
 ├─ helpers/harness.js   deterministic seeding, config reset, plan builders,
 │                       id normalisation, room signatures, stub item loader
+├─ helpers/dom.js       jsdom stubs: 2D context, ResizeObserver, element layout,
+│                       and a listener counter for proving dispose() is complete
 ├─ fixtures/*.blueprint3d   frozen design files (generated, see below)
+│
+│  headless data layer (S0, characterization) — environment: node
 ├─ serialization.test.js    save/load schema, the unit landmine, round-trips
 ├─ room-detection.test.js   findRooms: square, L-shape, shared wall, open loops
 ├─ wall-corner-ops.test.js  wall splitting, corner merge tolerance, curved walls
 ├─ dimensioning.test.js     unit conversions, Configuration, Version, Utils quirks
-└─ items-and-scene.test.js  frozen item_type registry, the no-network loader seam
+├─ items-and-scene.test.js  frozen item_type registry, the no-network loader seam
+│
+│  DOM contract (S2) — environment: jsdom, declared per file
+├─ floorplanner-2d.test.js  pointer input, rect coordinates, DPR, 2D dispose
+└─ viewer-lifecycle.test.js Main/Controller/BlueprintJS mount, picking, unmount
 ```
 
 ## Fixtures
@@ -71,18 +91,35 @@ a design combining the two throws on load. That crash is scheduled for S4.
 
 ## Scope
 
-This suite covers the **headless data layer** (`src/scripts/core`,
-`src/scripts/model`, `src/scripts/items` where it does not need a DOM). The 2D
-canvas renderer and the three.js view need a DOM and a WebGL context and are
-covered by the manual parity oracle in the roadmap (§07) plus golden
-screenshots taken from the frozen `legacy-demo` tag.
+The **headless data layer** (`src/scripts/core`, `src/scripts/model`,
+`src/scripts/items` where it does not need a DOM) plus, since S2, the **DOM
+attachment surface** of the 2D floorplanner and the 3D viewer: how they read
+pointer input, how they size themselves, and whether they let go of everything
+on `dispose()`.
 
-## Enabling seams added in S0
+What still needs a real browser, and is checked by hand:
 
-Three small production-safe hooks make the data layer testable without a
-browser. None changes default behaviour:
+- **Rendering.** Pixels are not asserted anywhere. The manual parity oracle in
+  the roadmap (§07) plus golden screenshots from the frozen `legacy-demo` tag
+  cover the 2D canvas and the three.js view.
+- **WebGL context release.** `viewer-lifecycle.test.js` injects a fake renderer,
+  so it can prove `dispose()` and `forceContextLoss()` were *called* but not
+  that the driver freed the context. Run
+  [`tools/lifecycle-smoke.html`](../tools/lifecycle-smoke.html) for that: start
+  `npm run dev` and open `/tools/lifecycle-smoke.html`. It counts DOM listeners
+  and live WebGL contexts across mount → destroy → remount cycles and prints a
+  pass/fail verdict.
 
-- `Utils.setRandomSource(fn)` — deterministic `Utils.guide()` ids
-- `Scene.setItemLoader(fn)` — item loading without network I/O
-- `Floorplan.loadFloorplan` null-guards `this.carbonSheet` — headless and
-  widget-mode loads of designs containing a carbon sheet no longer throw
+## Enabling seams
+
+Small production-safe hooks that make the library testable without a browser.
+None changes default behaviour, and nothing in the library calls them.
+
+| Seam | Sprint | Buys |
+|---|---|---|
+| `Utils.setRandomSource(fn)` | S0 | deterministic `Utils.guide()` ids |
+| `Scene#setItemLoader(fn)` | S0 | item loading without network I/O |
+| `Main.setRendererFactory(fn)` | S2 | mounting the 3D viewer without a WebGL context |
+
+`Floorplan.loadFloorplan` also null-guards `this.carbonSheet` (S0), so headless
+and widget-mode loads of designs containing a carbon sheet no longer throw.

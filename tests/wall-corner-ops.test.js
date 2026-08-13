@@ -761,12 +761,22 @@ describe('HalfEdge.distanceTo on a curved wall - KNOWN CRASH', () => {
 	});
 });
 
+/**
+ * Sprint S2 fixed the corner-move listener leak these tests used to pin.
+ *
+ * Before S2, addCornerMoveListener built a brand new `moved` closure on every
+ * call, so removeEventListener could never match what had been registered:
+ * listeners only accumulated. setEnd made it worse by having its add and remove
+ * the wrong way round, which left a wall deaf to the corner it had just been
+ * attached to. The wall now holds one handler per instance, so both directions
+ * work; the counts below are the regression guard.
+ *
+ * A corner created through Floorplan.newCorner starts with exactly one
+ * EVENT_MOVED listener - the floorplan's own - and each attached wall adds one.
+ */
 describe('Wall.setStart / Wall.setEnd move-listener wiring', () => {
 
-	it('never removes the old EVENT_MOVED listener, because addCornerMoveListener builds a fresh closure', () => {
-		// Bug (preserved): addCornerMoveListener(corner, true) calls
-		// removeEventListener with a brand new `moved` function, which three's
-		// EventDispatcher cannot match. Listeners therefore only ever accumulate.
+	it('setStart moves the listener off the old start and onto the new one', () => {
 		const floorplan = new Floorplan();
 		const a = floorplan.newCorner(0, 0);
 		const b = floorplan.newCorner(400, 0);
@@ -779,15 +789,12 @@ describe('Wall.setStart / Wall.setEnd move-listener wiring', () => {
 
 		wall.setStart(c);
 
-		// The old start keeps its stale listener; the new start correctly gains one.
-		expect(a._listeners[EVENT_MOVED].length).toBe(2);
+		expect(wall.getStart()).toBe(c);
+		expect(a._listeners[EVENT_MOVED].length).toBe(1);
 		expect(c._listeners[EVENT_MOVED].length).toBe(2);
 	});
 
-	it('setEnd has the add/remove calls swapped - the OLD end gains a listener and the NEW end gets none', () => {
-		// Bug (preserved): setEnd calls addCornerMoveListener(this.end) BEFORE
-		// reassigning this.end and addCornerMoveListener(this.end, true) after,
-		// which is the exact inverse of setStart.
+	it('setEnd moves the listener off the old end and onto the new one', () => {
 		const floorplan = new Floorplan();
 		const a = floorplan.newCorner(0, 0);
 		const b = floorplan.newCorner(400, 0);
@@ -800,8 +807,51 @@ describe('Wall.setStart / Wall.setEnd move-listener wiring', () => {
 		wall.setEnd(c);
 
 		expect(wall.getEnd()).toBe(c);
-		expect(b._listeners[EVENT_MOVED].length).toBe(3);
-		expect(c._listeners[EVENT_MOVED].length).toBe(1);
+		expect(b._listeners[EVENT_MOVED].length).toBe(1);
+		expect(c._listeners[EVENT_MOVED].length).toBe(2);
+	});
+
+	it('repeated re-attachment does not grow either corner listener list', () => {
+		// The leak's real cost: dragging a corner over its neighbours repeatedly
+		// re-runs setStart/setEnd, and every pass used to leave another dead wall
+		// wired to a corner it no longer touches.
+		const floorplan = new Floorplan();
+		const a = floorplan.newCorner(0, 0);
+		const b = floorplan.newCorner(400, 0);
+		const c = floorplan.newCorner(400, 300);
+		const d = floorplan.newCorner(0, 300);
+		const wall = floorplan.newWall(a, b);
+
+		for (let i = 0; i < 20; i++)
+		{
+			wall.setStart((i % 2 === 0) ? c : a);
+			wall.setEnd((i % 2 === 0) ? d : b);
+		}
+
+		expect(wall.getStart()).toBe(a);
+		expect(wall.getEnd()).toBe(b);
+		for (const corner of [a, b, c, d])
+		{
+			expect(corner._listeners[EVENT_MOVED].length).toBeLessThanOrEqual(2);
+		}
+		// Only the two corners the wall currently holds carry a wall listener.
+		expect(a._listeners[EVENT_MOVED].length).toBe(2);
+		expect(b._listeners[EVENT_MOVED].length).toBe(2);
+	});
+
+	it('remove() detaches the wall from both of its corners', () => {
+		const floorplan = new Floorplan();
+		const a = floorplan.newCorner(0, 0);
+		const b = floorplan.newCorner(400, 0);
+		const wall = floorplan.newWall(a, b);
+
+		expect(a._listeners[EVENT_MOVED].length).toBe(2);
+		expect(b._listeners[EVENT_MOVED].length).toBe(2);
+
+		wall.remove();
+
+		expect(a._listeners[EVENT_MOVED].length).toBe(1);
+		expect(b._listeners[EVENT_MOVED].length).toBe(1);
 	});
 
 	it('setEnd orphans the old end corner out of the floorplan when it held no other wall', () => {

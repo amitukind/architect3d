@@ -57,11 +57,60 @@ export class Skybox extends EventDispatcher
 		
 		this.scene.add(this.sky);
 		this.scene.add(this.ground);
-		
-		var axesHelper = new AxesHelper( 100 );
-		this.scene.add( axesHelper );
-		
+
+		this.axesHelper = new AxesHelper( 100 );
+		this.scene.add( this.axesHelper );
+
+		this._disposed = false;
 		this.init();
+	}
+
+	/**
+	 * Take the sky, ground and axes back out of the scene and release their GPU
+	 * resources. Safe to call more than once.
+	 *
+	 * The reflector's own render target is captured in a closure inside
+	 * three-reflector2 and cannot be reached from here; Main.dispose() calls
+	 * forceContextLoss() after this, which frees it with the rest of the context.
+	 * That package goes away in S4 along with the other bundled three copies.
+	 */
+	dispose()
+	{
+		if(this._disposed)
+		{
+			return;
+		}
+		this._disposed = true;
+
+		this.scene.remove(this.sky);
+		this.scene.remove(this.ground);
+		this.scene.remove(this.axesHelper);
+
+		// The reflector replaces ground.material, so dispose what is actually on
+		// the mesh as well as the MeshBasicMaterial it was built with.
+		this.ground.onBeforeRender = function(){};
+		if(this.ground.material && this.ground.material !== this.groundMat)
+		{
+			this.ground.material.dispose();
+		}
+		this.groundMat.dispose();
+		this.groundGeo.dispose();
+
+		this.skyGeo.dispose();
+		this.plainSkyMat.dispose();
+		if(this.skyMat)
+		{
+			this.skyMat.dispose();
+			this.skyMat = undefined;
+		}
+		if(this.axesHelper.geometry)
+		{
+			this.axesHelper.geometry.dispose();
+		}
+		if(this.axesHelper.material)
+		{
+			this.axesHelper.material.dispose();
+		}
 	}
 	
 	setEnabled(flag)

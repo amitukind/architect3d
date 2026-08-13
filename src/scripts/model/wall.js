@@ -109,30 +109,28 @@ export class Wall extends EventDispatcher
 
 		/** Actions to be applied explicitly. */
 		
-//		this.start.addEventListener(EVENT_MOVED, ()=>{
-//			scope.updateControlVectors();
-//		});
-//		this.end.addEventListener(EVENT_MOVED, ()=>{
-//			scope.updateControlVectors();
-//		});
+		// One handler per wall, held on the instance. Before S2 this method built a
+		// fresh closure on every call, so removeEventListener could never match the
+		// function that was registered and listeners only ever accumulated - and
+		// setEnd had its add and remove the wrong way round on top of that, leaving
+		// the wall deaf to the corner it had just been attached to.
+		this._cornerMovedEvent = () => {this.updateControlVectors();};
 		this.addCornerMoveListener(this.start);
 		this.addCornerMoveListener(this.end);
 	}
-	
+
 	addCornerMoveListener(corner, remove=false)
 	{
-		var scope = this;
-		function moved()
+		if(!corner)
 		{
-			scope.updateControlVectors();
-		}
-		
-		if(remove)
-		{
-			corner.removeEventListener(EVENT_MOVED, moved);
 			return;
 		}
-		corner.addEventListener(EVENT_MOVED, moved);
+		if(remove)
+		{
+			corner.removeEventListener(EVENT_MOVED, this._cornerMovedEvent);
+			return;
+		}
+		corner.addEventListener(EVENT_MOVED, this._cornerMovedEvent);
 	}
 	
 	get a()
@@ -411,15 +409,18 @@ export class Wall extends EventDispatcher
 	{
 		this.start.detachWall(this);
 		this.end.detachWall(this);
+		// A removed wall must stop listening to corners that outlive it, or the
+		// floorplan keeps a deleted wall alive through their listener lists.
+		this.addCornerMoveListener(this.start, true);
+		this.addCornerMoveListener(this.end, true);
 		this.dispatchEvent({type:EVENT_DELETED, item: this});
-		//this.deleted_callbacks.fire(this);
 	}
 
 	setStart(corner)
 	{
 		this.start.detachWall(this);
 		this.addCornerMoveListener(this.start, true);
-		
+
 		corner.attachStart(this);
 		this.start = corner;
 		this.addCornerMoveListener(this.start);
@@ -428,13 +429,12 @@ export class Wall extends EventDispatcher
 
 	setEnd(corner)
 	{
-		
 		this.end.detachWall(this);
-		this.addCornerMoveListener(this.end);
-		
+		this.addCornerMoveListener(this.end, true);
+
 		corner.attachEnd(this);
 		this.end = corner;
-		this.addCornerMoveListener(this.end, true);
+		this.addCornerMoveListener(this.end);
 		this.fireMoved();
 	}
 
