@@ -539,19 +539,22 @@ export class Controller extends EventDispatcher
 
 	// filter by normals will only return objects facing the camera
 	// objects can be an array of objects or a single object
-	getIntersections(vec2, objects, filterByNormals, onlyVisible, recursive, linePrecision)
+	getIntersections(vec2, objects, filterByNormals, onlyVisible, recursive)
 	{
 		var vector = this.mouseToVec3(vec2);
 		onlyVisible = onlyVisible || false;
 		filterByNormals = filterByNormals || false;
 		recursive = recursive || false;
-		linePrecision = linePrecision || 20;
 
 		var direction = vector.sub(this.camera.position).normalize();
-		var raycaster = new Raycaster(this.camera.position, direction);
-		raycaster.linePrecision = linePrecision;
 
-		raycaster = new Raycaster();
+		// There was a `linePrecision` parameter here, defaulting to 20, and it
+		// never reached a raycaster: the old code built one with it, then
+		// immediately replaced the whole instance with a fresh Raycaster before
+		// casting, so line picking has always used three's default threshold. The
+		// property was removed in r127 (params.Line.threshold now) and no caller
+		// in this codebase ever passed the argument, so both are gone.
+		var raycaster = new Raycaster();
 		raycaster.setFromCamera( this.normalizeVector2(this.alternateMouse), this.camera );
 
 		var intersections;

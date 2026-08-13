@@ -77,7 +77,11 @@ export {Lights} from './three/lights.js';
 export {Main} from './three/main.js';
 export {Skybox} from './three/skybox.js';
 
-export {OBJExporter} from './exporters/OBJExporter.js';
+// Re-exported so embedders that reached for BP3DJS.OBJExporter keep working.
+// S4 replaced the vendored copy - a fork old enough to branch on the removed
+// THREE.Geometry - with three's own addon; the parse(object) -> string contract
+// is unchanged.
+export {OBJExporter} from 'three/addons/exporters/OBJExporter.js';
 
 
 

@@ -20,13 +20,25 @@ export class Lights extends EventDispatcher
 		return this.dirLight;
 	}
 
-	init() 
+	init()
 	{
-		var light = new HemisphereLight(0xffffff, 0x888888, 1.1);
+		// x pi: r165 removed the legacy lighting mode, in which light intensity
+		// was scaled by 1/pi before reaching the shader. Physical units are the
+		// only mode now, so the r98 numbers - 1.1 and 0.5 - arrive pi times
+		// dimmer than they used to and every lit surface (the Phong floors and
+		// the loaded items) darkens. Unlit materials, which is most of this
+		// scene, would not move at all, so the result would be an inconsistent
+		// half-darkening rather than an even one.
+		//
+		// Multiplying restores the r98 look exactly. S5 recalibrates these to
+		// values chosen for the physical model rather than derived from the old
+		// one; the constants are written as products so that pass can see where
+		// they came from.
+		var light = new HemisphereLight(0xffffff, 0x888888, 1.1 * Math.PI);
 		light.position.set(0, this.height, 0);
 		this.scene.add(light);
 
-		this.dirLight = new DirectionalLight(0xffffff, 0.5);
+		this.dirLight = new DirectionalLight(0xffffff, 0.5 * Math.PI);
 		this.dirLight.color.setHSL(1, 1, 0.1);
 
 		this.dirLight.castShadow = true;

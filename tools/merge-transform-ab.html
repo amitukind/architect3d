@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Model URLs resolve relative to build/, exactly as the app resolves them. -->
+<base href="/build/">
+<title>architect3d - node transform A/B</title>
+<style>
+	:root
+	{
+		color-scheme: light dark;
+		--ink: #16181d;
+		--paper: #f7f7f9;
+		--panel: #ffffff;
+		--line: #d6d8de;
+		--muted: #5f6470;
+		--warn: #a8620a;
+		--ok: #2f7d4f;
+	}
+	@media (prefers-color-scheme: dark)
+	{
+		:root
+		{
+			--ink: #e8e9ec;
+			--paper: #101216;
+			--panel: #191c22;
+			--line: #333844;
+			--muted: #9aa0ac;
+			--warn: #e0a34a;
+			--ok: #6fbf8e;
+		}
+	}
+	*
+	{
+		box-sizing: border-box;
+	}
+	body
+	{
+		margin: 0;
+		padding: 24px;
+		font: 14px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+		color: var(--ink);
+		background: var(--paper);
+	}
+	header
+	{
+		max-width: 76ch;
+		margin-bottom: 20px;
+	}
+	h1
+	{
+		margin: 0 0 6px;
+		font-size: 19px;
+		letter-spacing: -0.01em;
+	}
+	p
+	{
+		margin: 0 0 8px;
+		color: var(--muted);
+	}
+	kbd
+	{
+		font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		padding: 1px 5px;
+	}
+	#grid
+	{
+		display: grid;
+		gap: 14px;
+		grid-template-columns: repeat(auto-fill, minmax(430px, 1fr));
+	}
+	.pair
+	{
+		border: 1px solid var(--line);
+		border-radius: 8px;
+		background: var(--panel);
+		padding: 10px 12px 12px;
+	}
+	.pair h2
+	{
+		margin: 0 0 2px;
+		font-size: 13px;
+		font-weight: 600;
+		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+		overflow-wrap: anywhere;
+	}
+	.tag
+	{
+		display: inline-block;
+		font-size: 11px;
+		letter-spacing: .04em;
+		text-transform: uppercase;
+		border: 1px solid var(--line);
+		border-radius: 999px;
+		padding: 0 7px;
+		margin-bottom: 8px;
+		color: var(--muted);
+	}
+	.tag.resize
+	{
+		color: var(--warn);
+		border-color: currentColor;
+	}
+	.tag.move
+	{
+		color: var(--ok);
+		border-color: currentColor;
+	}
+	.views
+	{
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 8px;
+	}
+	figure
+	{
+		margin: 0;
+	}
+	figcaption
+	{
+		font-size: 11px;
+		letter-spacing: .06em;
+		text-transform: uppercase;
+		color: var(--muted);
+		margin-bottom: 4px;
+	}
+	canvas
+	{
+		width: 100%;
+		aspect-ratio: 4 / 3;
+		display: block;
+		border-radius: 5px;
+		background: #ffffff;
+	}
+	dl
+	{
+		display: grid;
+		grid-template-columns: auto 1fr;
+		gap: 1px 10px;
+		margin: 9px 0 0;
+		font-size: 12px;
+		font-variant-numeric: tabular-nums;
+	}
+	dt
+	{
+		color: var(--muted);
+	}
+	dd
+	{
+		margin: 0;
+	}
+	.note
+	{
+		grid-column: 1 / -1;
+		color: var(--warn);
+		margin-top: 4px;
+	}
+	#status
+	{
+		margin-bottom: 16px;
+		font-variant-numeric: tabular-nums;
+	}
+</style>
+</head>
+<body>
+
+<header>
+	<h1>Node transforms: dropped vs honoured</h1>
+	<p>
+		Sprint S4's visual A/B for the one intentional rendering change in the
+		bump. Every version of the item merge before S4 baked each mesh's
+		<em>local</em> matrix, so a mesh sitting under a transformed glTF node was
+		flattened without its parent's transform. <kbd>mergeMeshes</kbd> now uses
+		<kbd>matrixWorld</kbd>.
+	</p>
+	<p>
+		Left is the old reading, right is the new one. <strong>Both frames share
+		one camera</strong>, fitted to the union of the two results, so a
+		difference in size or position is visible rather than normalised away.
+		The grey box is the other side's bounds, drawn for reference.
+	</p>
+	<p>
+		Only the affected models are listed. Those tagged <span class="tag move">moved</span>
+		sit under a node that translates or rotates but does not scale: they were
+		drawn at the right size in the wrong place, and there is nothing to weigh
+		up. Those tagged <span class="tag resize">resized</span> change size, and
+		that is the half that needs your judgement.
+	</p>
+</header>
+
+<div id="status">Loading&hellip;</div>
+<div id="grid"></div>
+
+<script type="module">
+import {
+	AmbientLight, Box3, Box3Helper, Color, DirectionalLight, Mesh, MeshStandardMaterial,
+	PerspectiveCamera, Scene, Vector3, WebGLRenderer,
+} from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {mergeMeshes} from '/src/scripts/core/geometry_merge.js';
+
+const record = await (await fetch('/tests/fixtures/legacy-merge-r98.json')).json();
+const affected = Object.entries(record).filter(([, value]) => value.nodeTransformAffected);
+
+const grid = document.getElementById('grid');
+const status = document.getElementById('status');
+
+/** The pre-S4 flatten: local matrices, positions only. */
+function mergeLocal(root)
+{
+	const chunks = [];
+	root.traverse((child) =>
+	{
+		if (!child.isMesh) { return; }
+		const flat = child.geometry.index ? child.geometry.toNonIndexed() : child.geometry.clone();
+		child.updateMatrix();
+		flat.applyMatrix4(child.matrix);
+		chunks.push(flat);
+	});
+	return chunks;
+}
+
+/**
+ * Render one side into a canvas, using a camera supplied by the caller so the
+ * two sides of a pair are directly comparable.
+ */
+function renderInto(canvas, objects, camera, referenceBox)
+{
+	const renderer = new WebGLRenderer({canvas, antialias: true, alpha: false});
+	renderer.setPixelRatio(window.devicePixelRatio);
+	renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+	renderer.setClearColor(0xffffff, 1);
+
+	const scene = new Scene();
+	scene.background = new Color(0xffffff);
+	scene.add(new AmbientLight(0xffffff, 0.55 * Math.PI));
+	const key = new DirectionalLight(0xffffff, 0.85 * Math.PI);
+	key.position.set(1, 1.4, 1);
+	scene.add(key);
+	const fill = new DirectionalLight(0xffffff, 0.35 * Math.PI);
+	fill.position.set(-1, 0.4, -0.8);
+	scene.add(fill);
+	objects.forEach((object) => scene.add(object));
+	if (referenceBox) { scene.add(new Box3Helper(referenceBox, 0xbbbbbb)); }
+
+	renderer.render(scene, camera);
+	// One frame each, 84 canvases: release the context immediately or the
+	// browser starts evicting the earlier ones and the page goes blank up top.
+	renderer.forceContextLoss();
+	renderer.dispose();
+}
+
+let done = 0;
+const loader = new GLTFLoader();
+
+for (const [model, stats] of affected)
+{
+	const resized = Math.abs(
+		(stats.worldBounds[4] - stats.worldBounds[1]) / (stats.localBounds[4] - stats.localBounds[1]) - 1) > 0.01;
+
+	const card = document.createElement('div');
+	card.className = 'pair';
+	card.innerHTML = `
+		<h2>${model}</h2>
+		<span class="tag ${resized ? 'resize' : 'move'}">${resized ? 'resized' : 'moved'}</span>
+		<div class="views">
+			<figure><figcaption>before &mdash; local matrix</figcaption><canvas></canvas></figure>
+			<figure><figcaption>after &mdash; world matrix</figcaption><canvas></canvas></figure>
+		</div>
+		<dl></dl>`;
+	grid.append(card);
+
+	const [beforeCanvas, afterCanvas] = card.querySelectorAll('canvas');
+	const facts = card.querySelector('dl');
+
+	try
+	{
+		const gltf = await new Promise((resolve, reject) => loader.load(model, resolve, undefined, reject));
+
+		const material = new MeshStandardMaterial({color: 0xdddddd, metalness: 0, roughness: 1});
+		const beforeMeshes = mergeLocal(gltf.scene).map((geometry) => new Mesh(geometry, material));
+		const afterMesh = new Mesh(mergeMeshes(gltf.scene).geometry, material);
+
+		const beforeBox = new Box3();
+		beforeMeshes.forEach((mesh) => beforeBox.expandByObject(mesh));
+		const afterBox = new Box3().setFromObject(afterMesh);
+
+		// One camera for the pair, framed on both boxes at once.
+		const union = beforeBox.clone().union(afterBox);
+		const size = union.getSize(new Vector3());
+		const centre = union.getCenter(new Vector3());
+		const radius = Math.max(size.length() * 0.5, 1e-4);
+		const camera = new PerspectiveCamera(35, beforeCanvas.clientWidth / beforeCanvas.clientHeight, radius * 0.01, radius * 100);
+		camera.position.copy(centre).add(new Vector3(1, 0.75, 1.35).normalize().multiplyScalar(radius * 2.9));
+		camera.lookAt(centre);
+
+		renderInto(beforeCanvas, beforeMeshes, camera, afterBox);
+		renderInto(afterCanvas, [afterMesh], camera, beforeBox);
+
+		const dim = (box) => box.getSize(new Vector3());
+		const b = dim(beforeBox);
+		const a = dim(afterBox);
+		const rows = [
+			['triangles', stats.triangles],
+			['size before', `${b.x.toFixed(3)} x ${b.y.toFixed(3)} x ${b.z.toFixed(3)}`],
+			['size after', `${a.x.toFixed(3)} x ${a.y.toFixed(3)} x ${a.z.toFixed(3)}`],
+			['scale factor', `${(a.y / (b.y || 1)).toFixed(4)}x`],
+			['centre moved', `${beforeBox.getCenter(new Vector3()).distanceTo(afterBox.getCenter(new Vector3())).toFixed(3)}`],
+		];
+		facts.innerHTML = rows.map(([term, value]) => `<dt>${term}</dt><dd>${value}</dd>`).join('');
+	}
+	catch (error)
+	{
+		facts.innerHTML = `<p class="note">${String((error && error.message) || error)}</p>`;
+	}
+
+	done++;
+	status.textContent = `${done} / ${affected.length} pairs rendered`;
+}
+
+const resizedCount = affected.filter(([, stats]) => Math.abs(
+	(stats.worldBounds[4] - stats.worldBounds[1]) / (stats.localBounds[4] - stats.localBounds[1]) - 1) > 0.01).length;
+status.textContent = `${done} pairs rendered - ${affected.length - resizedCount} moved only, ${resizedCount} resized. The resized ones are the review.`;
+</script>
+
+</body>
+</html>

@@ -13,7 +13,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "fixtures": "node tools/make-fixtures.mjs",
-    "convert:models": "node tools/convert-legacy-json.mjs",
     "catalog": "node tools/make-demo-catalog.mjs",
     "lint": "eslint .",
     "docs": "esdoc"
@@ -34,11 +33,7 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
-    "@calvinscofield/three-objloader": "^1.0.4",
     "bezier-js": "^6.1.4",
-    "three": "^0.98.0",
-    "three-gltf-exporter": "0.0.1",
-    "three-gltf-loader": "^1.105.0",
-    "three-reflector2": "0.0.5"
+    "three": "^0.185.1"
   }
 }

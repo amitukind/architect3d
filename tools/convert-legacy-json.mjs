@@ -48,7 +48,26 @@
 import {copyFileSync, readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, statSync} from 'node:fs';
 import {basename, dirname, extname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {BufferGeometry, JSONLoader} from 'three';
+import * as THREE from 'three';
+
+// Historical as of S4, for the same reason as tools/capture-*-goldens.mjs: this
+// converter reads the legacy format with r98's own JSONLoader, and r185 has
+// neither that loader nor BufferGeometry.fromGeometry. Its output - the 25 .glb
+// files under build/models/js-glb/ and their shared textures - is checked in,
+// and tests/model-conversion.test.js verifies it against the frozen r98
+// measurements on every run. Refuse loudly rather than fail three imports deep.
+if (typeof THREE.JSONLoader !== 'function')
+{
+	console.error(
+		`This converter reads the retired three.js JSON format, and the installed three is r${THREE.REVISION}.\n` +
+		'JSONLoader was removed in r97 and BufferGeometry.fromGeometry in r125.\n\n' +
+		'The 25 conversions are checked in under build/models/js-glb/ and are verified on\n' +
+		'every test run. To convert a new legacy model, check out the legacy-demo tag,\n' +
+		'npm install there, run this script, and copy the result across.');
+	process.exit(1);
+}
+
+const {BufferGeometry, JSONLoader} = THREE;
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE_DIR = join(ROOT, 'build/models/js');

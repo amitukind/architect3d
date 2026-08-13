@@ -269,6 +269,22 @@ export class Wall extends EventDispatcher
 		{
 			var vector = this.getEnd().location.clone().sub(this.getStart().location);
 			var currentLength = this.wallLength();
+
+			// A zero-length wall has no direction to resize along: changeInLength
+			// is Infinity and every coordinate derived from it is NaN.
+			//
+			// This used to be harmless by accident. three r98 built vectors with
+			// `this.x = x || 0`, which turned NaN back into 0 on the next clone(),
+			// so the corner simply never moved. r125 replaced that with default
+			// parameters, NaN now survives, and the corner - plus every wall and
+			// room touching it - is corrupted beyond recovery. The S0
+			// characterization test flagged this as a migration tripwire; this is
+			// the guard it asked for, and it keeps the old outcome: no movement.
+			if(currentLength === 0)
+			{
+				return;
+			}
+
 			var changeInLength = value / currentLength;
 			
 			var neighboursCountStart = (this.getStart().adjacentCorners().length == 1);

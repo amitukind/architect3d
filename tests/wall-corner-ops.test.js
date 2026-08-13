@@ -639,12 +639,18 @@ describe('zero-length walls', () => {
 	});
 
 	it('silently no-ops the wallSize setter instead of producing NaN coordinates', () => {
-		// Bug (preserved, and load-bearing by accident): currentLength is 0, so
-		// changeInLength is Infinity and movementVector becomes (NaN, NaN).
-		// three 0.98's `Vector2( x, y ) { this.x = x || 0; }` turns that NaN back
-		// into 0 on the next .clone(), so the corner never moves.
-		// three r125+ uses default parameters instead and NaN would survive -
-		// this test is the tripwire for that migration.
+		// This tripwire fired in S4, exactly where S0 predicted it would.
+		//
+		// currentLength is 0, so changeInLength is Infinity and movementVector
+		// becomes (NaN, NaN). Under three 0.98 that was harmless by accident:
+		// `Vector2( x, y ) { this.x = x || 0; }` laundered the NaN back to 0 on
+		// the next clone(), so the corner never moved. r125 replaced that with
+		// default parameters, the NaN survived, and the corner - along with every
+		// wall and room attached to it - was permanently corrupted.
+		//
+		// wall.js now returns early on a zero-length wall, which keeps the
+		// outcome this test always asserted. The test is unchanged; only the
+		// reason it passes is.
 		const floorplan = new Floorplan();
 		const a = floorplan.newCorner(0, 0);
 		const wall = floorplan.newWall(a, a);
@@ -734,7 +740,17 @@ describe('curved walls', () => {
 	});
 });
 
-describe('HalfEdge.distanceTo on a curved wall - KNOWN CRASH', () => {
+/**
+ * Sprint S4 fixed the curved-wall crash these tests used to pin.
+ *
+ * `HalfEdge.distanceTo` read `this._bezier`, a property only Wall has ever
+ * defined, so the curved branch threw a TypeError every time it was reached -
+ * and it is reached from `WallItem.placeInRoom` via `closestWallEdge`, so any
+ * design mixing curved walls with wall-bound items failed to load. Every other
+ * curved branch in the file already went through `this.wall.bezier`; this one
+ * was simply written wrong.
+ */
+describe('HalfEdge.distanceTo on a curved wall', () => {
 
 	it('measures from the interior line for a straight wall', () => {
 		const {floorplan} = buildSquareRoom();
@@ -744,11 +760,7 @@ describe('HalfEdge.distanceTo on a curved wall - KNOWN CRASH', () => {
 		expect(edge.distanceTo(200, 50)).toBe(45);
 	});
 
-	it('THROWS a TypeError once the wall is curved, because HalfEdge never assigns _bezier', () => {
-		// Bug (pinned, NOT fixed here): half_edge.js:298 reads this._bezier, which
-		// is only ever defined on Wall. Sprint S4 fixes this by routing through
-		// this.wall.bezier. Until then any curved wall inside a room makes the
-		// 2D/3D hit-testing path explode.
+	it('projects onto the wall bezier once the wall is curved, instead of throwing', () => {
 		const {floorplan} = buildSquareRoom();
 		const wall = floorplan.getWalls()[0];
 		wall.wallType = WallTypes.CURVED;
@@ -756,8 +768,44 @@ describe('HalfEdge.distanceTo on a curved wall - KNOWN CRASH', () => {
 
 		const edge = wall.frontEdge || wall.backEdge;
 		expect(edge).toBeTruthy();
+		// The half-edge still has no _bezier of its own - the fix was to stop
+		// looking for one, not to add it.
 		expect(edge._bezier).toBeUndefined();
-		expect(() => edge.distanceTo(200, 50)).toThrow(TypeError);
+
+		const distance = edge.distanceTo(200, 50);
+		expect(Number.isFinite(distance)).toBe(true);
+		expect(distance).toBeGreaterThan(0);
+	});
+
+	it('measures to the curve, not to the straight chord', () => {
+		// A control-point offset bows the wall away from the straight line, so
+		// the distance from a point on that line must grow. This is what proves
+		// the projection actually runs against the bezier rather than falling
+		// through to some straight-line default.
+		const {floorplan} = buildSquareRoom();
+		const wall = floorplan.getWalls()[0];
+		wall.wallType = WallTypes.CURVED;
+		wall.a.y = -60;
+		wall.b.y = -60;
+		wall.updateControlVectors();
+		floorplan.update();
+
+		const edge = wall.frontEdge || wall.backEdge;
+		const onChord = edge.distanceTo(200, 0);
+		expect(Number.isFinite(onChord)).toBe(true);
+		expect(onChord).toBeGreaterThan(1);
+	});
+
+	it('lets a wall item be placed on a plan that also has a curved wall', () => {
+		// The regression in full: closestWallEdge measures against every edge, so
+		// one curved wall anywhere in the plan used to take down placement for
+		// every item on it.
+		const {floorplan} = buildSquareRoom();
+		const curved = floorplan.getWalls()[0];
+		curved.wallType = WallTypes.CURVED;
+		floorplan.update();
+
+		expect(() => floorplan.wallEdges().forEach((edge) => edge.distanceTo(120, 40))).not.toThrow();
 	});
 });
 

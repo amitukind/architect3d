@@ -15,6 +15,7 @@
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 import * as THREE from 'three';
 import {Main} from '../src/scripts/three/main.js';
+import {Lights} from '../src/scripts/three/lights.js';
 import {Model} from '../src/scripts/model/model.js';
 import {BlueprintJS} from '../src/scripts/blueprint.js';
 import {Configuration, configDimUnit} from '../src/scripts/core/configuration.js';
@@ -418,5 +419,51 @@ describe('BlueprintJS mount and unmount', () =>
 		expect(observer.liveCount()).toBe(0);
 		// Every renderer canvas is back out of the document.
 		expect(document.querySelectorAll('#viewer canvas').length).toBe(0);
+	});
+});
+
+/**
+ * Sprint S4's parity freeze.
+ *
+ * Three settings hold r185's rendering to what r98 produced, so that a shading
+ * difference during the bump means the geometry rewrite broke something rather
+ * than that the colour pipeline moved underneath it. None of them is exercised
+ * by anything else here - the tests above inject a fake renderer - and all
+ * three are one-liners that a later refactor could silently drop. S8 removes
+ * them deliberately, and these tests with them.
+ */
+describe('the r98 parity freeze', () =>
+{
+	it('disables colour management at import time, not at renderer construction', () =>
+	{
+		// A Color converts when it is built, and materials are built long before
+		// any renderer exists - so setting this inside getARenderer() would be too
+		// late for every colour the app has already picked.
+		expect(THREE.ColorManagement.enabled).toBe(false);
+	});
+
+	it('leaves hex colours exactly as authored, with no sRGB-to-linear conversion', () =>
+	{
+		// The observable consequence. With management on, 0x808080 arrives in the
+		// shader as roughly 0.216; r98 passed 0.5019 straight through.
+		const colour = new THREE.Color(0x808080);
+		expect(colour.r).toBeCloseTo(128 / 255, 6);
+		expect(colour.g).toBeCloseTo(128 / 255, 6);
+		expect(colour.b).toBeCloseTo(128 / 255, 6);
+	});
+
+	it('scales light intensities by pi to replace the legacy lighting mode', () =>
+	{
+		// r165 removed the 1/pi scaling three used to apply, so the r98 constants
+		// would arrive pi times dimmer and darken every lit surface - the Phong
+		// floors and the loaded items - while leaving the unlit walls, sky and
+		// ground untouched. That uneven result is worse than either look.
+		const scene = {add() {}};
+		const floorplan = new THREE.EventDispatcher();
+		floorplan.getSize = () => new THREE.Vector3(1, 1, 1);
+		floorplan.getCenter = () => new THREE.Vector3();
+
+		const lights = new Lights(scene, floorplan);
+		expect(lights.getDirLight().intensity).toBeCloseTo(0.5 * Math.PI, 6);
 	});
 });

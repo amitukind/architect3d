@@ -70,13 +70,16 @@ export class Item extends Mesh
 				this.material = material;
 				// center in its boundingbox
 				this.geometry.computeBoundingBox();
-				this.geometry.applyMatrix(new Matrix4().makeTranslation(- 0.5 * (this.geometry.boundingBox.max.x + this.geometry.boundingBox.min.x),- 0.5 * (this.geometry.boundingBox.max.y + this.geometry.boundingBox.min.y),- 0.5 * (this.geometry.boundingBox.max.z + this.geometry.boundingBox.min.z)));
+				this.geometry.applyMatrix4(new Matrix4().makeTranslation(- 0.5 * (this.geometry.boundingBox.max.x + this.geometry.boundingBox.min.x),- 0.5 * (this.geometry.boundingBox.max.y + this.geometry.boundingBox.min.y),- 0.5 * (this.geometry.boundingBox.max.z + this.geometry.boundingBox.min.z)));
 				this.geometry.computeBoundingBox();
 		}
 		else
 		{
 				var objectBox = new Box3();
-				objectBox.setFromObject(geometry);
+				// precise: r140 made the default path expand each child's own
+				// bounding box, which is looser than r98 and would resize the
+				// invisible pick box every loaded item is measured by.
+				objectBox.setFromObject(geometry, true);
 				var hsize = objectBox.max.clone().sub(objectBox.min).multiplyScalar(0.5);
 				this.geometry = new BoxGeometry(hsize.x*0.5, hsize.y*0.5, hsize.z*0.5);
 				this.material =  new MeshStandardMaterial({color: 0x000000, wireframe: true, visible:false});
@@ -390,15 +393,20 @@ export class Item extends Mesh
 		var hex = on ? this.emissiveColor : 0x000000;
 		if(this.material)
 		{
+			// Only the lit materials carry an emissive channel. A model whose
+			// materials include a MeshBasicMaterial - the wireframe and pick
+			// helpers, or anything a glTF declares unlit - would throw here on
+			// hover, so the property is checked rather than assumed.
 			if(this.material.length)
 			{
 				this.material.forEach((material) => {
-					// TODO_Ekki emissive doesn't exist anymore?
-					material.emissive.setHex(hex);
-					this.material.emissive = new Color(hex);
+					if(material.emissive)
+					{
+						material.emissive.setHex(hex);
+					}
 				});
 			}
-			else
+			else if(this.material.emissive)
 			{
 				this.material.emissive.setHex(hex);
 				this.material.emissive = new Color(hex);

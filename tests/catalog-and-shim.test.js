@@ -7,9 +7,11 @@
  *
  * Two exit-gate items live here.
  *
- * "Every catalog item loads through the glTF path on r98 - a console counter
- * proves the JSONLoader branch is never entered." Scene.legacyJsonLoadCount is
- * that counter, and it stays at zero below.
+ * "Every catalog item loads through the glTF path - a console counter proves
+ * the JSONLoader branch is never entered." S4 deleted that branch along with
+ * the loader, so the counter became Scene.unloadableItemCount: how many items a
+ * design asked for that no loader in this build can open. It stays at zero
+ * below, which is the same guarantee stated against what now exists.
  *
  * "Pre-migration .blueprint3d fixtures (old URLs) load correctly through the
  * shim; saving re-emits glb-native files that also load." The fixture is
@@ -45,7 +47,7 @@ beforeEach(() =>
 	resetAll();
 	canvasStub = installCanvas2D(window);
 	Configuration.setValue(configDimUnit, dimCentiMeter);
-	Scene.legacyJsonLoadCount = 0;
+	Scene.unloadableItemCount = 0;
 	resetLegacyModelWarnings();
 });
 
@@ -210,11 +212,11 @@ describe('loading a pre-migration design', () =>
 		}
 	});
 
-	it('never enters the JSONLoader branch', () =>
+	it('resolves every item to a loader this build actually has', () =>
 	{
 		// The exit-gate counter. Zero after a full design load.
 		loadFixtureRecording(fixture);
-		expect(Scene.legacyJsonLoadCount).toBe(0);
+		expect(Scene.unloadableItemCount).toBe(0);
 	});
 
 	it('keeps the floorplan intact', () =>
@@ -247,7 +249,7 @@ describe('loading a pre-migration design', () =>
 		expect(second.requests.length).toBe(20);
 		// Nothing left to rewrite: the design needed the shim exactly once.
 		expect(second.requests.every((request) => request.legacyConverted === undefined)).toBe(true);
-		expect(Scene.legacyJsonLoadCount).toBe(0);
+		expect(Scene.unloadableItemCount).toBe(0);
 	});
 
 	it('places items in the same positions before and after the round trip', () =>
@@ -262,28 +264,50 @@ describe('loading a pre-migration design', () =>
 	});
 });
 
-describe('the JSONLoader branch itself', () =>
+describe('a model no loader can open', () =>
 {
-	it('still counts and warns if something reaches it', () =>
+	// S3 kept a JSONLoader branch behind a counter so the exit gate could prove
+	// it was never entered. S4 deleted the branch with the loader. What replaces
+	// it is the failure case: a formatless model now has nowhere to go, and the
+	// thing worth asserting is that it fails loudly instead of hanging.
+
+	it('reports the item, counts it, and does not leave the load pending', () =>
 	{
-		// Nothing shipped does, but the counter is only evidence if it works.
 		const model = new Model('models/textures/');
-		const warnings = [];
-		const original = console.warn;
-		console.warn = (message) => warnings.push(message);
+		const errors = [];
+		const original = console.error;
+		console.error = (message) => errors.push(message);
+
+		let loaded = 0;
+		model.scene.addEventListener('ITEM_LOADED_EVENT', () => {loaded += 1;});
+
 		try
 		{
-			// A .obj url with no format skips the shim (not a .js) and lands on the
-			// legacy branch, which is the branch under test.
-			model.scene.loader = {load() {}};
+			// Not a .js name, so the shim leaves it alone and it arrives with no
+			// format - exactly the shape of a design referencing a model that was
+			// never part of the shipped library.
 			model.scene.addItem(1, 'models/js/not-converted.dat', {itemType: 1}, null, null, null, false);
 		}
 		finally
 		{
-			console.warn = original;
+			console.error = original;
 		}
-		expect(Scene.legacyJsonLoadCount).toBe(1);
-		expect(warnings.some((message) => /retired three\.js JSONLoader/.test(message))).toBe(true);
+
+		expect(Scene.unloadableItemCount).toBe(1);
+		expect(errors.some((message) => /retired three\.js JSON model format/.test(message))).toBe(true);
+		// EVENT_ITEM_LOADING fired; something has to close the pair or an
+		// embedder's spinner never comes down.
+		expect(loaded).toBe(1);
+		expect(model.scene.getItems().length).toBe(0);
+	});
+
+	it('does not fire for anything in the shipped catalog', () =>
+	{
+		// The S3 exit-gate guarantee, restated against the new counter: every
+		// catalog entry declares a format the build can actually load.
+		const formats = new Set(CATALOG.items.map((item) => item.format));
+		expect([...formats].sort()).toEqual(['gltf']);
+		expect(Scene.unloadableItemCount).toBe(0);
 	});
 });
 

@@ -1,5 +1,6 @@
-import {EventDispatcher, TextureLoader, RepeatWrapping, Vector2, Vector3, MeshBasicMaterial, FrontSide, DoubleSide, BackSide, Shape, Path, ShapeGeometry, Mesh, Geometry, Face3, } from 'three';
+import {EventDispatcher, TextureLoader, RepeatWrapping, BufferAttribute, Vector2, Vector3, MeshBasicMaterial, FrontSide, DoubleSide, BackSide, Shape, Path, ShapeGeometry, Mesh, } from 'three';
 import {Utils} from '../core/utils.js';
+import {triangleFanGeometry} from '../core/geometry_builders.js';
 import {EVENT_REDRAW, EVENT_CAMERA_MOVED, EVENT_CAMERA_ACTIVE_STATUS} from '../core/events.js';
 
 export class Edge extends EventDispatcher
@@ -283,31 +284,43 @@ export class Edge extends EventDispatcher
 			shape.holes.push(new Path(holePoints));
 		});
 
+		// ShapeGeometry triangulates the contour and its holes together. Since
+		// r125 it returns a BufferGeometry rather than a Geometry - same export
+		// name, different class - so the vertices move as an attribute and the
+		// UVs become per-vertex instead of per-face-corner.
+		//
+		// Per-vertex is not a loss here: the old vertexToUv() below is a pure
+		// function of the vertex position, so every face that shared a vertex
+		// already computed the same UV for it. Writing it once per vertex
+		// produces the same texture coordinates the old code produced three
+		// times over.
 		var geometry = new ShapeGeometry(shape);
-		geometry.vertices.forEach((v) => {
-			v.applyMatrix4(invTransform);
-		});
+		geometry.applyMatrix4(invTransform);
 
 		// make UVs
 		var totalDistance = Utils.distance(new Vector2(v1.x, v1.z), new Vector2(v2.x, v2.z));
 		var height = this.wall.height;
-		geometry.faceVertexUvs[0] = [];
+		var position = geometry.getAttribute('position');
+		var uvs = new Float32Array(position.count * 2);
 
-		geometry.faces.forEach((face) => {
-			var vertA = geometry.vertices[face.a];
-			var vertB = geometry.vertices[face.b];
-			var vertC = geometry.vertices[face.c];
-			geometry.faceVertexUvs[0].push([vertexToUv(vertA),vertexToUv(vertB),vertexToUv(vertC)]);
-		});
+		for (var i = 0; i < position.count; i++)
+		{
+			var uv = vertexToUv(position.getX(i), position.getY(i), position.getZ(i));
+			uvs[i * 2] = uv.x;
+			uvs[i * 2 + 1] = uv.y;
+		}
+		geometry.setAttribute('uv', new BufferAttribute(uvs, 2));
 
-		geometry.faceVertexUvs[1] = geometry.faceVertexUvs[0];
-		geometry.computeFaceNormals();
+		// The old code also copied these into faceVertexUvs[1] to feed the
+		// lightmap. A second UV set is no longer needed: a texture's `channel`
+		// defaults to 0, so lightMap now samples the same `uv` attribute the
+		// colour map does - which is exactly what the duplicated set achieved.
 		geometry.computeVertexNormals();
 
-		function vertexToUv(vertex)
+		function vertexToUv(vx, vy, vz)
 		{
-			var x = Utils.distance(new Vector2(v1.x, v1.z), new Vector2(vertex.x, vertex.z)) / totalDistance;
-			var y = vertex.y / height;
+			var x = Utils.distance(new Vector2(v1.x, v1.z), new Vector2(vx, vz)) / totalDistance;
+			var y = vy / height;
 			return new Vector2(x, y);
 		}
 
@@ -320,12 +333,7 @@ export class Edge extends EventDispatcher
 	{
 		var points = [this.toVec3(p1), this.toVec3(p2), this.toVec3(p2, height), this.toVec3(p1, height) ];
 
-		var geometry = new Geometry();
-		points.forEach((p) => {
-			geometry.vertices.push(p);
-		});
-		geometry.faces.push(new Face3(0, 1, 2));
-		geometry.faces.push(new Face3(0, 2, 3));
+		var geometry = triangleFanGeometry(points);
 
 		var fillerMaterial = new MeshBasicMaterial({color: color,side: DoubleSide});
 		var filler = new Mesh(geometry, fillerMaterial);
@@ -347,10 +355,7 @@ export class Edge extends EventDispatcher
 		
 		var fillerMaterial = new MeshBasicMaterial({color: color,side: side});
 
-		var geometry = new Geometry();
-		geometry.vertices.push(a,b,c,d);
-		geometry.faces.push(new Face3(0, 1, 2));
-		geometry.faces.push(new Face3(0, 2, 3));
+		var geometry = triangleFanGeometry([a, b, c, d]);
 
 		var filler = new Mesh(geometry, fillerMaterial);
 		return filler;

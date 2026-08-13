@@ -11,13 +11,21 @@ Two kinds of test live here, and the distinction matters when one fails:
   code *does*. A failure means you changed behaviour - probably by accident.
 - **Contract tests** (S2, the two jsdom modules) pin what a sprint deliberately
   *changed*. A failure means the new contract broke.
+- **Golden comparisons** (S3 and S4) pin what a *previous engine* produced,
+  recorded as data. three r98 is gone; these fixtures are all that is left of
+  it, and they cannot be regenerated - see "Frozen r98 readings" below.
 
 ```bash
 npm test                 # run once
 npm run test:watch
 npm run fixtures         # regenerate tests/fixtures/*.blueprint3d
-npm run convert:models   # legacy three.js JSON models -> build/models/js-glb/*.glb (S3)
 npm run catalog          # src/catalog/catalog.json -> build/js/items.js (S3)
+
+# Historical, and they say so when run: these three need three r98 and refuse
+# to run against r185. Their output is checked in.
+node tools/convert-legacy-json.mjs        # the 25 .glb conversions (S3)
+node tools/capture-geometry-goldens.mjs   # tests/fixtures/geometry-r98.json (S4)
+node tools/capture-model-goldens.mjs      # the two legacy-*-r98.json fixtures (S4)
 
 npm run dev       # Vite dev server - the legacy demo against live source (S1)
 npm run build     # Vite library build -> dist/bp3djs.js (IIFE global BP3DJS)
@@ -45,10 +53,20 @@ change is wrong — not the expectation.** Re-read the roadmap's preserve/fix
 ledger (section 01) before editing an expectation. Genuine fixes are scheduled
 per-sprint and land together with an intentional test update.
 
-Two expectations have been retired that way so far, both in S2, both listed as
-FIX in the ledger: `Wall.setStart`/`setEnd` no longer leak an `EVENT_MOVED`
-listener per re-attachment, and `setEnd` no longer has its add and remove the
-wrong way round. See `wall-corner-ops.test.js`.
+Expectations retired that way so far, all listed as FIX in the ledger:
+
+| Retired | Sprint | Where |
+|---|---|---|
+| `Wall.setStart`/`setEnd` leaked an `EVENT_MOVED` listener per re-attachment | S2 | `wall-corner-ops.test.js` |
+| `setEnd` had its add and remove the wrong way round | S2 | `wall-corner-ops.test.js` |
+| `HalfEdge.distanceTo` threw on every curved wall (`this._bezier`) | S4 | `wall-corner-ops.test.js` |
+| The item merge dropped glTF parent node transforms on 42 models | S4 | `model-conversion.test.js` |
+
+One S0 test **fired as designed** in S4 rather than being retired: the
+zero-length `wallSize` setter produced NaN coordinates that r98's
+`Vector2(x, y) { this.x = x || 0; }` used to launder back to zero. r125 replaced
+that with default parameters and the NaN survived. The test is unchanged; the
+setter now returns early, which is what it always asserted.
 
 ## Layout
 
@@ -71,12 +89,46 @@ tests/
 ├─ floorplanner-2d.test.js  pointer input, rect coordinates, DPR, 2D dispose
 ├─ viewer-lifecycle.test.js Main/Controller/BlueprintJS mount, picking, unmount
 │
-│  assets (S3) — environment: jsdom
-├─ helpers/models.js        legacy + glTF loading, geometry measures, and a
-│                           verbatim copy of the pre-S3 merge to diff against
-├─ model-conversion.test.js per-model A/B for all 25 conversions; merge A/B
-└─ catalog-and-shim.test.js catalog integrity, legacy URL rewriting, round trip
+│  assets (S3, still proved in S4) — environment: jsdom
+├─ helpers/models.js        glTF loading, geometry measures, digests, and the
+│                           readers for the frozen r98 measurements
+├─ model-conversion.test.js per-model A/B for all 25 conversions; the merge
+│                           pipeline and its S4 node-transform fix
+├─ catalog-and-shim.test.js catalog integrity, legacy URL rewriting, round trip
+│
+│  engine (S4) — environment: jsdom
+└─ geometry-rewrites.test.js  every hand-built mesh, against what r98 drew
 ```
+
+## Frozen r98 readings
+
+Three fixtures record what three r98 produced. They are the reference for every
+S3 and S4 geometry assertion, and **they cannot be regenerated** - the tools
+that wrote them need `Geometry` and `JSONLoader`, removed in r125 and r97. Both
+tools are still in the tree, and both refuse to run against r185 with an
+explanatory message rather than a stack trace.
+
+| Fixture | Written by | Holds |
+|---|---|---|
+| `geometry-r98.json` | `tools/capture-geometry-goldens.mjs` | 28 meshes - wall shapes with and without holes, roof fans, fillers, raycast planes, the HUD line - as per-triangle-corner positions, UVs and normals |
+| `legacy-models-r98.json` | `tools/capture-model-goldens.mjs` | the 25 legacy JSON originals: triangles, bounds, surface area, a position-set digest and a UV digest |
+| `legacy-merge-r98.json` | `tools/capture-model-goldens.mjs` | what the pre-S3 merge produced for all 168 catalog models, with local- **and** world-matrix bounds side by side |
+
+The comparison form is per-triangle-corner rather than per-vertex. Legacy
+`Geometry` numbered and shared its vertices differently from an indexed
+BufferGeometry, so vertex indices were never comparable; "triangle 7's second
+corner sits at (x,y,z) with uv (u,v)" is the same question on both engines and
+is the one that decides what gets drawn.
+
+**One case is compared as an equivalent surface rather than an identical
+triangle list.** three's ear-clipping triangulator changed between r98 and
+r185, so `ShapeGeometry` cuts a polygon *with holes* into a different set of
+triangles - 10 of 14 shared on the two-hole case, the rest being different
+interior diagonals across the same region. That is three's code, not this app's.
+Those cases assert the properties that decide the rendered result: identical
+vertex set, identical total area, consistent facing, same triangle count, and
+the same UV at every vertex position. Contours without holes still match
+exactly, and so does every mesh this app builds by hand.
 
 ## Fixtures
 
@@ -124,11 +176,16 @@ What still needs a real browser, and is checked by hand:
 - **Model shading.** `model-conversion.test.js` asserts shape — triangles,
   bounds, surface area, vertex positions, UV convention. It cannot judge
   whether a converted model *looks* right, because Lambert has no exact PBR
-  equivalent and the standard is "accepted", not identical. Run
-  [`tools/model-ab.html`](../tools/model-ab.html) for that: `npm run dev`, then
-  open `/tools/model-ab.html` for 25 side-by-side pairs, original left,
-  conversion right. **This page stops working in S4**, which deletes the
-  JSONLoader that renders the left column.
+  equivalent and the standard is "accepted", not identical. S3's side-by-side
+  page for this was `tools/model-ab.html`; S4 deleted it along with the
+  JSONLoader that rendered its left column, exactly as planned.
+- **The node-transform fix.** `mergeMeshes` now bakes each mesh's world matrix,
+  which moves 42 of the 168 catalog models. Run
+  [`tools/merge-transform-ab.html`](../tools/merge-transform-ab.html) for that:
+  `npm run dev`, then open `/tools/merge-transform-ab.html`. Both frames of a
+  pair share one camera fitted to the union of the two results, so a difference
+  in size or position shows rather than being normalised away. 21 of the 42 only
+  moved; the 21 that were also resized are the actual review.
 
 ## Enabling seams
 
@@ -140,7 +197,7 @@ None changes default behaviour, and nothing in the library calls them.
 | `Utils.setRandomSource(fn)` | S0 | deterministic `Utils.guide()` ids |
 | `Scene#setItemLoader(fn)` | S0 | item loading without network I/O |
 | `Main.setRendererFactory(fn)` | S2 | mounting the 3D viewer without a WebGL context |
-| `Scene.legacyJsonLoadCount` | S3 | evidence that the retired JSONLoader is never entered |
+| `Scene.unloadableItemCount` | S4 | evidence that no design asks for a model this build cannot open (replaces S3's `legacyJsonLoadCount`, whose branch S4 deleted) |
 
 `Floorplan.loadFloorplan` also null-guards `this.carbonSheet` (S0), so headless
 and widget-mode loads of designs containing a carbon sheet no longer throw.

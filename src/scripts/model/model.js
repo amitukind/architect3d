@@ -3,9 +3,11 @@ import {EventDispatcher, Vector3, Mesh} from 'three';
 import {Floorplan} from './floorplan.js';
 import {Scene} from './scene.js';
 
-import {OBJExporter} from '../exporters/OBJExporter.js';
-
-import GLTFExporter from 'three-gltf-exporter';
+// three's own addons since S4. The vendored OBJExporter was a copy of this file
+// old enough to branch on `instanceof THREE.Geometry`, and three-gltf-exporter
+// shipped a second copy of three; both are gone.
+import {OBJExporter} from 'three/addons/exporters/OBJExporter.js';
+import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js';
 
 /**
  * A Model is an abstract concept the has the data structuring a floorplan. It connects a {@link Floorplan} and a {@link Scene}
@@ -76,10 +78,18 @@ export class Model extends EventDispatcher
 			}
 		  });
 
-		gltfexporter.parse(meshes, function(result)
+		// parseAsync replaces the old two-argument parse(input, onCompleted).
+		// The result is still a plain glTF 2.0 JSON document, so EVENT_GLTF_READY
+		// carries exactly what it always did. Failures used to disappear - the
+		// old exporter had no error channel at all - and now reach the console
+		// instead of leaving a caller waiting on an event that never fires.
+		gltfexporter.parseAsync(meshes).then(function(result)
 		{
 			var output = JSON.stringify( result, null, 2 );
-			scope.dispatchEvent({type:EVENT_GLTF_READY, item: this, gltf: output});
+			scope.dispatchEvent({type:EVENT_GLTF_READY, item: scope, gltf: output});
+		}).catch(function(error)
+		{
+			console.error('glTF export failed', error);
 		});
 	}
 

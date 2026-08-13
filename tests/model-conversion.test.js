@@ -1,31 +1,37 @@
 // @vitest-environment jsdom
 /**
- * Sprint S3: the legacy JSON models, converted to glTF.
+ * Sprint S3: the legacy JSON models, converted to glTF - still proved in S4.
  *
  * The roadmap's exit gate asks for a per-model A/B review. This is its
- * automated half: every one of the 25 models is loaded twice - once through
- * three r98's JSONLoader, which is what the app did before this sprint, and
- * once through GLTFLoader from the converted .glb - and the two are compared as
- * geometry. Shape is checked numerically here; shading is a human call, because
- * Lambert has no exact PBR equivalent and never will.
+ * automated half: every one of the 25 models is compared, as geometry, against
+ * the original it replaced. Shape is checked numerically here; shading is a
+ * human call, because Lambert has no exact PBR equivalent and never will.
  *
- * The second half of the file covers the merge pipeline rewrite. Scene.addItem
- * used to flatten a loaded model into a legacy `Geometry` with per-face
- * material indices; it now builds a BufferGeometry with material groups. That
- * is the riskiest change in the whole migration plan, so it is diffed against a
- * verbatim copy of the old implementation across all 168 catalog models, not a
- * sample.
+ * S4 changed how the "before" side is obtained, not what is asserted. It used
+ * to be produced live by three r98's JSONLoader; r185 has no such loader, so
+ * the measurements were taken under r98 by tools/capture-model-goldens.mjs and
+ * frozen into tests/fixtures/legacy-models-r98.json. Comparing against a record
+ * is in one way stronger than comparing against a live loader: the reference
+ * cannot drift when the engine moves under it.
+ *
+ * The second half of the file covers the merge pipeline. S3 rewrote it from a
+ * legacy `Geometry` with per-face material indices to a BufferGeometry with
+ * material groups, and proved the rewrite changed nothing. S4 then makes the
+ * one change S3 deliberately withheld: the flatten now bakes each mesh's WORLD
+ * matrix, so meshes under transformed glTF nodes stop being merged at the wrong
+ * scale. tests/fixtures/legacy-merge-r98.json holds both readings for all 168
+ * catalog models, which is what lets the 42 corrections be enumerated exactly
+ * rather than estimated.
  */
 import {afterAll, beforeAll, describe, expect, it} from 'vitest';
-import * as THREE from 'three';
 import {readFileSync, readdirSync, existsSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {dirname, join} from 'node:path';
 import {mergeMeshes} from '../src/scripts/core/geometry_merge.js';
 import {LEGACY_MODEL_NAMES} from '../src/scripts/core/legacy_models.js';
 import {
-	boundsOf, installImageStub, legacyMergeMeshes, loadGltf, loadLegacyGeometry,
-	loadLegacyMaterials, surfaceArea, triangleCount,
+	LEGACY_MERGE_RESULTS, LEGACY_MODEL_SHAPES, boundsOf, installImageStub, loadGltf,
+	loadLegacyMaterials, mergeWithLocalMatrices, positionDigest, surfaceArea, triangleCount, uvDigest,
 } from './helpers/models.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -93,33 +99,40 @@ describe('every legacy model converted', () =>
 
 describe.each(LEGACY_MODEL_NAMES)('%s', (name) =>
 {
-	let legacy;
+	// The r98 reading, frozen. See the file header.
+	const legacy = LEGACY_MODEL_SHAPES[name];
 	let converted;
 
 	beforeAll(async () =>
 	{
-		legacy = loadLegacyGeometry(join(LEGACY_DIR, `${name}.js`));
 		const gltf = await loadGltf(join(CONVERTED_DIR, `${name}.glb`), `${CONVERTED_DIR}/`);
 		converted = mergeMeshes(gltf.scene).geometry;
 	});
 
+	it('has a frozen r98 measurement to be compared against', () =>
+	{
+		// Guards the comparison itself: without this, a name missing from the
+		// fixture would make every assertion below read `undefined` and quietly
+		// pass nothing.
+		expect(legacy).toBeTruthy();
+		expect(legacy.triangles).toBeGreaterThan(0);
+	});
+
 	it('keeps every triangle', () =>
 	{
-		expect(triangleCount(converted)).toBe(triangleCount(legacy));
+		expect(triangleCount(converted)).toBe(legacy.triangles);
 	});
 
 	it('occupies the same space', () =>
 	{
-		const before = boundsOf(legacy);
-		const after = boundsOf(converted);
-		after.forEach((value, i) => {expect(value).toBeCloseTo(before[i], 3);});
+		boundsOf(converted).forEach((value, i) => {expect(value).toBeCloseTo(legacy.bounds[i], 3);});
 	});
 
 	it('has the same surface area', () =>
 	{
 		// Order-independent, so it survives the re-weld and catches a triangle
 		// that a bounding box would not - dropped, doubled or mis-transformed.
-		const before = surfaceArea(legacy);
+		const before = legacy.surfaceArea;
 		expect(surfaceArea(converted)).toBeCloseTo(before, Math.max(0, 6 - Math.ceil(Math.log10(before || 1))));
 	});
 
@@ -127,20 +140,8 @@ describe.each(LEGACY_MODEL_NAMES)('%s', (name) =>
 	{
 		// Welding merges vertices that agree on position, normal and uv, so the
 		// set of positions is preserved even though the count and order are not.
-		const setOf = (geometry) =>
-		{
-			const array = geometry.attributes.position.array;
-			const points = new Set();
-			for (let i = 0; i < array.length; i += 3)
-			{
-				points.add(`${array[i].toFixed(3)},${array[i + 1].toFixed(3)},${array[i + 2].toFixed(3)}`);
-			}
-			return points;
-		};
-		const before = setOf(legacy);
-		const after = setOf(converted);
-		expect([...after].filter((point) => !before.has(point))).toEqual([]);
-		expect([...before].filter((point) => !after.has(point))).toEqual([]);
+		// The fixture stores that set as a size and a hash; both must match.
+		expect(positionDigest(converted)).toEqual(legacy.positions);
 	});
 
 	it('carries one material per material the source declared', () =>
@@ -156,18 +157,30 @@ describe.each(LEGACY_MODEL_NAMES)('%s', (name) =>
 		// GLTFLoader sets texture.flipY = false to match. Flipping the coordinate
 		// rather than the image pixels is what lets the converter copy the PNGs
 		// verbatim instead of re-encoding them through a canvas.
-		if (!legacy.attributes.uv || !converted.attributes.uv)
+		const after = uvDigest(converted);
+		if (!legacy.uv || !after)
 		{
-			expect(Boolean(legacy.attributes.uv)).toBe(Boolean(converted.attributes.uv));
+			expect(Boolean(legacy.uv)).toBe(Boolean(after));
 			return;
 		}
-		const before = vCoordinates(legacy).sort((a, b) => a - b);
-		const after = vCoordinates(converted).sort((a, b) => a - b);
-		expect(after.length).toBe(before.length);
-		// 4dp: the flip is computed in float64 and stored as float32, so the two
-		// sides disagree in the sixth decimal. On a 1024px map that is a tenth of
-		// a pixel.
-		after.forEach((value, i) => {expect(value).toBeCloseTo(1 - before[before.length - 1 - i], 4);});
+		expect(after.count).toBe(legacy.uv.count);
+
+		// Both digests hold the same values, sorted ascending and run-length
+		// encoded at 4dp, so the flip pairs the smallest of one with the largest
+		// of the other. Compared with a tolerance rather than exactly: the flip is
+		// computed in float64 and stored as float32, and the two sides can land
+		// either side of a 4dp rounding boundary. On a 1024px map the residual is
+		// a tenth of a pixel.
+		const before = expandRuns(legacy.uv.runs);
+		const values = expandRuns(after.runs);
+		expect(values.length).toBe(before.length);
+
+		let worst = 0;
+		for (let i = 0; i < values.length; i++)
+		{
+			worst = Math.max(worst, Math.abs(values[i] - (1 - before[before.length - 1 - i])));
+		}
+		expect(worst).toBeLessThan(1.5e-4);
 	});
 });
 
@@ -237,17 +250,28 @@ describe('UV convention', () =>
 		// and would catch the flip being dropped.
 		const asymmetric = LEGACY_MODEL_NAMES.filter((name) =>
 		{
-			const geometry = loadLegacyGeometry(join(LEGACY_DIR, `${name}.js`));
-			if (!geometry.attributes.uv)
+			const uv = LEGACY_MODEL_SHAPES[name].uv;
+			if (!uv)
 			{
 				return false;
 			}
-			const values = vCoordinates(geometry).sort((a, b) => a - b);
-			return values.some((value, i) => Math.abs(value - (1 - values[values.length - 1 - i])) > 1e-4);
+			const values = expandRuns(uv.runs);
+			return values.some((value, i) => Math.abs(value - (1 - values[values.length - 1 - i])) > 1e-3);
 		});
 		expect(asymmetric.length).toBeGreaterThan(0);
 	});
 });
+
+/** A run-length encoded digest back into the sorted list it came from. */
+function expandRuns(runs)
+{
+	const values = [];
+	for (const [value, count] of runs)
+	{
+		for (let i = 0; i < count; i++) { values.push(value); }
+	}
+	return values;
+}
 
 describe('the merge pipeline rewrite', () =>
 {
@@ -258,33 +282,31 @@ describe('the merge pipeline rewrite', () =>
 		expect(models.length).toBeGreaterThanOrEqual(160);
 	});
 
-	it('produces the same geometry as the pre-S3 legacy-Geometry merge, for every model', async () =>
+	it('has a frozen r98 reading for every catalog model', () =>
 	{
-		// The old merge is reproduced verbatim in helpers/models.js. Anything that
-		// moved, duplicated or lost a triangle shows up here.
+		expect(models.filter((model) => !LEGACY_MERGE_RESULTS[model])).toEqual([]);
+	});
+
+	it('keeps triangle and material counts identical to the pre-S3 merge, for every model', async () =>
+	{
+		// The S3 assertion, unchanged. Baking world matrices instead of local ones
+		// moves vertices; it must not create, drop or re-pool a single one.
 		const differences = [];
 		for (const model of models)
 		{
 			const path = join(ROOT, 'build', model);
 			const gltf = await loadGltf(path, `${dirname(path)}/`);
-
-			const before = legacyMergeMeshes(gltf.scene);
 			const after = mergeMeshes(gltf.scene);
+			const before = LEGACY_MERGE_RESULTS[model];
 
 			const problems = [];
-			if (triangleCount(after.geometry) !== triangleCount(before.geometry))
+			if (triangleCount(after.geometry) !== before.triangles)
 			{
-				problems.push(`triangles ${triangleCount(before.geometry)} -> ${triangleCount(after.geometry)}`);
+				problems.push(`triangles ${before.triangles} -> ${triangleCount(after.geometry)}`);
 			}
-			if (after.materials.length !== before.materials.length)
+			if (after.materials.length !== before.materials)
 			{
-				problems.push(`materials ${before.materials.length} -> ${after.materials.length}`);
-			}
-			const boundsBefore = boundsOf(before.geometry);
-			const boundsAfter = boundsOf(after.geometry);
-			if (boundsBefore.some((value, i) => Math.abs(value - boundsAfter[i]) > POSITION_TOLERANCE))
-			{
-				problems.push(`bounds ${boundsBefore.map((v) => v.toFixed(3))} -> ${boundsAfter.map((v) => v.toFixed(3))}`);
+				problems.push(`materials ${before.materials} -> ${after.materials.length}`);
 			}
 			if (problems.length > 0)
 			{
@@ -294,39 +316,117 @@ describe('the merge pipeline rewrite', () =>
 		expect(differences).toEqual([]);
 	}, 120000);
 
-	it('still drops parent node transforms, exactly as the old merge did', async () =>
+	it('now honours parent node transforms, correcting exactly the 42 models that needed it', async () =>
 	{
-		// A real bug, preserved on purpose. The flatten bakes each mesh's LOCAL
-		// matrix, so a mesh sitting under a transformed glTF node is merged at the
-		// wrong scale or offset. Fixing it changes how those models look and where
-		// they sit in designs users have already saved, so it is scheduled with its
-		// own A/B review (roadmap section 01, S4) rather than riding along with a
-		// change that is otherwise a pure swap of geometry representation.
+		// The S4 fix, measured. Every model's merged bounds must equal the
+		// world-matrix reading recorded under r98 - which is the same for 126 of
+		// them and different for the 42 that sit under a transformed node.
 		//
-		// This measures the blast radius so the fix can be planned, and fails if
-		// the discrepancy silently changes shape.
-		const affected = [];
+		// Asserting against both columns of the fixture is what makes this a
+		// proof rather than a restatement: a merge that silently reverted to
+		// local matrices would still match `localBounds` and would be caught, and
+		// so would one that started transforming models that were already right.
+		const wrong = [];
+		const corrected = [];
+
 		for (const model of models)
 		{
 			const path = join(ROOT, 'build', model);
 			const gltf = await loadGltf(path, `${dirname(path)}/`);
+			const record = LEGACY_MERGE_RESULTS[model];
+			const actual = boundsOf(mergeMeshes(gltf.scene).geometry);
 
-			const local = boundsOf(mergeMeshes(gltf.scene).geometry);
-			gltf.scene.updateMatrixWorld(true);
-			const world = boundsOf(mergeWithWorldMatrices(gltf.scene));
-
-			if (local.some((value, i) => Math.abs(value - world[i]) > POSITION_TOLERANCE))
+			if (actual.some((value, i) => Math.abs(value - record.worldBounds[i]) > POSITION_TOLERANCE))
 			{
-				affected.push(model);
+				wrong.push(`${model}: ${actual.map((v) => v.toFixed(3))} != ${record.worldBounds.map((v) => v.toFixed(3))}`);
+			}
+			if (record.nodeTransformAffected)
+			{
+				corrected.push(model);
 			}
 		}
 
-		expect(affected.length).toBe(42);
-		expect(affected).toContain('models/js/Duck.gltf');
-		// None of the 25 conversions is affected - they are authored as a single
-		// untransformed node, so the S3 output is correct either way.
-		expect(affected.filter((model) => model.startsWith('models/js-glb/'))).toEqual([]);
+		expect(wrong).toEqual([]);
+		expect(corrected.length).toBe(42);
+		expect(corrected).toContain('models/js/Duck.gltf');
+		// None of the 25 S3 conversions moved: they are authored as a single
+		// untransformed node, so their output was correct either way.
+		expect(corrected.filter((model) => model.startsWith('models/js-glb/'))).toEqual([]);
 	}, 120000);
+
+	it('leaves the 126 unaffected models bit-for-bit where they were', async () =>
+	{
+		// The other half of the fix's blast radius: a model with no transformed
+		// node must be untouched, so the change is provably confined to the 42.
+		const unaffected = models.filter((model) => !LEGACY_MERGE_RESULTS[model].nodeTransformAffected);
+		expect(unaffected.length).toBe(models.length - 42);
+
+		const moved = [];
+		for (const model of unaffected)
+		{
+			const path = join(ROOT, 'build', model);
+			const gltf = await loadGltf(path, `${dirname(path)}/`);
+			const actual = boundsOf(mergeMeshes(gltf.scene).geometry);
+			const record = LEGACY_MERGE_RESULTS[model].localBounds;
+			if (actual.some((value, i) => Math.abs(value - record[i]) > POSITION_TOLERANCE))
+			{
+				moved.push(model);
+			}
+		}
+		expect(moved).toEqual([]);
+	}, 120000);
+
+	it('scales Duck.gltf by the factor its node declares, rather than ignoring it', async () =>
+	{
+		// The worst case, spelled out. Duck.gltf hangs its mesh under a node whose
+		// matrix scales by 0.01, and the old merge dropped it - so the duck was
+		// drawn a hundred times too BIG: 154 units tall, in a catalog where a
+		// fridge is 0.92 and a bookcase 0.85.
+		const path = join(ROOT, 'build/models/js/Duck.gltf');
+		const gltf = await loadGltf(path, `${dirname(path)}/`);
+		const merged = boundsOf(mergeMeshes(gltf.scene).geometry);
+		const local = boundsOf(mergeWithLocalMatrices(gltf.scene));
+
+		const sizeOf = (bounds) => bounds[4] - bounds[1];
+		expect(sizeOf(merged) / sizeOf(local)).toBeCloseTo(0.01, 4);
+		expect(sizeOf(local)).toBeGreaterThan(150);
+		expect(sizeOf(merged)).toBeLessThan(2);
+	});
+
+	it('splits the 42 into 21 that only moved and 21 that were also mis-sized', () =>
+	{
+		// What the fix actually does, stated as data rather than as a claim about
+		// how the models look.
+		//
+		// Half the affected models sit under a node that only translates or
+		// rotates: those were drawn at the right size in the wrong place, and
+		// there is nothing to weigh up - a mesh in the wrong place is a bug on
+		// any reading. The other half sit under a node that also scales, so their
+		// size changes, and that is the part a human has to sign off. The split
+		// is pinned here so it cannot drift unnoticed, and so the reviewer knows
+		// how much of tools/merge-transform-ab.html actually needs their
+		// attention.
+		const heightOf = (bounds) => bounds[4] - bounds[1];
+		const affected = Object.values(LEGACY_MERGE_RESULTS).filter((record) => record.nodeTransformAffected);
+
+		const rescaled = affected.filter((record) =>
+			Math.abs(heightOf(record.worldBounds) / heightOf(record.localBounds) - 1) > 0.01);
+		const movedOnly = affected.filter((record) =>
+			Math.abs(heightOf(record.worldBounds) / heightOf(record.localBounds) - 1) <= 0.01);
+
+		expect(affected.length).toBe(42);
+		expect(movedOnly.length).toBe(21);
+		expect(rescaled.length).toBe(21);
+
+		// Only one of the rescaled models changes size by more than 3x, and it is
+		// the Khronos sample rather than a piece of catalog furniture.
+		const extreme = rescaled.filter((record) =>
+		{
+			const ratio = heightOf(record.worldBounds) / heightOf(record.localBounds);
+			return ratio > 3 || ratio < 1 / 3;
+		});
+		expect(extreme.length).toBe(1);
+	});
 
 	it('emits material groups that index into the material array', async () =>
 	{
@@ -370,52 +470,13 @@ describe('the merge pipeline rewrite', () =>
 });
 
 /**
- * What mergeMeshes would produce if it honoured parent node transforms.
+ * The JSON chunk of a converted .glb, straight out of the container.
  *
- * Only used to measure the discrepancy above; nothing in the library does this
- * yet. Positions only - that is all the comparison needs.
+ * Reads the file rather than the parsed scene so the assertions above can look
+ * at what the converter actually wrote - image URIs, absent texture references,
+ * the PBR factors - none of which survive intact once GLTFLoader has turned
+ * them into three materials.
  */
-function mergeWithWorldMatrices(root)
-{
-	const positions = [];
-	root.traverse((child) =>
-	{
-		if (!child.isMesh || !child.geometry || !child.geometry.attributes.position)
-		{
-			return;
-		}
-		const flat = child.geometry.index ? child.geometry.toNonIndexed() : child.geometry.clone();
-		flat.applyMatrix(child.matrixWorld);
-		positions.push(...flat.attributes.position.array);
-	});
-
-	const geometry = new THREE.BufferGeometry();
-	geometry.addAttribute('position', new THREE.BufferAttribute(Float32Array.from(positions), 3));
-	return geometry;
-}
-
-/**
- * Every v coordinate, once per triangle corner, in draw order.
- *
- * Welding changes how many vertices there are but not how many corners, so this
- * is comparable between the indexed .glb and the non-indexed legacy geometry.
- * The `+ 0` normalizes -0, which would otherwise sort and compare oddly.
- */
-function vCoordinates(geometry)
-{
-	const uv = geometry.attributes.uv.array;
-	const index = geometry.index ? geometry.index.array : null;
-	const count = index ? index.length : geometry.attributes.uv.count;
-	const values = [];
-	for (let i = 0; i < count; i++)
-	{
-		const at = index ? index[i] : i;
-		values.push(Math.round(uv[at * 2 + 1] * 1e6) / 1e6 + 0);
-	}
-	return values;
-}
-
-/** The raw glTF JSON chunk of a converted model, for assertions about the file itself. */
 function readGltfJson(name)
 {
 	const buffer = readFileSync(join(CONVERTED_DIR, `${name}.glb`));

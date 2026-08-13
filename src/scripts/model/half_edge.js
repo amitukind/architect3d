@@ -1,4 +1,5 @@
-import {EventDispatcher, Vector2, Vector3, Matrix4, Face3, Mesh, Geometry, MeshBasicMaterial, Box3} from 'three';
+import {EventDispatcher, Vector2, Vector3, Matrix4, Mesh, MeshBasicMaterial, Box3} from 'three';
+import {firstFaceNormal, triangleFanGeometry} from '../core/geometry_builders.js';
 import {EVENT_REDRAW} from '../core/events.js';
 import {Utils} from '../core/utils.js';
 import {WallTypes} from '../core/constants.js';
@@ -219,7 +220,6 @@ export class HalfEdge extends EventDispatcher
 	 */
 	generatePlane()
 	{
-		var geometry = new Geometry();
 		var v1 = this.transformCorner(this.interiorStart());
 		var v2 = this.transformCorner(this.interiorEnd());
 		var v3 = v2.clone();
@@ -231,12 +231,15 @@ export class HalfEdge extends EventDispatcher
 		v3.y = this.wall.startElevation;
 		v4.y = this.wall.endElevation;
 
-		geometry.vertices = [v1, v2, v3, v4];
-		geometry.faces.push(new Face3(0, 1, 2));
-		geometry.faces.push(new Face3(0, 2, 3));
-		geometry.computeFaceNormals();
+		var geometry = triangleFanGeometry([v1, v2, v3, v4]);
 		geometry.computeBoundingBox();
 
+		// computeFaceNormals() is gone with Geometry, and this quad is not
+		// necessarily planar - the two elevations can differ - so averaged vertex
+		// normals would not reproduce it anyway. The only reader is
+		// WallItem.placeInRoom, which wants the first triangle's normal to decide
+		// which way an item faces; compute exactly that, once.
+		this.planeNormal = firstFaceNormal(geometry, new Vector3());
 
 		this.plane = new Mesh(geometry, new MeshBasicMaterial({visible:true}));
 		//The below line was originally setting the plane visibility to false
@@ -250,7 +253,9 @@ export class HalfEdge extends EventDispatcher
 		this.computeTransforms(this.exteriorTransform, this.invExteriorTransform, this.exteriorStart(), this.exteriorEnd());
 
 		var b3 = new Box3();
-		b3.setFromObject(this.plane);
+		// precise: see the same call in room.js. These bounds decide where wall
+		// items may sit, so the r140 loosening would move them.
+		b3.setFromObject(this.plane, true);
 		this.min = b3.min.clone();
 		this.max = b3.max.clone();
 		this.center = this.max.clone().sub(this.min).multiplyScalar(0.5).add(this.min);
@@ -278,7 +283,7 @@ export class HalfEdge extends EventDispatcher
 		tt.makeTranslation(-v1.x, 0, -v1.y);
 		tr.makeRotationY(-angle);
 		transform.multiplyMatrices(tr, tt);
-		invTransform.getInverse(transform);
+		invTransform.copy(transform).invert();
 	}
 
 	/** Gets the distance from specified point.
@@ -295,7 +300,15 @@ export class HalfEdge extends EventDispatcher
 		}
 		else if (this.wall.wallType == WallTypes.CURVED)
 		{
-			var p = this._bezier.project({x:x, y:y});
+			// this.wall.bezier, not this._bezier - a HalfEdge has never had a
+			// _bezier of its own, so this branch threw a TypeError for every
+			// curved wall. It is reached through WallItem.placeInRoom ->
+			// closestWallEdge, which means any design mixing curved walls with
+			// wall-bound items failed to load. Every other curved branch in this
+			// file (getStartX, interiorDistance, ...) already reads through the
+			// wall; this one was simply written wrong. Fixed in S4 (roadmap
+			// section 01 ledger).
+			var p = this.wall.bezier.project({x:x, y:y});
 			var projected = new Vector2(p.x, p.y);
 			return projected.distanceTo(new Vector2(x, y));
 		}

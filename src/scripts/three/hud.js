@@ -1,4 +1,4 @@
-import {EventDispatcher, Scene as ThreeScene, Geometry, Vector3, LineBasicMaterial, CylinderGeometry, MeshBasicMaterial, Mesh, SphereGeometry, Object3D, LineSegments} from 'three';
+import {EventDispatcher, Scene as ThreeScene, BufferAttribute, BufferGeometry, Vector3, LineBasicMaterial, CylinderGeometry, MeshBasicMaterial, Mesh, SphereGeometry, Object3D, LineSegments} from 'three';
 
 import {EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED} from '../core/events.js';
 
@@ -127,10 +127,14 @@ export class HUD extends EventDispatcher
 		}
 	}
 
-	makeLineGeometry(item) 
+	makeLineGeometry(item)
 	{
-		var geometry = new Geometry();
-		geometry.vertices.push(new Vector3(0, 0, 0),this.rotateVector(item));
+		// Two vertices, drawn as one LineSegments segment: origin to the tip of
+		// the rotate handle. No index - LineSegments consumes the position
+		// attribute in pairs.
+		var tip = this.rotateVector(item);
+		var geometry = new BufferGeometry();
+		geometry.setAttribute('position', new BufferAttribute(new Float32Array([0, 0, 0, tip.x, tip.y, tip.z]), 3));
 		return geometry;
 	}
 

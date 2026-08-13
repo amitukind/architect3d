@@ -1,6 +1,7 @@
 import {EVENT_CHANGED, EVENT_ROOM_ATTRIBUTES_CHANGED} from '../core/events.js';
 import {Region} from '../core/utils.js';
-import {EventDispatcher, Vector2, Vector3, Face3, Geometry, Shape, ShapeGeometry, Mesh, MeshBasicMaterial, DoubleSide, Box3} from 'three';
+import {EventDispatcher, Vector2, Vector3, Shape, ShapeGeometry, Mesh, MeshBasicMaterial, DoubleSide, Box3} from 'three';
+import {triangleFanGeometry} from '../core/geometry_builders.js';
 
 //import { grahamScan2 } from '@thi.ng/geom-hull';
 //import * as concaveman from 'concaveman';
@@ -145,17 +146,8 @@ export class Room extends EventDispatcher
 			}
 		}
 		// setup texture
-		var geometry = new Geometry();
-
-		this.corners.forEach((corner) => {
-			var vertex = new Vector3(corner.x,corner.elevation, corner.y);
-			geometry.vertices.push(vertex);
-		});
-		for (var i=2;i<geometry.vertices.length;i++)
-		{
-			var face = new Face3(0, i-1, i);
-			geometry.faces.push(face);
-		}
+		var points = this.corners.map((corner) => new Vector3(corner.x, corner.elevation, corner.y));
+		var geometry = triangleFanGeometry(points);
 		this.roofPlane = new Mesh(geometry, new MeshBasicMaterial({side: DoubleSide, visible:false}));
 		this.roofPlane.room = this;
 	}
@@ -177,7 +169,11 @@ export class Room extends EventDispatcher
 		this.floorPlane.room = this; // js monkey patch
 
 		var b3 = new Box3();
-		b3.setFromObject(this.floorPlane);
+		// precise: since r140 setFromObject expands the object's own bounding box
+		// by default, which for a rotated mesh is looser than the r98 result.
+		// These bounds feed item snapping, so the drift would be a silent
+		// placement change.
+		b3.setFromObject(this.floorPlane, true);
 		this.min = b3.min.clone();
 		this.max = b3.max.clone();
 		this.center = this.max.clone().sub(this.min).multiplyScalar(0.5).add(this.min);

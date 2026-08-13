@@ -81,21 +81,24 @@ function chunksFor(mesh, pool)
 		flat.computeVertexNormals();
 	}
 
-	// mesh.matrix, not mesh.matrixWorld - deliberately.
+	// mesh.matrixWorld, not mesh.matrix - fixed in S4.
 	//
-	// This reproduces the pre-S3 merge exactly, which used the local matrix and
-	// therefore ignored any transform on a parent node. That is a real bug: 42 of
-	// the 168 catalog models sit under a transformed node and are merged at the
-	// wrong scale or offset today (Duck.gltf is 100x out). Fixing it changes how
-	// those models look and where they sit in saved designs, so it needs its own
-	// A/B review and its own sprint - it is not a free rider on a change that is
-	// otherwise a pure swap of geometry representation. Logged in the roadmap's
-	// preserve/fix ledger for S4; tests/model-conversion.test.js pins both the
-	// current behaviour and the size of the discrepancy.
-	mesh.updateMatrix();
-	// applyMatrix runs the inverse-transpose over the normals, so this is safe
+	// Every version of this merge before S4 baked each mesh's LOCAL matrix, so a
+	// mesh sitting under a transformed glTF node was flattened without its
+	// parent's transform and came out at the wrong scale or offset. It affected
+	// 42 of the 168 catalog models; Duck.gltf was a factor of 100 out, which is
+	// why the demo's duck was invisible unless you knew where to look.
+	//
+	// S3 preserved the bug on purpose, so that the switch from legacy Geometry to
+	// BufferGeometry could be proved to change nothing. With that established,
+	// this is the fix, and it is the only intentional visual change in S4.
+	// tests/model-conversion.test.js checks the corrected bounds against
+	// tests/fixtures/legacy-merge-r98.json, which records both readings for every
+	// model, and tools/merge-transform-ab.html renders the 42 side by side.
+	mesh.updateMatrixWorld(true);
+	// applyMatrix4 runs the inverse-transpose over the normals, so this is safe
 	// for the non-uniform scales the glTF nodes carry.
-	flat.applyMatrix(mesh.matrix);
+	flat.applyMatrix4(mesh.matrixWorld);
 
 	var meshMaterials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
 	var vertexCount = flat.attributes.position.count;
@@ -180,7 +183,8 @@ export function mergeMeshes(root)
 
 	present.forEach(function (attribute)
 	{
-		merged.addAttribute(attribute.name, new BufferAttribute(buffers[attribute.name], attribute.itemSize));
+		// setAttribute; addAttribute was the r98 spelling and was removed in r125.
+		merged.setAttribute(attribute.name, new BufferAttribute(buffers[attribute.name], attribute.itemSize));
 	});
 
 	// Coalesce runs so a model whose primitives all share one material ends up

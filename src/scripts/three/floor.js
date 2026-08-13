@@ -1,4 +1,5 @@
-import {EventDispatcher, TextureLoader, RepeatWrapping, MeshBasicMaterial, MeshPhongMaterial,  FrontSide, DoubleSide, Vector2, Vector3, Face3, Geometry, Shape, ShapeGeometry, Mesh} from 'three';
+import {EventDispatcher, TextureLoader, RepeatWrapping, MeshBasicMaterial, MeshPhongMaterial,  FrontSide, DoubleSide, Vector2, Vector3, Shape, ShapeGeometry, Mesh} from 'three';
+import {triangleFanGeometry} from '../core/geometry_builders.js';
 import {EVENT_CHANGED} from '../core/events.js';
 import {Configuration, configWallHeight} from '../core/configuration.js';
 
@@ -80,17 +81,8 @@ export class Floor extends EventDispatcher
 	{
 		// setup texture
 		var roofMaterial = new MeshBasicMaterial({side: FrontSide,color: 0xe5e5e5});
-		var geometry = new Geometry();
-
-		this.room.corners.forEach((corner) => {
-			var vertex = new Vector3(corner.x,corner.elevation, corner.y);
-			geometry.vertices.push(vertex);
-		});
-		for (var i=2;i<geometry.vertices.length;i++)
-		{
-			var face = new Face3(0, i-1, i);
-			geometry.faces.push(face);
-		}
+		var points = this.room.corners.map((corner) => new Vector3(corner.x, corner.elevation, corner.y));
+		var geometry = triangleFanGeometry(points);
 		var roof = new Mesh(geometry, roofMaterial);
 		// roof.rotation.set(Math.PI / 2, 0, 0);
 		// roof.position.y = Configuration.getNumericValue(configWallHeight);

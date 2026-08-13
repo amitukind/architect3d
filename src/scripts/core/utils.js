@@ -1,5 +1,7 @@
 import {Vector2} from 'three';
-import {Math as THREEMath} from 'three';
+// THREE.Math was renamed MathUtils in r113 and the old alias removed; it also
+// shadowed the global Math, which is why the import was renamed here at all.
+import {MathUtils as THREEMath} from 'three';
 /**
  * Segment-segment intersection, inlined in S1 to drop the `line-intersect`
  * dependency (one call site, ~20 lines of maths).

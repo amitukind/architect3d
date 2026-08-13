@@ -656,8 +656,12 @@ describe('Scene container bookkeeping', () => {
 	});
 
 	// QUIRK (item.js:372-373 + scene.js:123): initObject() parents a BoxHelper to
-	// the three scene, but removeItem() only removes the item mesh. The helper
-	// (a LineSegments) is orphaned in the scene graph for the rest of the session.
+	// the three scene, but removeItem() only removes the item mesh. The helper is
+	// orphaned in the scene graph for the rest of the session.
+	//
+	// S4: the reported type changed from 'LineSegments' to 'BoxHelper' - r98's
+	// BoxHelper inherited its type from LineSegments, and r185 sets its own. The
+	// leak this test characterizes is unchanged; only the label is.
 	it('removeItem() leaks the item BoxHelper into the three scene', () => {
 		const model = new Model('/textures/');
 		withFakeFactory(() => {
@@ -666,11 +670,11 @@ describe('Scene container bookkeeping', () => {
 			const item = model.scene.getItems()[0];
 			expect(item.bhelper).toBeInstanceOf(three.BoxHelper);
 			expect(item.bhelper.visible).toBe(false);
-			expect(model.scene.getScene().children.map((c) => c.type)).toEqual(['Mesh', 'LineSegments']);
+			expect(model.scene.getScene().children.map((c) => c.type)).toEqual(['Mesh', 'BoxHelper']);
 
 			model.scene.removeItem(item);
 			expect(model.scene.itemCount()).toBe(0);
-			expect(model.scene.getScene().children.map((c) => c.type)).toEqual(['LineSegments']);
+			expect(model.scene.getScene().children.map((c) => c.type)).toEqual(['BoxHelper']);
 			expect(model.scene.getScene().children[0]).toBe(item.bhelper);
 		});
 	});

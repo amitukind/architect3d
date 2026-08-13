@@ -1,4 +1,5 @@
-import {EventDispatcher, Vector2, Vector3, WebGLRenderer,ImageUtils, PerspectiveCamera, OrthographicCamera} from 'three';
+import {EventDispatcher, Vector2, Vector3, WebGLRenderer, PerspectiveCamera, OrthographicCamera} from 'three';
+import {ColorManagement, LinearSRGBColorSpace} from 'three';
 import {Plane} from 'three';
 import {PCFSoftShadowMap} from 'three';
 import {Clock} from 'three';
@@ -18,6 +19,21 @@ import {HUD} from './hud.js';
 import {Floorplan3D} from './floorPlan.js';
 import {Lights} from './lights.js';
 import {Skybox} from './skybox.js';
+
+// --- S4 parity freeze, input half ------------------------------------------
+//
+// r152 made `new Color(0xRRGGBB)` convert from sRGB into a linear working
+// space at construction. r98 stored the bytes as given, and every colour in
+// this app - wall fillers, roof grey, HUD handles, the skybox gradient - was
+// picked against that behaviour. Leaving it on would darken all of them.
+//
+// This runs at import time rather than in getARenderer() because the
+// conversion happens when a Color is built, and materials are built long
+// before any renderer exists. It is a global in three, so it applies to
+// anything else the host page draws with three as well - accepted for the
+// duration of the freeze, and removed in S8 when the colour pipeline is
+// modernised deliberately and the goldens are re-based.
+ColorManagement.enabled = false;
 
 export class Main extends EventDispatcher
 {
@@ -128,6 +144,23 @@ export class Main extends EventDispatcher
 // .toDataURL()
 		var renderer = new WebGLRenderer({antialias: true, alpha:true});
 
+		// --- S4 parity freeze -------------------------------------------------
+		//
+		// r152 turned colour management on by default: hex colours are converted
+		// from sRGB into the linear working space, and the frame is encoded back
+		// to sRGB on the way out. r98 did neither. None of it fails to compile;
+		// it just makes every colour in the app different.
+		//
+		// Freezing both halves keeps this sprint's job answerable - a shading
+		// difference now means the geometry rewrite broke something, not that the
+		// colour pipeline moved underneath it. S8 turns them back on deliberately
+		// and re-bases the golden screenshots against the result.
+		//
+		// The input half is frozen at module scope (see the top of this file),
+		// because a Color converts when it is constructed and materials are built
+		// long before any renderer exists.
+		renderer.outputColorSpace = LinearSRGBColorSpace;
+
 // scope.renderer.autoClear = false;
 		renderer.shadowMap.enabled = true;
 		renderer.shadowMapSoft = true;
@@ -144,7 +177,10 @@ export class Main extends EventDispatcher
 	init()
 	{
 		var scope = this;
-		ImageUtils.crossOrigin = '';
+		// ImageUtils.crossOrigin was removed in r103. It set a default for the
+		// deprecated ImageUtils loaders, which nothing here used - the app loads
+		// textures through TextureLoader, whose crossOrigin defaults to
+		// 'anonymous' and is set per-loader where it matters.
 
 		var orthoScale = 100;
 		// Provisional frustum only - updateWindowSize() below recomputes it from

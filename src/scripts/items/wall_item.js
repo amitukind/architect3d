@@ -183,7 +183,9 @@ export class WallItem extends Item
 
 		// find angle between wall normals
 		var normal2 = new Vector2();
-		var normal3 = wallEdge.plane.geometry.faces[0].normal;
+		// Was geometry.faces[0].normal. BufferGeometry has no per-face normals,
+		// so HalfEdge.generatePlane precomputes this one when it builds the plane.
+		var normal3 = wallEdge.planeNormal;
 		normal2.x = normal3.x;
 		normal2.y = normal3.z;
 

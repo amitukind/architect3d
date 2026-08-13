@@ -1,0 +1,3530 @@
+{
+	"models/js-glb/closed-door28x80_baked.glb": {
+		"triangles": 1386,
+		"materials": 1,
+		"localBounds": [
+			-48.549999,
+			0,
+			-4.01779,
+			48.549999,
+			221.580002,
+			4.01779
+		],
+		"worldBounds": [
+			-48.549999,
+			0,
+			-4.01779,
+			48.549999,
+			221.580002,
+			4.01779
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/open_door.glb": {
+		"triangles": 764,
+		"materials": 1,
+		"localBounds": [
+			-48.549999,
+			-0.000001,
+			-3.81224,
+			48.549999,
+			221.580002,
+			3.81222
+		],
+		"worldBounds": [
+			-48.549999,
+			-0.000001,
+			-3.81224,
+			48.549999,
+			221.580002,
+			3.81222
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/whitewindow.glb": {
+		"triangles": 1006,
+		"materials": 4,
+		"localBounds": [
+			0,
+			-0.448341,
+			-48.635639,
+			123.07692,
+			170.024612,
+			-33.885899
+		],
+		"worldBounds": [
+			0,
+			-0.448341,
+			-48.635639,
+			123.07692,
+			170.024612,
+			-33.885899
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/gus-churchchair-whiteoak.glb": {
+		"triangles": 2801,
+		"materials": 3,
+		"localBounds": [
+			-22.942228,
+			-0.000004,
+			-28.687143,
+			22.942228,
+			78.954857,
+			22.676628
+		],
+		"worldBounds": [
+			-22.942228,
+			-0.000004,
+			-28.687143,
+			22.942228,
+			78.954857,
+			22.676628
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/ik-ekero-orange_baked.glb": {
+		"triangles": 1784,
+		"materials": 1,
+		"localBounds": [
+			-35.007401,
+			-0.000001,
+			-36.5355,
+			35.007401,
+			75.0047,
+			36.5355
+		],
+		"worldBounds": [
+			-35.007401,
+			-0.000001,
+			-36.5355,
+			35.007401,
+			75.0047,
+			36.5355
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/ik-ekero-blue_baked.glb": {
+		"triangles": 1784,
+		"materials": 1,
+		"localBounds": [
+			-35,
+			-0.000001,
+			-36.5,
+			35,
+			75,
+			36.5
+		],
+		"worldBounds": [
+			-35,
+			-0.000001,
+			-36.5,
+			35,
+			75,
+			36.5
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/DWR_MATERA_DRESSER2.glb": {
+		"triangles": 460,
+		"materials": 1,
+		"localBounds": [
+			0,
+			-0.000004,
+			-85.138298,
+			50.440601,
+			115.57,
+			0
+		],
+		"worldBounds": [
+			0,
+			-0.000004,
+			-85.138298,
+			50.440601,
+			115.57,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/we-narrow6white_baked.glb": {
+		"triangles": 3156,
+		"materials": 1,
+		"localBounds": [
+			-76.199997,
+			0.000005,
+			-25.8398,
+			76.199997,
+			71.223999,
+			25.8398
+		],
+		"worldBounds": [
+			-76.199997,
+			0.000005,
+			-25.8398,
+			76.199997,
+			71.223999,
+			25.8398
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/bd-shalebedside-smoke_baked.glb": {
+		"triangles": 808,
+		"materials": 1,
+		"localBounds": [
+			-26.15,
+			0.000001,
+			-23.6992,
+			26.15,
+			52.310501,
+			23.6992
+		],
+		"worldBounds": [
+			-26.15,
+			0.000001,
+			-23.6992,
+			26.15,
+			52.310501,
+			23.6992
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/cb-archnight-white_baked.glb": {
+		"triangles": 1564,
+		"materials": 1,
+		"localBounds": [
+			-30.4788,
+			0.000001,
+			-22.8568,
+			30.4788,
+			62.318802,
+			22.856701
+		],
+		"worldBounds": [
+			-30.4788,
+			0.000001,
+			-22.8568,
+			30.4788,
+			62.318802,
+			22.856701
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/ik-kivine_baked.glb": {
+		"triangles": 2848,
+		"materials": 1,
+		"localBounds": [
+			-60,
+			0.000001,
+			-28.5,
+			60,
+			190,
+			28.5
+		],
+		"worldBounds": [
+			-60,
+			0.000001,
+			-28.5,
+			60,
+			190,
+			28.5
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/ik_nordli_full.glb": {
+		"triangles": 15032,
+		"materials": 3,
+		"localBounds": [
+			-71.069199,
+			-50,
+			-99.171799,
+			68.930801,
+			50,
+			100.828003
+		],
+		"worldBounds": [
+			-71.069199,
+			-50,
+			-99.171799,
+			68.930801,
+			50,
+			100.828003
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/cb-kendallbookcasewalnut_baked.glb": {
+		"triangles": 362,
+		"materials": 1,
+		"localBounds": [
+			-36.132,
+			-0.000001,
+			-19.093399,
+			36.132,
+			184.352997,
+			19.093399
+		],
+		"worldBounds": [
+			-36.132,
+			-0.000001,
+			-19.093399,
+			36.132,
+			184.352997,
+			19.093399
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/cb-clapboard_baked.glb": {
+		"triangles": 5118,
+		"materials": 1,
+		"localBounds": [
+			-76.199997,
+			0.000005,
+			-25.4,
+			76.199997,
+			135.779999,
+			25.4
+		],
+		"worldBounds": [
+			-76.199997,
+			0.000005,
+			-25.4,
+			76.199997,
+			135.779999,
+			25.4
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/cb-moore_baked.glb": {
+		"triangles": 4322,
+		"materials": 1,
+		"localBounds": [
+			-76.379501,
+			0.000001,
+			-24.587099,
+			76.379501,
+			160.393997,
+			24.587099
+		],
+		"worldBounds": [
+			-76.379501,
+			0.000001,
+			-24.587099,
+			76.379501,
+			160.393997,
+			24.587099
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/we-crosby2piece-greenbaked.glb": {
+		"triangles": 8216,
+		"materials": 1,
+		"localBounds": [
+			-118.295998,
+			0.000001,
+			-76.591103,
+			118.295998,
+			90.7491,
+			76.591103
+		],
+		"worldBounds": [
+			-118.295998,
+			0.000001,
+			-76.591103,
+			118.295998,
+			90.7491,
+			76.591103
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/cb-rochelle-gray_baked.glb": {
+		"triangles": 12648,
+		"materials": 1,
+		"localBounds": [
+			-108.599998,
+			0.000002,
+			-47.209202,
+			108.599998,
+			85.090202,
+			47.209202
+		],
+		"worldBounds": [
+			-108.599998,
+			0.000002,
+			-47.209202,
+			108.599998,
+			85.090202,
+			47.209202
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/cb-tecs_baked.glb": {
+		"triangles": 396,
+		"materials": 1,
+		"localBounds": [
+			-22.794901,
+			-0.000002,
+			-55.684898,
+			22.794901,
+			45.849701,
+			55.684898
+		],
+		"worldBounds": [
+			-22.794901,
+			-0.000002,
+			-55.684898,
+			22.794901,
+			45.849701,
+			55.684898
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/ore-3legged-white_baked.glb": {
+		"triangles": 5496,
+		"materials": 1,
+		"localBounds": [
+			-22.1989,
+			0.000004,
+			-28.875601,
+			22.1989,
+			144.328003,
+			28.875601
+		],
+		"worldBounds": [
+			-22.1989,
+			0.000004,
+			-28.875601,
+			22.1989,
+			144.328003,
+			28.875601
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/ik-stockholmcoffee-brown.glb": {
+		"triangles": 756,
+		"materials": 2,
+		"localBounds": [
+			-77.513664,
+			-0.000002,
+			-63.559322,
+			103.175102,
+			48.029659,
+			-3.016875
+		],
+		"worldBounds": [
+			-77.513664,
+			-0.000002,
+			-63.559322,
+			103.175102,
+			48.029659,
+			-3.016875
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/GUSossingtonendtable.glb": {
+		"triangles": 396,
+		"materials": 3,
+		"localBounds": [
+			-25.406494,
+			-0.33957,
+			-25.386646,
+			25.406494,
+			46.076523,
+			26.032377
+		],
+		"worldBounds": [
+			-25.406494,
+			-0.33957,
+			-25.386646,
+			25.406494,
+			46.076523,
+			26.032377
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/cb-scholartable_baked.glb": {
+		"triangles": 220,
+		"materials": 1,
+		"localBounds": [
+			-53.042099,
+			-0.000002,
+			-52.751499,
+			53.042099,
+			76.157898,
+			52.751499
+		],
+		"worldBounds": [
+			-53.042099,
+			-0.000002,
+			-52.751499,
+			53.042099,
+			76.157898,
+			52.751499
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/BlakeAvenuejoshuatreecheftable.glb": {
+		"triangles": 580,
+		"materials": 2,
+		"localBounds": [
+			-94.339622,
+			-0.355447,
+			-53.183964,
+			94.339622,
+			79.129562,
+			51.684589
+		],
+		"worldBounds": [
+			-94.339622,
+			-0.355447,
+			-53.183964,
+			94.339622,
+			79.129562,
+			51.684589
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/cb-blue-block-60x96.glb": {
+		"triangles": 12,
+		"materials": 1,
+		"localBounds": [
+			-76.199997,
+			-0.250005,
+			-121.919998,
+			76.199997,
+			0.250005,
+			121.919998
+		],
+		"worldBounds": [
+			-76.199997,
+			-0.250005,
+			-121.919998,
+			76.199997,
+			0.250005,
+			121.919998
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js-glb/nyc-poster2.glb": {
+		"triangles": 12,
+		"materials": 1,
+		"localBounds": [
+			-35.56007,
+			-41.169418,
+			-3.685954,
+			35.56007,
+			55.350903,
+			-1.178453
+		],
+		"worldBounds": [
+			-35.56007,
+			-41.169418,
+			-3.685954,
+			35.56007,
+			55.350903,
+			-1.178453
+		],
+		"nodeTransformAffected": false
+	},
+	"models/js/Duck.gltf": {
+		"triangles": 4212,
+		"materials": 1,
+		"localBounds": [
+			-69.2985,
+			9.92937,
+			-61.328197,
+			96.179901,
+			163.970001,
+			53.925198
+		],
+		"worldBounds": [
+			-0.692985,
+			0.099294,
+			-0.613282,
+			0.961799,
+			1.6397,
+			0.539252
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/SimpleCabinet.glb": {
+		"triangles": 8280,
+		"materials": 4,
+		"localBounds": [
+			-0.000224,
+			0.001238,
+			-0.001113,
+			0.599775,
+			0.771238,
+			0.637493
+		],
+		"worldBounds": [
+			-0.000224,
+			0.001238,
+			-0.001113,
+			0.599775,
+			0.771238,
+			0.637493
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/bathroomCabinet.glb": {
+		"triangles": 64,
+		"materials": 3,
+		"localBounds": [
+			0,
+			0,
+			-0.21,
+			0.43,
+			0.39,
+			0.01
+		],
+		"worldBounds": [
+			0.2,
+			0,
+			-0.21,
+			0.43,
+			0.39,
+			-0.08
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/bathroomCabinetDrawer.glb": {
+		"triangles": 508,
+		"materials": 4,
+		"localBounds": [
+			0,
+			0,
+			-0.45,
+			0.43,
+			0.53,
+			0.02
+		],
+		"worldBounds": [
+			0,
+			0.058242,
+			-0.45,
+			0.43,
+			0.53,
+			-0.13
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/bathroomMirror.glb": {
+		"triangles": 72,
+		"materials": 3,
+		"localBounds": [
+			0,
+			0,
+			-0.0488,
+			0.30134,
+			0.434625,
+			0.0956
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.0488,
+			0.30134,
+			0.434625,
+			0.0956
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/bathroomSink.glb": {
+		"triangles": 316,
+		"materials": 3,
+		"localBounds": [
+			0,
+			-0.4,
+			-0.29,
+			0.34,
+			0.16,
+			0
+		],
+		"worldBounds": [
+			0,
+			-0.4,
+			-0.29,
+			0.34,
+			0.16,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/bathroomSinkSquare.glb": {
+		"triangles": 234,
+		"materials": 3,
+		"localBounds": [
+			0,
+			0.056808,
+			-0.45,
+			0.43,
+			0.636808,
+			-0.15
+		],
+		"worldBounds": [
+			0,
+			0.056808,
+			-0.45,
+			0.43,
+			0.636808,
+			-0.15
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/bathtub.glb": {
+		"triangles": 602,
+		"materials": 3,
+		"localBounds": [
+			0,
+			0,
+			-0.56,
+			1.19,
+			0.42,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.56,
+			1.19,
+			0.42,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/bear.glb": {
+		"triangles": 134,
+		"materials": 3,
+		"localBounds": [
+			0,
+			0,
+			-0.2475,
+			0.389711,
+			0.45,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.2475,
+			0.389711,
+			0.45,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/bedBunk.glb": {
+		"triangles": 580,
+		"materials": 3,
+		"localBounds": [
+			-0.058551,
+			-0.13,
+			-1.892,
+			1.564694,
+			0.85,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-1.095,
+			0.571,
+			0.85,
+			0
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/bedDouble.glb": {
+		"triangles": 264,
+		"materials": 4,
+		"localBounds": [
+			-0.058551,
+			-0.13,
+			-1.892,
+			1.564694,
+			0.375,
+			0.02
+		],
+		"worldBounds": [
+			0,
+			0,
+			-1.125,
+			0.956,
+			0.375,
+			0
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/bedSingle.glb": {
+		"triangles": 214,
+		"materials": 4,
+		"localBounds": [
+			-0.058551,
+			-0.13,
+			-1.892,
+			1.564694,
+			0.375,
+			0
+		],
+		"worldBounds": [
+			0.385,
+			0,
+			-1.125,
+			0.956,
+			0.375,
+			0
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/bench.glb": {
+		"triangles": 170,
+		"materials": 1,
+		"localBounds": [
+			0,
+			0,
+			-0.2,
+			0.4,
+			0.47,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.2,
+			0.4,
+			0.47,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/benchCushion.glb": {
+		"triangles": 196,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.2,
+			0.4,
+			0.46,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.2,
+			0.4,
+			0.46,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/benchCushionLow.glb": {
+		"triangles": 138,
+		"materials": 3,
+		"localBounds": [
+			-0.01,
+			0,
+			-0.21,
+			0.41,
+			0.2,
+			0.01
+		],
+		"worldBounds": [
+			-0.01,
+			0,
+			-0.21,
+			0.41,
+			0.2,
+			0.01
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/bookcaseClosed.glb": {
+		"triangles": 372,
+		"materials": 1,
+		"localBounds": [
+			0,
+			0,
+			-0.25,
+			0.4,
+			0.85,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.25,
+			0.4,
+			0.85,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/bookcaseClosedDoors.glb": {
+		"triangles": 296,
+		"materials": 2,
+		"localBounds": [
+			-0.16,
+			0,
+			-0.25,
+			0.4,
+			0.85,
+			0.02
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.25,
+			0.4,
+			0.85,
+			0
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/bookcaseClosedWide.glb": {
+		"triangles": 372,
+		"materials": 1,
+		"localBounds": [
+			0,
+			0,
+			-0.25,
+			0.8,
+			0.79,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.25,
+			0.8,
+			0.79,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/bookcaseOpen.glb": {
+		"triangles": 320,
+		"materials": 1,
+		"localBounds": [
+			0,
+			0,
+			-0.25,
+			0.4,
+			0.88,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.25,
+			0.4,
+			0.88,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/bookcaseOpenLow.glb": {
+		"triangles": 184,
+		"materials": 1,
+		"localBounds": [
+			0,
+			0,
+			-0.25,
+			0.4,
+			0.4,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.25,
+			0.4,
+			0.4,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/books.glb": {
+		"triangles": 62,
+		"materials": 4,
+		"localBounds": [
+			0,
+			0,
+			-0.0945,
+			0.150448,
+			0.103902,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.0945,
+			0.150448,
+			0.103902,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/cabinetBed.glb": {
+		"triangles": 72,
+		"materials": 2,
+		"localBounds": [
+			-0.01,
+			0,
+			-0.205,
+			0.256,
+			0.2332,
+			0.0123
+		],
+		"worldBounds": [
+			-0.01,
+			0,
+			-0.205,
+			0.256,
+			0.2332,
+			0.01
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/cabinetBedDrawer.glb": {
+		"triangles": 182,
+		"materials": 3,
+		"localBounds": [
+			-0.01,
+			0,
+			-0.205,
+			0.256,
+			0.2632,
+			0.1763
+		],
+		"worldBounds": [
+			-0.01,
+			0,
+			-0.205,
+			0.256,
+			0.2632,
+			0.0123
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/cabinetBedDrawerTable.glb": {
+		"triangles": 140,
+		"materials": 3,
+		"localBounds": [
+			-0.01,
+			0,
+			-0.205,
+			0.256,
+			0.2632,
+			0.1763
+		],
+		"worldBounds": [
+			-0.01,
+			0,
+			-0.205,
+			0.256,
+			0.2632,
+			0.0123
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/cabinetTelevision.glb": {
+		"triangles": 154,
+		"materials": 1,
+		"localBounds": [
+			0,
+			0,
+			-0.25,
+			0.8,
+			0.31,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.25,
+			0.8,
+			0.31,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/cabinetTelevisionDoors.glb": {
+		"triangles": 210,
+		"materials": 2,
+		"localBounds": [
+			-0.36,
+			0,
+			-0.25,
+			0.8,
+			0.31,
+			0.03
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.25,
+			0.8,
+			0.31,
+			0.01
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/cardboardBoxClosed.glb": {
+		"triangles": 60,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.2125,
+			0.2125,
+			0.281,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.2125,
+			0.2125,
+			0.281,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/cardboardBoxOpen.glb": {
+		"triangles": 60,
+		"materials": 2,
+		"localBounds": [
+			-0.079687,
+			0,
+			-0.2125,
+			0.292187,
+			0.281,
+			0
+		],
+		"worldBounds": [
+			-0.079687,
+			0,
+			-0.2125,
+			0.292187,
+			0.281,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/ceilingFan.gltf": {
+		"triangles": 214,
+		"materials": 3,
+		"localBounds": [
+			-51.571999,
+			-40.11541,
+			-79.12088,
+			84.848763,
+			0.000001,
+			78.404236
+		],
+		"worldBounds": [
+			-51.571999,
+			-40.11541,
+			-79.12088,
+			84.848763,
+			0.000001,
+			78.404236
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/chair.glb": {
+		"triangles": 170,
+		"materials": 1,
+		"localBounds": [
+			0,
+			0,
+			-0.2,
+			0.2,
+			0.47,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.2,
+			0.2,
+			0.47,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/chairCushion.glb": {
+		"triangles": 198,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.2,
+			0.2,
+			0.46,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.2,
+			0.2,
+			0.46,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/chairDesk.glb": {
+		"triangles": 588,
+		"materials": 2,
+		"localBounds": [
+			-0.167475,
+			0,
+			-0.283238,
+			0.311275,
+			0.4176,
+			0.16
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.314299,
+			0.33495,
+			0.6076,
+			0
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/chairModernCushion.glb": {
+		"triangles": 92,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.2,
+			0.2,
+			0.46,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.2,
+			0.2,
+			0.46,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/chairModernFrameCushion.glb": {
+		"triangles": 284,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.2,
+			0.2,
+			0.46,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.2,
+			0.2,
+			0.46,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/chairRounded.glb": {
+		"triangles": 280,
+		"materials": 1,
+		"localBounds": [
+			0,
+			0,
+			-0.2,
+			0.2,
+			0.455,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.2,
+			0.2,
+			0.455,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/chandelier.gltf": {
+		"triangles": 2287,
+		"materials": 3,
+		"localBounds": [
+			-54.74781,
+			-137.977158,
+			-37.723343,
+			54.793423,
+			-0.549829,
+			61.152191
+		],
+		"worldBounds": [
+			-54.750694,
+			-137.385605,
+			-37.723579,
+			54.790539,
+			0.041719,
+			61.151955
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/coatRack.glb": {
+		"triangles": 132,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.1344,
+			0.448,
+			0.28,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.1344,
+			0.448,
+			0.28,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/coatRackStanding.glb": {
+		"triangles": 190,
+		"materials": 1,
+		"localBounds": [
+			-0.1364,
+			0,
+			-0.1364,
+			0.1364,
+			0.77,
+			0.1364
+		],
+		"worldBounds": [
+			-0.1364,
+			0,
+			-0.1364,
+			0.1364,
+			0.77,
+			0.1364
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/computerKeyboard.glb": {
+		"triangles": 32,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.118192,
+			0.2822,
+			0.027556,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.118192,
+			0.2822,
+			0.027556,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/computerMouse.glb": {
+		"triangles": 71,
+		"materials": 1,
+		"localBounds": [
+			-0.02485,
+			0,
+			-0.085104,
+			0.02485,
+			0.023572,
+			0
+		],
+		"worldBounds": [
+			-0.02485,
+			0,
+			-0.085104,
+			0.02485,
+			0.023572,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/computerScreen.glb": {
+		"triangles": 72,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.104004,
+			0.392688,
+			0.294285,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.104004,
+			0.392688,
+			0.294285,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/desk.glb": {
+		"triangles": 198,
+		"materials": 2,
+		"localBounds": [
+			-0.01,
+			0,
+			-0.38,
+			0.724475,
+			0.384408,
+			0.1763
+		],
+		"worldBounds": [
+			-0.01,
+			0,
+			-0.38,
+			0.724475,
+			0.384408,
+			0.0123
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/deskCorner.glb": {
+		"triangles": 250,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.974476,
+			0.974476,
+			0.384408,
+			0.1763
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.974476,
+			0.974476,
+			0.384408,
+			0
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/doorway.glb": {
+		"triangles": 188,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.0891,
+			0.486,
+			1.009532,
+			0.0567
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.10125,
+			0.486,
+			1.009532,
+			0.01215
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/doorwayFront.glb": {
+		"triangles": 156,
+		"materials": 4,
+		"localBounds": [
+			0,
+			0,
+			-0.0891,
+			0.486,
+			1.009532,
+			0.0567
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.10125,
+			0.486,
+			1.009532,
+			0.01215
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/doorwayOpen.glb": {
+		"triangles": 28,
+		"materials": 1,
+		"localBounds": [
+			0,
+			0,
+			-0.0891,
+			0.486,
+			1.009532,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.0891,
+			0.486,
+			1.009532,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/dryer.glb": {
+		"triangles": 262,
+		"materials": 3,
+		"localBounds": [
+			0,
+			0,
+			-0.35,
+			0.39,
+			0.47,
+			0.03
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.35,
+			0.39,
+			0.47,
+			0.03
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/floorCorner.glb": {
+		"triangles": 16,
+		"materials": 1,
+		"localBounds": [
+			0,
+			0,
+			-0.55,
+			0.55,
+			0.05,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.55,
+			0.55,
+			0.05,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/floorCornerRound.glb": {
+		"triangles": 60,
+		"materials": 1,
+		"localBounds": [
+			0,
+			0,
+			-0.55,
+			0.55,
+			0.05,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.55,
+			0.55,
+			0.05,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/floorFull.glb": {
+		"triangles": 12,
+		"materials": 1,
+		"localBounds": [
+			0,
+			0,
+			-1,
+			1,
+			0.05,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-1,
+			1,
+			0.05,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/floorHalf.glb": {
+		"triangles": 12,
+		"materials": 1,
+		"localBounds": [
+			0,
+			0,
+			-1,
+			0.5,
+			0.05,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-1,
+			0.5,
+			0.05,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/hoodLarge.glb": {
+		"triangles": 36,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.2849,
+			0.43,
+			0.369532,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.2849,
+			0.43,
+			0.369532,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/hoodModern.glb": {
+		"triangles": 28,
+		"materials": 2,
+		"localBounds": [
+			0,
+			-0.03,
+			-0.2849,
+			0.43,
+			0.369532,
+			0
+		],
+		"worldBounds": [
+			0,
+			-0.03,
+			-0.2849,
+			0.43,
+			0.369532,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/kitchenBar.glb": {
+		"triangles": 76,
+		"materials": 3,
+		"localBounds": [
+			0,
+			0,
+			-0.21,
+			0.43,
+			0.42,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.21,
+			0.43,
+			0.42,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/kitchenBarEnd.glb": {
+		"triangles": 152,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.21,
+			0.101563,
+			0.42,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.21,
+			0.101563,
+			0.42,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/kitchenBlender.glb": {
+		"triangles": 246,
+		"materials": 3,
+		"localBounds": [
+			0,
+			0,
+			-0.109119,
+			0.135826,
+			0.22752,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.109119,
+			0.135826,
+			0.22752,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/kitchenCabinet.glb": {
+		"triangles": 114,
+		"materials": 3,
+		"localBounds": [
+			0,
+			0,
+			-0.45,
+			0.43,
+			0.45,
+			0.03
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.45,
+			0.43,
+			0.45,
+			0
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/kitchenCabinetCornerInner.glb": {
+		"triangles": 54,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.46,
+			0.46,
+			0.45,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.46,
+			0.46,
+			0.45,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/kitchenCabinetCornerRound.glb": {
+		"triangles": 194,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.45,
+			0.45,
+			0.45,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.45,
+			0.45,
+			0.45,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/kitchenCabinetDrawer.glb": {
+		"triangles": 174,
+		"materials": 3,
+		"localBounds": [
+			0,
+			0,
+			-0.45,
+			0.43,
+			0.45,
+			0.03
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.45,
+			0.43,
+			0.45,
+			0
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/kitchenCabinetUpper.glb": {
+		"triangles": 80,
+		"materials": 3,
+		"localBounds": [
+			0,
+			0,
+			-0.21,
+			0.43,
+			0.39,
+			0.02
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.21,
+			0.43,
+			0.39,
+			0.01
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/kitchenCabinetUpperCorner.glb": {
+		"triangles": 204,
+		"materials": 1,
+		"localBounds": [
+			0,
+			0,
+			-0.21,
+			0.215,
+			0.39,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.21,
+			0.215,
+			0.39,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/kitchenCabinetUpperDouble.glb": {
+		"triangles": 234,
+		"materials": 3,
+		"localBounds": [
+			-0.188156,
+			0,
+			-0.21,
+			0.43,
+			0.39,
+			0.02
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.21,
+			0.43,
+			0.39,
+			0.01
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/kitchenCabinetUpperLow.glb": {
+		"triangles": 64,
+		"materials": 3,
+		"localBounds": [
+			0,
+			-0.141312,
+			-0.21,
+			0.43,
+			0.195,
+			0.02
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.21,
+			0.43,
+			0.195,
+			0.01
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/kitchenCoffeeMachine.glb": {
+		"triangles": 166,
+		"materials": 3,
+		"localBounds": [
+			0,
+			0,
+			-0.304105,
+			0.24,
+			0.3034,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.240167,
+			0.18954,
+			0.177489,
+			0
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/kitchenFridge.glb": {
+		"triangles": 250,
+		"materials": 4,
+		"localBounds": [
+			0,
+			0,
+			-0.281934,
+			0.43,
+			0.92,
+			0.035
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.281934,
+			0.43,
+			0.92,
+			0.01
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/kitchenFridgeBuiltIn.glb": {
+		"triangles": 268,
+		"materials": 5,
+		"localBounds": [
+			0,
+			0,
+			-0.45,
+			0.43,
+			0.868748,
+			0.035
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.45,
+			0.43,
+			0.868748,
+			0
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/kitchenFridgeLarge.glb": {
+		"triangles": 436,
+		"materials": 2,
+		"localBounds": [
+			-0.273156,
+			-0.403166,
+			-0.341934,
+			0.52,
+			0.92,
+			0.043616
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.341934,
+			0.52,
+			0.92,
+			0.063616
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/kitchenFridgeSmall.glb": {
+		"triangles": 152,
+		"materials": 4,
+		"localBounds": [
+			0,
+			0,
+			-0.281934,
+			0.43,
+			0.600246,
+			0.035
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.281934,
+			0.43,
+			0.600246,
+			0.01
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/kitchenMicrowave.glb": {
+		"triangles": 152,
+		"materials": 4,
+		"localBounds": [
+			0,
+			0,
+			-0.22,
+			0.29,
+			0.18,
+			0.01
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.22,
+			0.29,
+			0.18,
+			0.01
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/kitchenSink.glb": {
+		"triangles": 318,
+		"materials": 6,
+		"localBounds": [
+			0,
+			0,
+			-0.45,
+			0.43,
+			0.49,
+			0.03
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.45,
+			0.43,
+			0.49,
+			0
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/kitchenStove.glb": {
+		"triangles": 830,
+		"materials": 5,
+		"localBounds": [
+			0,
+			0,
+			-0.45,
+			0.43,
+			0.45,
+			0.03
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.45,
+			0.43,
+			0.45,
+			0
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/kitchenStoveElectric.glb": {
+		"triangles": 338,
+		"materials": 6,
+		"localBounds": [
+			0,
+			0,
+			-0.45,
+			0.43,
+			0.45,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.45,
+			0.43,
+			0.45,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/lampRoundFloor.glb": {
+		"triangles": 76,
+		"materials": 2,
+		"localBounds": [
+			-0.01602,
+			0,
+			-0.14778,
+			0.13602,
+			0.86,
+			0.02778
+		],
+		"worldBounds": [
+			-0.01602,
+			0,
+			-0.14778,
+			0.13602,
+			0.86,
+			0.02778
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/lampRoundTable.glb": {
+		"triangles": 76,
+		"materials": 2,
+		"localBounds": [
+			-0.01602,
+			0,
+			-0.14778,
+			0.13602,
+			0.31425,
+			0.02778
+		],
+		"worldBounds": [
+			-0.01602,
+			0,
+			-0.14778,
+			0.13602,
+			0.31425,
+			0.02778
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/lampSquareCeiling.glb": {
+		"triangles": 60,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.12,
+			0.12,
+			0.23,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.12,
+			0.12,
+			0.23,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/lampSquareFloor.glb": {
+		"triangles": 60,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.12,
+			0.12,
+			0.86,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.12,
+			0.12,
+			0.86,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/lampSquareTable.glb": {
+		"triangles": 60,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.12,
+			0.12,
+			0.29,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.12,
+			0.12,
+			0.29,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/lampWall.glb": {
+		"triangles": 42,
+		"materials": 2,
+		"localBounds": [
+			-0.195375,
+			0,
+			0,
+			0.195375,
+			0.16,
+			0.2592
+		],
+		"worldBounds": [
+			-0.113318,
+			0,
+			0,
+			0.113318,
+			0.0928,
+			0.150336
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/laptop.glb": {
+		"triangles": 68,
+		"materials": 3,
+		"localBounds": [
+			0,
+			0,
+			-0.545603,
+			0.6,
+			0.367749,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.240065,
+			0.264,
+			0.161809,
+			0
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/loungeChair.glb": {
+		"triangles": 128,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.41,
+			0.49,
+			0.46,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.41,
+			0.49,
+			0.46,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/loungeChairRelax.glb": {
+		"triangles": 188,
+		"materials": 3,
+		"localBounds": [
+			0,
+			0,
+			-0.674693,
+			0.49,
+			0.63,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.674693,
+			0.49,
+			0.63,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/loungeDesignChair.glb": {
+		"triangles": 116,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.41,
+			0.729595,
+			0.4,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.41,
+			0.729595,
+			0.4,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/loungeDesignSofa.glb": {
+		"triangles": 116,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.41,
+			1.12,
+			0.4,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.41,
+			1.12,
+			0.4,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/loungeDesignSofaCorner.glb": {
+		"triangles": 176,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-1.349828,
+			1.349828,
+			0.4,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-1.349828,
+			1.349828,
+			0.4,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/loungeSofa.glb": {
+		"triangles": 128,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.41,
+			0.98,
+			0.46,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.41,
+			0.98,
+			0.46,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/loungeSofaCorner.glb": {
+		"triangles": 190,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.98,
+			0.98,
+			0.46,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.98,
+			0.98,
+			0.46,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/loungeSofaLong.glb": {
+		"triangles": 186,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.41,
+			0.98,
+			0.46,
+			0.41
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.41,
+			0.98,
+			0.46,
+			0.41
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/loungeSofaOttoman.glb": {
+		"triangles": 84,
+		"materials": 2,
+		"localBounds": [
+			0.47,
+			0,
+			-0.04,
+			0.909829,
+			0.23,
+			0.41
+		],
+		"worldBounds": [
+			0.47,
+			0,
+			-0.04,
+			0.909829,
+			0.23,
+			0.41
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/paneling.glb": {
+		"triangles": 40,
+		"materials": 1,
+		"localBounds": [
+			0,
+			0,
+			0,
+			0.5,
+			0.594766,
+			0.03
+		],
+		"worldBounds": [
+			0,
+			0,
+			0,
+			0.5,
+			0.594766,
+			0.03
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/pillow.glb": {
+		"triangles": 50,
+		"materials": 1,
+		"localBounds": [
+			0,
+			0,
+			-0.088484,
+			0.23,
+			0.222163,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.088484,
+			0.23,
+			0.222163,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/pillowBlue.glb": {
+		"triangles": 50,
+		"materials": 1,
+		"localBounds": [
+			0,
+			0,
+			-0.06339,
+			0.23,
+			0.128512,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.06339,
+			0.23,
+			0.128512,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/pillowBlueLong.glb": {
+		"triangles": 50,
+		"materials": 1,
+		"localBounds": [
+			-0.13,
+			0,
+			-0.088484,
+			0.386576,
+			0.222163,
+			0
+		],
+		"worldBounds": [
+			-0.13,
+			0,
+			-0.088484,
+			0.386576,
+			0.222163,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/pillowLong.glb": {
+		"triangles": 50,
+		"materials": 1,
+		"localBounds": [
+			0,
+			0,
+			-0.088484,
+			0.386576,
+			0.222163,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.088484,
+			0.386576,
+			0.222163,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/plantSmall1.glb": {
+		"triangles": 102,
+		"materials": 2,
+		"localBounds": [
+			-0.094661,
+			0,
+			-0.094661,
+			0.094661,
+			0.28,
+			0.094661
+		],
+		"worldBounds": [
+			-0.04733,
+			0,
+			-0.04733,
+			0.04733,
+			0.14,
+			0.04733
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/plantSmall2.glb": {
+		"triangles": 158,
+		"materials": 2,
+		"localBounds": [
+			-0.094661,
+			0,
+			-0.094661,
+			0.094661,
+			0.28,
+			0.094661
+		],
+		"worldBounds": [
+			-0.04733,
+			0,
+			-0.04733,
+			0.04733,
+			0.14,
+			0.04733
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/plantSmall3.glb": {
+		"triangles": 98,
+		"materials": 2,
+		"localBounds": [
+			-0.08487,
+			0,
+			-0.098,
+			0.08487,
+			0.29,
+			0.098
+		],
+		"worldBounds": [
+			-0.049,
+			0,
+			-0.042435,
+			0.049,
+			0.145,
+			0.042435
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/pottedPlant.glb": {
+		"triangles": 60,
+		"materials": 3,
+		"localBounds": [
+			-0.053015,
+			0,
+			-0.060365,
+			0.053015,
+			0.327008,
+			0.060365
+		],
+		"worldBounds": [
+			-0.10603,
+			0,
+			-0.120731,
+			0.10603,
+			0.654017,
+			0.120731
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/radio.glb": {
+		"triangles": 432,
+		"materials": 3,
+		"localBounds": [
+			0,
+			0,
+			-0.0975,
+			0.315,
+			0.228191,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.0975,
+			0.315,
+			0.228191,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/rugDoormat.glb": {
+		"triangles": 204,
+		"materials": 1,
+		"localBounds": [
+			0,
+			0,
+			-0.237009,
+			0.4293,
+			0.01,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.237009,
+			0.4293,
+			0.01,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/rugRectangle.glb": {
+		"triangles": 28,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.92,
+			1.57,
+			0.01,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.92,
+			1.57,
+			0.01,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/rugRound.glb": {
+		"triangles": 188,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.92,
+			0.92,
+			0.01,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.92,
+			0.92,
+			0.01,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/rugRounded.glb": {
+		"triangles": 204,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.92,
+			1.57,
+			0.01,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.92,
+			1.57,
+			0.01,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/rugSquare.glb": {
+		"triangles": 28,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.92,
+			0.904326,
+			0.01,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.92,
+			0.904326,
+			0.01,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/shower.glb": {
+		"triangles": 810,
+		"materials": 4,
+		"localBounds": [
+			-0.02,
+			0,
+			-1.28,
+			1.28,
+			2.492671,
+			0
+		],
+		"worldBounds": [
+			-0.561792,
+			0,
+			-0.561792,
+			0,
+			1.094033,
+			0.02
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/showerRound.glb": {
+		"triangles": 960,
+		"materials": 4,
+		"localBounds": [
+			0,
+			0,
+			-0.561792,
+			0.561792,
+			1.094033,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.561792,
+			0.561792,
+			1.094033,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/sideTable.glb": {
+		"triangles": 118,
+		"materials": 2,
+		"localBounds": [
+			-0.01,
+			0,
+			-0.21,
+			0.524475,
+			0.384408,
+			0.01
+		],
+		"worldBounds": [
+			-0.01,
+			0,
+			-0.21,
+			0.524475,
+			0.384408,
+			0.01
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/sideTableDrawers.glb": {
+		"triangles": 238,
+		"materials": 3,
+		"localBounds": [
+			-0.01,
+			0,
+			-0.21,
+			0.524475,
+			0.384408,
+			0.1763
+		],
+		"worldBounds": [
+			-0.01,
+			0,
+			-0.21,
+			0.524475,
+			0.384408,
+			0.0123
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/speaker.glb": {
+		"triangles": 228,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.148,
+			0.148,
+			0.6364,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.148,
+			0.148,
+			0.6364,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/speakerSmall.glb": {
+		"triangles": 220,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.1332,
+			0.148,
+			0.29798,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.1332,
+			0.148,
+			0.29798,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/stairs.glb": {
+		"triangles": 308,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.79,
+			1.823435,
+			1.339532,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.79,
+			1.823435,
+			1.339532,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/stairsCorner.glb": {
+		"triangles": 312,
+		"materials": 2,
+		"localBounds": [
+			0.163949,
+			0,
+			-1.425794,
+			1.93764,
+			1.339532,
+			0
+		],
+		"worldBounds": [
+			0.163949,
+			0,
+			-1.425794,
+			1.93764,
+			1.339532,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/stairsOpen.glb": {
+		"triangles": 558,
+		"materials": 3,
+		"localBounds": [
+			0,
+			0,
+			-0.79,
+			1.823435,
+			1.339532,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.79,
+			1.823435,
+			1.339532,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/stairsOpenSingle.glb": {
+		"triangles": 326,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.79,
+			1.823435,
+			1.339532,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.79,
+			1.823435,
+			1.339532,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/stoolBar.glb": {
+		"triangles": 176,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.229878,
+			0.26544,
+			0.435,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.229878,
+			0.26544,
+			0.435,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/stoolBarSquare.glb": {
+		"triangles": 142,
+		"materials": 2,
+		"localBounds": [
+			0.05597,
+			0,
+			-0.188751,
+			0.20947,
+			0.405,
+			-0.041127
+		],
+		"worldBounds": [
+			0.05597,
+			0,
+			-0.188751,
+			0.20947,
+			0.405,
+			-0.041127
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/table.glb": {
+		"triangles": 120,
+		"materials": 1,
+		"localBounds": [
+			0,
+			0,
+			-0.447373,
+			0.841488,
+			0.326734,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.447373,
+			0.841488,
+			0.326734,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/tableCloth.glb": {
+		"triangles": 144,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.447373,
+			0.841488,
+			0.326734,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.447373,
+			0.841488,
+			0.326734,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/tableCoffee.glb": {
+		"triangles": 124,
+		"materials": 1,
+		"localBounds": [
+			-0.460996,
+			0,
+			-0.3,
+			0.2,
+			0.23,
+			0.1
+		],
+		"worldBounds": [
+			-0.460996,
+			0,
+			-0.3,
+			0.2,
+			0.23,
+			0.1
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/tableCoffeeGlass.glb": {
+		"triangles": 140,
+		"materials": 2,
+		"localBounds": [
+			-0.460996,
+			0,
+			-0.3,
+			0.2,
+			0.23,
+			0.1
+		],
+		"worldBounds": [
+			-0.460996,
+			0,
+			-0.3,
+			0.2,
+			0.23,
+			0.1
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/tableCoffeeGlassSquare.glb": {
+		"triangles": 140,
+		"materials": 2,
+		"localBounds": [
+			-0.460996,
+			0,
+			-0.3,
+			-0.060996,
+			0.23,
+			0.1
+		],
+		"worldBounds": [
+			-0.460996,
+			0,
+			-0.3,
+			-0.060996,
+			0.23,
+			0.1
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/tableCoffeeSquare.glb": {
+		"triangles": 124,
+		"materials": 1,
+		"localBounds": [
+			-0.460996,
+			0,
+			-0.3,
+			-0.060996,
+			0.23,
+			0.1
+		],
+		"worldBounds": [
+			-0.460996,
+			0,
+			-0.3,
+			-0.060996,
+			0.23,
+			0.1
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/tableCross.glb": {
+		"triangles": 178,
+		"materials": 1,
+		"localBounds": [
+			0,
+			0,
+			-0.447373,
+			0.85212,
+			0.347413,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.447373,
+			0.85212,
+			0.347413,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/tableCrossCloth.glb": {
+		"triangles": 202,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-1.065175,
+			2.028857,
+			0.827175,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.447373,
+			0.85212,
+			0.347413,
+			0
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/tableGlass.glb": {
+		"triangles": 144,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.447373,
+			0.841488,
+			0.326734,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.447373,
+			0.841488,
+			0.326734,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/tableRound.glb": {
+		"triangles": 80,
+		"materials": 1,
+		"localBounds": [
+			0,
+			-0.27,
+			-0.8,
+			0.69282,
+			0.096734,
+			0
+		],
+		"worldBounds": [
+			0,
+			-0.27,
+			-0.8,
+			0.69282,
+			0.096734,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/televisionAntenna.glb": {
+		"triangles": 44,
+		"materials": 1,
+		"localBounds": [
+			-0.132264,
+			0,
+			-0.08,
+			0.132264,
+			0.102734,
+			0
+		],
+		"worldBounds": [
+			-0.132264,
+			0,
+			-0.08,
+			0.132264,
+			0.102734,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/televisionModern.glb": {
+		"triangles": 72,
+		"materials": 2,
+		"localBounds": [
+			-0.3424,
+			0,
+			-0.0642,
+			0.3424,
+			0.45475,
+			0.0642
+		],
+		"worldBounds": [
+			-0.3424,
+			0,
+			-0.0642,
+			0.3424,
+			0.45475,
+			0.0642
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/televisionVintage.glb": {
+		"triangles": 280,
+		"materials": 4,
+		"localBounds": [
+			0,
+			0,
+			-0.27,
+			0.41,
+			0.27,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.27,
+			0.41,
+			0.27,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/toaster.glb": {
+		"triangles": 220,
+		"materials": 2,
+		"localBounds": [
+			-0.093992,
+			0,
+			-0.05,
+			0.093992,
+			0.13,
+			0.05
+		],
+		"worldBounds": [
+			-0.093992,
+			0,
+			-0.05,
+			0.093992,
+			0.13,
+			0.05
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/toilet.glb": {
+		"triangles": 230,
+		"materials": 4,
+		"localBounds": [
+			0,
+			0,
+			-0.658,
+			1.004583,
+			0.9494,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			0,
+			0.31255,
+			0.450965,
+			0.477177
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/toiletSquare.glb": {
+		"triangles": 228,
+		"materials": 2,
+		"localBounds": [
+			0,
+			0,
+			-0.387177,
+			0.30362,
+			0.450965,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.387177,
+			0.30362,
+			0.450965,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/trashcan.glb": {
+		"triangles": 68,
+		"materials": 2,
+		"localBounds": [
+			-0.259491,
+			0,
+			-0.22,
+			0.236503,
+			0.906437,
+			0.22
+		],
+		"worldBounds": [
+			-0.103847,
+			0,
+			-0.111636,
+			0.103847,
+			0.427866,
+			0.122488
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/wall.glb": {
+		"triangles": 12,
+		"materials": 3,
+		"localBounds": [
+			0,
+			0,
+			-0.05,
+			1,
+			1.289532,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.05,
+			1,
+			1.289532,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/wallCorner.glb": {
+		"triangles": 28,
+		"materials": 3,
+		"localBounds": [
+			0,
+			0,
+			-0.55,
+			0.55,
+			1.289532,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.55,
+			0.55,
+			1.289532,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/wallCornerRond.glb": {
+		"triangles": 116,
+		"materials": 3,
+		"localBounds": [
+			0,
+			0,
+			-0.55,
+			0.55,
+			1.289532,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.55,
+			0.55,
+			1.289532,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/wallDoorway.glb": {
+		"triangles": 60,
+		"materials": 3,
+		"localBounds": [
+			0,
+			0,
+			-0.06955,
+			1,
+			1.289532,
+			0.01955
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.06955,
+			1,
+			1.289532,
+			0.01955
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/wallDoorwayWide.glb": {
+		"triangles": 60,
+		"materials": 3,
+		"localBounds": [
+			0,
+			0,
+			-0.06955,
+			1,
+			1.289532,
+			0.01955
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.06955,
+			1,
+			1.289532,
+			0.01955
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/wallHalf.glb": {
+		"triangles": 12,
+		"materials": 3,
+		"localBounds": [
+			0,
+			0,
+			-0.05,
+			0.5,
+			1.289532,
+			0
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.05,
+			0.5,
+			1.289532,
+			0
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/wallWindow.glb": {
+		"triangles": 108,
+		"materials": 4,
+		"localBounds": [
+			0,
+			0,
+			-0.06955,
+			1,
+			1.289532,
+			0.01955
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.06955,
+			1,
+			1.289532,
+			0.01955
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/wallWindowSlide.glb": {
+		"triangles": 152,
+		"materials": 4,
+		"localBounds": [
+			0,
+			0,
+			-0.06955,
+			1,
+			1.289532,
+			0.01955
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.06955,
+			1,
+			1.289532,
+			0.01955
+		],
+		"nodeTransformAffected": false
+	},
+	"models/gltf/washer.glb": {
+		"triangles": 720,
+		"materials": 6,
+		"localBounds": [
+			0,
+			-0.03,
+			-0.35,
+			0.39,
+			0.47,
+			0.13
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.35,
+			0.39,
+			0.47,
+			0.04
+		],
+		"nodeTransformAffected": true
+	},
+	"models/gltf/washerDryerStacked.glb": {
+		"triangles": 992,
+		"materials": 6,
+		"localBounds": [
+			0,
+			-0.03,
+			-0.35,
+			0.39,
+			0.94,
+			0.13
+		],
+		"worldBounds": [
+			0,
+			0,
+			-0.35,
+			0.39,
+			0.94,
+			0.04
+		],
+		"nodeTransformAffected": true
+	}
+}

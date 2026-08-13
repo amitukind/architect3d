@@ -1,6 +1,10 @@
-import {EventDispatcher, JSONLoader, Color, LinearEncoding} from 'three';
-import GLTFLoader from 'three-gltf-loader';
-import OBJLoader from '@calvinscofield/three-objloader';
+import {EventDispatcher, Color, LinearSRGBColorSpace} from 'three';
+// three's own addons since S4, replacing the three-gltf-loader and
+// @calvinscofield/three-objloader repacks. Each of those bundled its own copy
+// of three (r105 and r94), so `instanceof` silently failed across the seam and
+// the bundle carried three full engines.
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';
 import {Scene as ThreeScene} from 'three';
 import {Utils} from '../core/utils.js';
 import {mergeMeshes} from '../core/geometry_merge.js';
@@ -32,9 +36,6 @@ export class Scene extends EventDispatcher
 		this.items = [];
 		this.needsUpdate = false;
 		// init item loader
-		this.loader = new JSONLoader();
-		this.loader.setCrossOrigin('');
-
 		this.gltfloader = new GLTFLoader();
 		this.objloader = new OBJLoader();
 		this.gltfloader.setCrossOrigin('');
@@ -223,15 +224,6 @@ export class Scene extends EventDispatcher
 			// Test/embedding seam - see this.itemLoader in the constructor.
 			this.itemLoader(fileName, metadata, loaderCallback);
 		}
-		else if(!metadata.format)
-		{
-			// Nothing in the shipped catalog reaches this branch as of S3, and the
-			// shim above rewrites every legacy URL a saved design can carry. The
-			// counter is the exit-gate evidence: it stays at zero for a session.
-			Scene.legacyJsonLoadCount++;
-			console.warn(`Loading "${fileName}" through the retired three.js JSONLoader. That loader disappears with the r185 bump in S4 - convert the model with tools/convert-legacy-json.mjs.`);
-			this.loader.load(fileName, loaderCallback, undefined); // third parameter is undefined - TODO_Ekki
-		}
 		else if(metadata.format == 'gltf')
 		{
 			this.gltfloader.load(fileName, gltfCallback, null, null);
@@ -240,32 +232,52 @@ export class Scene extends EventDispatcher
 		{
 			this.objloader.load(fileName, objCallback, null, null);
 		}
+		else
+		{
+			// Formatless means the retired three.js JSON format, whose loader S4
+			// removed along with r98. resolveModelUrl rewrites every name the
+			// shipped library ever used, so reaching this means a design references
+			// a model that was never part of it.
+			//
+			// Counted and reported rather than ignored: the alternative is an item
+			// that dispatched EVENT_ITEM_LOADING and then never resolves, which
+			// leaves an embedder's spinner up forever with nothing in the console.
+			Scene.unloadableItemCount++;
+			console.error(`Cannot load "${fileName}": the retired three.js JSON model format has no loader as of three r185. Convert the model with tools/convert-legacy-json.mjs and add it to LEGACY_MODEL_MAP, or give the item metadata a "gltf" or "obj" format.`);
+			this.dispatchEvent({type:EVENT_ITEM_LOADED, item: null});
+		}
 	}
 }
 
 /**
- * How many items have been loaded through the retired JSONLoader this session.
+ * Items a design asked for that no loader in this build can open.
  *
- * The S3 exit gate is that this stays zero: every catalog entry is glTF, and
- * every legacy URL a saved design can carry is rewritten before dispatch. S4
- * deletes the branch and this counter with it.
+ * Replaces S3's legacyJsonLoadCount, which existed to prove the retired
+ * JSONLoader was never entered before S4 deleted it. The branch is gone; what
+ * is worth counting now is the failure that took its place, so an embedder can
+ * assert on it and the exit gate stays checkable. Zero for the shipped catalog.
  */
-Scene.legacyJsonLoadCount = 0;
+Scene.unloadableItemCount = 0;
 
 /**
  * Undo GLTFLoader's sRGB tagging on the models converted in S3.
  *
- * GLTFLoader marks every baseColorTexture sRGBEncoding, which is right for a
- * colour-managed pipeline. This renderer is not one yet: outputEncoding is
- * Linear and gammaOutput is off, so a decoded texture is written out without
- * being re-encoded and lands about a gamma darker than the same bytes did under
- * the legacy JSONLoader, which tagged nothing.
+ * GLTFLoader marks every baseColorTexture as sRGB, which is right for a
+ * colour-managed pipeline. This renderer is deliberately not one yet - the S4
+ * parity freeze keeps output in linear sRGB - so a decoded texture is written
+ * out without being re-encoded and lands about a gamma darker than the same
+ * bytes did under the legacy JSONLoader, which tagged nothing.
  *
- * Restoring LinearEncoding on exactly these 25 models keeps them looking as
- * they always have, which is what makes their per-model A/B review passable.
+ * Restoring a linear colour space on exactly these 25 models keeps them looking
+ * as they always have, which is what makes their per-model A/B review passable.
  * Deliberately scoped to converted legacy models - the 142 Kenney glTF models
  * have rendered as sRGB all along and are left alone. S8 replaces all of this
  * with a real colour pipeline and deletes this function.
+ *
+ * `encoding` became `colorSpace` in r152. The decode is now done by the GPU,
+ * choosing an SRGB8_ALPHA8 internal format when the texture says sRGB, so this
+ * has to be set before the texture is first uploaded - which it is, since the
+ * item has not been added to the scene yet.
  */
 function restoreLegacyTextureEncoding(materials)
 {
@@ -273,7 +285,7 @@ function restoreLegacyTextureEncoding(materials)
 	{
 		if(material && material.map)
 		{
-			material.map.encoding = LinearEncoding;
+			material.map.colorSpace = LinearSRGBColorSpace;
 			material.map.needsUpdate = true;
 			material.needsUpdate = true;
 		}

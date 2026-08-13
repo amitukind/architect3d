@@ -139,7 +139,10 @@ function OrbitControls( object, domElement )
 
 		// so camera.up is the orbit axis
 		var quat = new Quaternion().setFromUnitVectors( object.up, new Vector3( 0, 1, 0 ) );
-		var quatInverse = quat.clone().inverse();
+		// invert(); Quaternion.inverse() was deprecated in r119 and removed in
+		// r123. This is the vendored fork's only r185 break - it is swapped for
+		// three's own addon in S5, and until then it has to run.
+		var quatInverse = quat.clone().invert();
 
 		var lastPosition = new Vector3();
 		var lastQuaternion = new Quaternion();
