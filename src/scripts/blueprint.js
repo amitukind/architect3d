@@ -15,6 +15,10 @@ export {EVENT_ROOM_2D_CLICKED, EVENT_ROOM_2D_DOUBLE_CLICKED, EVENT_ROOM_2D_HOVER
 
 
 export {Utils, Region} from './core/utils.js';
+// The glTF migration shim (S3). Applied automatically by Scene.addItem, and
+// exported so an embedder can rewrite stored designs offline rather than
+// waiting for each one to be opened.
+export {LEGACY_MODEL_MAP, resolveModelUrl} from './core/legacy_models.js';
 export {ELogContext, ELogLevel, logContext, isLogging, log} from './core/log.js';
 export {dimInch, dimFeetAndInch, dimMeter, dimCentiMeter, dimMilliMeter, dimensioningOptions, decimals, Dimensioning} from './core/dimensioning.js';
 export {cmPerFoot, pixelsPerFoot, cmPerPixel, pixelsPerCm} from './core/dimensioning.js';

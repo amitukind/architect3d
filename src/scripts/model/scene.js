@@ -1,9 +1,10 @@
-import {EventDispatcher, JSONLoader, Color} from 'three';
-import {Geometry} from 'three';
+import {EventDispatcher, JSONLoader, Color, LinearEncoding} from 'three';
 import GLTFLoader from 'three-gltf-loader';
 import OBJLoader from '@calvinscofield/three-objloader';
 import {Scene as ThreeScene} from 'three';
 import {Utils} from '../core/utils.js';
+import {mergeMeshes} from '../core/geometry_merge.js';
+import {resolveModelUrl} from '../core/legacy_models.js';
 import {Factory} from '../items/factory.js';
 import {EVENT_ITEM_LOADING, EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED} from '../core/events.js';
 
@@ -169,18 +170,20 @@ export class Scene extends EventDispatcher
 		
 		var scope = this;
 
-		function addToMaterials(materials, newmaterial)
+		// Designs saved before S3 name models in the retired three.js JSON
+		// format. Rewriting here rather than in Model.newRoom covers every way an
+		// item can be created, and mutating metadata means the item carries the
+		// new URL into its next save - so a file needs the shim exactly once.
+		var resolved = resolveModelUrl(fileName, metadata.format);
+		fileName = resolved.url;
+		metadata.format = resolved.format;
+		if (resolved.converted)
 		{
-			for(var i=0;i<materials.length;i++)
-			{
-				var mat = materials[i];
-				if(mat.name == newmaterial.name)
-				{
-					return [materials, i];
-				}
-			}
-			materials.push(newmaterial);
-			return [materials, materials.length-1];
+			// modelUrl is what Item.getMetaData() writes back out, so updating it
+			// here is what makes the next save glb-native. A design therefore needs
+			// the shim exactly once, however many times it is opened.
+			metadata.modelUrl = fileName;
+			metadata.legacyConverted = true;
 		}
 
 		var loaderCallback = function (geometry, materials, isgltf=false)
@@ -200,85 +203,18 @@ export class Scene extends EventDispatcher
 		};
 		var gltfCallback = function(gltfModel)
 		{
-			var newmaterials = [];
-			var newGeometry = new Geometry();
-
-			gltfModel.scene.traverse(function (child) {
-				if(child.type == 'Mesh')
-				{
-					var materialindices = [];
-					if(child.material.length)
-					{
-						for (var k=0;k<child.material.length;k++)
-						{
-							var newItems = addToMaterials(newmaterials, child.material[k]);
-							newmaterials = newItems[0];
-							materialindices.push(newItems[1]);
-						}
-					}
-					else
-					{
-						newItems = addToMaterials(newmaterials, child.material);//materials.push(child.material);
-						newmaterials = newItems[0];
-						materialindices.push(newItems[1]);
-					}
-
-					if(child.geometry.isBufferGeometry)
-					{
-						var tGeometry = new Geometry().fromBufferGeometry(child.geometry);
-						tGeometry.faces.forEach((face)=>{
-//							face.materialIndex = face.materialIndex + newmaterials.length;
-							face.materialIndex = materialindices[face.materialIndex];
-						});
-						child.updateMatrix();
-						newGeometry.merge(tGeometry, child.matrix);
-					}
-					else
-					{
-						child.geometry.faces.forEach((face)=>{
-//							face.materialIndex = face.materialIndex + newmaterials.length;
-							face.materialIndex = materialindices[face.materialIndex];
-						});
-						child.updateMatrix();
-						newGeometry.mergeMesh(child);
-					}
-				}
-			});
-			loaderCallback(newGeometry, newmaterials);
-			// loaderCallback(gltfModel.scene, newmaterials, true);
+			var merged = mergeMeshes(gltfModel.scene);
+			if(metadata.legacyConverted)
+			{
+				restoreLegacyTextureEncoding(merged.materials);
+			}
+			loaderCallback(merged.geometry, merged.materials);
 		};
-
 
 		var objCallback = function(object)
 		{
-			var materials = [];
-			var newGeometry = new Geometry();
-			object.traverse(function (child)
-			{
-				if(child.type == 'Mesh')
-				{
-					if(child.material.length)
-					{
-						materials = materials.concat(child.material);
-					}
-					else
-					{
-						materials.push(child.material);
-					}
-					if(child.geometry.isBufferGeometry)
-					{
-						var tGeometry = new Geometry().fromBufferGeometry(child.geometry);
-						child.updateMatrix();
-						newGeometry.merge(tGeometry, child.matrix);
-					}
-					else
-					{
-						child.updateMatrix();
-						newGeometry.mergeMesh(child);
-					}
-				}
-			});
-			loaderCallback(newGeometry, materials);
+			var merged = mergeMeshes(object);
+			loaderCallback(merged.geometry, merged.materials);
 		};
 
 		this.dispatchEvent({type:EVENT_ITEM_LOADING});
@@ -289,6 +225,11 @@ export class Scene extends EventDispatcher
 		}
 		else if(!metadata.format)
 		{
+			// Nothing in the shipped catalog reaches this branch as of S3, and the
+			// shim above rewrites every legacy URL a saved design can carry. The
+			// counter is the exit-gate evidence: it stays at zero for a session.
+			Scene.legacyJsonLoadCount++;
+			console.warn(`Loading "${fileName}" through the retired three.js JSONLoader. That loader disappears with the r185 bump in S4 - convert the model with tools/convert-legacy-json.mjs.`);
 			this.loader.load(fileName, loaderCallback, undefined); // third parameter is undefined - TODO_Ekki
 		}
 		else if(metadata.format == 'gltf')
@@ -300,4 +241,41 @@ export class Scene extends EventDispatcher
 			this.objloader.load(fileName, objCallback, null, null);
 		}
 	}
+}
+
+/**
+ * How many items have been loaded through the retired JSONLoader this session.
+ *
+ * The S3 exit gate is that this stays zero: every catalog entry is glTF, and
+ * every legacy URL a saved design can carry is rewritten before dispatch. S4
+ * deletes the branch and this counter with it.
+ */
+Scene.legacyJsonLoadCount = 0;
+
+/**
+ * Undo GLTFLoader's sRGB tagging on the models converted in S3.
+ *
+ * GLTFLoader marks every baseColorTexture sRGBEncoding, which is right for a
+ * colour-managed pipeline. This renderer is not one yet: outputEncoding is
+ * Linear and gammaOutput is off, so a decoded texture is written out without
+ * being re-encoded and lands about a gamma darker than the same bytes did under
+ * the legacy JSONLoader, which tagged nothing.
+ *
+ * Restoring LinearEncoding on exactly these 25 models keeps them looking as
+ * they always have, which is what makes their per-model A/B review passable.
+ * Deliberately scoped to converted legacy models - the 142 Kenney glTF models
+ * have rendered as sRGB all along and are left alone. S8 replaces all of this
+ * with a real colour pipeline and deletes this function.
+ */
+function restoreLegacyTextureEncoding(materials)
+{
+	materials.forEach(function (material)
+	{
+		if(material && material.map)
+		{
+			material.map.encoding = LinearEncoding;
+			material.map.needsUpdate = true;
+			material.needsUpdate = true;
+		}
+	});
 }

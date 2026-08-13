@@ -13,9 +13,11 @@ Two kinds of test live here, and the distinction matters when one fails:
   *changed*. A failure means the new contract broke.
 
 ```bash
-npm test          # run once
+npm test                 # run once
 npm run test:watch
-npm run fixtures  # regenerate tests/fixtures/*.blueprint3d
+npm run fixtures         # regenerate tests/fixtures/*.blueprint3d
+npm run convert:models   # legacy three.js JSON models -> build/models/js-glb/*.glb (S3)
+npm run catalog          # src/catalog/catalog.json -> build/js/items.js (S3)
 
 npm run dev       # Vite dev server - the legacy demo against live source (S1)
 npm run build     # Vite library build -> dist/bp3djs.js (IIFE global BP3DJS)
@@ -67,7 +69,13 @@ tests/
 │
 │  DOM contract (S2) — environment: jsdom, declared per file
 ├─ floorplanner-2d.test.js  pointer input, rect coordinates, DPR, 2D dispose
-└─ viewer-lifecycle.test.js Main/Controller/BlueprintJS mount, picking, unmount
+├─ viewer-lifecycle.test.js Main/Controller/BlueprintJS mount, picking, unmount
+│
+│  assets (S3) — environment: jsdom
+├─ helpers/models.js        legacy + glTF loading, geometry measures, and a
+│                           verbatim copy of the pre-S3 merge to diff against
+├─ model-conversion.test.js per-model A/B for all 25 conversions; merge A/B
+└─ catalog-and-shim.test.js catalog integrity, legacy URL rewriting, round trip
 ```
 
 ## Fixtures
@@ -97,6 +105,10 @@ attachment surface** of the 2D floorplanner and the 3D viewer: how they read
 pointer input, how they size themselves, and whether they let go of everything
 on `dispose()`.
 
+Since S3 it also covers the **asset pipeline**: that the 25 converted models
+carry the same geometry as the JSON originals, and that the merge rewrite in
+`core/geometry_merge.js` produces what the pre-S3 code produced.
+
 What still needs a real browser, and is checked by hand:
 
 - **Rendering.** Pixels are not asserted anywhere. The manual parity oracle in
@@ -109,6 +121,14 @@ What still needs a real browser, and is checked by hand:
   `npm run dev` and open `/tools/lifecycle-smoke.html`. It counts DOM listeners
   and live WebGL contexts across mount → destroy → remount cycles and prints a
   pass/fail verdict.
+- **Model shading.** `model-conversion.test.js` asserts shape — triangles,
+  bounds, surface area, vertex positions, UV convention. It cannot judge
+  whether a converted model *looks* right, because Lambert has no exact PBR
+  equivalent and the standard is "accepted", not identical. Run
+  [`tools/model-ab.html`](../tools/model-ab.html) for that: `npm run dev`, then
+  open `/tools/model-ab.html` for 25 side-by-side pairs, original left,
+  conversion right. **This page stops working in S4**, which deletes the
+  JSONLoader that renders the left column.
 
 ## Enabling seams
 
@@ -120,6 +140,7 @@ None changes default behaviour, and nothing in the library calls them.
 | `Utils.setRandomSource(fn)` | S0 | deterministic `Utils.guide()` ids |
 | `Scene#setItemLoader(fn)` | S0 | item loading without network I/O |
 | `Main.setRendererFactory(fn)` | S2 | mounting the 3D viewer without a WebGL context |
+| `Scene.legacyJsonLoadCount` | S3 | evidence that the retired JSONLoader is never entered |
 
 `Floorplan.loadFloorplan` also null-guards `this.carbonSheet` (S0), so headless
 and widget-mode loads of designs containing a carbon sheet no longer throw.

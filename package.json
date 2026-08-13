@@ -13,6 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "fixtures": "node tools/make-fixtures.mjs",
+    "convert:models": "node tools/convert-legacy-json.mjs",
+    "catalog": "node tools/make-demo-catalog.mjs",
     "lint": "eslint .",
     "docs": "esdoc"
   },

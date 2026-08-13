@@ -83,9 +83,12 @@ export default [
 			globals: {
 				console: 'readonly',
 				process: 'readonly',
+				Buffer: 'readonly',
 				__dirname: 'readonly',
 				document: 'readonly',
 				window: 'readonly',
+				setTimeout: 'readonly',
+				clearTimeout: 'readonly',
 			},
 		},
 		rules: {

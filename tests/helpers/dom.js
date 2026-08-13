@@ -27,6 +27,11 @@ export function createContext2DStub()
 		setTransform: record('setTransform'),
 		translate: record('translate'),
 		scale: record('scale'),
+		rotate: record('rotate'),
+		save: record('save'),
+		restore: record('restore'),
+		setLineDash: record('setLineDash'),
+		measureText: (text) => ({width: String(text).length * 6}),
 		// drawing
 		clearRect: record('clearRect'),
 		fillRect: record('fillRect'),
