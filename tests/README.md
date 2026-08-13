@@ -43,7 +43,6 @@ deliberately. Examples pinned by this suite:
 | Saved coordinates are stored in the **active display unit**, not centimetres | `floorplan.js` save/load via `Dimensioning.cmToMeasureRaw` |
 | `Utils.pointInPolygon` always returns false (wrong arity) — item placement relies on the stable output | `core/utils.js` |
 | `Utils.isClockwise` derives `tSubY` from `p.x` | `core/utils.js` |
-| `Version.isVersionHigherThan` returns `0`/`1` and means per-component `>=` | `core/version.js` |
 | Walls snapshot `wallHeight`/`wallThickness` at construction; later config changes do not apply retroactively | `model/wall.js` |
 | Only corners referenced by a fully-connected wall are serialized | `floorplan.js` |
 
@@ -66,6 +65,7 @@ Expectations retired that way so far, all listed as FIX in the ledger:
 | `OrbitControls` left a document keydown behind if the host detached the element first | S6 | `viewer-lifecycle.test.js` |
 | The corner panel never followed a drag - it listened for the setter event, and `Corner.move()` dispatches only `EVENT_MOVED` | S7 | `app-inspector.test.js` |
 | The r98 colour freeze - both halves of it, plus the hex-literal consequence | S8 | `viewer-lifecycle.test.js` |
+| `Version.isVersionHigherThan` compared its arguments backwards, returned `0`/`1`/`false` from one function, and threw on a hand-edited file. Nine quirk tests replaced; the load gate that depended on it now reads the wall record | post-S9 | `dimensioning.test.js`, `serialization.test.js` |
 
 One S0 test **fired as designed** in S4 rather than being retired: the
 zero-length `wallSize` setter produced NaN coordinates that r98's

@@ -766,85 +766,93 @@ describe('Config snapshotting - Wall captures thickness/height at construction',
 });
 
 
-describe('Version.isVersionHigherThan', () =>
+describe('Version', () =>
 {
-	it('returns the NUMBER 1, not the boolean true, when the comparison holds', () =>
+	/*
+	 * These used to be nine PRESERVED QUIRK tests pinning a comparator that did
+	 * the opposite of what its name said. It compared `checkVersion[i] >=
+	 * version[i]` per component as an AND, returned the numbers 1 and 0 from
+	 * `flag &=` except on two paths that returned the boolean false, threw on an
+	 * undefined second argument, and treated '1.0.0' and '0.9.9' as neither
+	 * above nor below each other.
+	 *
+	 * The migration preserved it deliberately - Floorplan.loadFloorplan gated
+	 * curved-wall control points on it, so changing it changed what designs
+	 * looked like. That gate now reads the wall record instead, which is what
+	 * finally made the format versionable and this fixable. The quirk tests are
+	 * the checklist they were meant to be; every line below replaces one.
+	 */
+
+	it('orders versions the way its name reads', () =>
 	{
-		const result = Version.isVersionHigherThan('0.0.2a', '0.0.2a');
-		expect(typeof result).toBe('number');
-		expect(result).toBe(1);
-		expect(result).toBeTruthy();
+		expect(Version.isVersionHigherThan('0.0.2', '0.0.1')).toBe(true);
+		expect(Version.isVersionHigherThan('0.0.1', '0.0.2')).toBe(false);
+		expect(Version.isVersionHigherThan('0.0.10', '0.0.9')).toBe(true);
+		expect(Version.isVersionHigherThan('0.0.9', '0.0.10')).toBe(false);
 	});
 
-	it('returns the NUMBER 0, not the boolean false, when the comparison fails', () =>
+	it('is strict, so a version is not higher than itself', () =>
 	{
-		const result = Version.isVersionHigherThan('0.0.2', '0.0.1');
-		expect(typeof result).toBe('number');
-		expect(result).toBe(0);
+		expect(Version.isVersionHigherThan('0.0.2a', '0.0.2a')).toBe(false);
+		expect(Version.isVersionHigherThan(Version.getTechnicalVersion(), Version.getTechnicalVersion())).toBe(false);
+		// The >= form is a separate function rather than an inverted call, which
+		// is exactly how the original went wrong.
+		expect(Version.isVersionAtLeast('0.0.2a', '0.0.2a')).toBe(true);
+		expect(Version.isVersionAtLeast('0.0.1', '0.0.2')).toBe(false);
 	});
 
-	it('PRESERVED QUIRK: comparing a version against itself is truthy - the test is ">=" per component', () =>
+	it('returns booleans, not the numbers 1 and 0', () =>
 	{
-		// `flag &= (checkVersion[i] >= version[i])`, so equality passes. Callers
-		// that gate on "the saved file is newer than X" also accept "exactly X".
-		expect(Version.isVersionHigherThan('0.0.2a', '0.0.2a')).toBe(1);
-		expect(Version.isVersionHigherThan('0.0.2', '0.0.2')).toBe(1);
-		expect(Version.isVersionHigherThan(Version.getTechnicalVersion(), Version.getTechnicalVersion())).toBe(1);
+		expect(typeof Version.isVersionHigherThan('0.0.2', '0.0.1')).toBe('boolean');
+		expect(typeof Version.isVersionHigherThan('0.0.1', '0.0.2')).toBe('boolean');
+		expect(typeof Version.isVersionHigherThan(undefined, '0.0.2')).toBe('boolean');
+		expect(typeof Version.isVersionAtLeast('1.2', '1.2.3')).toBe('boolean');
 	});
 
-	it('PRESERVED QUIRK: the argument order is inverted relative to the name', () =>
+	it('orders left to right, so a major bump wins whatever follows it', () =>
 	{
-		// isVersionHigherThan(version, checkVersion) is truthy when checkVersion
-		// is >= version, i.e. it answers "is checkVersion at least version?".
-		expect(Version.isVersionHigherThan('0.0.1', '0.0.2')).toBe(1);
-		expect(Version.isVersionHigherThan('0.0.2', '0.0.1')).toBe(0);
-		expect(Version.isVersionHigherThan('0.0.9', '0.0.10')).toBe(1);
-		expect(Version.isVersionHigherThan('0.0.10', '0.0.9')).toBe(0);
+		// The old per-component AND collapsed this to false in BOTH directions.
+		expect(Version.isVersionHigherThan('1.0.0', '0.9.9')).toBe(true);
+		expect(Version.isVersionHigherThan('0.9.9', '1.0.0')).toBe(false);
+		expect(Version.compare('1.0.0', '0.9.9')).toBe(1);
+		expect(Version.compare('0.9.9', '1.0.0')).toBe(-1);
 	});
 
-	it('PRESERVED QUIRK: the comparison is a per-component AND, not lexicographic ordering', () =>
+	it('pads the shorter version rather than giving up on it', () =>
 	{
-		// 1.0.0 IS newer than 0.9.9, but the minor/patch components fail the
-		// >= test, so the whole comparison collapses to 0 in BOTH directions.
-		expect(Version.isVersionHigherThan('0.9.9', '1.0.0')).toBe(0);
-		expect(Version.isVersionHigherThan('1.0.0', '0.9.9')).toBe(0);
+		// Mismatched component counts used to return false out of hand, which is
+		// what would have rejected a file stamped '1.0'.
+		expect(Version.compare('1.2', '1.2.0')).toBe(0);
+		expect(Version.compare('1.2', '1.2.3')).toBe(-1);
+		expect(Version.compare('1.3', '1.2.3')).toBe(1);
+		expect(Version.isVersionAtLeast('1.2', '1.2.0')).toBe(true);
 	});
 
-	it('strips non-digit characters, so the "a" in 0.0.2a is ignored', () =>
+	it('still parses leniently, because 0.0.2a is a real version in the wild', () =>
 	{
-		expect(Version.isVersionHigherThan('0.0.2', '0.0.2a')).toBe(1);
-		expect(Version.isVersionHigherThan('0.0.2a', '0.0.3')).toBe(1);
-		expect(Version.isVersionHigherThan('1.0.0-beta', '1.0.0-beta')).toBe(1);
+		expect(Version.compare('0.0.2a', '0.0.2')).toBe(0);
+		expect(Version.compare('1.0.0-beta', '1.0.0')).toBe(0);
+		expect(Version.isVersionHigherThan('0.0.3', '0.0.2a')).toBe(true);
 	});
 
-	it('PRESERVED QUIRK: mismatched component counts return the BOOLEAN false, not 0', () =>
+	it('treats an absent or unusable version as the oldest thing there is', () =>
 	{
-		// Three different return types out of one function: 1, 0 and false.
-		const result = Version.isVersionHigherThan('1.2', '1.2.3');
-		expect(typeof result).toBe('boolean');
-		expect(result).toBe(false);
-	});
-
-	it('PRESERVED QUIRK: an undefined/null version short-circuits to the BOOLEAN false', () =>
-	{
+		// It no longer throws on either argument - a save file is user input, and
+		// the two paths that threw were reachable from a hand-edited one.
 		expect(Version.isVersionHigherThan(undefined, '0.0.2')).toBe(false);
 		expect(Version.isVersionHigherThan(null, '0.0.2')).toBe(false);
+		expect(Version.isVersionHigherThan(0, '0.0.0')).toBe(false);
+		expect(Version.isVersionHigherThan('', '0.0.0')).toBe(false);
+		expect(Version.isVersionAtLeast(undefined, '0.0.0')).toBe(false);
+		expect(() => Version.isVersionHigherThan('0.0.1', undefined)).not.toThrow();
+		expect(Version.isVersionHigherThan('0.0.1', undefined)).toBe(true);
 	});
 
-	it('PRESERVED QUIRK: an undefined checkVersion throws instead of returning false', () =>
+	it('sorts unparseable components as zero rather than NaN', () =>
 	{
-		// Only the first argument is guarded.
-		expect(() => Version.isVersionHigherThan('0.0.1', undefined)).toThrow(TypeError);
-	});
-
-	it('PRESERVED QUIRK: a non-string version throws, because the guard tests != undefined only', () =>
-	{
-		expect(() => Version.isVersionHigherThan(0, '0.0.0')).toThrow(TypeError);
-	});
-
-	it('unparseable components compare as NaN and yield 0', () =>
-	{
-		expect(Version.isVersionHigherThan('a.b.c', '0.0.0')).toBe(0);
+		expect(Version.compare('a.b.c', '0.0.0')).toBe(0);
+		expect(Version.isVersionHigherThan('a.b.c', '0.0.0')).toBe(false);
+		expect(Version.isVersionHigherThan('1.0.0', 'a.b.c')).toBe(true);
 	});
 
 	it('pins the informal and technical version strings', () =>

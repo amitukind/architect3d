@@ -608,20 +608,43 @@ export class Floorplan extends EventDispatcher
 			{
 				newWall.backTexture = wall.backTexture;
 			}
-			// Adding of a, b, wallType (straight, curved) for walls happened
-			// with introduction of 0.0.2a
-			if(Version.isVersionHigherThan(floorplan.version, '0.0.2a'))
+			// Control points and wallType arrived with save format 0.0.2a. Whether
+			// a given file carries them is a property of THAT FILE, so ask the
+			// record rather than the version stamp.
+			//
+			// This used to read
+			// `if (Version.isVersionHigherThan(floorplan.version, '0.0.2a'))`,
+			// and that call is the reason the save format could not be versioned.
+			// isVersionHigherThan compares its arguments the other way round from
+			// the way its name reads - it is true when the SECOND is >= the first,
+			// per component, as an AND - so the gate let 0.0.2a and anything older
+			// through and rejected everything newer. Stamping a file 0.0.3, 0.1.0
+			// or 1.0.0 turned every curved wall straight and dropped its control
+			// points, with no error. Bumping `version` for any reason at all -
+			// a unit stamp, a colour-space marker - would have silently corrupted
+			// every curved design in existence.
+			//
+			// Reading the data directly removes the trap rather than reasoning
+			// about it, and is what the gate was always a proxy for. It is also
+			// strictly safer: the old form assigned `wall.a` unconditionally once
+			// the version matched, so a file with a version but no control points
+			// threw inside the setter.
+			//
+			// Behaviour is unchanged for every file that can exist. A genuine
+			// pre-0.0.2a file has no `a`/`b` and no `wallType`, so both branches
+			// are skipped exactly as before and the wall keeps the straight
+			// defaults its constructor computed.
+			if (wall.a && wall.b)
 			{
 				newWall.a = wall.a;
 				newWall.b = wall.b;
-				if(wall.wallType == 'CURVED')
-				{
-					newWall.wallType = WallTypes.CURVED;
-				}
-				else
-				{
-					newWall.wallType = WallTypes.STRAIGHT;
-				}
+			}
+			if (wall.wallType !== undefined)
+			{
+				// Anything that is not exactly 'CURVED' means straight, including
+				// lower-case 'curved'. Preserved: WallTypes are Symbols and this is
+				// their description, so the file carries the description string.
+				newWall.wallType = (wall.wallType === 'CURVED') ? WallTypes.CURVED : WallTypes.STRAIGHT;
 			}
 		});
 

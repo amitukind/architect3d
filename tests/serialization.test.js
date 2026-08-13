@@ -726,35 +726,78 @@ describe('loadFloorplan - the a/b/wallType version gate', () =>
 		expect([wall.b.x, wall.b.y]).toEqual([300, 150]);
 	});
 
-	// QUIRK: the comparison inside isVersionHigherThan is inverted - it tests
-	// checkVersion[i] >= givenVersion[i]. So an OLDER file passes the gate...
-	it('also applies them for an OLDER file version, because the comparison is inverted', () =>
+	it('applies them for an OLDER file version too', () =>
 	{
 		const wall = loadWithVersion('0.0.1');
 		expect(wall.wallType).toBe(WallTypes.CURVED);
 		expect([wall.a.x, wall.a.y]).toEqual([100, 150]);
 	});
 
-	// ...and a NEWER file fails it, silently discarding the curve.
-	it('silently discards a, b and wallType for a NEWER file version', () =>
+	// The three tests below used to assert the opposite, under "QUIRK: the
+	// comparison inside isVersionHigherThan is inverted". They are the reason
+	// the save format could not be versioned: a file stamped anything newer
+	// than 0.0.2a had every curved wall turned straight and its control points
+	// thrown away, silently. Since the format now needs a version bump for the
+	// unit stamp, that had to go, and the gate reads the wall record instead of
+	// the version. See the comment in floorplan.js.
+	it('applies them for a NEWER file version - the version no longer decides', () =>
 	{
 		const wall = loadWithVersion('0.0.3');
-		expect(wall.wallType).toBe(WallTypes.STRAIGHT);
-		expect(round(wall.a.x)).toBe(141.4214);
-		expect(round(wall.a.y)).toBe(141.4214);
+		expect(wall.wallType).toBe(WallTypes.CURVED);
+		expect([wall.a.x, wall.a.y]).toEqual([100, 150]);
 	});
 
-	it('discards them when the file carries no version at all', () =>
+	it('applies them whatever the version looks like, including malformed ones', () =>
 	{
+		for (const version of ['0.0', '0.0.2.1', '1.0.0', '2.0.0', 'not-a-version'])
+		{
+			expect(loadWithVersion(version).wallType, version).toBe(WallTypes.CURVED);
+		}
+	});
+
+	it('applies them when the file carries no version at all', () =>
+	{
+		// A file can only reach this state by hand - saveFloorplan has always
+		// written a version - but if the control points are in the file they are
+		// what the author meant, whatever the stamp says.
 		const wall = loadWithVersion(undefined);
-		expect(wall.wallType).toBe(WallTypes.STRAIGHT);
-		expect(round(wall.a.x)).toBe(141.4214);
+		expect(wall.wallType).toBe(WallTypes.CURVED);
+		expect([wall.a.x, wall.a.y]).toEqual([100, 150]);
 	});
 
-	it('discards them when the version has a different number of components', () =>
+	it('leaves a genuine pre-0.0.2a file straight, because it carries no control points', () =>
 	{
-		expect(loadWithVersion('0.0').wallType).toBe(WallTypes.STRAIGHT);
-		expect(loadWithVersion('0.0.2.1').wallType).toBe(WallTypes.STRAIGHT);
+		// This is what "no version" actually looked like: the fields did not
+		// exist yet. The wall keeps the straight defaults the constructor
+		// computes from the two corners, which is the behaviour every such file
+		// has always had and the one that must not change.
+		const file = savedCurvedFile();
+		delete file.version;
+		file.walls.forEach((wall) =>
+		{
+			delete wall.a;
+			delete wall.b;
+			delete wall.wallType;
+		});
+		const reloaded = new Floorplan();
+		reloaded.loadFloorplan(file);
+
+		expect(reloaded.walls[0].wallType).toBe(WallTypes.STRAIGHT);
+		expect(round(reloaded.walls[0].a.x)).toBe(141.4214);
+		expect(round(reloaded.walls[0].a.y)).toBe(141.4214);
+	});
+
+	it('does not throw on a file that has a wallType but no control points', () =>
+	{
+		// The old gate assigned wall.a unconditionally once the version matched,
+		// so this threw inside the setter on `location.x`. Third-party and
+		// hand-edited files do exist.
+		const file = savedCurvedFile();
+		file.walls.forEach((wall) => {delete wall.a; delete wall.b;});
+		const reloaded = new Floorplan();
+
+		expect(() => reloaded.loadFloorplan(file)).not.toThrow();
+		expect(reloaded.walls[0].wallType).toBe(WallTypes.CURVED);
 	});
 
 	it('coerces any wallType string that is not exactly CURVED to STRAIGHT', () =>
@@ -767,19 +810,15 @@ describe('loadFloorplan - the a/b/wallType version gate', () =>
 		expect(reloaded.walls[0].wallType).toBe(WallTypes.STRAIGHT);
 	});
 
-	// QUIRK: isVersionHigherThan returns the numbers 1/0 from `flag &= ...`,
-	// except on the early-out paths where it returns the boolean false.
-	it('returns the numbers 1 and 0 from Version.isVersionHigherThan, not booleans', () =>
+	it('no longer consults Version at all on this path', () =>
 	{
-		expect(Version.isVersionHigherThan('0.0.2a', '0.0.2a')).toBe(1);
-		expect(Version.isVersionHigherThan('0.0.1', '0.0.2a')).toBe(1);
-		expect(Version.isVersionHigherThan('0.0.3', '0.0.2a')).toBe(0);
-	});
-
-	it('returns the boolean false from the two early-out paths', () =>
-	{
-		expect(Version.isVersionHigherThan(undefined, '0.0.2a')).toBe(false);
-		expect(Version.isVersionHigherThan('0.0', '0.0.2a')).toBe(false);
+		// The point of the rewrite: whatever the comparator says about a file's
+		// stamp, the curve survives. Asserted against the corrected comparator so
+		// the two cannot silently drift back into agreement.
+		expect(Version.isVersionHigherThan('0.0.3', '0.0.2a')).toBe(true);
+		expect(Version.isVersionHigherThan('0.0.1', '0.0.2a')).toBe(false);
+		expect(loadWithVersion('0.0.3').wallType).toBe(WallTypes.CURVED);
+		expect(loadWithVersion('0.0.1').wallType).toBe(WallTypes.CURVED);
 	});
 });
 
