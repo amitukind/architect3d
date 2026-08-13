@@ -15,3 +15,4 @@ coverage/
 dist/
 dist-demo/
 /index.html
+tools/parity/

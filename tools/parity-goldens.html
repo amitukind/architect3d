@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>architect3d - parity golden capture</title>
+<!--
+	One deterministic frame of the app, for pixel-parity capture.
+
+	The S5 exit gate asks for a side-by-side grid of three r98 against three
+	r185. That needs a reference, and the reference was never taken: S0 left the
+	golden screenshots uncaptured. It can still be produced, because the
+	`legacy-demo` tag ships a fully prebuilt `build/` - r98 bundle, jQuery,
+	textures and all - so the old engine can be served statically without
+	installing a single one of its packages.
+
+	This page is engine-agnostic on purpose. It talks only to the public BP3DJS
+	surface, which both builds expose as a global, and is copied into whichever
+	build/ directory is being served. Same page, same design, same assets, same
+	viewport - the only variable is which bp3djs.js is on disk.
+
+	Driven by tools/capture-parity.mjs; see that file for the run.
+
+	Deliberately not covered: catalog items. S3 and S4 already changed what a
+	loaded model looks like, on purpose and with their own A/B reviews, so
+	including one here would bake a known difference into the reference. What
+	this captures is what S5's gate actually names - the opacity fade, the
+	lightmap, shadows, the sky gradient and the view presets - none of which
+	involve an item.
+-->
+<style>
+	html, body
+	{
+		margin: 0;
+		padding: 0;
+		overflow: hidden;
+		background: #ffffff;
+	}
+	/* Both surfaces fill the viewport exactly, and only one is visible at a
+	   time. This is what makes the two engines agree on canvas size: r98 sizes
+	   the 3D view to window.innerWidth minus the element's offset, while r185
+	   (since S2) measures the container - identical when the container is the
+	   viewport at the origin. */
+	#viewer, #floorplanner
+	{
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+	}
+	.hidden
+	{
+		display: none !important;
+	}
+	#floorplanner-canvas
+	{
+		display: block;
+	}
+	#state
+	{
+		position: absolute;
+		left: 0;
+		bottom: 0;
+		z-index: 10;
+		font: 11px ui-monospace, SFMono-Regular, Menlo, monospace;
+		background: rgba(0, 0, 0, .72);
+		color: #fff;
+		padding: 2px 7px;
+	}
+</style>
+</head>
+<body>
+
+<div id="viewer"></div>
+<div id="floorplanner" class="hidden"><canvas id="floorplanner-canvas"></canvas></div>
+<div id="state">booting</div>
+
+<!-- jQuery is present only in the legacy build; S2 removed it from the
+     library. Loaded with a plain tag so the r185 root, which has no such file,
+     simply 404s it and carries on. -->
+<script src="js/jquery.js" onerror="void 0"></script>
+<script src="js/bp3djs.js"></script>
+<script>
+(function ()
+{
+	var params = new URLSearchParams(location.search);
+	var state = params.get('state') || 'boot';
+	var label = document.getElementById('state');
+
+	var viewer = document.getElementById('viewer');
+	var floorplanner = document.getElementById('floorplanner');
+
+	var blueprint = new BP3DJS.BlueprintJS({
+		floorplannerElement: 'floorplanner-canvas',
+		threeElement: '#viewer',
+		textureDir: 'models/textures/',
+		widget: false,
+	});
+	var three = blueprint.three;
+
+	// Centimetres, and set AFTER construction on purpose: the BlueprintJS
+	// constructor's first statement is setValue(configDimUnit, dimMeter), so
+	// anything set before it is discarded. The fixture stores raw coordinates in
+	// whatever the active display unit is, so loading it under metres multiplies
+	// the whole plan by 100 - a 450cm room lands 45,000 units from the origin,
+	// outside the camera's far plane and off the 10,000-unit ground. That is the
+	// serialization landmine in the roadmap, and it is easy to hit twice.
+	BP3DJS.Configuration.setValue(BP3DJS.configDimUnit, BP3DJS.dimCentiMeter);
+
+	/**
+	 * States, each a plain function of the booted app.
+	 *
+	 * Cameras are set explicitly rather than orbited into place: a golden is
+	 * only useful if the next engine can be put in exactly the same position,
+	 * and "wherever centerCamera happened to leave it" is not that.
+	 */
+	var STATES = {
+		boot: function () {},
+
+		top: function () {three.switchView(BP3DJS.VIEW_TOP);},
+		front: function () {three.switchView(BP3DJS.VIEW_FRONT);},
+		right: function () {three.switchView(BP3DJS.VIEW_RIGHT);},
+		left: function () {three.switchView(BP3DJS.VIEW_LEFT);},
+		isometry: function () {three.switchView(BP3DJS.VIEW_ISOMETRY);},
+
+		wireframe: function () {three.switchWireframe(true);},
+
+		// Eye height, just outside the plan, looking straight in.
+		//
+		// The walls nearest the camera face away from it, so edge.js drops them
+		// to 0.3 opacity and leaves the far ones solid - this is the state that
+		// proves the fade still works. Standing at the centre instead puts the
+		// lens flat against a brick wall and shows nothing at all.
+		inside: function ()
+		{
+			var floorplan = blueprint.model.floorplan;
+			var centre = floorplan.getCenter();
+			var size = floorplan.getSize();
+			three.controls.object.position.set(centre.x - size.x, 120, centre.z);
+			three.controls.target.set(centre.x, 100, centre.z);
+			three.controls.update();
+		},
+
+		// Straight down from directly above, close in, so the floor textures and
+		// their tiling scale fill the frame.
+		floors: function ()
+		{
+			var centre = blueprint.model.floorplan.getCenter();
+			three.controls.object.position.set(centre.x, 900, centre.z + 1);
+			three.controls.target.set(centre.x, 0, centre.z);
+			three.controls.update();
+		},
+
+		floorplan2d: function ()
+		{
+			viewer.classList.add('hidden');
+			floorplanner.classList.remove('hidden');
+			window.dispatchEvent(new Event('resize'));
+			if (blueprint.floorplanner)
+			{
+				blueprint.floorplanner.draw();
+			}
+		},
+	};
+
+	/**
+	 * Turn the live WebGL frame into an ordinary image.
+	 *
+	 * The renderer is built with alpha:true and no preserveDrawingBuffer, so its
+	 * buffer is cleared on present: by the time a screenshot composites the page
+	 * there is nothing behind the canvas and the shot comes out white. Rendering
+	 * continuously does not help - it widens the window rather than closing it.
+	 *
+	 * toDataURL called in the *same task* as the render reads the buffer before
+	 * it is presented, which is the one moment the pixels are guaranteed to be
+	 * there. Swapping in the resulting <img> takes WebGL out of the compositing
+	 * path entirely, so what gets captured is a plain PNG.
+	 */
+	function freeze()
+	{
+		var canvas = viewer.querySelector('canvas');
+		if (!canvas) { return; }
+
+		three.render(true);
+		var url = canvas.toDataURL('image/png');
+
+		var frozen = document.createElement('img');
+		frozen.src = url;
+		frozen.style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
+		canvas.style.display = 'none';
+		viewer.appendChild(frozen);
+	}
+
+	function finish(name)
+	{
+		// A one-line report of what was actually drawn, burned into the frame.
+		// A blank capture is otherwise indistinguishable from a correct render of
+		// an empty scene, and both look like white.
+		var canvas = viewer.querySelector('canvas');
+		var info = three.renderer && three.renderer.info;
+		label.textContent = name
+			+ ' | canvas ' + (canvas ? canvas.width + 'x' + canvas.height : 'NONE')
+			+ ' | element ' + three.elementWidth + 'x' + three.elementHeight
+			+ ' | scene ' + three.scene.scene.children.length
+			+ ' | walls ' + blueprint.model.floorplan.getWalls().length
+			+ ' | rooms ' + blueprint.model.floorplan.getRooms().length
+			+ ' | calls ' + (info ? info.render.calls : '?')
+			+ ' | tris ' + (info ? info.render.triangles : '?')
+			+ ' | frame ' + (info ? info.render.frame : '?')
+			+ ' | cam ' + fmt(three.camera.position)
+			+ ' -> ' + fmt(three.controls.target)
+			+ ' | near/far ' + three.camera.near + '/' + three.camera.far;
+	}
+
+	function fmt(v)
+	{
+		return v ? Math.round(v.x) + ',' + Math.round(v.y) + ',' + Math.round(v.z) : 'none';
+		// Both the harness and a human need to know the frame is final rather
+		// than mid-load; the screenshot run waits for this.
+		document.title = 'READY ' + name;
+		document.body.setAttribute('data-ready', name);
+	}
+
+	function run()
+	{
+		var apply = STATES[state];
+		if (!apply)
+		{
+			label.textContent = 'unknown state: ' + state;
+			document.title = 'ERROR';
+			return;
+		}
+		apply();
+
+		// Drive the frames by hand rather than waiting on the app's loop.
+		//
+		// render(forced) bypasses both the dirty-flag gate and pauseRender, which
+		// matters twice over: the loop can go quiet once nothing is animating, and
+		// a WebGL canvas without preserveDrawingBuffer has nothing to composite
+		// once its last frame has been presented. So keep drawing - the screenshot
+		// lands at some unknown point after this, and it must find a fresh frame.
+		var ticks = 0;
+		var pump = setInterval(function ()
+		{
+			three.needsUpdate = true;
+			three.render(true);
+			if (blueprint.floorplanner && state === 'floorplan2d')
+			{
+				blueprint.floorplanner.draw();
+			}
+			if (++ticks >= 40)
+			{
+				clearInterval(pump);
+				freeze();
+				finish(state);
+			}
+		}, 50);
+	}
+
+	fetch('parity-design.blueprint3d')
+		.then(function (response) {return response.text();})
+		.then(function (json)
+		{
+			blueprint.model.loadSerialized(json);
+			// One turn of the event loop so the model's own load events settle
+			// before any camera is moved.
+			setTimeout(run, 100);
+		})
+		.catch(function (error)
+		{
+			label.textContent = 'load failed: ' + error;
+			document.title = 'ERROR';
+		});
+}());
+</script>
+
+</body>
+</html>

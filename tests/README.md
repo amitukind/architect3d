@@ -163,9 +163,25 @@ carry the same geometry as the JSON originals, and that the merge rewrite in
 
 What still needs a real browser, and is checked by hand:
 
-- **Rendering.** Pixels are not asserted anywhere. The manual parity oracle in
-  the roadmap (§07) plus golden screenshots from the frozen `legacy-demo` tag
-  cover the 2D canvas and the three.js view.
+- **Rendering.** Pixels are not asserted anywhere, but they are now
+  *comparable*. `npm run parity` renders ten states — the view presets, the
+  0.3-opacity fade, floor tiling, wireframe and the 2D canvas — through both
+  three r98 and the working tree, and writes a side-by-side grid to
+  `tools/parity/index.html`. The r98 side needs no npm install: the
+  `legacy-demo` tag ships a prebuilt bundle, which is served as static files.
+
+  Nothing is committed as a golden PNG on purpose. A software-GL screenshot is
+  not portable between machines or Chrome versions, so a checked-in reference
+  would drift into noise; capturing both sides in the same run, in the same
+  environment, is what stays meaningful. It needs a worktree at the tag:
+
+  ```bash
+  git worktree add --detach ../legacy legacy-demo
+  npm run build && npm run parity
+  ```
+
+  This is what caught the S4 lightmap regression — walls were rendering pi
+  times too dark, and no headless test could have seen it.
 - **WebGL context release.** `viewer-lifecycle.test.js` injects a fake renderer,
   so it can prove `dispose()` and `forceContextLoss()` were *called* but not
   that the driver freed the context. Run

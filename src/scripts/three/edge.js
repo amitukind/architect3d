@@ -213,6 +213,23 @@ export class Edge extends EventDispatcher
 			map: this.texture,
 			transparent: true,
 			lightMap: this.lightMap,
+			// x pi, to cancel the RECIPROCAL_PI three added to the basic material's
+			// lightmap term. The two shaders, side by side:
+			//
+			//   r98    indirectDiffuse += texel * lightMapIntensity
+			//   r185   indirectDiffuse += texel * lightMapIntensity * RECIPROCAL_PI
+			//
+			// so an unchanged lightmap arrives pi times darker and every wall in
+			// the app renders muddy. (Note this is the *basic* material's chunk.
+			// The lit materials' lights_fragment_maps had a leading PI in r98 and
+			// does not now, which is a different factor on a path this app does
+			// not use for walls.)
+			//
+			// Belongs to the S4 parity freeze and was missed there, because the
+			// freeze had no golden screenshots to be checked against. It showed up
+			// in the first frame tools/capture-parity.mjs produced. S8 removes it
+			// with the rest of the freeze.
+			lightMapIntensity: Math.PI,
 			opacity: 1.0,
 			wireframe: false,
 		});
