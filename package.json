@@ -22,11 +22,14 @@
     "test:watch": "vitest",
     "fixtures": "node tools/make-fixtures.mjs",
     "parity": "node tools/capture-parity.mjs",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "docs": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/amitukind/architect3D.git"
+    "url": "https://github.com/amitukind/architect3d.git"
   },
   "author": "#0K Amit Verma <amitverma.ukind@gmail.com> (@amitukind)",
   "license": "ISC",
@@ -38,6 +41,7 @@
     "eslint-plugin-vue": "^10.10.0",
     "jsdom": "^30.0.1",
     "vite": "^8.2.1",
+    "vitepress": "^1.6.4",
     "vitest": "^4.1.10"
   },
   "dependencies": {

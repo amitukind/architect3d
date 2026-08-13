@@ -19,7 +19,6 @@ Two kinds of test live here, and the distinction matters when one fails:
 npm test                 # run once
 npm run test:watch
 npm run fixtures         # regenerate tests/fixtures/*.blueprint3d
-npm run catalog          # src/catalog/catalog.json -> build/js/items.js (S3)
 
 # Historical, and they say so when run: these three need three r98 and refuse
 # to run against r185. Their output is checked in.
@@ -27,7 +26,7 @@ node tools/convert-legacy-json.mjs        # the 25 .glb conversions (S3)
 node tools/capture-geometry-goldens.mjs   # tests/fixtures/geometry-r98.json (S4)
 node tools/capture-model-goldens.mjs      # the two legacy-*-r98.json fixtures (S4)
 
-npm run dev       # Vite dev server: the Vue app, plus /legacy.html (S6)
+npm run dev       # Vite dev server: the Vue app on port 10001
 npm run build     # Vite library build -> dist/bp3djs.js (IIFE global BP3DJS)
 npm run lint      # ESLint 10 flat config
 ```

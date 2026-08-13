@@ -26,6 +26,12 @@ export default [
 			'index.html',
 			'node_modules/**',
 			'tools/parity/**',   // capture output: served copies of every engine's asset root
+
+			// VitePress output and cache, not docs/** wholesale: the config
+			// beside them IS source and is linted below.
+			'docs/.vitepress/dist/**',
+			'docs/.vitepress/cache/**',
+			'.vitepress/**',
 		],
 	},
 
@@ -138,7 +144,7 @@ export default [
 
 	{
 		// Tests and tooling: Node environment.
-		files: ['tests/**/*.js', 'tools/**/*.mjs', '*.config.js', '*.config.mjs'],
+		files: ['tests/**/*.js', 'tools/**/*.mjs', '*.config.js', '*.config.mjs', 'docs/.vitepress/*.mjs'],
 		languageOptions: {
 			ecmaVersion: 2022,
 			sourceType: 'module',
