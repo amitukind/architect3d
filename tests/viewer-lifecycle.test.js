@@ -159,6 +159,29 @@ describe('Main mounting', () =>
 		three.dispose();
 	});
 
+	it('renders at the display density, clamped', () =>
+	{
+		// Commented out for the life of the project until S8, so the 3D view was
+		// always drawn at one device pixel per CSS pixel and upscaled - soft on
+		// any retina display, next to a 2D canvas that has been sharp since S2.
+		// Shares that sprint's pixelRatio() helper, which clamps at 4 so a very
+		// dense display cannot ask for an absurd number of fragments.
+		const {viewer} = buildViewerDom();
+		window.devicePixelRatio = 2;
+		const three = new Main(new Model(), viewer, 'three-canvas', {});
+
+		expect(three.renderer.pixelRatio).toBe(2);
+		// setSize still takes CSS pixels; the ratio is what scales the buffer.
+		expect(three.renderer.size).toEqual({width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT});
+
+		window.devicePixelRatio = 8;
+		three.updateWindowSize();
+		expect(three.renderer.pixelRatio).toBe(4);
+
+		window.devicePixelRatio = 1;
+		three.dispose();
+	});
+
 	it('resizes when the container resizes, not only when the window does', () =>
 	{
 		const {viewer} = buildViewerDom({width: 640, height: 400});

@@ -8,7 +8,7 @@ import {PointerLockControls} from './pointerlockcontrols.js';
 import {EVENT_UPDATED, EVENT_WALL_CLICKED, EVENT_NOTHING_CLICKED, EVENT_FLOOR_CLICKED, EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED, EVENT_GLTF_READY} from '../core/events.js';
 import {EVENT_CAMERA_ACTIVE_STATUS, EVENT_FPS_EXIT, EVENT_CAMERA_VIEW_CHANGE} from '../core/events.js';
 import {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY} from '../core/constants.js';
-import {resolveElement, elementBox, measureViewport} from '../core/dom.js';
+import {resolveElement, elementBox, measureViewport, pixelRatio} from '../core/dom.js';
 
 import {OrbitControls} from './orbitcontrols.js';
 
@@ -167,7 +167,6 @@ export class Main extends EventDispatcher
 		renderer.setClearColor( 0xFFFFFF, 1 );
 		renderer.clippingPlanes = this.clippingEmpty;
 		renderer.localClippingEnabled = false;
-//		renderer.setPixelRatio(window.devicePixelRatio);
 // renderer.sortObjects = false;
 
 		return renderer;
@@ -515,6 +514,25 @@ export class Main extends EventDispatcher
 		scope.fpscamera.aspect = scope.elementWidth / scope.elementHeight;
 		scope.fpscamera.updateProjectionMatrix();
 
+		// Render at the display's real resolution.
+		//
+		// This line was commented out for the life of the project, so the 3D view
+		// has always been drawn at one device pixel per CSS pixel and upscaled -
+		// visibly soft on any retina display, while the 2D floorplanner beside it
+		// has been sharp since S2, which is where `pixelRatio()` comes from.
+		// Sharing that helper matters for more than tidiness: it clamps at 4, so a
+		// 3x or 5x display cannot quietly ask for 25 times the fragments, and it
+		// answers 1 where there is no window at all.
+		//
+		// Set here rather than once at construction so it follows a window dragged
+		// between displays of different density, which is the case a
+		// construction-time call gets wrong.
+		//
+		// Costs fragments and nothing else: the shadow map is a fixed 1024 and
+		// unaffected, and picking is normalised against CSS pixels, so nothing
+		// downstream has to know. `setSize` must come after, because it is what
+		// applies the ratio to the drawing buffer.
+		scope.renderer.setPixelRatio(pixelRatio());
 		scope.renderer.setSize(scope.elementWidth, scope.elementHeight);
 		scope.needsUpdate = true;
 	}
