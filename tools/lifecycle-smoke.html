@@ -280,10 +280,22 @@ function render()
 		verdict.textContent = 'Mounted - unmount to check the balance.';
 		return;
 	}
+
+	// Nothing mounted yet means nothing has been proved. Reporting PASS off a
+	// zeroed table is worse than reporting nothing: it lets the exit gate be
+	// satisfied by opening the page, which is exactly what happened the first
+	// time this was run for real.
+	if (contextsCreated === 0)
+	{
+		verdict.className = '';
+		verdict.textContent = 'Not run yet - press "Run 5 cycles" (or Mount, then Unmount).';
+		return;
+	}
+
 	const clean = leaked === 0 && live === 0;
 	verdict.className = clean ? 'ok' : 'bad';
 	verdict.textContent = clean
-		? 'PASS - every listener detached, every context released.'
+		? `PASS - ${contextsCreated} context(s) created and all released, every listener detached.`
 		: `FAIL - ${leaked} listener(s) and ${live} WebGL context(s) still held.`;
 }
 

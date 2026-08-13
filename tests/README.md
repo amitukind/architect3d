@@ -182,10 +182,12 @@ What still needs a real browser, and is checked by hand:
 - **The node-transform fix.** `mergeMeshes` now bakes each mesh's world matrix,
   which moves 42 of the 168 catalog models. Run
   [`tools/merge-transform-ab.html`](../tools/merge-transform-ab.html) for that:
-  `npm run dev`, then open `/tools/merge-transform-ab.html`. Both frames of a
-  pair share one camera fitted to the union of the two results, so a difference
-  in size or position shows rather than being normalised away. 21 of the 42 only
-  moved; the 21 that were also resized are the actual review.
+  `npm run dev`, then open `/tools/merge-transform-ab.html`. Each pair is shown
+  twice — under one shared camera (what changed) and framed individually (does
+  it look right) — and sorted worst-first. Models are tagged from their node
+  matrices, not their bounds: **24 moved, 2 rotated, 14 uniformly rescaled, 2
+  genuinely stretched**. Only the last two can have deformed geometry, so those
+  are the review.
 
 ## Enabling seams
 

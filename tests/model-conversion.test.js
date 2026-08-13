@@ -29,6 +29,7 @@ import {fileURLToPath} from 'node:url';
 import {dirname, join} from 'node:path';
 import {mergeMeshes} from '../src/scripts/core/geometry_merge.js';
 import {LEGACY_MODEL_NAMES} from '../src/scripts/core/legacy_models.js';
+import {classifyNodeTransform} from '../tools/node-transform-class.mjs';
 import {
 	LEGACY_MERGE_RESULTS, LEGACY_MODEL_SHAPES, boundsOf, installImageStub, loadGltf,
 	loadLegacyMaterials, mergeWithLocalMatrices, positionDigest, surfaceArea, triangleCount, uvDigest,
@@ -393,39 +394,60 @@ describe('the merge pipeline rewrite', () =>
 		expect(sizeOf(merged)).toBeLessThan(2);
 	});
 
-	it('splits the 42 into 21 that only moved and 21 that were also mis-sized', () =>
+	it('changes the shape of exactly two models, and leaves the other forty rigid', async () =>
 	{
-		// What the fix actually does, stated as data rather than as a claim about
-		// how the models look.
+		// How much of the fix actually needs a human eye, read off the node
+		// matrices rather than guessed at from bounding boxes.
 		//
-		// Half the affected models sit under a node that only translates or
-		// rotates: those were drawn at the right size in the wrong place, and
-		// there is nothing to weigh up - a mesh in the wrong place is a bug on
-		// any reading. The other half sit under a node that also scales, so their
-		// size changes, and that is the part a human has to sign off. The split
-		// is pinned here so it cannot drift unnoticed, and so the reviewer knows
-		// how much of tools/merge-transform-ab.html actually needs their
-		// attention.
-		const heightOf = (bounds) => bounds[4] - bounds[1];
-		const affected = Object.values(LEGACY_MERGE_RESULTS).filter((record) => record.nodeTransformAffected);
+		// Bounds cannot answer this. An axis-aligned box changes just as much
+		// under a rotation as under a squash, so a before/after bounds comparison
+		// reports "resized" for models whose geometry is untouched - which is how
+		// an earlier version of this test arrived at a 21/21 split by measuring
+		// the y axis alone. Decomposing the parents' contribution gives the real
+		// answer, and it is a far smaller review: 24 models have parts translated
+		// into place and 2 are rotated (both rigid - the mesh is not altered),
+		// 14 are uniformly rescaled (same shape, different size), and only 2 are
+		// genuinely stretched.
+		const counts = {translate: 0, rotate: 0, uniform: 0, nonuniform: 0};
+		const stretched = [];
 
-		const rescaled = affected.filter((record) =>
-			Math.abs(heightOf(record.worldBounds) / heightOf(record.localBounds) - 1) > 0.01);
-		const movedOnly = affected.filter((record) =>
-			Math.abs(heightOf(record.worldBounds) / heightOf(record.localBounds) - 1) <= 0.01);
-
-		expect(affected.length).toBe(42);
-		expect(movedOnly.length).toBe(21);
-		expect(rescaled.length).toBe(21);
-
-		// Only one of the rescaled models changes size by more than 3x, and it is
-		// the Khronos sample rather than a piece of catalog furniture.
-		const extreme = rescaled.filter((record) =>
+		for (const model of models)
 		{
-			const ratio = heightOf(record.worldBounds) / heightOf(record.localBounds);
-			return ratio > 3 || ratio < 1 / 3;
-		});
-		expect(extreme.length).toBe(1);
+			if (!LEGACY_MERGE_RESULTS[model].nodeTransformAffected) { continue; }
+			const path = join(ROOT, 'build', model);
+			const gltf = await loadGltf(path, `${dirname(path)}/`);
+			const kind = classifyNodeTransform(gltf.scene);
+			counts[kind] += 1;
+			if (kind === 'nonuniform') { stretched.push(model); }
+		}
+
+		expect(counts).toEqual({translate: 24, rotate: 2, uniform: 14, nonuniform: 2});
+		expect(stretched.sort()).toEqual([
+			'models/gltf/kitchenCoffeeMachine.glb',
+			'models/gltf/kitchenFridgeBuiltIn.glb',
+		]);
+	}, 120000);
+
+	it('applies a similarity transform to every model that is not stretched', () =>
+	{
+		// The consequence worth stating: for 40 of the 42 the transform is a
+		// similarity - translation, rotation, uniform scale - so no individual
+		// mesh is deformed. Only the two `nonuniform` models can be.
+		//
+		// Not to be overread as "those 40 look identical". Where a model is
+		// assembled from several meshes the fix moves them relative to each
+		// other, which is exactly the bug being fixed: bedBunk.glb had a mattress
+		// floating beside the frame and now has it on it.
+		//
+		// Duck.gltf is the extreme and is a single mesh, so it really is
+		// unchanged in shape: a uniform 0.01 on every axis.
+		const record = LEGACY_MERGE_RESULTS['models/js/Duck.gltf'];
+		const before = [0, 1, 2].map((i) => record.localBounds[i + 3] - record.localBounds[i]);
+		const after = [0, 1, 2].map((i) => record.worldBounds[i + 3] - record.worldBounds[i]);
+
+		// Every axis shrank by the same factor - the definition of uniform.
+		const ratios = after.map((value, i) => value / before[i]);
+		ratios.forEach((ratio) => {expect(ratio).toBeCloseTo(0.01, 5);});
 	});
 
 	it('emits material groups that index into the material array', async () =>
