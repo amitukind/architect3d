@@ -4,13 +4,33 @@
 
 ### Added
 
-* **A browser test tier.** `npm run test:browser` runs 17 tests through real
+* **`FloorplannerView2D.invalidate()` and `.flush()`**, and
+  **`Main.applyPendingResize()`**. See *Changed* for what they are for.
+* **An asset-integrity gate.** `tests/asset-integrity.test.js` checks that every
+  asset URL the project names actually resolves: every URL inside every saved
+  design in `tests/fixtures` — through the legacy model shim first, so that is
+  checked too — every image URI in all 165 `.glb` files together with its
+  declared mime type, and every catalog entry. A missed reference is otherwise a
+  runtime 404 and nothing else: `TextureLoader` logs and carries on,
+  `GLTFLoader` renders the base colour, and the application looks like it works.
+* **A budget on the largest single asset**, alongside the existing tree total.
+  `public/` was 15.03 MB against a 16.5 MB ceiling — inside budget, comfortably —
+  while 22% of it was one photograph in the wrong container. A tree total cannot
+  see that; a per-file ceiling can, and it is the shape of limit that matches how
+  an asset directory actually grows. `npm run budget` names the offending file.
+* **`asset-pipeline/compress-textures.mjs`**, which produced the re-encode below
+  and can be re-run. macOS only — it shells out to `sips`, because there is no
+  image library in the dependency tree and the output is committed, so the tool
+  that made it does not need to run in CI. What runs in CI is the budget.
+* **A browser test tier.** `npm run test:browser` runs 23 tests through real
   chromium: the 2D plan rasterised into a real canvas with its pixels read back,
   the 3D view composited through a real WebGL2 context and read with
-  `readPixels`, and axe-core over the booted application. Ten of the seventeen
-  headless suites run under jsdom against a canvas stub and a renderer stub, so
-  until now nothing had ever rasterised a pixel or composited a frame — a render
-  profile that came out black would have passed all 886 of them.
+  `readPixels`, axe-core over the booted application, the environment map
+  fetched and decoded, and frame coalescing against the compositor's real clock.
+  Ten of the eighteen headless suites run under jsdom against a canvas stub and
+  a renderer stub, so until now nothing had ever rasterised a pixel or
+  composited a frame — a render profile that came out black would have passed
+  all 910 of them.
 * **The package is publishable.** `three` and `bezier-js` are `peerDependencies`,
   and the new ESM entry externalises them — 81 KB gzipped against the IIFE's
   423 KB, which is the size of the second copy of three that used to ship to
@@ -105,6 +125,43 @@
 
 ### Changed
 
+* **The 2D plan repaints once per frame instead of three times per pointer
+  event.** `FloorplannerView2D.invalidate()` marks the view dirty and schedules
+  one `draw()` for the next animation frame; the interaction paths call it
+  instead of drawing synchronously. A drag used to reach all three of the
+  `pointermove` draw sites on *every* event — `updateTarget`, then the pan
+  branch, then the drag branch — so a press and three moves cost ten full canvas
+  repaints, grid and carbon sheet and every room, wall, corner and dimension
+  label included, on the input thread. A 1000 Hz mouse made that three thousand
+  a second for a display that can show sixty.
+
+  `draw()` is unchanged: still synchronous, still public, still the way to say
+  "paint now" for a caller that will read the canvas afterwards. `flush()` is
+  new, for a caller that needs any scheduled draw to have happened first.
+  Where there is no `requestAnimationFrame` at all, the view draws
+  synchronously exactly as before.
+* **Neither resize observer resizes a canvas from inside its own callback.**
+  `FloorplannerView2D` measures in the callback, where the measurement is
+  correct, and applies it on the next frame; `Main` raises a flag its existing
+  animation loop clears. Writing `style.width` on an element inside the observed
+  subtree during observation is what makes a browser report `ResizeObserver loop
+  completed with undelivered notifications`, and the browser tier previously had
+  to swallow that by exact message to stay green. `Main.applyPendingResize()` is
+  called once per frame and is public for hosts driving their own loop.
+* **21 opaque PNG textures re-encoded as JPEG.** `public/` is 10.62 MB, down
+  from 15.03 MB; the deployed tree is 17.22 MB, down from 21.59 MB. The
+  environment map alone was a 2048×1024 photograph stored losslessly at 3.4 MB
+  and is now 844 kB. Quality was measured rather than assumed — every conversion
+  is decoded back and compared with its original pixel by pixel, and the
+  per-file PSNR is recorded in `asset-pipeline/texture-compression.json`; the
+  worst is 37.8 dB. **This changes asset URLs**: `Skybox.defaultEnvironment` is
+  `rooms/textures/envs/Garden.jpg`, twelve `.glb` files name a `.jpg` texture,
+  and the catalog thumbnails follow.
+
+  Nothing else under `rooms/textures/` moved, and that is deliberate: those URLs
+  are serialized into saved designs, so renaming one breaks files that already
+  exist. `hardwood.png`, the default room texture, is 476 kB of photograph and
+  stays where it is for that reason.
 * **CI builds all three outputs, not one.** The application and the
   documentation builds previously ran only in the deploy job, on `master`, so a
   broken Vue template or an unresolvable Tailwind token reached `master` before

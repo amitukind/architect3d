@@ -193,7 +193,52 @@ describe('Main mounting', () =>
 		setLayout(viewer, {left: 0, top: 0, width: 900, height: 500});
 		observer.trigger();
 
+		// Deferred to the next frame since P6 - the observer raises a flag and the
+		// animation loop that is already running does the work. See the next test.
+		three.renderer.animationLoop();
+
 		expect(three.elementWidth).toBe(900);
+		expect(three.renderer.size).toEqual({width: 900, height: 500});
+		three.dispose();
+	});
+
+	it('does not resize the renderer inside the observer callback', () =>
+	{
+		// `renderer.setSize()` writes style.width and style.height on the canvas.
+		// Doing that from a ResizeObserver callback watching that canvas' own
+		// container is a layout change made during observation, and chromium
+		// answers it by deferring delivery and reporting `ResizeObserver loop
+		// completed with undelivered notifications` as a window error - which
+		// P5's browser tier had to swallow by exact message to keep the layout
+		// tests green. Deferring the write to the frame is what let that swallow
+		// be deleted.
+		const {viewer} = buildViewerDom({width: 640, height: 400});
+		const three = new Main(new Model(), viewer, 'three-canvas', {});
+
+		setLayout(viewer, {left: 0, top: 0, width: 900, height: 500});
+		observer.trigger();
+
+		expect(three.elementWidth).toBe(640);
+		expect(three.renderer.size).toEqual({width: 640, height: 400});
+
+		three.renderer.animationLoop();
+		expect(three.renderer.size).toEqual({width: 900, height: 500});
+		three.dispose();
+	});
+
+	it('applies a resize that arrived while the viewer was paused', () =>
+	{
+		// The hidden-pane case. `render()` returns early while paused, so applying
+		// the resize inside it would leave a pane that was resized while hidden
+		// coming back at its old size. It is applied from the loop instead.
+		const {viewer} = buildViewerDom({width: 640, height: 400});
+		const three = new Main(new Model(), viewer, 'three-canvas', {});
+		three.pauseTheRendering(true);
+
+		setLayout(viewer, {left: 0, top: 0, width: 900, height: 500});
+		observer.trigger();
+		three.renderer.animationLoop();
+
 		expect(three.renderer.size).toEqual({width: 900, height: 500});
 		three.dispose();
 	});

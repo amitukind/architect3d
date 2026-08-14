@@ -16,32 +16,48 @@
     "lib-esm-gzip guards a property, not a size: the ESM entry externalises three",
     "and bezier-js as peerDependencies. Losing that config takes it from ~81 KB to",
     "~423 KB, so the limit is set well below the bundled figure and nowhere near",
-    "the unbundled one."
+    "the unbundled one.",
+    "",
+    "P6 LOWERED three limits rather than raising them, which is the direction a",
+    "budget almost never moves. Re-encoding 21 opaque PNGs as JPEG took public-total",
+    "from 15.03 MB to 10.62 MB and demo-total from 21.59 MB to 17.22 MB; leaving the",
+    "old ceilings in place would have handed the next change 4 MB of slack it did",
+    "not earn. See asset-pipeline/texture-compression.json.",
+    "",
+    "public-largest is new in P6 and is the limit that would have caught the problem",
+    "in the first place. The tree was 15.03 MB against a 16.5 MB ceiling - inside",
+    "budget, comfortably - while 3.4 MB of it was a single photograph stored as PNG.",
+    "A tree total cannot see that; a per-file ceiling can, and it is the shape of",
+    "limit that matches how these directories actually grow."
   ],
   "budgets": {
     "demo-js-gzip": {
       "limit": 330000,
-      "measured": 312735
+      "measured": 314993
     },
     "demo-css-gzip": {
       "limit": 10000,
-      "measured": 7270
+      "measured": 7276
     },
     "demo-total": {
-      "limit": 24000000,
-      "measured": 22635414
+      "limit": 19000000,
+      "measured": 18061415
     },
     "lib-iife-gzip": {
       "limit": 450000,
-      "measured": 426795
+      "measured": 436083
     },
     "public-total": {
-      "limit": 16500000,
-      "measured": 15758069
+      "limit": 11700000,
+      "measured": 11138159
     },
     "lib-esm-gzip": {
       "limit": 100000,
-      "measured": 82934
+      "measured": 83177
+    },
+    "public-largest": {
+      "limit": 1450000,
+      "measured": 1364616
     }
   }
 }

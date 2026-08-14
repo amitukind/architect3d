@@ -49,7 +49,7 @@
 		{
 			"name": "Hard Wood",
 			"url": "rooms/textures/hardwood.png",
-			"thumbnail": "rooms/thumbnails/thumbnail_hardwood.png",
+			"thumbnail": "rooms/thumbnails/thumbnail_hardwood.jpg",
 			"stretch": false,
 			"scale": 300
 		}

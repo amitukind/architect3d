@@ -183,6 +183,7 @@ export default [
 				cancelAnimationFrame: 'readonly',
 				Image: 'readonly',
 				Uint8Array: 'readonly',
+				PointerEvent: 'readonly',
 			},
 		},
 		rules: {

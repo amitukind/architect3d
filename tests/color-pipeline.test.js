@@ -166,7 +166,7 @@ describe('every texture carries an explicit colour space', () =>
 		const texture = new THREE.Texture();
 		skybox.texture = {load(url, onLoad) {onLoad(texture);}};
 
-		skybox.setEnvironmentMap('rooms/textures/envs/Garden.png');
+		skybox.setEnvironmentMap('rooms/textures/envs/Garden.jpg');
 
 		expect(texture.colorSpace).toBe(THREE.SRGBColorSpace);
 		skybox.dispose();

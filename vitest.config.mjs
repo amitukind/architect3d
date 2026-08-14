@@ -72,9 +72,14 @@ export default defineConfig({
 				// Ratcheted from 74 by RM-002 P3, which added tests alongside three
 				// library fixes and pushed lines to 75.50%. Round down to the whole
 				// number; the point is that the floor only ever rises.
+				//
+				// P6 moved branches 61 -> 62. Lines and statements did not gain a
+				// whole point (75.50 -> 75.75, 75.66 -> 75.88) and are left alone:
+				// rounding down is what makes these floors rather than targets, and
+				// nudging one on a fraction starts the habit of tuning them.
 				lines: 75,
 				statements: 75,
-				branches: 61,
+				branches: 62,
 				functions: 73,
 			},
 		},

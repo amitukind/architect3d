@@ -36,7 +36,7 @@ export class Skybox extends EventDispatcher
 	{
 		super();
 		
-		this.defaultEnvironment = 'rooms/textures/envs/Garden.png';
+		this.defaultEnvironment = 'rooms/textures/envs/Garden.jpg';
 		this.useEnvironment = false;
 		this.topColor = renderProfile.skyTopColor;//0xe9e9e9; //0xf9f9f9;//0x565e63
 		this.bottomColor = renderProfile.skyBottomColor;//0xD8ECF9

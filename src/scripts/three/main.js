@@ -368,7 +368,16 @@ export class Main extends EventDispatcher
 
 		// Container-driven, with the window listener kept as the fallback for a
 		// container that has no layout size of its own (see core/dom.js).
-		this._resizeEvent = () => {scope.updateWindowSize();};
+		//
+		// Deferred to a frame since P6, for the reason FloorplannerView2D's
+		// containerResized() spells out: `renderer.setSize()` writes style.width
+		// and style.height on the canvas, and doing that from inside a
+		// ResizeObserver callback watching that canvas' own container is what makes
+		// the browser report `ResizeObserver loop completed with undelivered
+		// notifications`. The animation loop is already running, so this needs no
+		// scheduler of its own - it raises a flag the loop clears.
+		this._resizePending = false;
+		this._resizeEvent = () => {scope._deferResize();};
 		this._resizeObserver = null;
 		if (scope.options.resize)
 		{
@@ -390,7 +399,11 @@ export class Main extends EventDispatcher
 
 		function animate()
 		{
-			scope.renderer.setAnimationLoop(function(){scope.render();});
+			scope.renderer.setAnimationLoop(function()
+			{
+				scope.applyPendingResize();
+				scope.render();
+			});
 			scope.render();
 		}
 		scope.switchFPSMode(false);
@@ -643,6 +656,36 @@ export class Main extends EventDispatcher
 	setCursorStyle(cursorStyle)
 	{
 		this.domElement.style.cursor = cursorStyle;
+	}
+
+	/**
+	 * Note that the viewer needs resizing, without resizing it here (P6).
+	 *
+	 * Called from the ResizeObserver, where writing to the canvas' style would
+	 * provoke the loop notification. The measurement is deliberately not taken
+	 * yet either: by the time the frame runs, layout has settled, so measuring
+	 * then is if anything more accurate than measuring mid-observation.
+	 */
+	_deferResize()
+	{
+		this._resizePending = true;
+	}
+
+	/**
+	 * Resize if the observer asked for one. Called once per animation frame.
+	 *
+	 * Outside `render()` on purpose: `render()` returns early while paused, and a
+	 * pane that is resized while hidden and shown at the new size would otherwise
+	 * come back at the old one.
+	 */
+	applyPendingResize()
+	{
+		if (!this._resizePending)
+		{
+			return;
+		}
+		this._resizePending = false;
+		this.updateWindowSize();
 	}
 
 	updateWindowSize()

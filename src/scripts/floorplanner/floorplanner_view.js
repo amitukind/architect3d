@@ -158,6 +158,34 @@ export function setFloorplannerPalette(values)
 }
 
 /**
+ * Ask for an animation frame, or say there is no frame clock to ask.
+ *
+ * Read off `window` at call time rather than captured at module load, because
+ * the jsdom suites install and remove their stubs between tests and a captured
+ * reference would keep pointing at a torn-down one. Returns null where there is
+ * no rAF at all - a non-visual jsdom, a server render - and the caller draws
+ * synchronously instead, which is what the view did everywhere before P6.
+ *
+ * @returns {?number} the frame handle, or null if there is no frame clock
+ */
+function requestFrame(callback)
+{
+	if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function')
+	{
+		return window.requestAnimationFrame(callback);
+	}
+	return null;
+}
+
+function cancelFrame(handle)
+{
+	if (handle !== null && typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function')
+	{
+		window.cancelAnimationFrame(handle);
+	}
+}
+
+/**
  * The View to be used by a Floorplanner to render in/interact with.
  */
 export class FloorplannerView2D
@@ -185,11 +213,19 @@ export class FloorplannerView2D
 		this._container = this.canvasElement.parentElement;
 		this._disposed = false;
 
+		/** Handle of the frame `invalidate()` has scheduled, or null. See invalidate. */
+		this._frame = null;
+		/** Size a deferred resize will apply before it draws, or null. See containerResized. */
+		this._pendingResize = null;
+
 		var scope = this;
 		this._carbonsheet = new CarbonSheet(floorplan, viewmodel, this.canvasElement);
+		// Coalesced (P6): the sheet has eight setters and each one dispatches, so
+		// dragging its opacity or nudging its origin used to be one full repaint
+		// per slider step.
 		this._carbonSheetUpdatedEvent = function()
 		{
-			scope.draw();
+			scope.invalidate();
 		};
 		this._carbonsheet.addEventListener(EVENT_UPDATED, this._carbonSheetUpdatedEvent);
 
@@ -236,6 +272,9 @@ export class FloorplannerView2D
 	handleWindowResize()
 	{
 		var size = measureViewport(this._container, window.innerWidth, window.innerHeight);
+		// This measurement is newer than anything containerResized deferred, so it
+		// supersedes it rather than being undone by it a frame later.
+		this._pendingResize = null;
 		this._resizeCanvas(size.width, size.height);
 		this.draw();
 	}
@@ -244,6 +283,21 @@ export class FloorplannerView2D
 	 * ResizeObserver callback. Unlike handleWindowResize this is a no-op when the
 	 * measured size has not actually changed, which keeps the observer from
 	 * re-triggering itself through the canvas it just resized.
+	 *
+	 * ## Why the resize itself is deferred, and not just the draw (P6)
+	 *
+	 * This used to size the canvas inside the callback. Writing `style.width` on
+	 * an element the observer's own target contains is a layout change made
+	 * during resize-observation, and the browser answers it the only way it can:
+	 * it defers the follow-up delivery to the next frame and reports
+	 * `ResizeObserver loop completed with undelivered notifications` as a window
+	 * error. Nothing was dropped and nothing was wrong, but a page cannot tell
+	 * that error apart from a real one, and P5's browser tier had to swallow it
+	 * by exact message to keep every layout test from failing on it.
+	 *
+	 * Measuring is still done here - the observer callback is the moment the
+	 * measurement is correct - and only the write is moved to the frame, where it
+	 * is an ordinary layout change like any other.
 	 */
 	containerResized()
 	{
@@ -252,7 +306,115 @@ export class FloorplannerView2D
 		{
 			return;
 		}
-		this._resizeCanvas(size.width, size.height);
+		this._pendingResize = size;
+		this.invalidate();
+	}
+
+	/**
+	 * Ask for a redraw on the next animation frame (P6, RM-002 R-05).
+	 *
+	 * ## What this changes
+	 *
+	 * `view.draw()` used to be called synchronously from fourteen sites, three of
+	 * them reached from `pointermove`. A drag therefore repainted the whole
+	 * canvas - grid, carbon sheet, every room, every wall, every corner and every
+	 * dimension label - once per pointer event, on the input thread, and a mouse
+	 * that reports at 1000 Hz got 1000 full repaints a second for a display that
+	 * can show 60. The work past the first one per frame was thrown away
+	 * unpainted.
+	 *
+	 * Calling this instead marks the view dirty and schedules exactly one
+	 * `draw()` for the next frame. Further calls before that frame runs are free.
+	 *
+	 * ## What it does not change
+	 *
+	 * `draw()` is untouched: still synchronous, still public, still the way to
+	 * say "paint now". Embedders call it, `handleWindowResize()` calls it, and
+	 * the browser tier reads pixels straight after it. Deferring *that* would
+	 * have made a documented API return before doing its job.
+	 *
+	 * The distinction is between the two kinds of caller. Something reacting to
+	 * input, where the next event is milliseconds away, wants `invalidate()`.
+	 * Something that has just been told to redraw and whose caller will look at
+	 * the result wants `draw()`.
+	 *
+	 * ## Ordering
+	 *
+	 * Coalescing moves a draw to after the mutations that follow it in the same
+	 * task, which is the behaviour change RM-002 flagged as needing its own
+	 * review. It is safe here because `draw()` reads the model afresh every time
+	 * - it holds no display list - so a later draw of the same frame's final
+	 * state is the picture the immediate draws were converging on anyway.
+	 */
+	invalidate()
+	{
+		if (this._disposed || this._frame !== null)
+		{
+			return;
+		}
+
+		var scope = this;
+		var handle = requestFrame(function ()
+		{
+			scope._frame = null;
+			scope._runFrame();
+		});
+
+		if (handle === null)
+		{
+			// No frame clock. Behave exactly as the direct call used to.
+			this._runFrame();
+			return;
+		}
+		this._frame = handle;
+	}
+
+	/**
+	 * Run whatever `invalidate()` scheduled, now, and report whether there was
+	 * anything to run.
+	 *
+	 * For callers that need the canvas current before they look at it: a test
+	 * asserting on pixels, or a host about to read the canvas back into an image.
+	 * Without it the only way to wait out a coalesced draw is to await a frame,
+	 * which is neither synchronous nor deterministic.
+	 *
+	 * @returns {boolean} true if a scheduled draw was pending and has now run
+	 */
+	flush()
+	{
+		if (this._frame === null)
+		{
+			return false;
+		}
+		cancelFrame(this._frame);
+		this._frame = null;
+		this._runFrame();
+		return true;
+	}
+
+	/**
+	 * The scheduled work: apply a deferred resize if one is waiting, then draw.
+	 *
+	 * The disposal check is the point of this being a method rather than a
+	 * closure body. A frame scheduled on the last pointermove before a component
+	 * unmounts still fires, and by then the carbon sheet is disposed and the
+	 * canvas is detached - `dispose()` cancels the frame, and this is the second
+	 * line of defence for a frame that was already in flight.
+	 */
+	_runFrame()
+	{
+		if (this._disposed)
+		{
+			return;
+		}
+
+		var size = this._pendingResize;
+		this._pendingResize = null;
+		if (size && (size.width !== this.canvasWidth || size.height !== this.canvasHeight))
+		{
+			this._resizeCanvas(size.width, size.height);
+		}
+
 		this.draw();
 	}
 
@@ -346,6 +508,13 @@ export class FloorplannerView2D
 			return;
 		}
 		this._disposed = true;
+
+		// Before anything else is torn down. A frame scheduled by the last
+		// pointermove is still queued at this point, and letting it run would draw
+		// through a disposed carbon sheet into a detached canvas.
+		cancelFrame(this._frame);
+		this._frame = null;
+		this._pendingResize = null;
 
 		if (this._resizeObserver)
 		{

@@ -41,15 +41,26 @@ import {playwright} from '@vitest/browser-playwright';
  * Screenshot diffing is kept for the case it is actually good at - unanticipated
  * change across the whole chrome - behind `npm run test:visual`. See the note
  * there.
+ *
+ * ## There is no setupFiles entry, and that is the point (P6)
+ *
+ * P5 shipped `tests/browser/setup.js`, which swallowed chromium's
+ * `ResizeObserver loop completed with undelivered notifications` by exact
+ * message: the runner promotes any window error to a run-failing unhandled
+ * error, and both of the library's observers provoked that notice by resizing a
+ * canvas from inside the callback watching its container.
+ *
+ * P6 deferred both resizes to a frame, which is what the notice was asking for,
+ * so the file was deleted rather than kept. The tier now fails on any window
+ * error at all - including that one, if either observer ever writes layout from
+ * inside itself again. Verified by putting both defects back: the run reports
+ * the loop error and fails.
  */
 export default defineConfig({
 	plugins: [vue()],
 	test: {
 		name: 'browser',
 		include: ['tests/browser/**/*.test.js'],
-		// Swallows chromium's benign ResizeObserver notice, which the runner
-		// would otherwise promote to a run-failing unhandled error. See the file.
-		setupFiles: ['tests/browser/setup.js'],
 		// Chromium only. A second engine doubles the runtime and this tier exists
 		// to prove the renderers work at all, not to survey engine differences -
 		// which is a question for the parity harness, not for CI.

@@ -109,7 +109,7 @@ export class Floorplanner2D extends EventDispatcher
 		this._keyUpEvent = (event) => {scope.keyUp(event);};
 		this._keyDownEvent = (event) => {scope.keyDown(event);};
 		this._floorplanLoadedEvent = () => {scope.reset();};
-		this._updateViewEvent = () => {scope.view.draw();};
+		this._updateViewEvent = () => {scope.view.invalidate();};
 
 		this._previousTouchAction = this.canvasElement.style.touchAction;
 		this.canvasElement.style.touchAction = 'none';
@@ -249,7 +249,7 @@ export class Floorplanner2D extends EventDispatcher
 			{
 				this.activeRoom.name = userinput;
 			}
-			this.view.draw();
+			this.view.invalidate();
 		}
 	}
 
@@ -314,7 +314,7 @@ export class Floorplanner2D extends EventDispatcher
 			//The below will not work, the snapTolerance is necessary for X, Y axis snapping, where as grid snapping is for snapping to grid lines
 		}
 
-		this.view.draw();
+		this.view.invalidate();
 	}
 
 	/** */
@@ -360,7 +360,7 @@ export class Floorplanner2D extends EventDispatcher
 			this._clickedWallControl = this.floorplan.overlappedControlPoint(this._clickedWall, this.mouseX, this.mouseY);
 			if(this._clickedWallControl != null)
 			{
-				this.view.draw();
+				this.view.invalidate();
 				return;
 			}
 		}
@@ -405,7 +405,7 @@ export class Floorplanner2D extends EventDispatcher
 			this._clickedRoom = mDownRoom;
 			this.floorplan.dispatchEvent({type:EVENT_ROOM_2D_CLICKED, item: this._clickedRoom});
 		}
-		this.view.draw();
+		this.view.invalidate();
 	}
 
 	/** */
@@ -478,7 +478,7 @@ export class Floorplanner2D extends EventDispatcher
 
 			if (draw)
 			{
-				this.view.draw();
+				this.view.invalidate();
 			}
 		}
 
@@ -494,7 +494,7 @@ export class Floorplanner2D extends EventDispatcher
 			this.unScaledOriginY += (this.lastY - this.rawMouseY) * (1 / Configuration.getNumericValue('scale'));
 			this.lastX = this.rawMouseX;
 			this.lastY = this.rawMouseY;
-			this.view.draw();
+			this.view.invalidate();
 		}
 		// dragging
 		if (this.mode == floorplannerModes.MOVE && this.mouseDown)
@@ -512,7 +512,7 @@ export class Floorplanner2D extends EventDispatcher
 				this._clickedWallControl.x = mx;
 				this._clickedWallControl.y = my;
 				this._clickedWall.updateControlVectors();
-				this.view.draw();
+				this.view.invalidate();
 				return;
 			}
 			if (this.activeCorner)
@@ -553,7 +553,7 @@ export class Floorplanner2D extends EventDispatcher
 				this.lastX = this.rawMouseX;
 				this.lastY = this.rawMouseY;
 			}
-			this.view.draw();
+			this.view.invalidate();
 		}
 	}
 
@@ -574,7 +574,7 @@ export class Floorplanner2D extends EventDispatcher
 			{
 				this.floorplan.newWall(this.lastNode, corner);
 				this.floorplan.newWallsForIntersections(this.lastNode, corner);
-				this.view.draw();
+				this.view.invalidate();
 			}
 			if (corner.mergeWithIntersected() && this.lastNode != null)
 			{
@@ -602,7 +602,7 @@ export class Floorplanner2D extends EventDispatcher
 				this._clickedWall.updateAttachedRooms(true);
 			}
 		}
-		this.view.draw();
+		this.view.invalidate();
 	}
 
 	/** */
@@ -629,10 +629,15 @@ export class Floorplanner2D extends EventDispatcher
 	 * in five places (app.js:198, 315, 321, 700, 719) and the Vue app is not
 	 * allowed to: `view` is an implementation detail that S7's inspectors would
 	 * otherwise pin in place.
+	 *
+	 * Coalesced since P6, and this is the call that benefits most: `useZoom2D`
+	 * asks for a redraw from five places and a zoom gesture reaches several of
+	 * them per step. Call `view.draw()` directly for the rare case that needs the
+	 * canvas current before the next frame.
 	 */
 	redraw()
 	{
-		this.view.draw();
+		this.view.invalidate();
 	}
 
 	/** */
@@ -642,7 +647,7 @@ export class Floorplanner2D extends EventDispatcher
 		this.resizeView();
 		this.setMode(floorplannerModes.MOVE);
 		this.resetOrigin();
-		this.view.draw();
+		this.view.invalidate();
 	}
 
 	/** */

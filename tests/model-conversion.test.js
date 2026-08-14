@@ -45,6 +45,20 @@ const CATALOG = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog.json'), 
 // reads, and it was being served to every visitor for no reason.
 const REPORT = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/conversion-report.json'), 'utf8'));
 
+/**
+ * P6's re-encode, on top of S3's conversion.
+ *
+ * Two separate passes, two separate records, and `conversion-report.json` is
+ * deliberately not rewritten to match the second: it is what the S3 converter
+ * did, and editing it to stay current would destroy the thing it is for. This
+ * file composes them instead - S3 says which textures a model needs, P6 says
+ * which of those were re-encoded into a different container, and the shipped
+ * name is the second applied to the first.
+ */
+const RECOMPRESSED = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/texture-compression.json'), 'utf8'));
+const SHIPPED_AS = new Map(RECOMPRESSED.converted.map((entry) => [entry.from.split('/').pop(), entry.to.split('/').pop()]));
+const shippedName = (texture) => SHIPPED_AS.get(texture) || texture;
+
 let restoreImages;
 beforeAll(() => {restoreImages = installImageStub();});
 afterAll(() => {restoreImages();});
@@ -83,7 +97,8 @@ describe('every legacy model converted', () =>
 		{
 			for (const texture of model.textures)
 			{
-				expect(existsSync(join(CONVERTED_DIR, 'textures', texture)), `${model.source} -> ${texture}`).toBe(true);
+				const shipped = shippedName(texture);
+				expect(existsSync(join(CONVERTED_DIR, 'textures', shipped)), `${model.source} -> ${shipped}`).toBe(true);
 			}
 		}
 	});
@@ -94,13 +109,38 @@ describe('every legacy model converted', () =>
 		// canvas round-trip, so the baked maps are the original files.
 		// Hashed rather than deep-compared: vitest's toEqual walks two 4 MB
 		// Buffers byte by byte and the whole suite spent five seconds in here.
+		//
+		// P6 narrowed this to the textures it did not re-encode, and the narrowing
+		// is the point rather than a concession. The claim here is about the *S3
+		// converter* - that it did not round-trip anything through a canvas - and
+		// that claim is unchanged. What changed is that byte-equality with the
+		// source stopped being the way to observe it for 12 of the maps, because a
+		// later and entirely separate pass deliberately re-encoded them. The
+		// assertion below pins that set to exactly what P6 recorded, so a texture
+		// cannot quietly stop matching its source without being on that list.
 		const digest = (path) => createHash('sha256').update(readFileSync(path)).digest('hex');
 		const copied = readdirSync(join(CONVERTED_DIR, 'textures'));
 		expect(copied.length).toBeGreaterThan(0);
-		for (const name of copied)
+
+		const untouched = copied.filter((name) => existsSync(join(LEGACY_DIR, name)));
+		const reencoded = copied.filter((name) => !existsSync(join(LEGACY_DIR, name)));
+
+		for (const name of untouched)
 		{
 			expect(digest(join(CONVERTED_DIR, 'textures', name)), name)
 				.toBe(digest(join(LEGACY_DIR, name)));
+		}
+
+		// Every texture that is no longer byte-identical to its source is one P6
+		// converted, and its source is still there under the name it had.
+		const recorded = new Set(RECOMPRESSED.converted
+			.filter((entry) => entry.to.startsWith('models/js-glb/textures/'))
+			.map((entry) => entry.to.split('/').pop()));
+		expect(reencoded.sort()).toEqual([...recorded].sort());
+		for (const name of reencoded)
+		{
+			const source = [...SHIPPED_AS.entries()].find(([, to]) => to === name)[0];
+			expect(existsSync(join(LEGACY_DIR, source)), `source for ${name}`).toBe(true);
 		}
 	});
 });
@@ -244,7 +284,8 @@ describe('material translation', () =>
 	it('points textures at the shared sidecar directory, not at models/js', () =>
 	{
 		const gltf = readGltfJson('cb-blue-block-60x96');
-		expect(gltf.images[0].uri).toBe('textures/b_cb-blue-block60x96.png');
+		// .jpg since P6 re-encoded the opaque maps; the directory is what this pins.
+		expect(gltf.images[0].uri).toBe('textures/b_cb-blue-block60x96.jpg');
 	});
 });
 

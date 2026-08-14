@@ -80,6 +80,47 @@ function gzipFile(path)
 }
 
 /**
+ * The biggest single file under a directory, and which one it is.
+ *
+ * A tree total does not catch this. `public/` was 15.7 MB against a 16.5 MB
+ * ceiling - comfortably inside it - while 3.4 MB of that was one PNG of a
+ * garden, 22% of everything served, in a lossless container for a photograph.
+ * Nothing was over budget; the budget was measuring the wrong thing.
+ *
+ * A per-file ceiling is the shape of limit that catches "somebody dropped in an
+ * unoptimised asset", which is how these trees actually grow. The tree total
+ * still matters for the other failure mode - a hundred small files nobody
+ * noticed.
+ */
+function largestFile(dir)
+{
+	if (!existsSync(dir))
+	{
+		return null;
+	}
+	let worst = {bytes: 0, note: '(empty)'};
+	const visit = (path) =>
+	{
+		for (const entry of readdirSync(path, {withFileTypes: true}))
+		{
+			const child = join(path, entry.name);
+			if (entry.isDirectory())
+			{
+				visit(child);
+				continue;
+			}
+			const bytes = statSync(child).size;
+			if (bytes > worst.bytes)
+			{
+				worst = {bytes, note: child};
+			}
+		}
+	};
+	visit(dir);
+	return worst;
+}
+
+/**
  * Every measurement, in the order they are reported.
  *
  * `needs` names the build that produces the input, so a missing directory
@@ -105,6 +146,8 @@ const MEASUREMENTS = [
 		measure: () => gzipFile('dist/architect3d.js')},
 	{key: 'public-total', label: 'Runtime assets', needs: null,
 		measure: () => treeBytes('public')},
+	{key: 'public-largest', label: 'Largest single asset', needs: null,
+		measure: () => largestFile('public')},
 ];
 
 function human(bytes)
@@ -123,7 +166,11 @@ let skipped = 0;
 
 for (const item of MEASUREMENTS)
 {
-	const measured = item.measure();
+	// A measurement may return a bare byte count, or {bytes, note} when naming
+	// what it measured is what makes the failure actionable.
+	const raw = item.measure();
+	const measured = (raw && typeof raw === 'object') ? raw.bytes : raw;
+	const note = (raw && typeof raw === 'object') ? raw.note : null;
 	const entry = budget.budgets[item.key];
 
 	if (!entry)
@@ -153,7 +200,8 @@ for (const item of MEASUREMENTS)
 		detail: `${human(measured).padStart(9)}  /  ${human(entry.limit).padStart(9)} limit` +
 			(over
 				? `  — over by ${human(measured - entry.limit)}`
-				: `  (${headroom.toFixed(1)}% headroom)`),
+				: `  (${headroom.toFixed(1)}% headroom)`) +
+			(note ? `  ${note}` : ''),
 	});
 	if (over)
 	{
