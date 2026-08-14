@@ -114,6 +114,43 @@ Which kind you get is decided by the argument `update()` already took:
 `update(true)` re-derives the rooms and is a **topology** change,
 `update(false, corners)` is a **geometry** change carrying those corners.
 
+### Identity
+
+Five kinds of thing in the model, and each is known by something different.
+Getting this wrong is how a room loses its name, so it is worth the table:
+
+| Entity | Identity | Persisted | Survives |
+|---|---|---|---|
+| `Corner` | `id`, assigned | yes, it is the file's key | everything |
+| `Wall` | `id`, assigned | no — a file names its two corners | edits, not a load |
+| `Room` | `id`, assigned, **inherited** by the room that continues it | no | edits, not a load |
+| `HalfEdge` | `wall.id` + side, derived | no | whatever its wall does |
+| `Item` | `designId`, assigned | **yes** | everything |
+
+Two of these need explaining.
+
+**A `Room` does not survive `update()`** — a new one is built for every cycle
+found, every time — so its identity is *carried* rather than kept.
+`model/room_matcher.js` pairs each re-derived room with the room it overlaps
+most, one to one, and `Floorplan.carryRoomIdentity()` hands the id over and
+moves the name and floor-texture entries to the successor's keys. That is what
+makes drawing a wall through a room keep its name. The rule has a floor under
+it: two rooms sharing a single corner touch at a point and are not the same
+room.
+
+**An `Item`'s is called `designId`, not `id`,** because `Item extends Mesh` and
+three defines `Object3D.id` as a non-writable number of its own. It is also the
+only one written into the save file, because an item has nothing else to be
+described by — two identical chairs at the same place are two chairs — and
+because undo needs both sides to name the same item.
+
+::: warning Ids are per-session, except an item's
+`Floorplan.reset()` destroys every wall and room, and a load rebuilds them with
+fresh ids. So a wall id is stable across editing and **not** across opening a
+document — including undo, which is a document load. Anything holding a wall id
+across a restore has to re-resolve it; `useSelection` does.
+:::
+
 `document.js` is what a `.blueprint3d` file has to satisfy before any of this
 runs. `Model.loadDocument()` validates the whole document first, so a file that
 is not a design cannot reach live state — see the save-format docs.
@@ -236,7 +273,7 @@ elements with `defineExpose`.
 
 ## Where the layers meet
 
-Eight seams are worth knowing, because each one is a place where a change in
+Nine seams are worth knowing, because each one is a place where a change in
 one layer does *not* automatically reach the other:
 
 1. **`Configuration` announces a change but redraws nothing.** It dispatches
@@ -296,10 +333,20 @@ one layer does *not* automatically reach the other:
    snapshot and cannot be restored by one. Unreachable through the UI, which
    creates corners and walls together; reachable by an embedder driving the
    model directly.
+9. **Restoring a snapshot reconciles the furniture; it does not rebuild it.**
+   `Model.newRoom` keeps every item the incoming document still has, matched by
+   `designId`, model url, type and picked colours, and moves it. Only genuine
+   additions load anything — which is why undoing a corner nudge no longer
+   re-downloads the sofa. Two consequences worth knowing: a **wall-bound** item
+   is always reloaded, because it holds a `HalfEdge` and the floorplan is
+   rebuilt by every load; and an item that IS kept goes through
+   `Item.applyScale` and a direct position write, **not** `moveToPosition`,
+   which is the interactive drag path and carries placement rules that would
+   make a restore lossy.
 
 ## Testing
 
-`tests/` is 1,049 headless tests in 22 files, plus 37 in a real browser. jsdom
+`tests/` is 1,112 headless tests in 24 files, plus 37 in a real browser. jsdom
 supplies the DOM, a stub renderer stands in for WebGL, and `tests/helpers/`
 holds the shared harness.
 

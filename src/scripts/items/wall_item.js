@@ -119,6 +119,16 @@ export class WallItem extends Item
 	}
 
 	/** */
+	/**
+	 * Wall-bound, so it cannot be kept across a document load. See
+	 * {@link Item#boundToFloorplan}.
+	 * @returns {boolean}
+	 */
+	get boundToFloorplan()
+	{
+		return true;
+	}
+
 	placeInRoom()
 	{
 		var closestWallEdge = this.closestWallEdge();

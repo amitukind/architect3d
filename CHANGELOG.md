@@ -4,6 +4,57 @@
 
 ### Fixed
 
+* **A room keeps its name and its floor texture when you draw a wall through
+  it.** Rooms are derived rather than stored — `Floorplan.update()` builds a new
+  `Room` for every closed cycle it finds, every time — so a room had no identity
+  of its own. It was known by two keys computed from its corners, which
+  disagreed with each other: `getUuid()` sorts the corner ids and backs the
+  floor texture, `roomByCornersId` does not sort and backs the name. Both change
+  the moment the corner set does.
+
+  Measured: name a room "Kitchen", give it a floor texture, then draw a wall
+  through one of its sides. Four corners become five, both keys change, and the
+  room comes back as **"A New Room" on the default floor**. Splitting a wall is
+  an ordinary drawing action.
+
+  A re-derived room now inherits the identity of the room it continues, decided
+  by corner overlap and matched one to one, and both keys move with it. Deleting
+  a corner, merging two corners, splitting a wall and re-deriving all preserve
+  the name, the texture and the id.
+
+  **The save file is unchanged.** A design saved before this and after it is
+  byte-identical.
+* **Undoing a corner nudge no longer re-downloads the sofa.** Undo restores a
+  snapshot by calling `loadSerialized`, and `Model.newRoom` opened with
+  `scene.clearItems()` — every item destroyed and every model file re-fetched,
+  re-parsed, re-merged and re-uploaded, for an edit that touched none of them.
+
+  Items now carry an id, so `newRoom` reconciles instead: an item the incoming
+  document still has is kept and moved. Undo of a geometry edit loads **zero**
+  models, where it used to load all of them.
+* **Merging two corners no longer loses the room.** `Corner.combineWithCorner`
+  re-derived the plan in the *middle* of the merge — after the departing
+  corner's walls had gone and before this corner's were reconnected — so at that
+  moment the room did not exist, and a room that ceases to exist has nothing to
+  hand its identity to. It is one batch now, and re-derives once, at the end.
+* **Two walls between the same pair of corners no longer collide.** `Wall.id`
+  was `[start.id, end.id].join()` computed once at construction: frozen, so it
+  became a lie the moment either corner was merged into another, and identical
+  for any two walls joining the same pair. It is assigned now. `getUuid()` still
+  returns the derived pair, which is what the save file records.
+* **Saving a design twice produces the same bytes.** Items were written in
+  `scene.items` order, which is the order their model files finished
+  downloading in — so two saves of a design nobody touched could differ. They
+  are written in id order now. That is not cosmetic: `useHistory` decides
+  whether anything changed by comparing the serialized string, so a reordering
+  it cannot read the meaning of became a history entry for an edit nobody made.
+* **The inspector no longer edits a room that is not in the plan.**
+  `useSelection` held the selected object, and `Floorplan.update()` replaces
+  every `Room` and every `HalfEdge`. Selecting a room and then editing anything
+  at all left the panel bound to a detached object — still editable, and editing
+  it changed nothing anybody could see. Selection is held by id and resolved on
+  demand, so it survives a re-derivation and clears itself when the entity is
+  genuinely gone.
 * **Dragging a corner no longer moves the 3D camera, and no longer rebuilds the
   scene.** `Floorplan` had one way of saying anything had happened —
   `EVENT_UPDATED`, with a payload of the floorplan the listener already had —
@@ -120,6 +171,37 @@
 
 ### Added
 
+* **Every entity in the model has an identity.** `Corner.id` was the only one;
+  now `Wall.id`, `Room.id` and `HalfEdge.id` are assigned too, and `Item` has
+  `designId`.
+
+  Only an item's is written to the save file, and the asymmetry is the point: a
+  file describes a wall by its two corners and a room by its corners, which is a
+  description any build can read, so those ids are reassigned on load. An item
+  has nothing to be described by — two identical chairs at the same coordinates
+  are two chairs — so it carries one. Additive and optional; an older file has
+  none, each item is assigned one on load, and they appear from the next save.
+
+  It is `designId` rather than `id` because `Item extends Mesh` and three
+  defines `Object3D.id` as a non-writable number of its own. This is the second
+  name collision of the kind A0's `Item.remove()` finding described.
+* **`model/room_matcher.js`** — `matchRooms(previous, current)` decides which
+  re-derived room continues which, by corner overlap over union, one to one,
+  with a deterministic tiebreak and a floor of two shared corners. Pure and
+  tested on its own, because it is the one rule in this sprint that can be
+  *subtly* wrong: a mismatch does not throw, it quietly moves somebody's room
+  name onto a different room.
+* **`Item.applyScale(x, y, z)`** — set the scale to exactly this. `setScale` is
+  relative, which is what a resize gesture wants and what a restore cannot use:
+  `1.5 × (1 / 1.5)` is not 1, so expressing an absolute target relatively made
+  undo drift.
+* **`Item.boundToFloorplan`** — whether an item holds a reference into the
+  floorplan graph. False for furniture, true for anything wall-bound, and it is
+  what decides whether an item may be kept across a document load.
+* **`history.stats()`** — `{past, future, entries, bytes, limit}`. The
+  docblock's "perhaps 20 KB for a furnished plan… the whole stack stays around a
+  megabyte" was an estimate nobody could check; measured on the largest fixture
+  it is **19.9 KB and 0.97 MB**, so it was right.
 * **`EVENT_CHANGESET` and `core/change_set.js`** — the model can now say *what*
   changed, not only *that* something did. A `ChangeSet` carries the kinds that
   changed (`topology`, `geometry`, `surface`, `items`, `selection`, `view`), the
@@ -351,6 +433,28 @@
 
 ### Changed
 
+* **`Item.getMetaData()` emits an `id`, and items are serialized in id order.**
+  Both additive, and the second is a fix rather than a preference — see above.
+  An embedder that pins the exact key list or the item order needs to know.
+* **The browser tier runs one file at a time.** Vitest parallelises test files
+  by default, which is right for the headless tier and wrong for this one: every
+  frame here is composited by SwiftShader on the CPU, so parallel files do not
+  overlap, they queue — each one's clock running while it waits for the
+  rasteriser. Measured on the same 37 tests: **62.8s wall and 182.8s of test
+  time in parallel, against 67.1s wall and 64.9s serialised.** Four seconds of
+  wall clock for two-thirds of the test time back.
+
+  That gap was being charged to whichever test held the timer.
+  `gpu-memory.test.js` took 26s alone and 62s inside the tier, and timed out on
+  two clean-checkout runs in three while passing every time in isolation. It is
+  also why A0 had to raise the timeout from 15s to 30s; the 30s stays for now,
+  but the headroom under it is real rather than shared.
+* **A wall-bound item is reloaded on every document load, and a free-standing
+  one is not.** The reconciliation above cannot keep a `WallItem`: it holds a
+  `HalfEdge`, and the floorplan is destroyed and rebuilt by every load, so a
+  kept one would point at an edge that no longer exists and would try to detach
+  from it when removed. Lifting that needs wall ids that survive a save and
+  load, which they do not.
 * **`Main` and `Floorplan3D` subscribe to `EVENT_CHANGESET` rather than
   `EVENT_UPDATED`.** Both need to know *what* changed, and the legacy event
   cannot say. `EVENT_UPDATED` still fires at exactly the moments it always did,

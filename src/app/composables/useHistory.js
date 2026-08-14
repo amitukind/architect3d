@@ -424,5 +424,33 @@ export function useHistory(store)
 
 	onScopeDispose(detach);
 
-	return {canUndo, canRedo, depth, commit, undo, redo, reset};
+	/**
+	 * What the stack is holding, in numbers (RM-003 A3).
+	 *
+	 * Snapshots are the memory cost of this design and the docblock above puts a
+	 * figure on it - "perhaps 20 KB for a furnished plan" - which was an estimate
+	 * nobody could check. `bytes` is the real total, counted from the strings
+	 * actually retained. A2 established that a claim nobody can compute is a
+	 * slogan; this is the same rule applied to the one A3 inherited.
+	 *
+	 * @returns {{past: number, future: number, entries: number, bytes: number, limit: number}}
+	 */
+	function stats()
+	{
+		var held = past.value.concat(future.value);
+		if (present.value !== null)
+		{
+			held = held.concat([present.value]);
+		}
+		var bytes = held.reduce(function (total, entry) {return total + entry.length;}, 0);
+		return {
+			past: past.value.length,
+			future: future.value.length,
+			entries: held.length,
+			bytes: bytes,
+			limit: HISTORY_LIMIT,
+		};
+	}
+
+	return {canUndo, canRedo, depth, commit, undo, redo, reset, stats};
 }

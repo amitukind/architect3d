@@ -87,12 +87,29 @@ things a user typed. The key is the room's corner ids joined with commas:
 }
 ```
 
-Move a wall so the loop changes shape and the key no longer matches — the room
-survives, but its name does not follow it.
+The key is a description of the room rather than a name for it, which is
+deliberate: another build reading this file can find the room without needing
+to have been told an identity. What it cannot do on its own is survive an edit —
+move a wall so the loop changes shape and the key no longer matches.
+
+::: tip The name follows the room now
+Since RM-003 A3 the key is rewritten when the room changes shape. Each
+re-derived room is matched to the room it continues by corner overlap, and the
+entry moves with it, so drawing a wall through one side of a room keeps its
+name and its floor texture. See `src/scripts/model/room_matcher.js` for the
+rule.
+
+The file is unaffected: this is still the only key, and it is still derived
+from the corners. A file written before A3 and a file written after are
+byte-identical for the same design.
+:::
 
 ### `newFloorTextures`
 
-Floor textures, keyed the same way, by comma-joined corner ids:
+Floor textures, keyed by the room's corner ids **sorted** and comma-joined —
+which is not quite the `rooms` key above, where they are in traversal order.
+Two spellings of the same relation; they are kept in step by the same matcher
+that rewrites them.
 
 ```json
 {
@@ -132,6 +149,7 @@ An array, one entry per placed object:
 
 ```json
 {
+  "id": "b3f0e59c-…",
   "item_name": "Open Door",
   "item_type": 7,
   "format": "gltf",
@@ -146,6 +164,7 @@ An array, one entry per placed object:
 
 | Field | Meaning |
 |---|---|
+| `id` | This item's identity. Added in RM-003 A3; absent in older files and assigned on load. |
 | `item_type` | Which class builds it. See the table below. |
 | `format` | `"gltf"`, or absent on a pre-migration file. |
 | `model_url` | Relative URL. Rewritten on load if it names one of the 25 converted legacy models. |
@@ -153,6 +172,27 @@ An array, one entry per placed object:
 | `rotation` | Y rotation in radians. X and Z are not stored. |
 | `fixed` | Locked in place. |
 | `material_colors` | Sparse: a `#rrggbb` for each material slot somebody recoloured, `null` for the rest. Absent when nothing was recoloured. |
+
+::: tip `id`, and why items are the only thing that carries one
+Corners have always had one. Walls, rooms and half edges have one too since
+RM-003 A3, and none of them is written here — a file describes a wall by its
+two corners and a room by its corners, which is a description any build can
+read, and the id is reassigned on load.
+
+An item is different because it has nothing to be described by. Two identical
+chairs at the same coordinates are two chairs. The id is what lets undo
+recognise the furniture already on screen instead of re-downloading every model
+in the design, so it has to be in the file for a snapshot to name the same
+item.
+
+Additive and optional. An older file has no `id` on any item, each is assigned
+one on load, and they appear from the next save.
+:::
+
+**Items are written in `id` order**, not in the order they were placed or
+loaded. Item order carries no meaning, and the order they arrive in depends on
+which model file finished downloading first — so two saves of a design nobody
+touched could otherwise differ.
 
 ### Item types
 

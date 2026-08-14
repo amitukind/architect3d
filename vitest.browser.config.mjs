@@ -82,7 +82,36 @@ export default defineConfig({
 		 *
 		 * Note that this is the opposite of a ratchet and must not be treated as
 		 * one: if a test starts needing thirty seconds, that is a finding.
+		 *
+		 * A3 left the number alone while removing most of what forced it up - see
+		 * `fileParallelism` above. The headroom under it is real now rather than
+		 * shared, and it could probably come down; that is a measurement for a
+		 * sprint that is not also changing how the tier is scheduled.
 		 */
+		/**
+		 * One file at a time (RM-003 A3).
+		 *
+		 * Vitest runs test files in parallel by default, which is right for the
+		 * headless tier and wrong here: every frame in this one is composited by
+		 * SwiftShader on the CPU, so parallel files do not overlap, they *queue* -
+		 * on one rasteriser, taking turns, each one's clock running the whole time.
+		 *
+		 * Measured, same 37 tests, same machine:
+		 *
+		 *   parallel     62.8s wall, 182.8s of test time
+		 *   serialised   67.1s wall,  64.9s of test time
+		 *
+		 * Four seconds of wall clock for two-thirds of the test time back. That
+		 * gap was not work, it was waiting - and it was being charged to whichever
+		 * test happened to be holding the timer. `gpu-memory.test.js` took 26s on
+		 * its own and 62s inside the tier, and timed out two runs in three on a
+		 * clean checkout while passing every time in isolation. A gate that fails
+		 * depending on what else is running is not measuring the thing it names.
+		 *
+		 * This is why A0 had to move the timeout from 15s to 30s, and it is the
+		 * better answer to the problem A0's note described.
+		 */
+		fileParallelism: false,
 		testTimeout: 30000,
 		hookTimeout: 30000,
 		// Chromium only. A second engine doubles the runtime and this tier exists

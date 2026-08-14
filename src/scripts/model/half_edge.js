@@ -141,7 +141,19 @@ export class HalfEdge extends EventDispatcher
 		 * @type {boolean}
 		 */
 		this.front = front || false;
-		
+
+		/**
+		 * This face's identity: its wall's, plus which side (RM-003 A3).
+		 *
+		 * Derived rather than assigned, and correctly so - a wall has exactly two
+		 * faces and which one this is is not an accident of construction. It is
+		 * stable because `Wall.id` is now stable, and it is never persisted,
+		 * because a save file records walls and the sides come back with them.
+		 *
+		 * @type {string}
+		 */
+		this.id = `${wall.id}:${this.front ? 'front' : 'back'}`;
+
 		this.offset = wall.thickness / 2.0;
 		this.height = wall.height;
 

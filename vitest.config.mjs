@@ -103,10 +103,16 @@ export default defineConfig({
 				// at all: the incremental projection compared against a full redraw on
 				// three designs and ten edit kinds, and a real `Main` mounted to check
 				// the camera rather than a stand-in that reimplemented its rule.
+				//
+				// A3 moved branches 65.42 -> 66.78 and functions 76.14 -> 77.26,
+				// and both are raised. Lines and statements gained less than a whole
+				// number (78.10 -> 78.85, 78.16 -> 78.91) and stay where they are:
+				// rounding down is what makes these floors rather than targets, and
+				// nudging one on a fraction starts the habit of tuning them.
 				lines: 78,
 				statements: 78,
-				branches: 65,
-				functions: 76,
+				branches: 66,
+				functions: 77,
 			},
 		},
 	},

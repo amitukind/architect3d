@@ -1,6 +1,7 @@
 import {EVENT_UPDATED, EVENT_LOADED, EVENT_NEW, EVENT_DELETED, EVENT_ROOM_NAME_CHANGED, EVENT_CHANGESET} from '../core/events.js';
 import {EVENT_CORNER_ATTRIBUTES_CHANGED, EVENT_WALL_ATTRIBUTES_CHANGED, EVENT_ROOM_ATTRIBUTES_CHANGED, EVENT_MOVED} from '../core/events.js';
 import {ChangeSet, CHANGE_TOPOLOGY, CHANGE_GEOMETRY, REASON_EDIT, REASON_LOAD, newChangeCounts} from '../core/change_set.js';
+import {matchRooms, rekeyInPlace} from './room_matcher.js';
 import {EventDispatcher, Vector2, Vector3} from 'three';
 import {Utils} from '../core/utils.js';
 import {Dimensioning} from '../core/dimensioning.js';
@@ -1058,6 +1059,22 @@ export class Floorplan extends EventDispatcher
 
 		var scope = this;
 
+		// What the rooms were, before they stop existing (RM-003 A3).
+		//
+		// Captured here rather than after the rebuild because the rebuild is what
+		// destroys them, and the successor rooms have to be able to ask which room
+		// each of them continues. Only the identity and the corner ids are needed,
+		// so this is three strings per room and not a snapshot.
+		var previousRooms = this.rooms.map(function (room)
+		{
+			return {
+				id: room.id,
+				nameKey: room.roomByCornersId,
+				textureKey: room.getUuid(),
+				cornerIds: room.corners.map(function (corner) {return corner.id;}),
+			};
+		});
+
 		// Release before replacing (RM-003 A0).
 		//
 		// This is the largest single leak the hardening review measured: every call
@@ -1103,11 +1120,11 @@ export class Floorplan extends EventDispatcher
 			var room = new Room(scope, corners);
 			room.updateArea();
 			scope.rooms.push(room);
-			
+
 			room.addEventListener(EVENT_ROOM_NAME_CHANGED, (e)=>{scope.roomNameChanged(e);});
 			room.addEventListener(EVENT_ROOM_ATTRIBUTES_CHANGED, function(o){
 				var room = o.item;
-				scope.dispatchEvent(o);				
+				scope.dispatchEvent(o);
 				if(scope.metaroomsdata[room.roomByCornersId])
 				{
 					scope.metaroomsdata[room.roomByCornersId]['name'] = room.name;
@@ -1118,15 +1135,26 @@ export class Floorplan extends EventDispatcher
 					scope.metaroomsdata[room.roomByCornersId]['name'] = room.name;
 				}
 			});
-			
+		});
+
+		// Carry the identities, and the two derived keys, across the rebuild.
+		//
+		// This is A3's headline and it has to happen HERE - after every room
+		// exists, so the matcher sees the whole set and can match one to one, and
+		// before any name is read back, so the lookup below finds the entry under
+		// the key the successor now has.
+		this.carryRoomIdentity(previousRooms);
+
+		this.rooms.forEach(function (room)
+		{
 			if(scope.metaroomsdata)
-			{				
+			{
 				if(scope.metaroomsdata[room.roomByCornersId])
 				{
 					room.name = scope.metaroomsdata[room.roomByCornersId]['name'];
 				}
 			}
-		});				
+		});
 		this.assignOrphanEdges();
 		this.updateFloorTextures();
 		// A topology change, and the rooms it carries are the set as re-derived -
@@ -1144,6 +1172,77 @@ export class Floorplan extends EventDispatcher
 			changes.add(CHANGE_GEOMETRY, updatecorners);
 		}
 		this._emitChanges(changes);
+	}
+
+	/**
+	 * Give each re-derived room the identity of the room it continues (RM-003 A3).
+	 *
+	 * ## What this fixes
+	 *
+	 * A `Room` object does not survive `update()`; a new one is built for every
+	 * cycle found, every time. So before this, a room was known only by two keys
+	 * derived from its corners - `roomByCornersId` for its name and `getUuid()`
+	 * for its floor texture - and both change the moment the corner set does.
+	 * Drawing a wall through one side of a named, textured room took it from four
+	 * corners to five and lost both. That is finding H-5, and splitting a wall is
+	 * an ordinary drawing action.
+	 *
+	 * ## What it does
+	 *
+	 * `matchRooms` decides which successor continues which predecessor, by corner
+	 * overlap, one to one - see `model/room_matcher.js` for the rule and why it
+	 * has a floor under it. Each matched successor then takes the predecessor's
+	 * `id`, and the two metadata maps are rekeyed from the predecessor's keys to
+	 * the successor's.
+	 *
+	 * ## Why the maps are rekeyed rather than keyed by the id
+	 *
+	 * Keying them by the assigned id would be tidier in memory and is what a
+	 * reader expects to find here. It was not done, for two reasons that only
+	 * became clear against the code. The maps are what `saveFloorplan()` writes
+	 * and what `loadFloorplan()` adopts, both **by reference**, so re-keying them
+	 * in memory means translating at the file boundary in each direction - and the
+	 * id is deliberately not persisted, because a file identifies a room by its
+	 * corners and that is a description another build can also read. Worse, an
+	 * entry under an id has no way back: today a room you delete leaves its name
+	 * behind under its corner key, so drawing the room again brings the name back.
+	 * Under an assigned id the id dies with the room and the name is unreachable.
+	 *
+	 * What the two keys needed was not to become one key, but to stop being able
+	 * to disagree. They are moved together, by one rule, in one place, which is
+	 * this method.
+	 *
+	 * @param {Array<{id: string, nameKey: string, textureKey: string, cornerIds: Array<string>}>} previousRooms
+	 */
+	carryRoomIdentity(previousRooms)
+	{
+		var scope = this;
+		if (!previousRooms.length)
+		{
+			return;
+		}
+		var matched = matchRooms(
+			previousRooms.map(function (room) {return room.cornerIds;}),
+			this.rooms.map(function (room) {return room.corners.map(function (corner) {return corner.id;});}));
+
+		var nameMoves = [];
+		var textureMoves = [];
+		matched.forEach(function (fromIndex, toIndex)
+		{
+			var previous = previousRooms[fromIndex];
+			var current = scope.rooms[toIndex];
+			current.id = previous.id;
+			if (previous.nameKey !== current.roomByCornersId)
+			{
+				nameMoves.push({from: previous.nameKey, to: current.roomByCornersId});
+			}
+			if (previous.textureKey !== current.getUuid())
+			{
+				textureMoves.push({from: previous.textureKey, to: current.getUuid()});
+			}
+		});
+		rekeyInPlace(this.metaroomsdata, nameMoves);
+		rekeyInPlace(this.floorTextures, textureMoves);
 	}
 
 	/**

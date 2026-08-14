@@ -71,7 +71,21 @@ export class Wall extends EventDispatcher
 		
 		this._bezier = new Bezier(start.location.x,start.location.y , this._a.x,this._a.y , this._b.x,this._b.y , end.location.x,end.location.y);
 
-		this.id = this.getUuid();
+		/**
+		 * This wall's identity, assigned rather than derived (RM-003 A3).
+		 *
+		 * It used to be `getUuid()` - the two corner ids joined - computed once
+		 * here and never recomputed. Frozen at construction, so it became a lie the
+		 * moment either corner was merged into another, and two walls between the
+		 * same pair of corners collided on it.
+		 *
+		 * `getUuid()` still returns the derived pair, because that is what the save
+		 * file records and what a reader of an old file has. This is the handle
+		 * everything in memory should use.
+		 *
+		 * @type {string}
+		 */
+		this.id = Utils.guide();
 
 		this.start.attachStart(this);
 		this.end.attachEnd(this);

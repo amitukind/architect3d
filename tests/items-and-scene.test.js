@@ -802,9 +802,13 @@ describe('Item.getMetaData - the save-file item contract', () => {
 	 * somebody actually picked one, null elsewhere, and is omitted entirely when
 	 * nothing was picked.
 	 */
-	it('emits twelve keys and no material_colors when nothing was recoloured', () => {
+	// `id` is new in RM-003 A3 and is additive: an item carries a stable identity
+	// so undo can recognise the furniture it already has instead of re-fetching
+	// every model. A file written before A3 has none and is assigned one on load.
+	it('emits thirteen keys and no material_colors when nothing was recoloured', () => {
 		const md = Item.prototype.getMetaData.call(metaDataSource());
 		expect(Object.keys(md)).toEqual([
+			'id',
 			'item_name', 'item_type', 'format', 'model_url',
 			'xpos', 'ypos', 'zpos',
 			'rotation',
@@ -814,9 +818,10 @@ describe('Item.getMetaData - the save-file item contract', () => {
 		expect('material_colors' in md).toBe(false);
 	});
 
-	it('adds material_colors as the thirteenth key once a colour is picked', () => {
+	it('adds material_colors as the fourteenth key once a colour is picked', () => {
 		const md = Item.prototype.getMetaData.call(metaDataSource({_pickedColorSlots: new Set([0])}));
 		expect(Object.keys(md)).toEqual([
+			'id',
 			'item_name', 'item_type', 'format', 'model_url',
 			'xpos', 'ypos', 'zpos',
 			'rotation',
@@ -829,6 +834,7 @@ describe('Item.getMetaData - the save-file item contract', () => {
 	it('maps metadata, position, rotation.y, scale and fixed onto those keys', () => {
 		const md = Item.prototype.getMetaData.call(metaDataSource({_pickedColorSlots: new Set([0])}));
 		expect(md).toEqual({
+			id: md.id,
 			item_name: 'Sofa',
 			item_type: 1,
 			format: 'obj',
@@ -914,7 +920,10 @@ describe('Item.getMetaData - the save-file item contract', () => {
 		const md = Item.prototype.getMetaData.call(source);
 		expect(md.format).toBeUndefined();
 		expect(md.model_url).toBeUndefined();
-		expect(Object.keys(md)).toHaveLength(12);
+		expect(Object.keys(md)).toHaveLength(13);
+		// `id` goes the same way as the other absent fields: this source has no
+		// designId, so the key is emitted as undefined and JSON drops it. A real
+		// Item always has one.
 		expect(Object.keys(JSON.parse(JSON.stringify(md)))).toEqual([
 			'item_name', 'item_type', 'xpos', 'ypos', 'zpos',
 			'rotation', 'scale_x', 'scale_y', 'scale_z', 'fixed',

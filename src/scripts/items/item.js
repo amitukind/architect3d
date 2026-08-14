@@ -39,6 +39,37 @@ export class Item extends Mesh
 		this.model = model;
 		this.metadata = metadata;
 
+		/**
+		 * Which item in the design this is (RM-003 A3).
+		 *
+		 * ## Why it is not called `id`
+		 *
+		 * Because it cannot be. `Item extends Mesh extends Object3D`, and three
+		 * defines `Object3D.id` as a **non-writable** numeric counter -
+		 * `Object.defineProperty(this, 'id', {value: _object3DId++})`. Assigning to
+		 * it does nothing in sloppy mode and throws in strict, and either way
+		 * `item.id` would still be a number that changes every time the item is
+		 * rebuilt. This is the second name collision A0's `Item.remove()` finding
+		 * warned about, and the same rule applies: an `Item` lives in two worlds
+		 * and does not get to name a field whatever it likes.
+		 *
+		 * ## What it is for
+		 *
+		 * Undo restores a design by loading a snapshot, and until A3 that meant
+		 * clearing every item and re-fetching every model - so undoing a corner
+		 * nudge re-downloaded the sofa. `Model.newRoom()` now reconciles by this
+		 * id, keeping the items the snapshot still has and touching only the
+		 * difference, which is finding H-6.
+		 *
+		 * Persisted, unlike the model's other assigned ids, and it has to be: a
+		 * snapshot is a file, and reconciling against it means both sides naming
+		 * the same item. Additive and optional - an item from an older file is
+		 * assigned one on load and carries it from the next save.
+		 *
+		 * @type {string}
+		 */
+		this.designId = (metadata && metadata.designId) ? metadata.designId : Utils.guide();
+
 		/** */
 		this.errorGlow = new Mesh();
 		/** */
@@ -375,7 +406,42 @@ export class Item extends Mesh
 		this._pickedColorSlots.add(0);
 	}
 
-	/** */
+	/**
+	 * Set the scale to exactly this, rather than multiplying by it (RM-003 A3).
+	 *
+	 * `setScale` below is *relative*: it multiplies into the current scale, which
+	 * is what a resize gesture wants. Restoring a snapshot wants the opposite, and
+	 * expressing "make it 1.0" as a relative factor of `1 / current` does not come
+	 * back to 1.0 - `1.5 * (1 / 1.5)` is `0.9999999999999999`, which serializes
+	 * differently, which makes an undo produce a document that differs from the
+	 * one it restored. The round-trip suite found that on its second run.
+	 *
+	 * `halfSize` is recomputed from the geometry rather than scaled, so it cannot
+	 * drift either: the invariant is that it is the geometry's half size times the
+	 * scale, and this states it directly instead of accumulating it.
+	 *
+	 * @param {number} x
+	 * @param {number} y
+	 * @param {number} z
+	 */
+	applyScale(x, y, z)
+	{
+		this.scale.set(x, y, z);
+		this.halfSize = this.objectHalfSize().multiply(this.scale);
+		this.resized();
+		if(this.bhelper)
+		{
+			this.bhelper.update();
+		}
+
+		this.updateCanvasTexture(this.canvasWH, this.canvascontextWH, this.canvasMaterialWH, this.getWidth(), this.getHeight(), 'w:', 'h:');
+		this.updateCanvasTexture(this.canvasWD, this.canvascontextWD, this.canvasMaterialWD, this.getWidth(), this.getDepth(), 'w:', 'd:');
+
+		this.scene.needsUpdate = true;
+	}
+
+	/** Multiply the current scale by this. See {@link Item#applyScale} for the
+	 * absolute form and why both exist. */
 	setScale(x, y, z)
 	{
 		var scaleVec = new Vector3(x, y, z);
@@ -630,6 +696,30 @@ export class Item extends Mesh
 		}
 	}
 
+	/**
+	 * Whether this item holds a reference into the floorplan graph (RM-003 A3).
+	 *
+	 * False here and true for anything wall-bound. It decides whether
+	 * `Model.newRoom` may keep this item across a document load: the floorplan is
+	 * destroyed and rebuilt by every load, so an item holding a `HalfEdge` would
+	 * come out the other side pointing at one that no longer exists - and would
+	 * then try to detach from it when it was eventually removed.
+	 *
+	 * A free-standing item holds nothing but coordinates, so it survives. That is
+	 * the majority of furniture and all of what M-8 measures; a window reloads,
+	 * exactly as everything did before.
+	 *
+	 * Lifting the exclusion needs wall ids that survive a save and load, which
+	 * they do not - `Floorplan.reset()` destroys every wall and `newWall` assigns
+	 * fresh ids - so it is a follow-up rather than an oversight.
+	 *
+	 * @returns {boolean}
+	 */
+	get boundToFloorplan()
+	{
+		return false;
+	}
+
 	/** */
 	clickReleased()
 	{
@@ -778,7 +868,7 @@ export class Item extends Mesh
 			}
 		}
 
-		var data = {item_name: this.metadata.itemName,
+		var data = {id: this.designId, item_name: this.metadata.itemName,
 			item_type: this.metadata.itemType, format: this.metadata.format, model_url: this.metadata.modelUrl,
 			xpos: this.position.x, ypos: this.position.y, zpos: this.position.z,
 			rotation: this.rotation.y,

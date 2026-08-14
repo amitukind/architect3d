@@ -652,6 +652,33 @@ export class Corner extends EventDispatcher
 	 */
 	combineWithCorner(corner)
 	{
+		// Merging two corners is one gesture, and it has to re-derive once, at the
+		// end (RM-003 A3).
+		//
+		// Not only for the dispatch count. `removeAll()` below opens a batch of its
+		// own, so before this the plan re-derived in the MIDDLE of the merge - after
+		// the departing corner's walls had gone and before this corner's had been
+		// reconnected. At that moment the room does not exist, and a room that
+		// ceases to exist has no successor to hand its identity to. The final
+		// update() then found the room again and called it new: the name went, the
+		// floor texture went, and the id went with them.
+		//
+		// One batch around the whole operation means the only re-derivation anybody
+		// sees is the one at the end, against a plan that is whole again.
+		this.floorplan.beginBatch();
+		try
+		{
+			this._combineWithCorner(corner);
+		}
+		finally
+		{
+			this.floorplan.endBatch();
+		}
+	}
+
+	/** @param {Corner} corner @see Corner#combineWithCorner */
+	_combineWithCorner(corner)
+	{
 		var i = 0;
 		// update position to other corner's
 		this.move(corner.x, corner.y, false);
@@ -664,23 +691,21 @@ export class Corner extends EventDispatcher
 		{
 			corner.wallEnds[i].setEnd(this);
 		}
-		
-		var rooms = corner.getAttachedRooms(); 
-		for (i=0;i<rooms.length;i++)
-		{
-			var room = rooms[i];
-			//Below returns the roomname object
-			var roomname = this.floorplan.metaroomsdata[room.roomByCornersId];
-			if(roomname)
-			{
-				var oldId = room.roomByCornersId;
-				var newId = oldId.replace(corner.id, this.id);
-				this.floorplan.metaroomsdata[newId] = {};
-				this.floorplan.metaroomsdata[newId]['name'] = roomname['name'];
-				delete this.floorplan.metaroomsdata[oldId];
-			}
-		}
-		
+
+		// Removed in RM-003 A3: a hand-rolled rekey of metaroomsdata that rewrote
+		// each attached room's key by string-replacing the departing corner's id
+		// with this one's. It was the right instinct - a room whose corner changed
+		// is still the same room - applied through the only mechanism available at
+		// the time, and it had three problems. It was a substring replace on a
+		// comma-joined key, so a corner id that happened to be a substring of
+		// another corrupted the key. It only knew about names, so the floor texture
+		// under `getUuid()` was lost anyway. And it was one caller's special case
+		// for a general problem: every other route to a changed corner set - split
+		// a wall, delete one, draw through a room - lost the name outright.
+		//
+		// `Floorplan.carryRoomIdentity()` now does it for every route, by matching
+		// successor rooms to predecessors on corner overlap, and moves both keys.
+
 		// delete the other corner
 		corner.removeAll();
 		this.removeDuplicateWalls();

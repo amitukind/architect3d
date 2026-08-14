@@ -23,6 +23,26 @@ export class Room extends EventDispatcher
 	constructor(floorplan, corners)
 	{
 		super();
+		/**
+		 * This room's identity, assigned rather than derived (RM-003 A3).
+		 *
+		 * A `Room` object does not survive an edit - `Floorplan.update()` builds a
+		 * new one for every cycle it finds, every time - so before A3 there was
+		 * nothing to hold on to. Anything that wanted to refer to a room had to use
+		 * one of the two derived keys below, and both change the moment its corners
+		 * do; that is finding H-5, and it is why naming a room and then drawing a
+		 * wall through one of its sides lost the name.
+		 *
+		 * A successor room inherits this from the room it continues - see
+		 * `Floorplan.update()` and `model/room_matcher.js` - so it is stable across
+		 * re-derivation even though the object is not. It is deliberately NOT
+		 * persisted: a saved file identifies a room by its corners, which is a
+		 * description a different build can also understand, and the id is
+		 * reassigned on load.
+		 *
+		 * @type {string}
+		 */
+		this.id = Utils.guide();
 		this._name = 'A New Room';
 		this.min = null;
 		this.max = null;

@@ -171,6 +171,52 @@ export class Scene extends EventDispatcher
 		}
 	}
 
+	/**
+	 * Move an item that is already here to where a document says it should be
+	 * (RM-003 A3).
+	 *
+	 * The other half of `Model.newRoom`'s reconciliation, and the reason undo
+	 * stops re-downloading the furniture: an item the incoming document still has
+	 * keeps its geometry, its materials and its GPU upload, and is repositioned.
+	 * Nothing is loaded, so nothing is dispatched - a caller counting
+	 * `EVENT_ITEM_LOADING` against `EVENT_ITEM_LOADED` stays balanced because
+	 * neither happens.
+	 *
+	 * The scale goes through `Item.applyScale`, the absolute form. `setScale` is
+	 * relative and expressing an absolute target through it does not round-trip:
+	 * `1.5 * (1 / 1.5)` is not 1.
+	 *
+	 * @param {Object} item An item from {@link Scene#getItems}.
+	 * @param {import('three').Vector3} position
+	 * @param {number} rotation Radians about Y.
+	 * @param {import('three').Vector3} scale The absolute scale wanted.
+	 * @param {boolean} fixed
+	 */
+	updateItem(item, position, rotation, scale, fixed)
+	{
+		item.fixed = fixed || false;
+		if (rotation !== undefined && rotation !== null)
+		{
+			item.rotation.y = rotation;
+		}
+		if (scale && !item.scale.equals(scale))
+		{
+			item.applyScale(scale.x, scale.y, scale.z);
+		}
+		// Directly, not through `moveToPosition`. That is the interactive drag path
+		// and it carries placement rules: `FloorItem.moveToPosition` clamps y to
+		// the floor and, if the target is outside a room, shows an error and
+		// **returns without moving at all**. Restoring a snapshot is not a drag -
+		// the position in it was valid when it was written - so applying those
+		// rules here made undo lossy. The round-trip suite in
+		// tests/history-and-selection.test.js found it on its first run.
+		item.position.copy(position);
+		if (item.bhelper)
+		{
+			item.bhelper.update();
+		}
+	}
+
 	switchWireframe(flag)
 	{
 		this.items.forEach((item)=>{

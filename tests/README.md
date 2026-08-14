@@ -69,6 +69,12 @@ Expectations retired that way so far, all listed as FIX in the ledger:
 | `material_colors` held every material's colour on every save, freezing a model's own appearance into every design using it | post-S9 | `items-and-scene.test.js` |
 | A design with no `items` array threw **after** `EVENT_LOADING` and **after** the floorplan had been replaced, leaving the model half-loaded with no `EVENT_LOADED` and the previous design gone. RM-003 A1 validates the whole document first, so it now throws before anything is touched and dispatches neither event | RM-003 A1 | `items-and-scene.test.js` |
 
+**RM-003 A3 retired nothing either.** Three expectations were *updated* rather
+than retired, all for the same additive reason: `Item.getMetaData()` gained an
+`id`, so the three tests pinning its exact key list are one key longer. The
+assertion means what it always meant. Adding a field to the save format is the
+one change that reaches those without changing behaviour.
+
 **RM-003 A2 retired nothing**, which is worth recording because it was the
 sprint most likely to have to. Its risk register named characterization drift as
 the high one: coalescing `EVENT_UPDATED` changes how often it fires, and a test
@@ -146,6 +152,18 @@ tests/
 │                           against a REAL Main; and the matrix that matters -
 │                           three designs by ten edit kinds, incremental against
 │                           full redraw, mesh by mesh
+│
+│  identity and history (RM-003 A3, contract) — environment: jsdom
+├─ identity.test.js         the room matcher on its own, because it is the one
+│                           rule here that can be SUBTLY wrong; then the H-5
+│                           measurement inverted - name a room, texture it, draw
+│                           a wall through one side, and both survive
+├─ history-and-selection.test.js  undo that keeps the furniture it already has
+│                           (M-8); a selection that resolves by id and survives a
+│                           re-derivation; and a generated round-trip suite -
+│                           random edit sequences, each undone, asserted
+│                           byte-identical. It found three real defects on its
+│                           first two runs
 │
 │  the Vue application (S6-S7, contract) — environment: jsdom
 ├─ app-composables.test.js  the blueprint's lifetime, the single selection, the

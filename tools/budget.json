@@ -63,12 +63,35 @@
     "    JSDoc that gives a typed consumer its documentation and hover text.",
     "",
     "So the two entries plausibly want different answers, and 'minify the library'",
-    "is the wrong shape of question. Still not this sprint's decision to make."
+    "is the wrong shape of question. Still not this sprint's decision to make.",
+    "",
+    "A3 RAISED lib-esm-gzip AGAIN, and this is the third consecutive sprint to",
+    "raise a library limit. That is the signal, not the number. A3 added assigned",
+    "identities across five entity kinds, a room matcher, item reconciliation and",
+    "an identity-resolving selection - real functionality - and went 0.9 KB over.",
+    "lib-iife-gzip is now at 0.3% HEADROOM and was again not raised: A4 will trip",
+    "it on the next docblock, which is what a budget is for.",
+    "",
+    "THE DECISION IS NOW BLOCKING, so it is written as a recommendation rather",
+    "than a question. The two entries want different answers:",
+    "",
+    "  - lib-iife-gzip: MINIFY IT. A browser downloads this bundle as written, so",
+    "    its 37.6% of comments is a cost paid by every end user of a drop-in",
+    "    <script> tag, for documentation none of them will read. Nothing about the",
+    "    source changes; `minify: true` in the iife build config is the whole of",
+    "    it. Expect the limit to come DOWN afterwards, the way P6's did.",
+    "  - lib-esm-gzip: LEAVE IT. A bundler strips comments on the consumer's way",
+    "    to production, so its 52.2% is a build-time cost only - and those",
+    "    comments are the JSDoc that gives a typed consumer its hover text.",
+    "",
+    "Do not raise either again. Either take the recommendation, reject it and set",
+    "limits that reflect that choice, or accept that the budget has stopped",
+    "measuring anything for these two entries."
   ],
   "budgets": {
     "demo-js-gzip": {
       "limit": 330000,
-      "measured": 319262
+      "measured": 320395
     },
     "demo-css-gzip": {
       "limit": 10000,
@@ -76,19 +99,19 @@
     },
     "demo-total": {
       "limit": 19000000,
-      "measured": 18205740
+      "measured": 18247386
     },
     "lib-iife-gzip": {
       "limit": 470000,
-      "measured": 461914
+      "measured": 468771
     },
     "public-total": {
       "limit": 11700000,
       "measured": 11138159
     },
     "lib-esm-gzip": {
-      "limit": 114000,
-      "measured": 108402
+      "limit": 121000,
+      "measured": 114927
     },
     "public-largest": {
       "limit": 1450000,
