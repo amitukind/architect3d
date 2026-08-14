@@ -2,6 +2,7 @@ import {EventDispatcher, RepeatWrapping, MeshBasicMaterial, MeshPhongMaterial, M
 import {triangleFanGeometry} from '../core/geometry_builders.js';
 import {EVENT_CHANGED} from '../core/events.js';
 import {acquireTexture, releaseTexture} from './texture_cache.js';
+import {disposeObject} from '../core/resource_registry.js';
 import {Configuration, configWallHeight} from '../core/configuration.js';
 import {renderProfile, isStudio} from './render_profile.js';
 
@@ -47,9 +48,33 @@ export class Floor extends EventDispatcher
 	redraw()
 	{
 		this.removeFromScene();
+		this.releasePlanes();
 		this.floorPlane = this.buildFloor();
 		this.roofPlane = this.buildRoofVaryingHeight();
 		this.addToScene();
+	}
+
+	/**
+	 * Dispose the two planes this floor built, and only those (RM-003 A0).
+	 *
+	 * ## The ownership boundary, stated where it is easiest to get wrong
+	 *
+	 * `addToScene()` puts four meshes into the scene: `this.floorPlane` and
+	 * `this.roofPlane`, which this class built, and `this.room.floorPlane` and
+	 * `this.room.roofPlane`, which the **model** built and which this class only
+	 * borrows for picking. Only the first two are released here. Disposing the
+	 * room's would take out the geometry the raycaster tests against and leave the
+	 * next redraw picking against a dead handle - and it would do it silently,
+	 * because a disposed geometry still has its attributes on the CPU side.
+	 *
+	 * `tests/resource-lifecycle.test.js` asserts exactly this, in both directions.
+	 */
+	releasePlanes()
+	{
+		disposeObject(this.floorPlane);
+		disposeObject(this.roofPlane);
+		this.floorPlane = null;
+		this.roofPlane = null;
 	}
 
 	/**
@@ -180,15 +205,17 @@ export class Floor extends EventDispatcher
 	}
 
 	/**
-	 * Detach from the room and give the texture back.
+	 * Detach from the room, release the geometry, and give the texture back.
 	 *
 	 * Separate from removeFromScene(), which redraw() calls between rebuilds and
 	 * which must not release anything - the next line builds the replacement.
+	 * `releasePlanes()` is the part redraw() *does* want, and it calls it itself.
 	 */
 	dispose()
 	{
 		this.room.removeEventListener(EVENT_CHANGED, this.changedevent);
 		this.removeFromScene();
+		this.releasePlanes();
 		releaseTexture(this.floorTexture);
 		this.floorTexture = null;
 	}

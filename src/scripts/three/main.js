@@ -15,7 +15,6 @@ import {OrbitControls} from './orbitcontrols.js';
 import {Controller} from './controller.js';
 import {HUD} from './hud.js';
 import {Floorplan3D} from './floorPlan.js';
-import {clearTextureCache} from './texture_cache.js';
 import {Lights} from './lights.js';
 import {Skybox} from './skybox.js';
 import {renderProfile, isStudio, setRenderProfile} from './render_profile.js';
@@ -467,6 +466,10 @@ export class Main extends EventDispatcher
 		{
 			this.controller.dispose();
 		}
+		if (this.hud)
+		{
+			this.hud.dispose();
+		}
 		if (this.fpscontrols)
 		{
 			this.fpscontrols.removeEventListener('unlock', this._fpsUnlockEvent);
@@ -513,16 +516,24 @@ export class Main extends EventDispatcher
 			}
 		}
 
-		// Last, and after every holder has released its handles, so this drops
-		// masters whose refcount is already zero rather than pulling images out
-		// from under a live viewer.
+		// No clearTextureCache() here, as of RM-003 A0.
 		//
-		// The cache is module-level and therefore shared between viewers, which
-		// is deliberate - so is the GPU - but it means a second viewer on the page
-		// pays to decode again after the first one is disposed. Acceptable while
-		// two simultaneous viewers are not a supported configuration; it becomes
-		// R-02's problem when they are.
-		clearTextureCache();
+		// It used to be the last line of this method, and the comment it carried
+		// said it "becomes R-02's problem" once two simultaneous viewers were a
+		// supported configuration. P7 made them supported and shipped
+		// tests/browser/two-designs.test.js to prove it, so the condition arrived.
+		//
+		// The call was always redundant for this viewer's own images and always
+		// destructive to anybody else's. Every holder - each Edge, each Floor -
+		// releases its handles above, and the cache is refcounted, so a master
+		// whose last handle just went is already disposed by the time we get here.
+		// What clearTextureCache() added was disposing the masters still held by
+		// OTHER viewers, forcing each of them to re-fetch and re-decode every image
+		// it was using on its next redraw.
+		//
+		// The export stays, for an embedder tearing down a whole page. It is
+		// teardown, not eviction, and it is nobody's business to call it from the
+		// disposal of one viewer among several.
 	}
 	exportForBlender()
 	{

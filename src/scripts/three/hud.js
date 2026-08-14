@@ -1,6 +1,7 @@
 import {EventDispatcher, Scene as ThreeScene, BufferAttribute, BufferGeometry, Vector3, LineBasicMaterial, CylinderGeometry, MeshBasicMaterial, Mesh, SphereGeometry, Object3D, LineSegments} from 'three';
 
 import {EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED} from '../core/events.js';
+import {disposeObject} from '../core/resource_registry.js';
 
 //As far as I understand the HUD is here to show a rotation control on every item
 //If this idea is correct then it seriously sucks. A whole rendering to show just cones and lines as arrows?
@@ -58,14 +59,34 @@ export class HUD extends EventDispatcher
 	}
 	
 	
-	resetSelectedItem() 
+	resetSelectedItem()
 	{
 		this.selectedItem = null;
-		if (this.activeObject) 
+		if (this.activeObject)
 		{
 			this.scene.remove(this.activeObject);
+			// makeObject() builds a line, a cone and a sphere - three geometries and
+			// three materials - on every selection, and this removed the group from
+			// the scene without disposing any of it (RM-003 A0). Selecting items in
+			// turn leaked a set per selection.
+			disposeObject(this.activeObject);
 			this.activeObject = null;
 		}
+	}
+
+	/**
+	 * Detach from the viewer and release the rotation handle.
+	 *
+	 * There was no dispose() here at all, so tearing a viewer down left the HUD
+	 * subscribed to EVENT_ITEM_SELECTED and EVENT_ITEM_UNSELECTED on a Main that
+	 * was finished with - building handles into a scene nobody would draw.
+	 * `Main.dispose()` now calls this.
+	 */
+	dispose()
+	{
+		this.three.removeEventListener(EVENT_ITEM_SELECTED, this.itemselectedevent);
+		this.three.removeEventListener(EVENT_ITEM_UNSELECTED, this.itemunselectedevent);
+		this.resetSelectedItem();
 	}
 
 	itemSelected(item) 

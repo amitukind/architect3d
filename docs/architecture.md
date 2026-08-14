@@ -69,9 +69,22 @@ a loaded glTF into a single `BufferGeometry` with material groups.
 
 `Floorplan` holds `Corner`s, `Wall`s, `HalfEdge`s and `Room`s. `Scene` holds
 the loaded `Item`s. Between them they are the entire state of a design, and
-they hold no DOM node, no canvas and no GPU resource — which is what lets
-`exportSerialized()` be a pure function of them, and what lets `dispose()`
-leave the model standing.
+they hold no DOM node and no canvas — which is what lets `exportSerialized()`
+be a pure function of them, and what lets `dispose()` leave the model standing.
+
+::: warning The model does hold GPU resources
+This section used to say it held none, and that was wrong. `Room` builds two
+`Mesh`es — `floorPlane` and `roofPlane` — and every `HalfEdge` builds a third.
+They are the invisible planes the raycaster tests against for floor, ceiling and
+wall picking, and being invisible is how they escaped the description; a
+`ShapeGeometry` is a `ShapeGeometry` whether or not it is drawn, and `Floor`
+puts all of them into the live three scene.
+
+So `Room` and `HalfEdge` have a `dispose()`, and `Floorplan.update()` calls it on
+everything it is about to replace. Before RM-003 A0 it did not, and each call
+abandoned six geometries and six materials. The **3D view borrows these and must
+never dispose them** — see the ownership note under `three` below.
+:::
 
 Rooms are not stored; they are **derived**. `Floorplan.update()` walks the wall
 graph looking for closed loops and rebuilds the room list from scratch. This is
@@ -196,7 +209,7 @@ elements with `defineExpose`.
 
 ## Where the layers meet
 
-Three seams are worth knowing, because each one is a place where a change in
+Seven seams are worth knowing, because each one is a place where a change in
 one layer does *not* automatically reach the other:
 
 1. **`Configuration` announces a change but redraws nothing.** It dispatches
@@ -215,13 +228,25 @@ one layer does *not* automatically reach the other:
 4. **Textures are shared and refcounted.** `acquireTexture` hands out a
    `Texture.clone()` over one decoded image, and the last `releaseTexture`
    disposes it. Each surface keeps its own `repeat` and `wrap`; the pixels are
-   loaded once.
-5. **The render profile is read at construction.** Setting `renderProfile.mode`
+   loaded once. Disposing a viewer releases *its* handles and nothing else, so a
+   second viewer on the page keeps its images.
+5. **Every GPU resource has exactly one owner.** A `Room` owns its two hit-test
+   planes and a `Wall` owns its two `HalfEdge` planes — the half edge writes
+   itself onto `wall.frontEdge`/`backEdge`, which is what makes the wall the
+   thing that can still reach it. The 3D `Floor` **borrows** the room's two
+   planes for picking and never disposes them; `Edge` owns its six wall meshes
+   and releases them through a `ResourceRegistry`. Getting this backwards is
+   worse than leaking: a disposed geometry still answers on the CPU side, so
+   over-disposal shows up as a black surface somewhere else, later.
+   `core/resource_registry.js` is the vocabulary — `register`/`release` for
+   batches with sharing, `disposeObject` for a mesh built and dropped in one
+   method.
+6. **The render profile is read at construction.** Setting `renderProfile.mode`
    by hand changes nothing already built; go through `setRenderProfile` before
    construction, or `Main.applyRenderProfile()` after it. A viewer given its own
    profile — `new BlueprintJS({renderProfile: createRenderProfile(RENDER_STUDIO)})`
    — does not touch the shared one.
-6. **Undo captures what the save format captures.** `saveFloorplan` writes only
+7. **Undo captures what the save format captures.** `saveFloorplan` writes only
    the corners its walls reach, so a corner with nothing attached is not in a
    snapshot and cannot be restored by one. Unreachable through the UI, which
    creates corners and walls together; reachable by an embedder driving the

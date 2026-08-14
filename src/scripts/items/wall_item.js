@@ -69,6 +69,11 @@ export class WallItem extends Item
 			Utils.removeValue(this.currentWallEdge.wall.items, this);
 			this.redrawWall();
 		}
+		// Detach from the wall FIRST, then release (RM-003 A0). redrawWall() above
+		// rebuilds the wall's faces, which cuts the hole this item used to occupy -
+		// and it reads this item's position and halfSize to do it. Releasing before
+		// that would hand the rebuild a disposed geometry.
+		super.removed();
 	}
 
 	/** */

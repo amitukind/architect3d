@@ -2,8 +2,61 @@
 
 ## [Unreleased]
 
+### Fixed
+
+* **The library now disposes the GPU resources it builds.** Before this it
+  disposed almost none of them: the whole of `src/` contained three
+  `geometry.dispose()` or `material.dispose()` calls, and `Floorplan.update()`
+  abandoned **six meshes, six geometries and six materials on every call** —
+  with no change to the plan. Opening a four-wall design dispatches
+  `EVENT_UPDATED` twenty-five times, so a file open abandoned roughly 150 of
+  each before the first frame was drawn.
+
+  Every ownership boundary is now explicit, and the measurement is a test rather
+  than a claim: `tests/resource-lifecycle.test.js` asserts nothing is abandoned
+  across repeated edits, and `tests/browser/gpu-memory.test.js` asks the
+  renderer the same question through `renderer.info.memory` in chromium.
+
+  What was released, and by whom:
+
+  * `Room` and `HalfEdge` gained a `dispose()`. They build the invisible planes
+    the raycaster tests against — two per room, one per half edge — and
+    `Floorplan.update()`, `Floorplan.reset()` and `Floorplan.removeWall()` now
+    release what they replace.
+  * `Edge.remove()` releases its six wall meshes through a `ResourceRegistry`,
+    as does `Edge.redraw()` before rebuilding. It previously released both
+    textures carefully and no geometry at all.
+  * `Floor.dispose()` and `Floor.redraw()` release the floor and roof planes.
+  * `Item.removed()` was an empty method, so deleting an item released nothing.
+    It now disposes the merged geometry, both materials, the two dimension-label
+    canvases and their textures — and removes the selection-box `BoxHelper` from
+    the scene, which nothing had ever done, so a deleted item left its bounding
+    box behind pointing at an object no longer in the graph.
+  * `Item.hideError()` disposes the error glow, which clones the whole item
+    geometry each time it is shown.
+  * `HUD` gained a `dispose()` and now releases its rotation handle — three
+    geometries and three materials — on every selection change instead of
+    dropping it.
+  * `Skybox.dispose()` releases the ground photograph and the environment map.
+    Both sat in a material's `map` or a shader uniform, and `Material.dispose()`
+    in three does not touch either.
+* **Disposing one viewer no longer empties the texture cache under the others.**
+  `Main.dispose()` ended with an unconditional `clearTextureCache()`, which was
+  always redundant for that viewer's own images — the cache is refcounted and
+  every holder releases above it — and always destructive to anybody else's,
+  forcing every other live viewer to re-fetch and re-decode. `clearTextureCache`
+  is still exported for an embedder tearing down a whole page.
+* **`Edge.removeFromScene()` is symmetric with `addToScene()`.** It cleared
+  `planes` and `basePlanes` but not `phantomPlanes`, so `addToScene()` would
+  re-add a plane that had already been taken out. Nothing pushes to
+  `phantomPlanes` today, so this was latent rather than live.
+
 ### Added
 
+* **`core/resource_registry.js`** — `ResourceRegistry` for batches of GPU
+  resources with one owner and one release point, refcounted so a material
+  shared by several meshes survives the first release; plus `disposeObject()`
+  and `disposeMaterial()` for the cases where a registry would be ceremony.
 * **Two designs on one page can now have different settings.** `Configuration`
   and `Dimensioning` are ordinary classes you can instantiate, and a
   `Floorplan` — and through it a `Model`, a `BlueprintJS` and the 2D view —
@@ -157,6 +210,22 @@
 
 ### Changed
 
+* **An `Item` subclass that overrides `removed()` must call
+  `super.removed()`.** This is the one migration note in the disposal work
+  above: `Item.removed()` used to be empty, so an override that did not chain
+  lost nothing. It now releases the item's geometry, materials, label canvases
+  and selection box, and an override that does not chain will leak them.
+  `WallItem` is the only override in this repository and it chains — detaching
+  from its wall first, because the wall rebuild it triggers reads the item's
+  position and size and must not be handed a disposed geometry.
+* **The browser tier's test timeout is 30 seconds**, up from the 15 it was
+  living on. Every frame in that tier is composited by SwiftShader on the CPU,
+  the profile-switching test takes 8 seconds on its own, and the memory suite
+  added by the disposal work consumed the remaining headroom — the tier shares
+  one browser, so new work is subtracted from every other test's budget. The
+  assertions are unchanged. This is an allowance for the rasteriser and
+  explicitly not a ratchet: a test that starts needing thirty seconds is a
+  finding.
 * **`Skybox`, `Lights`, `Floorplan3D`, `Edge` and `Floor` take an optional
   render profile** as a trailing constructor argument, and `Floorplan`, `Model`
   and `BlueprintJS` take an optional configuration. All additive: omit them and

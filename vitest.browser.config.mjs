@@ -61,6 +61,30 @@ export default defineConfig({
 	test: {
 		name: 'browser',
 		include: ['tests/browser/**/*.test.js'],
+		/**
+		 * Thirty seconds, against Vitest's default of five and the ten this tier
+		 * had been living on (RM-003 A0).
+		 *
+		 * This is an allowance for the rasteriser, not a relaxed assertion. Every
+		 * frame in this tier is composited by SwiftShader on the CPU, and the
+		 * expensive tests are the ones that switch render profile - each switch
+		 * throws away and rebuilds every Edge and Floor and re-runs PMREM. The
+		 * profile-comparison test does that twice and takes 8s on its own on this
+		 * machine, so it had roughly one doubling of headroom.
+		 *
+		 * A0 added a memory suite and that headroom went: the whole tier shares one
+		 * browser and one CPU, so any new work is subtracted from every other
+		 * test's budget, and the profile test began timing out at 17s while still
+		 * asserting correctly - the measured difference between the two frames was
+		 * 99.99% of pixels, nowhere near the 5% floor it checks. Shrinking the new
+		 * suite until the old one fits under an arbitrary limit would trade a real
+		 * measurement for an unrelated test's margin, so the limit moves instead.
+		 *
+		 * Note that this is the opposite of a ratchet and must not be treated as
+		 * one: if a test starts needing thirty seconds, that is a finding.
+		 */
+		testTimeout: 30000,
+		hookTimeout: 30000,
 		// Chromium only. A second engine doubles the runtime and this tier exists
 		// to prove the renderers work at all, not to survey engine differences -
 		// which is a question for the parity harness, not for CI.

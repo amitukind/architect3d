@@ -217,6 +217,14 @@ footer{margin-top:70px; padding-top:18px; border-top:1px solid var(--line); colo
   <a href="#findings">11 · Architecture findings</a>
   <a href="#tech">12 · Technology decisions</a>
   <a href="#gates">13 · Build gates &amp; sequence</a>
+
+  <div class="toc-head mono" style="margin-top:22px">HARDENING RM-003</div>
+  <a href="#hardening">14 · The program</a>
+  <a href="#states">15 · Current &amp; target state</a>
+  <a href="#ledger">16 · Decision log</a>
+  <a href="#hrisks">17 · Risks &amp; dependencies</a>
+  <a href="#contract">18 · Compatibility &amp; non-goals</a>
+  <a href="#asprints">19 · Sprints A0–A5</a>
 </nav>
 
 <main>
@@ -1242,6 +1250,814 @@ footer{margin-top:70px; padding-top:18px; border-top:1px solid var(--line); colo
   <p><strong>Method — RM-002.</strong> Full read of <code>package.json</code>, both workflows and all three configs, plus the library's global-state, loader and render paths, against the working tree at <code>edf0c59</code> on branch <code>amit</code>. Dependency currency verified with <code>npm outdated</code> and <code>npm view</code> per package rather than from memory. Bundle and asset figures measured from the built <code>dist/</code> and <code>dist-demo/</code>. The exit-1 defect, the null-item dereference in <code>Controller.itemLoaded</code>, and the characterization conflict in <code>addItem</code> were each reproduced empirically, not inferred.</p>
   <p><strong>Sources — RM-002.</strong> <a href="https://voidzero.dev/posts/announcing-vitest-4">Announcing Vitest 4</a> · <a href="https://vitest.dev/guide/browser/visual-regression-testing">Vitest visual regression testing</a> · <a href="https://www.techtimes.com/articles/320049/20260710/typescript-7-now-stable-10-faster-builds-not-vue-svelte-yet.htm">TypeScript 7 stable, not for Vue yet</a> · <a href="https://ecorpit.com/typescript-7-migration-readiness-eslint-astro-blockers-2026/">TypeScript 7 migration readiness</a> · <a href="https://github.com/mrdoob/three.js/releases/tag/r185">three.js r185 release</a> · <a href="https://threejs.org/manual/en/webgpurenderer.html">three.js WebGPURenderer manual</a> · <a href="https://github.com/vuejs/core/releases">Vue core releases</a> · <a href="https://docs.npmjs.com/trusted-publishers/">npm trusted publishing</a> · <a href="https://github.blog/changelog/2025-07-31-npm-trusted-publishing-with-oidc-is-generally-available/">npm OIDC trusted publishing GA</a></p>
   <p>architect3d · Architecture redline RM-002 rev A · successor to migration roadmap RM-001</p>
+</footer>
+
+<!-- ===================================================================
+     ARCHITECTURE HARDENING PROGRAM RM-003 — the third drawing in this
+     set. RM-001 is the migration and is closed; RM-002 is the redline
+     and its seven findings are all landed. This is the plan for what
+     those two did not reach: resource ownership, transactional loading,
+     a typed change contract, stable identity, command history, complete
+     document isolation, and asset delivery. Planning only — no runtime
+     code, test, dependency, build or CI change accompanies this section.
+     =================================================================== -->
+
+<header class="sheet" id="hardening-sheet" style="margin-top:56px">
+  <div class="sheet-body">
+    <div class="eyebrow">ARCHITECTURE HARDENING · DRAWING Nº RM-003</div>
+    <h1>Architecture Hardening Program</h1>
+    <p class="lede">Six sequential sprints that turn architect3d from a viewer that works into a document editor that can be trusted with somebody's work. Every finding below was <strong>measured against the working tree</strong>, not inferred &mdash; the numbers in §16 come from running the library, and the ones that surprised me are marked.</p>
+  </div>
+  <div class="titleblock">
+    <div><div class="tb-k">PROJECT</div><div class="tb-v">architect3d</div></div>
+    <div><div class="tb-k">SUCCEEDS</div><div class="tb-v">RM-002 — all 7 findings landed</div></div>
+    <div><div class="tb-k">BRANCH</div><div class="tb-v">amit @ fff1ebe</div></div>
+    <div><div class="tb-k">SCOPE</div><div class="tb-v">13.4k LOC lib · 29 SFCs</div></div>
+    <div><div class="tb-k">DATE</div><div class="tb-v">2026-08-14</div></div>
+    <div><div class="tb-k">REV</div><div class="tb-v">A · proposal</div></div>
+  </div>
+</header>
+
+<!-- ======================= 14 THE PROGRAM ======================= -->
+<section id="hardening">
+  <div class="sec-eyebrow">§ 14 · EXECUTIVE SUMMARY</div>
+  <h2>One theme: nothing owns anything</h2>
+  <p class="sec-sub">RM-002 fixed seven specific defects. This is the pattern underneath them, and it is a single one — the library has no concept of ownership, so nothing knows what it is responsible for releasing, replacing, cancelling or identifying.</p>
+
+  <div class="stats">
+    <div class="stat"><div class="v">6</div><div class="k">meshes, geometries and materials abandoned by <em>every</em> <code>Floorplan.update()</code> — measured, one square room</div></div>
+    <div class="stat"><div class="v">25</div><div class="k"><code>EVENT_UPDATED</code> dispatches to open a four-wall file. Each one is a full 3D teardown <em>and</em> a camera recentre</div></div>
+    <div class="stat"><div class="v">3</div><div class="k"><code>geometry.dispose()</code> / <code>material.dispose()</code> call sites in the whole of <code>src/</code></div></div>
+    <div class="stat"><div class="v">4/4</div><div class="k">malformed documents that destroy the open design. One of them does not even throw</div></div>
+  </div>
+
+  <p><strong>The load-bearing sentence in this document</strong> is that these are not five problems. A resource leaks because no object was ever declared its owner; a stale callback lands because no load was ever declared current; a room loses its name because identity was derived instead of assigned; undo re-downloads a sofa because history has no unit smaller than the document. Each sprint below installs one missing ownership relation, and the ones after it get cheaper because it exists.</p>
+
+  <p><strong>What this program is not.</strong> It is not a rewrite, and §18 says so at length and with guardrails. Every sprint keeps the public <code>EventDispatcher</code> surface, keeps every static API working, and is independently shippable and independently revertible. The pattern that made RM-002 P7 a non-event &mdash; <em>an instance form, with the existing statics forwarding to a module default</em> &mdash; is the same pattern used throughout, because it has now been proven on this codebase against 302 call sites that did not have to move.</p>
+
+  <h3>Architecture health metrics</h3>
+  <p>Nine numbers. Every one is measurable today, most of them are measured below, and each sprint moves specific rows. A metric nobody can compute is a slogan, so the "how" column is not decoration.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Nº</th><th>Metric</th><th class="num">Today</th><th class="num">Target</th><th>How it is measured</th><th>Sprint</th></tr></thead>
+    <tbody>
+      <tr><td>M-1</td><td>GPU geometries retained after 50 edit cycles</td><td class="num">grows</td><td class="num">0 growth</td><td><code>renderer.info.memory.geometries</code> before/after — three r185 increments it on upload and decrements it on dispose</td><td>A0</td></tr>
+      <tr><td>M-2</td><td>GPU textures retained after 50 edit cycles</td><td class="num">grows</td><td class="num">0 growth</td><td><code>renderer.info.memory.textures</code>, plus <code>textureCacheStats()</code> handles</td><td>A0</td></tr>
+      <tr><td>M-3</td><td>Model-layer meshes abandoned per <code>update()</code></td><td class="num">6</td><td class="num">0</td><td>Identity-set over <code>room.floorPlane/roofPlane</code> and <code>halfEdge.plane</code> across N updates</td><td>A0</td></tr>
+      <tr><td>M-4</td><td><code>EVENT_UPDATED</code> per document open</td><td class="num">25</td><td class="num">1</td><td>Counter on <code>floorplan</code>, one <code>loadSerialized</code> of <code>simple-room.blueprint3d</code></td><td>A1, A2</td></tr>
+      <tr><td>M-5</td><td>Full <code>Floorplan3D.redraw()</code> per corner drag</td><td class="num">1 per event</td><td class="num">0</td><td>Spy on <code>redraw</code>; incremental projection should touch only the affected edges</td><td>A2</td></tr>
+      <tr><td>M-6</td><td>Malformed documents that destroy the open design</td><td class="num">4 of 4</td><td class="num">0 of 4</td><td>The corpus in §16 H-2, asserted against corner and wall counts after the failure</td><td>A1</td></tr>
+      <tr><td>M-7</td><td>Items from a superseded load that reach the live scene</td><td class="num">all</td><td class="num">0</td><td>Deferred stub loader, two loads, count <code>scene.getItems()</code> by origin document</td><td>A1</td></tr>
+      <tr><td>M-8</td><td>Model files re-fetched per undo</td><td class="num">all</td><td class="num">0</td><td>Count <code>EVENT_ITEM_LOADING</code> across an undo of a geometry-only edit</td><td>A3</td></tr>
+      <tr><td>M-9</td><td>Largest synchronous main-thread persistence write</td><td class="num">whole doc</td><td class="num">0 bytes</td><td>The autosave path; Web Storage is synchronous and capped, IndexedDB is neither</td><td>A5</td></tr>
+    </tbody>
+  </table></div>
+
+  <p class="risk-note"><b>On M-1 and M-2.</b> These are the two that make the whole program checkable rather than argued about, and they cost nothing to add: <code>renderer.info.memory</code> is <code>{geometries, textures}</code>, maintained by the renderer itself &mdash; incremented where a resource is uploaded, decremented in the dispose handlers. Verified in the installed <code>three@0.185.1</code> rather than taken from the docs. A test that mounts a viewer, edits fifty times and asserts the counter came back is the honest form of &ldquo;we fixed the leaks&rdquo;.</p>
+</section>
+
+<!-- ======================= 15 STATES ======================= -->
+<section id="states">
+  <div class="sec-eyebrow">§ 15 · CURRENT &amp; TARGET STATE</div>
+  <h2>What owns what, before and after</h2>
+  <p class="sec-sub">Both diagrams show the same six layers. The difference is entirely in the arrows and in one new object.</p>
+
+  <h3>Current state</h3>
+  <p>Dashed borders mark objects that hold GPU or async resources <strong>nobody releases</strong>. The dotted arrows are the ones that make the current design hard to reason about: a view reaching across a layer boundary to add a mesh the model built, and a loader callback writing into whatever scene exists when it happens to return.</p>
+
+  <div class="arch">
+    <div class="arch-row"><div class="node hl"><div class="n-t">src/app — Vue 3</div><div class="n-s">useSelection holds markRaw(Room) · useHistory snapshots whole documents · useAutosave writes localStorage synchronously</div></div></div>
+    <div class="arch-link">▼ holds live model references that <code>update()</code> silently replaces ▼</div>
+    <div class="arch-row arch-cols">
+      <div class="node"><div class="n-t">floorplanner (2D)</div><div class="n-s">repaints whole canvas<br>per-instance config ✓ P7</div></div>
+      <div class="node dead"><div class="n-t">model</div><div class="n-s">Floorplan · Scene · Item<br><b>builds Mesh + Geometry +<br>Material, disposes none</b></div></div>
+      <div class="node dead"><div class="n-t">three (3D)</div><div class="n-s">Edge · Floor · Floorplan3D<br><b>remove() ≠ dispose()</b></div></div>
+    </div>
+    <div class="arch-link">▲ <code>Floor.addToScene()</code> adds <code>room.floorPlane</code> — the view adds a mesh the model owns ▲</div>
+    <div class="arch-row arch-cols">
+      <div class="node"><div class="n-t">EVENT_UPDATED</div><div class="n-s">one undifferentiated signal:<br>rebuild all · recentre camera ·<br>snapshot · autosave</div></div>
+      <div class="node dead"><div class="n-t">module-global cache</div><div class="n-s">texture_cache map<br>DefaultLoadingManager<br><b>cleared process-wide</b></div></div>
+      <div class="node dead"><div class="n-t">loader callbacks</div><div class="n-s">closure over <code>scope</code><br><b>no generation token</b></div></div>
+    </div>
+    <div class="arch-row"><div class="node"><div class="n-t">core</div><div class="n-s">Configuration ✓ · Dimensioning ✓ · renderProfile ✓ — all per-instance since P7, statics forwarding to a module default</div></div></div>
+  </div>
+
+  <h3>Target state</h3>
+  <p>One new object, <code>DesignRuntime</code>, and one new contract, <code>ChangeSet</code>. Everything else is existing code given an owner. The runtime is <em>not</em> a god object: it holds no design data, only the six services a document needs and the identity that says which document they belong to.</p>
+
+  <div class="arch">
+    <div class="arch-row"><div class="node hl"><div class="n-t">src/app — Vue 3</div><div class="n-s">selection by <b>id</b>, resolved against the current graph · history is a command stack with checkpoints · autosave through an async repository</div></div></div>
+    <div class="arch-link">▼ subscribes to typed ChangeSet, not to a bare event ▼</div>
+    <div class="arch-row"><div class="node hl"><div class="n-t">DesignRuntime — one per document</div><div class="n-s">configuration · dimensioning · renderProfile · assetResolver · loadSession · resourceRegistry · documentId<br>legacy statics still resolve to the module-default runtime, so an embedder that never heard of this keeps working</div></div></div>
+    <div class="arch-row arch-cols">
+      <div class="node"><div class="n-t">floorplanner (2D)</div><div class="n-s">consumes ChangeSet<br>repaints on geometry kinds only</div></div>
+      <div class="node"><div class="n-t">model</div><div class="n-s">emits ChangeSet<br>stable ids on every entity<br>hit-test meshes registered</div></div>
+      <div class="node"><div class="n-t">three (3D)</div><div class="n-s">incremental projection<br>rebuilds only what changed</div></div>
+    </div>
+    <div class="arch-link">▲ every GPU object created is registered to <b>one</b> owning registry, refcounted where shared ▲</div>
+    <div class="arch-row arch-cols">
+      <div class="node hl"><div class="n-t">ResourceRegistry</div><div class="n-s">per viewer · refcounts shared<br>masters · dispose is a boundary,<br>not a call site</div></div>
+      <div class="node hl"><div class="n-t">LoadSession</div><div class="n-s">generation token · LoadingManager<br>per scene · <code>abort()</code> is real in r185<br>stale callbacks rejected</div></div>
+      <div class="node hl"><div class="n-t">AssetResolver</div><div class="n-s">manifest → versioned URL<br>save files keep logical names<br>availability + preload policy</div></div>
+    </div>
+    <div class="arch-row"><div class="node"><div class="n-t">DesignDocument — validate · migrate · then swap</div><div class="n-s">parse → validate → migrate → build off to the side → atomically replace. A document that fails never touches live state.</div></div></div>
+  </div>
+
+  <p class="risk-note"><b>The one-sentence difference.</b> Today a document load mutates the design in place and hopes; afterwards it builds a replacement and commits it. Everything else in this program follows from being able to say that sentence.</p>
+</section>
+
+<!-- ======================= 16 DECISION LOG ======================= -->
+<section id="ledger">
+  <div class="sec-eyebrow">§ 16 · DECISION LOG</div>
+  <h2>Eight findings, with the evidence</h2>
+  <p class="sec-sub">Every row cites a file and a line at <code>fff1ebe</code>. The four marked <span class="chip acc">measured</span> were produced by running the library, not by reading it — the script is throwaway and the numbers are reproducible from the description given.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Nº</th><th>Finding</th><th>Sev</th><th>Primary evidence</th><th>Sprint</th></tr></thead>
+    <tbody>
+      <tr><td>H-1</td><td>Nothing disposes geometries or materials; the model layer leaks the hardest</td><td><span class="chip crit">high</span></td><td><code>model/floorplan.js:816–878</code> · <code>three/edge.js:85–97</code> · <code>items/item.js:461</code></td><td>A0</td></tr>
+      <tr><td>H-2</td><td>A malformed document destroys the open design before it fails</td><td><span class="chip crit">high</span></td><td><code>model/model.js:53–61, 122–133</code></td><td>A1</td></tr>
+      <tr><td>H-3</td><td>Item callbacks land in whatever scene exists when they return</td><td><span class="chip crit">high</span></td><td><code>model/scene.js:199–212</code></td><td>A1</td></tr>
+      <tr><td>H-4</td><td>One undifferentiated <code>EVENT_UPDATED</code> drives five unrelated consumers</td><td><span class="chip crit">high</span></td><td><code>model/floorplan.js:877</code> · <code>three/main.js:129, 403</code></td><td>A2</td></tr>
+      <tr><td>H-5</td><td>Room identity is derived from its corners, so editing a wall renames the room</td><td><span class="chip crit">high</span></td><td><code>model/room.js:53, 87–92</code> · <code>model/wall.js:74, 202</code></td><td>A3</td></tr>
+      <tr><td>H-6</td><td>Undo is a document reload, so it re-fetches every model</td><td><span class="chip warn">med</span></td><td><code>app/composables/useHistory.js:247–256</code></td><td>A3</td></tr>
+      <tr><td>H-7</td><td>The texture cache and the loaders are still process-wide</td><td><span class="chip warn">med</span></td><td><code>three/main.js:525</code> · <code>model/scene.js:37–38</code></td><td>A4</td></tr>
+      <tr><td>H-8</td><td>Assets are unhashed, unversioned, and their URLs are a save-format contract</td><td><span class="chip warn">med</span></td><td><code>public/</code> via Vite <code>publicDir</code> · <code>index.html:13–31</code></td><td>A5</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>H-1 · Nothing disposes geometries or materials <span class="chip crit">high</span></h3>
+  <p>RM-002 R-04 fixed <em>textures</em>, thoroughly and with a refcounted cache. It did not touch geometries or materials, and the grep is stark: <strong>the entire <code>src/</code> tree contains three <code>geometry.dispose()</code> or <code>material.dispose()</code> calls</strong> — two in <code>three/controller.js:108–109</code> and one in <code>three/skybox.js:208</code>. Ten classes have a <code>dispose()</code>; <code>Edge</code>, <code>Item</code>, <code>Room</code>, <code>HalfEdge</code>, <code>HUD</code>, <code>Scene</code>, <code>Model</code> and <code>Floorplan</code> have none.</p>
+
+  <p><strong>The worst offender is the model layer, which the documentation says holds no GPU resources at all.</strong> <code>docs/architecture.md:71–74</code> states the model classes &ldquo;hold no DOM node, no canvas and no GPU resource&rdquo;, and <code>blueprint.js:200–203</code> repeats it as the reason <code>dispose()</code> leaves the model standing. Both are wrong: <code>Room.generatePlane()</code> and <code>generateRoofPlane()</code> build a <code>Mesh</code> each (<code>room.js:147, 159</code>), and <code>HalfEdge.generatePlane()</code> builds a third (<code>half_edge.js:240</code>). They are invisible hit-test planes, which is presumably how they escaped the description — but a <code>ShapeGeometry</code> is a <code>ShapeGeometry</code> whether or not you can see it, and these are added to the live three scene by <code>Floor.addToScene()</code>.</p>
+
+  <div class="gate t2" style="border-left:3px solid var(--warn)">
+    <div class="g-head" style="color:var(--warn)">MEASURED — ONE SQUARE ROOM, 20 <code>update()</code> CALLS <span class="chip acc">measured</span></div>
+    <div class="tw"><table>
+      <thead><tr><th>Quantity</th><th class="num">Count</th></tr></thead>
+      <tbody>
+        <tr><td><code>Room</code> objects ever constructed</td><td class="num">21</td></tr>
+        <tr><td>Meshes ever constructed</td><td class="num">126</td></tr>
+        <tr><td><code>BufferGeometry</code> ever constructed</td><td class="num">126</td></tr>
+        <tr><td><code>Material</code> ever constructed</td><td class="num">126</td></tr>
+        <tr><td>Live at the end</td><td class="num">6</td></tr>
+        <tr><td><strong>Abandoned, never disposed</strong></td><td class="num"><strong>120</strong></td></tr>
+      </tbody>
+    </table></div>
+    <p style="font-size:13.5px;margin:10px 0 0"><strong>Six per <code>update()</code>, every time, with no user-visible change to the plan.</strong> <code>Floorplan.update()</code> sets <code>this.rooms = []</code> and rebuilds every <code>Room</code> from scratch (<code>floorplan.js:839, 846–874</code>), and <code>wall.resetFrontBack()</code> nulls both <code>HalfEdge</code>s on every wall (<code>floorplan.js:833–835</code>). The replaced objects hold three meshes between them and go out of scope holding their geometry and material. Combine this with H-4's twenty-five dispatches and <strong>opening a four-wall file abandons roughly 150 meshes, geometries and materials before the first frame is drawn</strong>.</p>
+  </div>
+
+  <p><strong>The view layer leaks the same way, more visibly.</strong> <code>Edge.remove()</code> (<code>edge.js:85–97</code>) detaches three listeners and releases both textures — carefully, and that part is R-04's work — and then disposes none of the six meshes an <code>Edge</code> builds. <code>Edge.redraw()</code> calls <code>removeFromScene()</code> and immediately rebuilds, so every <code>EVENT_REDRAW</code> abandons another six. <code>removeFromScene()</code> is also asymmetric with <code>addToScene()</code>: it clears <code>planes</code> and <code>basePlanes</code> but not <code>phantomPlanes</code> (<code>edge.js:118–132</code>). Nothing pushes to <code>phantomPlanes</code> today, so it is latent rather than live — but it is the kind of latent that a debugging aid switched on for an afternoon turns into a duplicate-mesh bug.</p>
+  <p><code>Floor.dispose()</code> (<code>floor.js:188–194</code>) detaches its listener, removes from the scene and releases the texture. The floor's <code>ShapeGeometry</code>, the roof's fan geometry and both materials survive. <code>Floor.redraw()</code> (<code>floor.js:47–53</code>) rebuilds both planes without disposing the pair it is replacing.</p>
+
+  <p><strong><code>Item</code> is the one with the clearest single defect.</strong> <code>Item.removed()</code> is an empty method (<code>item.js:461–463</code>), so <code>Scene.removeItem()</code> (<code>scene.js:128–139</code>) releases nothing at all: not the merged <code>BufferGeometry</code>, not the glTF materials or the textures <code>GLTFLoader</code> created for them — which never entered the refcounted cache and so are not covered by R-04 — not the two <code>CanvasTexture</code>s, two <code>PlaneGeometry</code>s and two materials the dimension labels use, and not <code>wirematerial</code>. And one object is not merely undisposed but <em>left in the scene</em>: <code>initObject()</code> does <code>this.scene.add(this.bhelper)</code> (<code>item.js:452–453</code>) and <strong>nothing anywhere removes it</strong>. Delete a chair and its selection box remains a child of the three scene, holding a <code>BoxHelper</code> that points at an object no longer in the graph. <code>errorGlow</code> is milder but the same shape: <code>createGlow()</code> clones the entire item geometry (<code>item.js:669</code>) and <code>hideError()</code> only removes it from the scene.</p>
+
+  <p><strong>The shared-cache boundary is now genuinely wrong, and the code says so.</strong> <code>Main.dispose()</code> ends with an unconditional <code>clearTextureCache()</code> (<code>main.js:525</code>), whose own comment reads: <em>&ldquo;Acceptable while two simultaneous viewers are not a supported configuration; it becomes R-02's problem when they are.&rdquo;</em> P7 made them supported and shipped <code>tests/browser/two-designs.test.js</code> to prove it. Disposing one viewer now empties the cache under every other live viewer on the page — each of which re-fetches and re-decodes every image it is still using on its next redraw. That is the exact condition the comment was written against.</p>
+
+  <div class="gate">
+    <div class="g-head">DECISION — A REGISTRY PER OWNER, NOT MORE <code>dispose()</code> CALLS</div>
+    <ul>
+      <li><strong>Rejected: audit every construction site and add a matching dispose.</strong> That is what the current code is an attempt at, and it has three call sites and ten leaks. The failure mode is structural: <code>redraw()</code> paths construct in one method and discard in another, so the pairing is invisible at both ends. Adding thirty more calls produces thirty more places to forget one</li>
+      <li><strong>Rejected: a scene-graph walk at teardown</strong> (<code>scene.traverse</code>, dispose everything found). It cannot see anything already detached — which is precisely what leaks here — and it will happily dispose a geometry another viewer is still drawing with</li>
+      <li><strong>Chosen: an explicit <code>ResourceRegistry</code>, owned per viewer.</strong> Every geometry, material and texture is registered when created and released as a unit at a declared boundary. Shared entries are refcounted, which the texture cache already does correctly and is the model to copy. three's own guidance is the justification for taking this seriously: <em>&ldquo;three.js can not automatically clean these resources up… it's up to you to manage them&rdquo;</em>, and removing an object from the scene does not free anything</li>
+      <li><strong>The ownership question the registry forces us to answer</strong> is the real deliverable. <code>Floor.addToScene()</code> adds <code>this.room.floorPlane</code> — a mesh built by the model, added by the view, owned by neither. Either the model owns hit-test geometry and the view borrows it, or the model stops building meshes. A0 picks the first, because the second changes picking</li>
+    </ul>
+  </div>
+
+  <h3>H-2 · A malformed document destroys the open design <span class="chip crit">high</span></h3>
+  <p><code>Model.loadSerialized()</code> is six lines (<code>model.js:53–61</code>): dispatch <code>EVENT_LOADING</code>, <code>JSON.parse</code>, <code>newRoom()</code>, dispatch <code>EVENT_LOADED</code>. There is no validation and no version gate. <code>newRoom()</code> (<code>model.js:122–133</code>) then calls <code>this.scene.clearItems()</code> <strong>first</strong>, <code>loadFloorplan()</code> second — and <code>loadFloorplan()</code> opens with <code>this.reset()</code> (<code>floorplan.js:635</code>) before it has looked at anything. So the current design is gone before the new one has been examined at all.</p>
+
+  <div class="gate t2" style="border-left:3px solid var(--crit)">
+    <div class="g-head" style="color:var(--crit)">MEASURED — OPEN A ROOM, THEN OPEN THIS <span class="chip acc">measured</span></div>
+    <div class="tw"><table>
+      <thead><tr><th>Document</th><th>Throws?</th><th>Design before</th><th>Design after</th></tr></thead>
+      <tbody>
+        <tr><td><code>{}</code></td><td>yes</td><td>4 corners, 4 walls</td><td><span class="chip crit">0, 0</span></td></tr>
+        <tr><td><code>{"floorplan":{"corners":{},"walls":[]}}</code></td><td>yes</td><td>4 corners, 4 walls</td><td><span class="chip crit">0, 0</span></td></tr>
+        <tr><td><code>[]</code></td><td>yes</td><td>4 corners, 4 walls</td><td><span class="chip crit">0, 0</span></td></tr>
+        <tr><td><code>{"items":[]}</code></td><td><strong>no</strong></td><td>4 corners, 4 walls</td><td><span class="chip crit">0, 0</span></td></tr>
+      </tbody>
+    </table></div>
+    <p style="font-size:13.5px;margin:10px 0 0">The fourth row is the one to look at. It does not throw, so <code>EVENT_LOADED</code> fires, the toast says the file opened, autosave writes the empty plan over the draft, and history records it as an edit. <strong>The application reports success and the work is gone.</strong> The other three at least surface an error — <code>useDesignIO.loadDesign()</code> catches it and shows &ldquo;Could not open that design&rdquo; (<code>useDesignIO.js:130–143</code>), which is true and also far too late.</p>
+    <p style="font-size:13.5px;margin:10px 0 0">Only a <em>syntax</em> error is safe, because <code>JSON.parse</code> throws before <code>newRoom()</code> runs. Every well-formed JSON document that is not a design is destructive.</p>
+  </div>
+
+  <h3>H-3 · Item callbacks have no generation token <span class="chip crit">high</span></h3>
+  <p><code>Scene.addItem()</code>'s <code>loaderCallback</code> closes over <code>scope</code> and pushes into <code>scope.items</code> (<code>scene.js:199–212</code>). Nothing records which document asked. Open design A with thirty items, then open design B while they are in flight: <code>clearItems()</code> empties the list, and thirty callbacks then resolve into B, adding A's furniture to B's scene and dispatching thirty <code>EVENT_ITEM_LOADED</code>. <code>useHistory</code>'s settle gate counts those (<code>useHistory.js:353–359</code>), so the count it uses to decide when a restore has finished is measuring two documents at once. The same race covers New, Undo, Redo and viewer disposal.</p>
+  <p><strong>The cancellation primitive already exists in the installed engine, and the library does not use it.</strong> three r185's <code>LoadingManager</code> has an <code>abort()</code> (<code>three.core.js:44231</code>) and <code>FileLoader</code> composes it — <code>AbortSignal.any([this._abortController.signal, this.manager.abortController.signal])</code> at <code>three.core.js:44620</code>. <code>GLTFLoader</code> takes a manager and passes it down to its <code>FileLoader</code> and <code>TextureLoader</code>. But <code>Scene</code> constructs <code>new GLTFLoader()</code> and <code>new OBJLoader()</code> with no manager at all (<code>scene.js:37–38</code>), so every loader in every scene on the page shares the global <code>DefaultLoadingManager</code> — one shared abort surface for all documents, which is the same thing as none.</p>
+
+  <h3>H-4 · One event, five consumers, no way to say what changed <span class="chip crit">high</span></h3>
+  <p><code>Floorplan.update()</code> ends with a single <code>EVENT_UPDATED</code> (<code>floorplan.js:877</code>). Five things listen, and they want five different questions answered:</p>
+  <div class="tw"><table>
+    <thead><tr><th>Consumer</th><th>Location</th><th>Reaction</th><th>What it actually needs</th></tr></thead>
+    <tbody>
+      <tr><td><code>Floorplan3D</code></td><td><code>three/floorPlan.js:26</code></td><td>Tear down and rebuild <em>every</em> Floor and Edge</td><td>Which walls and rooms changed</td></tr>
+      <tr><td><code>Main</code></td><td><code>three/main.js:129, 403</code></td><td><code>centerCamera()</code> — moves the user's camera</td><td>Only when the plan's extent changed, if ever</td></tr>
+      <tr><td><code>useHistory</code></td><td><code>useHistory.js:362</code></td><td>Debounced snapshot of the whole document</td><td>A committed edit boundary</td></tr>
+      <tr><td><code>useAutosave</code></td><td><code>useAutosave.js:167</code></td><td>Debounced full serialize + localStorage write</td><td>The same boundary</td></tr>
+      <tr><td>2D view</td><td><code>floorplanner/</code></td><td>Repaint</td><td>Geometry changes only</td></tr>
+    </tbody>
+  </table></div>
+  <p>The second row is a live UX defect rather than a performance note: <strong>every corner drag recentres the 3D camera</strong>, because a corner move calls <code>update()</code> and <code>Main</code> cannot tell that from a document load.</p>
+  <p>And <code>update()</code> is called far more often than &ldquo;when the plan changed&rdquo; would suggest, because both factory methods call it — <code>newCorner()</code> at <code>floorplan.js:374</code> and <code>newWall()</code> at <code>floorplan.js:317</code>. <span class="chip acc">measured</span> Opening <code>simple-room.blueprint3d</code> — four corners, four walls — dispatches <code>EVENT_UPDATED</code> <strong>25 times</strong>; <code>rich-design.blueprint3d</code> dispatches it <strong>39</strong>. Each one is a complete 3D teardown and rebuild plus a camera recentre. There is also an asymmetry worth fixing while we are here: <code>removeWall()</code> calls <code>update()</code> and <code>removeCorner()</code> does not (<code>floorplan.js:389, 398–402</code>).</p>
+  <p class="risk-note"><b>The seed of the fix is already in the signature.</b> <code>update(updateroomconfiguration = true, updatecorners = null)</code> is a crude two-level change description that some callers already use to skip room re-derivation. A typed <code>ChangeSet</code> is that idea finished, not a new concept imported from elsewhere.</p>
+
+  <h3>H-5 · Identity is derived, so editing a wall renames the room <span class="chip crit">high</span></h3>
+  <p><code>Corner.id</code> is a real assigned identity (<code>corner.js:76</code>). Nothing else in the model has one. <code>Wall.id</code> is <code>[start.id, end.id].join()</code> computed once at construction (<code>wall.js:74, 202–205</code>) — frozen, so it becomes a lie the moment a corner is merged, and two walls between the same pair of corners collide. Rooms are worse: they carry <strong>two derived keys that disagree with each other</strong>. <code>Room.getUuid()</code> sorts the corner ids (<code>room.js:87–92</code>) and backs floor textures; <code>Room.roomByCornersId</code> does not sort (<code>room.js:53</code>) and backs room names in <code>metaroomsdata</code>.</p>
+
+  <div class="gate t2" style="border-left:3px solid var(--crit)">
+    <div class="g-head" style="color:var(--crit)">MEASURED — NAME A ROOM, TEXTURE IT, THEN DRAW A WALL THROUGH ONE OF ITS SIDES <span class="chip acc">measured</span></div>
+    <ul>
+      <li>Corners in the room: 4 → 5</li>
+      <li><code>getUuid()</code> changed: <strong>yes</strong> — the floor texture no longer resolves</li>
+      <li><code>roomByCornersId</code> changed: <strong>yes</strong></li>
+      <li>Name survived: <strong>no</strong> — &ldquo;Kitchen&rdquo; became &ldquo;A New Room&rdquo;</li>
+      <li>The two keys agree with each other: <strong>no</strong></li>
+    </ul>
+    <p style="font-size:13.5px;margin:10px 0 0">Splitting a wall is an ordinary drawing action. It silently discards the room's name and its floor texture, and it does so through two separate key schemes that would have to be fixed independently. <code>Floorplan.update()</code> also replaces every <code>Room</code> object each call (21 objects for 21 updates, measured above), so <code>useSelection</code>'s <code>markRaw(evt.item)</code> (<code>useSelection.js:57</code>) is holding a dead object the instant anything moves — the inspector then edits a room that is no longer in the plan.</p>
+  </div>
+
+  <h3>H-6 · Undo is a document reload <span class="chip warn">med</span></h3>
+  <p><code>useHistory</code> is well built and its own docblock argues the case honestly: snapshots cannot be subtly wrong, and command inverses for <code>Corner.mergeWithIntersected</code> would be a library rewrite. That reasoning was right when it was written and it is why A3 is staged rather than a rewrite. But the cost is now measurable: <code>apply()</code> calls <code>loadSerialized()</code> (<code>useHistory.js:247–256</code>), so <strong>every undo replays the entire load path</strong> — 25+ <code>EVENT_UPDATED</code>, a full 3D teardown per dispatch, and every item re-fetched, re-merged and re-uploaded. Undoing a corner nudge re-downloads the sofa. The count-based settle gate and its 8-second backstop (<code>useHistory.js:84, 217–232</code>) exist to manage exactly this.</p>
+  <p>There is also a fidelity gap already documented at <code>docs/architecture.md:224–228</code>: <code>saveFloorplan()</code> writes only corners its walls reach, so a corner with nothing attached is not in a snapshot and cannot be restored by one.</p>
+
+  <h3>H-7 · Still process-wide after P7 <span class="chip warn">med</span></h3>
+  <p>P7 made configuration, dimensioning, the render profile, <code>wallInformation</code> and the unloadable-item count per-instance. Four things remain global, and the disposition differs:</p>
+  <div class="tw"><table>
+    <thead><tr><th>Global</th><th>Location</th><th>Disposition</th></tr></thead>
+    <tbody>
+      <tr><td>Texture cache map + <code>clearTextureCache()</code></td><td><code>three/texture_cache.js:55</code>, called <code>main.js:525</code></td><td><span class="chip crit">fix</span> Sharing the decode is right; process-wide teardown is not. Registry-scoped release in A0, runtime-scoped in A4</td></tr>
+      <tr><td><code>GLTFLoader</code> / <code>OBJLoader</code> on the default manager</td><td><code>model/scene.js:37–38</code></td><td><span class="chip crit">fix</span> A manager per scene is what makes <code>abort()</code> per document. A1</td></tr>
+      <tr><td><code>Scene.unloadableItemCount</code> static</td><td><code>model/scene.js:329</code></td><td><span class="chip ok">keep</span> Documented process total, deliberately kept beside the instance field. No change</td></tr>
+      <tr><td><code>floorplannerPalette</code></td><td><code>floorplanner/floorplanner_view.js</code></td><td><span class="chip ok">keep</span> P7 called it &ldquo;tractable, low value&rdquo; and nothing has changed. A page-level theme, not a per-design setting</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>H-8 · Assets are unhashed, and their URLs are a published contract <span class="chip warn">med</span></h3>
+  <p>168 catalog entries resolve to 165 <code>.glb</code> and 3 <code>.gltf</code> files, alongside 154 PNGs and 48 JPEGs under <code>public/</code>. Vite's documentation is explicit about what that directory means: assets there are <em>&ldquo;copied to the root of the dist directory as-is&rdquo;</em> — they do not enter the build graph and they <strong>never get hashed filenames</strong>, unlike imported assets which do. So the entire 10.62 MB payload is served under stable, unversioned names with no content addressing, and a changed model keeps its URL.</p>
+  <p><strong>The obvious fix is unavailable, and that is the finding.</strong> These URLs are not internal: they are bare relative strings composed at runtime (<code>index.html:13–31</code> explains why they must stay relative) and they are <em>serialized into saved designs</em> — <code>model_url</code> on every item, <code>newFloorTextures[].url</code> on every custom floor. P6 discovered the same thing about <code>rooms/textures/</code> and built <code>tests/asset-integrity.test.js</code> to defend it. Hashing the filenames would break every document already saved. The indirection has to sit between the logical name in the file and the physical URL on the network, which is what an <code>AssetResolver</code> is.</p>
+  <p>Beyond caching, the gaps are: no availability policy (a 404 reaches R-01's <code>failed()</code> path and becomes a console line), no integrity, no preload or prefetch of likely items, no CDN-relocatable base, and no per-asset budget — P6 added a per-file ceiling on the tree, which is a different question from &ldquo;what does placing this chair cost&rdquo;.</p>
+  <p class="risk-note"><b>Explicitly out of scope, restated from P6.</b> Draco, meshopt and KTX2 are all supported by three r185's loader family and none is wired in. They remain the right next step for the geometry third of the payload and they are <em>not</em> part of A5, which is about delivery architecture rather than compression. A5 makes them cheap to add later by putting a manifest between the catalog and the network; it does not add them.</p>
+</section>
+
+<!-- ======================= 17 RISKS & DEPS ======================= -->
+<section id="hrisks">
+  <div class="sec-eyebrow">§ 17 · RISKS &amp; DEPENDENCIES</div>
+  <h2>What could go wrong, and what has to come first</h2>
+
+  <h3>Prioritized risk register</h3>
+  <p class="sec-sub">Ordered by exposure — likelihood against what it costs if it happens. The mitigation column is what makes each one survivable, not what makes it unlikely.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Nº</th><th>Risk</th><th>Impact</th><th>Likelihood</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td>K-1</td><td><strong>Over-disposal.</strong> A registry that releases a geometry another viewer or a pooled cache is still drawing with produces a black mesh or a WebGL error — worse than the leak it replaces, and intermittent</td><td><span class="chip crit">high</span></td><td><span class="chip warn">med</span></td><td>Refcount everything shared, never dispose on a count above zero, and assert <code>renderer.info.memory</code> in both directions — it must come down after teardown <em>and</em> stay up while a second viewer lives. The two-viewer browser test P7 already shipped is the fixture</td></tr>
+      <tr><td>K-2</td><td><strong>Characterization drift.</strong> 931 headless tests pin current behaviour, several quirks deliberately. A ChangeSet that coalesces <code>EVENT_UPDATED</code> changes dispatch counts that tests may assert on</td><td><span class="chip crit">high</span></td><td><span class="chip crit">high</span></td><td>The standing rule from RM-001 §01 holds: a characterization failure is a signal to re-check the change. Where a count genuinely must change, retire the expectation deliberately with a changelog line, as the nine <code>isVersionHigherThan</code> tests were. A2 budgets for this explicitly</td></tr>
+      <tr><td>K-3</td><td><strong>Identity migration breaks old saves.</strong> Assigning stable ids means writing them into the save format; a document written before that has none, and the ids must be reconstructed deterministically or rooms lose their names on first open</td><td><span class="chip crit">high</span></td><td><span class="chip warn">med</span></td><td>Reconstruct from the existing derived keys on load — the old key becomes the seed of the new id, so a first open is a no-op and a subsequent save is upgraded. <code>tests/fixtures/v1/</code> is the frozen corpus that proves it</td></tr>
+      <tr><td>K-4</td><td><strong>Incremental projection diverges from full redraw.</strong> A rebuild-only-what-changed path that misses a case leaves a stale wall on screen — and it will be a case nobody thought of, not a case they got wrong</td><td><span class="chip warn">med</span></td><td><span class="chip crit">high</span></td><td>Keep <code>redraw()</code> as the reference implementation and ship a debug assertion that runs both and diffs the resulting scene graph. P5's browser tier compares frames, which is the only honest oracle here</td></tr>
+      <tr><td>K-5</td><td><strong>Command history gets an inverse subtly wrong</strong>, producing a design that is quietly incorrect rather than an undo that visibly fails — the exact objection <code>useHistory</code>'s docblock raises</td><td><span class="chip crit">high</span></td><td><span class="chip warn">med</span></td><td>Never remove the snapshot. Commands are an optimisation layered over checkpoints; every N commands is a real snapshot, and a round-trip property test asserts <code>apply(invert(c), apply(c, s)) === s</code> on the serialized form. A command that cannot prove that stays a snapshot</td></tr>
+      <tr><td>K-6</td><td><strong>Async persistence loses a write on unload.</strong> IndexedDB is asynchronous, and <code>pagehide</code> does not wait for a promise</td><td><span class="chip warn">med</span></td><td><span class="chip crit">high</span></td><td>This is the one place Web Storage still earns its keep: a small synchronous recovery pointer written on <code>pagehide</code>, with the document body in IndexedDB. Justified in A5 rather than assumed</td></tr>
+      <tr><td>K-7</td><td><strong>Scope creep into a rewrite.</strong> Every finding here touches the same files, and &ldquo;while we are in here&rdquo; is how a hardening program becomes a rewrite</td><td><span class="chip crit">high</span></td><td><span class="chip warn">med</span></td><td>§18's guardrails, and the rule that each sprint ships alone. If a sprint cannot be described as a single revertible commit range, it is too big</td></tr>
+      <tr><td>K-8</td><td><strong>Public API breakage</strong> for an embedder using the documented event surface</td><td><span class="chip warn">med</span></td><td><span class="chip ok">low</span></td><td>§18. Every existing event keeps firing with its existing payload; ChangeSet is additive. The adapter is tested against the event table in <code>docs/events.md</code> row by row</td></tr>
+      <tr><td>K-9</td><td><strong>Coverage floor blocks a sprint</strong> — thresholds are a ratchet and new abstract seams are easy to under-test</td><td><span class="chip ok">low</span></td><td><span class="chip warn">med</span></td><td>Each sprint's DoD includes its own tests. The floor is never lowered; if a file genuinely cannot be covered it is excluded explicitly with a reason, per <code>vitest.config.mjs</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Cross-sprint dependency graph</h3>
+  <p>Strictly sequential in one place only — A2 needs A0's registry, because incremental projection means disposing what it replaces. Everything else has one hard edge and some soft ones.</p>
+
+  <div class="tree">A0  Resource ownership          <span class="c">── no dependencies. Start here.</span>
+ │
+ ├──▶ A1  Transactional loading   <span class="c">── soft: teardown of a rejected document</span>
+ │     │                          <span class="c">   wants a registry to release into</span>
+ │     │
+ │     └──▶ A3  Identity + history <span class="c">── HARD: command boundaries are</span>
+ │           ▲                     <span class="c">   LoadSession boundaries</span>
+ │           │
+ ├──▶ A2  ChangeSet ──────────────┘ <span class="c">HARD on A0: incremental projection</span>
+ │     │                             <span class="c">must dispose what it replaces, or it</span>
+ │     │                             <span class="c">converts a redraw leak into a churn leak</span>
+ │     │
+ │     └──▶ A4  DesignRuntime      <span class="c">── soft: cleaner once ChangeSet exists,</span>
+ │                                  <span class="c">   but P7 already did the hard half</span>
+ │
+ └──▶ A5  Persistence + assets     <span class="c">── HARD on A1 (validate/migrate is the</span>
+                                    <span class="c">   schema pipeline) · soft on A4</span>
+
+<span class="a">Critical path:  A0 → A2 → A3</span>            <span class="c">A4 and A5 can run beside it.</span></div>
+
+  <div class="gate">
+    <div class="g-head">WHY THIS ORDER AND NOT THE OBVIOUS ONE</div>
+    <ul>
+      <li><strong>A0 first, though H-2 is scarier.</strong> Data loss is the worse defect and the instinct is to fix it first. But A1's atomic swap means building a replacement document and then discarding one of the two — and discarding a document is exactly the operation that has no owner today. Doing A1 first means writing the teardown twice</li>
+      <li><strong>A2 before A3, though identity feels more foundational.</strong> Stable ids are only observable through something that consumes them, and the ChangeSet is that consumer: &ldquo;room <code>r_7f3</code> changed&rdquo; is the payload that makes an id worth having. Doing A3 first produces ids nothing reads</li>
+      <li><strong>A4 last of the structural four, though it is the headline feature.</strong> P7 already delivered the half an embedder can see. What remains is collecting services into one object, which is a refactor that wants its collaborators to exist first</li>
+      <li><strong>A5 can start any time after A1</strong> and is the natural parallel track for a second pair of hands, because it touches almost none of the same files</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ======================= 18 CONTRACT ======================= -->
+<section id="contract">
+  <div class="sec-eyebrow">§ 18 · COMPATIBILITY &amp; NON-GOALS</div>
+  <h2>What must not change</h2>
+
+  <h3>Public API compatibility strategy</h3>
+  <p class="sec-sub">The library is published, the event surface is documented in <code>docs/events.md</code>, and an embedder is entitled to all of it. Nothing in this program is a breaking change.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Surface</th><th>Guarantee</th><th>Mechanism</th></tr></thead>
+    <tbody>
+      <tr><td>Every <code>EVENT_*</code> constant and payload</td><td><span class="chip ok">unchanged</span></td><td>ChangeSet is dispatched <em>in addition</em>. An adapter derives the legacy events from it, so a listener that never learns about ChangeSet sees exactly what it sees today. Tested row by row against the tables in <code>docs/events.md</code></td></tr>
+      <tr><td><code>Configuration</code> / <code>Dimensioning</code> statics</td><td><span class="chip ok">unchanged</span></td><td>Already forwarding to a module default since P7. A4 repoints that default at a module-default <code>DesignRuntime</code> — same object identity, same values</td></tr>
+      <tr><td><code>config</code>, <code>wallInformation</code> exports</td><td><span class="chip ok">unchanged</span></td><td>Still the default configuration's live objects, by identity. The suite and embedders mutate them directly and must keep being able to</td></tr>
+      <tr><td><code>Model.loadSerialized(json)</code></td><td><span class="chip ok">unchanged signature</span></td><td>Becomes a thin wrapper over the document pipeline. Same argument, same events. It gains <em>safety</em>, not a new shape. A structured result is available through a new sibling method for callers who want one</td></tr>
+      <tr><td>Save format 2.0.0</td><td><span class="chip ok">reads unchanged</span></td><td>Every document that opens today opens after. Stable ids are written as <strong>additive optional fields</strong>; a file without them has them reconstructed deterministically from the existing derived keys</td></tr>
+      <tr><td>Asset URLs in saved documents</td><td><span class="chip ok">unchanged</span></td><td>The resolver maps logical name → physical URL. What is <em>in the file</em> never changes, which is the whole reason the resolver exists rather than a hashing scheme</td></tr>
+      <tr><td><code>Scene.setItemLoader</code>, <code>Main.setRendererFactory</code>, <code>Utils.setRandomSource</code></td><td><span class="chip ok">unchanged</span></td><td>The enabling seams stay exactly as documented in <code>tests/README.md</code>. A1 adds a session around the loader, not in place of it</td></tr>
+      <tr><td><code>BlueprintJS</code> constructor options</td><td><span class="chip ok">additive only</span></td><td><code>runtime</code> joins <code>configuration</code> and <code>renderProfile</code> as an optional key. Omitting it gives the shared default, as today</td></tr>
+      <tr><td><code>Item.removed()</code>, <code>Edge.remove()</code></td><td><span class="chip warn">behaviour</span></td><td>These begin releasing resources, which is the point. Signature unchanged; an embedder subclassing <code>Item</code> and overriding <code>removed()</code> must call <code>super.removed()</code> — the one migration note in the program, and it goes in the changelog and the release notes</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Explicit non-goals</h3>
+  <div class="grid2">
+    <div class="card">
+      <h4 style="margin-top:0">Not in this program</h4>
+      <ul>
+        <li><strong>No framework change.</strong> Vue 3 stays, and no part of this needs a state library. The library remains Vue-free</li>
+        <li><strong>No renderer change.</strong> WebGPU is not here. <code>WebGLRenderer</code> is the target throughout</li>
+        <li><strong>No visual change.</strong> Both render profiles produce the same pixels afterwards. That is an acceptance criterion, not an aspiration — P5's tier is what checks it</li>
+        <li><strong>No new runtime dependency.</strong> Three and bezier-js remain the only two, both peers</li>
+        <li><strong>No asset compression.</strong> Draco, meshopt and KTX2 stay out, per P6's reasoning. A5 makes them easier later</li>
+        <li><strong>No multiplayer, no server, no CRDT.</strong> Nothing here implies a backend, and the document model is deliberately single-writer</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">Deliberately still shared</h4>
+      <ul>
+        <li><strong><code>floorplannerPalette</code></strong> — a page-level theme. P7's reasoning stands unchanged</li>
+        <li><strong>The texture <em>decode</em></strong> — one image, however many viewers. Sharing the decode is correct; only the teardown boundary is wrong</li>
+        <li><strong><code>Scene.unloadableItemCount</code></strong> — documented process total, kept beside the per-instance field</li>
+        <li><strong>The preserved quirks</strong> — <code>Utils.pointInPolygon</code> and <code>isClockwise</code> keep their documented bugs. Room detection depends on them and they are backlog items with their own tests, not incidental casualties of a refactor</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Guardrails — what not to do</h3>
+  <p>Written as prohibitions because the failure mode of a program like this is well known: it starts as six sprints and becomes a rewrite in the third one.</p>
+  <div class="gate t2" style="border-left:3px solid var(--crit)">
+    <div class="g-head" style="color:var(--crit)">DO NOT</div>
+    <ul>
+      <li><strong>Do not introduce a parallel model layer.</strong> No <code>model2/</code>, no &ldquo;new&rdquo; Floorplan beside the old one, no adapter between two representations of the same design. Every sprint edits the existing classes in place. Two model layers means every bug has to be found twice and the migration never finishes</li>
+      <li><strong>Do not convert the library to TypeScript.</strong> The JavaScript decision is the user's and it stands; <code>checkJs</code> per file is the mechanism, and P2's ledger in <code>tsconfig.json</code> is the roadmap for extending it</li>
+      <li><strong>Do not make ChangeSet the only signal.</strong> The legacy events keep firing. A sprint that would &ldquo;clean up&rdquo; by removing <code>EVENT_UPDATED</code> has broken every embedder to save a dispatch</li>
+      <li><strong>Do not delete <code>Floorplan3D.redraw()</code>.</strong> It stays as the reference implementation that incremental projection is diffed against. It is also the fallback if K-4 bites</li>
+      <li><strong>Do not replace snapshot history with commands.</strong> Commands are layered <em>over</em> checkpoints. The snapshot is the thing that cannot be subtly wrong and it is never removed</li>
+      <li><strong>Do not rename an asset, ever.</strong> <code>tests/asset-integrity.test.js</code> exists because P6 nearly did. The resolver adds indirection; it does not license renaming</li>
+      <li><strong>Do not edit a characterization expectation to make a sprint pass.</strong> RM-001 §01's ledger governs. A failure is a signal; retiring an expectation is a deliberate act with a changelog line</li>
+      <li><strong>Do not lower a coverage threshold or a size budget.</strong> Both are ratchets. This is already written into <code>vitest.config.mjs</code> and <code>tools/budget.json</code> and applies here without exception</li>
+      <li><strong>Do not batch two sprints into one commit range.</strong> Each must be independently revertible, because K-1 and K-4 are the kind of risk that surfaces a week later</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ======================= 19 SPRINTS ======================= -->
+<section id="asprints">
+  <div class="sec-eyebrow">§ 19 · IMPLEMENTATION</div>
+  <h2>Six sprints</h2>
+  <p class="sec-sub">Estimates are for a single developer at the cadence RM-001 and RM-002 ran at. Every sprint ships alone, is revertible alone, and leaves the tree green on all three tiers.</p>
+
+  <div class="timeline" aria-label="Hardening sprint overview">
+    <div class="tl"><span class="n">A0</span><div class="t">Resource ownership</div></div>
+    <div class="tl"><span class="n">A1</span><div class="t">Transactional loading</div></div>
+    <div class="tl"><span class="n">A2</span><div class="t">Typed ChangeSet</div></div>
+    <div class="tl"><span class="n">A3</span><div class="t">Identity + command history</div></div>
+    <div class="tl"><span class="n">A4</span><div class="t">DesignRuntime</div></div>
+    <div class="tl"><span class="n">A5</span><div class="t">Persistence + assets</div></div>
+  </div>
+
+  <!-- ---------------- A0 ---------------- -->
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">A0</span>
+      <h3>Architecture baselines and resource ownership</h3>
+      <div class="meta"><span class="chip ok">done</span><span class="chip crit">H-1</span><span class="chip">1–2 weeks</span><span class="chip acc">no dependencies</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Give every GPU resource exactly one owner, and make the leak measurable before fixing it — so that the fix is provable rather than plausible.</p>
+
+    <div class="tw"><table>
+      <thead><tr><th>Scope</th><th>Excluded</th></tr></thead>
+      <tbody><tr>
+        <td>
+          <code>ResourceRegistry</code> in <code>core/</code> · disposal for <code>Edge</code>, <code>Floor</code>, <code>Item</code>, <code>Room</code>, <code>HalfEdge</code>, <code>HUD</code> · the model/view ownership boundary for hit-test meshes · registry-scoped texture release · <code>renderer.info.memory</code> harness
+        </td>
+        <td>
+          Incremental projection (A2 — A0 makes the churn <em>correct</em>, not smaller) · the loader race (A1) · <code>DesignRuntime</code> (A4) · any change to what is drawn
+        </td>
+      </tr></tbody>
+    </table></div>
+
+    <h4>Affected modules</h4>
+    <div class="tree"><span class="a">core/resource_registry.js</span>   <span class="c"># new — register, release, refcount, stats</span>
+three/edge.js                <span class="c"># remove() disposes its 6 meshes; phantomPlanes symmetry</span>
+three/floor.js               <span class="c"># dispose() + redraw() release what they replace</span>
+three/floorPlan.js           <span class="c"># owns a registry; redraw() releases into it</span>
+three/hud.js                 <span class="c"># gains dispose() — has none today</span>
+three/main.js                <span class="c"># registry lifetime; clearTextureCache() call removed</span>
+three/texture_cache.js       <span class="c"># release-by-owner beside the global clear</span>
+model/room.js                <span class="c"># dispose() for floorPlane/roofPlane</span>
+model/half_edge.js           <span class="c"># dispose() for plane</span>
+model/floorplan.js           <span class="c"># update() releases the rooms and edges it replaces</span>
+model/scene.js               <span class="c"># removeItem() actually releases</span>
+items/item.js                <span class="c"># removed() releases; bhelper removed from scene</span>
+tests/resource-lifecycle.test.js  <span class="c"># new</span>
+tests/browser/gpu-memory.test.js  <span class="c"># new — renderer.info.memory</span></div>
+
+    <h4>Tasks</h4>
+    <ol>
+      <li><strong>Measure first.</strong> Land the harness before the fix: a helper that counts distinct meshes, geometries and materials constructed across N operations, and a browser test that reads <code>renderer.info.memory</code>. Both must <em>fail</em> — that is the baseline, and it is what makes the sprint's claim checkable</li>
+      <li><strong><code>ResourceRegistry</code>.</strong> <code>register(resource)</code>, <code>release(resource)</code>, <code>releaseAll()</code>, <code>stats()</code>. Refcounted per resource; disposes at zero. Deliberately modelled on <code>texture_cache.js</code>, which already does this correctly for textures and is the proof the pattern fits this codebase</li>
+      <li><strong>Decide the model/view boundary and write it down.</strong> <code>Room</code> and <code>HalfEdge</code> build hit-test meshes; <code>Floor.addToScene()</code> adds them. Resolution: the model owns them and gains <code>dispose()</code>; the view borrows and never disposes what it did not build. Correct <code>docs/architecture.md</code>, which currently states the model holds no GPU resources</li>
+      <li><strong><code>Floorplan.update()</code> releases the rooms and half-edges it replaces</strong> — the 6-per-call finding, and the largest single win in the sprint</li>
+      <li><strong><code>Edge</code>, <code>Floor</code>, <code>HUD</code>, <code>Item</code>, <code>Scene.removeItem()</code></strong> dispose through the registry. Remove <code>bhelper</code> from the scene in <code>Item.removed()</code></li>
+      <li><strong>Scope the texture cache to its owner.</strong> Keep the shared decode; replace the unconditional <code>clearTextureCache()</code> in <code>Main.dispose()</code> with release of that viewer's handles. The global clear stays exported for embedders</li>
+      <li><strong>Re-run the harness</strong> and ratchet the numbers into the test as assertions</li>
+    </ol>
+
+    <div class="gate">
+      <div class="g-head">RATIONALE · ALTERNATIVES · COMPATIBILITY</div>
+      <ul>
+        <li><strong>Why a registry.</strong> Three's own guidance puts the responsibility on the application and says removing from the scene frees nothing. The current code accepts that responsibility in three places out of dozens. A registry makes the boundary a place rather than a habit</li>
+        <li><strong>Alternative rejected — scene-graph walk at teardown.</strong> Cannot see detached objects, which is what leaks; and would dispose resources a sibling viewer shares</li>
+        <li><strong>Alternative rejected — <code>FinalizationRegistry</code>.</strong> Non-deterministic by specification. A GPU resource freed &ldquo;eventually&rdquo; is not freed</li>
+        <li><strong>Alternative considered — object pooling</strong> instead of dispose-and-rebuild. Genuinely attractive for <code>update()</code>'s six-per-call churn, and it is really A2's answer, not A0's. A0 makes disposal correct; A2 makes it rare</li>
+        <li><strong>Compatibility.</strong> No signature changes. One documented behaviour change: an <code>Item</code> subclass overriding <code>removed()</code> must call <code>super.removed()</code>. <code>WallItem</code> is the only override in-tree and is updated with the sprint</li>
+      </ul>
+    </div>
+
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE · OBSERVABILITY · DoD</div>
+      <ul>
+        <li><strong>M-3 = 0.</strong> 100 <code>update()</code> calls on a two-room plan abandon zero meshes, geometries or materials</li>
+        <li><strong>M-1 / M-2 = no growth.</strong> Mount a viewer, 50 edit cycles, unmount: <code>renderer.info.memory.geometries</code> and <code>.textures</code> return to their pre-mount values. Chromium, tier 2</li>
+        <li><strong>Two viewers stay independent.</strong> Disposing viewer A does not change viewer B's <code>renderer.info.memory</code> and does not force a re-decode — asserted through <code>textureCacheStats()</code>. This is the K-1 guard and it extends <code>tests/browser/two-designs.test.js</code></li>
+        <li><strong>Nothing looks different.</strong> Tier 2 frame comparison unchanged for both profiles; <code>npm run parity</code> unchanged</li>
+        <li><strong>Rollback.</strong> One commit range. The registry is additive and every disposal call site is a separate hunk, so a single offending class can be reverted without the sprint</li>
+        <li><strong>DoD.</strong> All three tiers green · coverage ratcheted · <code>docs/architecture.md</code> corrected · CHANGELOG entry · the baseline numbers recorded in the test as the thing that must not come back</li>
+      </ul>
+    </div>
+    <p class="risk-note"><b>K-1 is the sprint's real risk.</b> Over-disposal is worse than the leak, and it is intermittent. The mitigation is that the assertion runs in both directions — memory must come down after teardown <em>and stay up</em> while another viewer holds a handle.</p>
+
+    <div class="gate">
+      <div class="g-head">LANDED — A0</div>
+      <ul>
+        <li><strong>Done as planned, and the measure-first order earned its keep.</strong> The suite was written before any fix and 19 of its 20 cases failed. The one that passed is the borrowed-mesh guard — <em>&ldquo;a Floor never disposes the model meshes it only borrows&rdquo;</em> — which passed vacuously because nothing disposed anything, and which had to keep passing afterwards. That is the K-1 tripwire, and having it green from the start is what made it meaningful at the end</li>
+        <li><strong>M-3 = 0.</strong> Twenty <code>update()</code> calls on a square room now abandon nothing, where they abandoned 120 resources. <strong>M-1 and M-2</strong> hold in chromium: ten edit cycles move <code>renderer.info.memory</code> by zero. Both gates verified by reverting the fix — the headless suite fails four cases and the GPU counter reports <strong>exactly 2 leaked geometries per cycle</strong>, which is the two room planes, the only model meshes that reach the GPU</li>
+        <li><strong>The measurement had a hole in it, and reverting the fix is what found it.</strong> The first browser test drove edits with <code>Corner.move()</code>, which looks like the obvious edit and reaches <code>update(false, ...)</code> — the branch that dispatches <code>EVENT_UPDATED</code> and returns without re-deriving anything. That churns the <em>view</em> and never touches a Room or a HalfEdge, so the test passed with the model half of the fix reverted. It now calls <code>update()</code> explicitly as well. A gate proven only in the direction of success is not proven</li>
+        <li><strong>Two leaks were found that the review had not.</strong> <code>Skybox</code> never disposed the ground photograph — a local variable, assigned as a material's <code>map</code>, and <code>Material.dispose()</code> in three does not touch its maps — nor the environment map, which lives in a shader uniform where nothing would ever have reached it. One large texture per viewer, and the second would have appeared the moment anybody entered walk-through mode</li>
+        <li><strong>A latent hazard, recorded rather than fixed.</strong> <code>Item extends Mesh</code> and declares its own no-argument <code>remove()</code> meaning <em>&ldquo;take me out of the design&rdquo;</em>, which shadows <code>Object3D.remove(child)</code>. Detaching one of an item's label planes through the ordinary call re-enters item removal and recurses until the stack gives out — which is how it was found. <code>disposeObject</code> goes through <code>Object3D.prototype.remove</code> instead. The shadowing is a real trap for any three internal that calls <code>parent.remove(child)</code> on an Item, but <code>Item.remove()</code> is public API and renaming it belongs in its own change</li>
+        <li><strong>The ownership question was answered, and it is now a paragraph of documentation and one test.</strong> A <code>Room</code> owns its two hit-test planes; a <code>Wall</code> owns its two <code>HalfEdge</code> planes, because the half edge writes itself onto <code>wall.frontEdge</code>/<code>backEdge</code> and that pointer is the only way back to it — which is why the release has to happen immediately before <code>resetFrontBack()</code> nulls it, and why <code>removeWall()</code> needed its own release for the wall that has just left the array. The 3D <code>Floor</code> borrows the room's planes and never disposes them. <code>docs/architecture.md</code> said the model layer held no GPU resources at all; that is corrected, with the reason it was believable</li>
+        <li><strong>Not zero, and the remainder is the boundary.</strong> Disposing a viewer leaves exactly two geometries uploaded per room — the model's own hit-test planes, which survive because <code>BlueprintJS.dispose()</code> deliberately leaves the model standing so a caller can serialize it or mount a new viewer over it. The test asserts that remainder is precisely the model's, by disposing the rooms afterwards and watching it reach zero</li>
+        <li><strong>951 headless tests</strong> (20 new) and <strong>33 in the browser</strong> (6 new), all green, with no characterization drift. Coverage moved on all four measures — 77.23 lines, 77.27 statements, 63.94 branches, 75.09 functions — because disposal paths are reached by every test that builds a plan, not only by the twenty that assert on them. Three of the four floors were raised; branches gained less than a point and was left alone</li>
+        <li><strong>One thing was relaxed, deliberately and in the open:</strong> the browser tier's test timeout, 15s to 30s. The profile-comparison test takes 8s on its own under SwiftShader and began timing out at 17s while still asserting correctly — the two frames differed by 99.99% of pixels against a 5% floor. The tier shares one CPU rasteriser, so new work is subtracted from every other test's budget. The memory suite was cut from 50 cycles to 10 first, which was not enough and should not have been the fix anyway: shrinking a real measurement to protect an unrelated test's margin is the wrong trade. Recorded in the config as an allowance rather than a ratchet</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ---------------- A1 ---------------- -->
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">A1</span>
+      <h3>Transactional loading and document validation</h3>
+      <div class="meta"><span class="chip crit">H-2</span><span class="chip crit">H-3</span><span class="chip">1–2 weeks</span><span class="chip acc">soft dep: A0</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Make opening a document atomic — it either replaces the design completely or leaves it untouched — and make every in-flight load belong to a session that can be cancelled and superseded.</p>
+
+    <div class="tw"><table>
+      <thead><tr><th>Scope</th><th>Excluded</th></tr></thead>
+      <tbody><tr>
+        <td><code>DesignDocument</code> validate/migrate · atomic swap in <code>Model</code> · <code>LoadSession</code> with a generation token · a <code>LoadingManager</code> per <code>Scene</code> · structured load results · stale-callback rejection</td>
+        <td>IndexedDB (A5 — this sprint defines the pipeline the repository will use) · command history (A3) · any save-format field change · new error UI beyond wiring the existing toasts</td>
+      </tr></tbody>
+    </table></div>
+
+    <h4>Affected modules</h4>
+    <div class="tree"><span class="a">model/document.js</span>          <span class="c"># new — parse, validate, migrate, describe</span>
+<span class="a">model/load_session.js</span>      <span class="c"># new — generation token, abort, settle</span>
+model/model.js               <span class="c"># loadSerialized becomes validate → build → swap</span>
+model/scene.js               <span class="c"># own LoadingManager; callbacks check generation</span>
+model/floorplan.js           <span class="c"># loadFloorplan stops calling reset() first</span>
+app/composables/useDesignIO.js   <span class="c"># consume the structured result</span>
+app/composables/useHistory.js    <span class="c"># settle gate reads the session, not a counter</span>
+tests/document-loading.test.js   <span class="c"># new</span></div>
+
+    <h4>Tasks</h4>
+    <ol>
+      <li><strong>The corpus first.</strong> Turn §16 H-2's four documents into a failing test that asserts the design survives. Add the malformed cases a real user hits: a truncated file, a <code>.obj</code> renamed, a design with a corner id referenced by no wall, one with a wall naming a missing corner</li>
+      <li><strong><code>DesignDocument.parse(json)</code></strong> → <code>{ok, document, errors, warnings}</code>. Validates shape before anything is touched. Reads the existing <code>version</code> and <code>units</code> fields — <code>units</code> is already honoured by <code>cornerReader</code>; <code>version</code> is currently read by nothing, deliberately, and becomes the migration pipeline's input rather than a load gate. RM-001's warning stands: the gate that consulted it was the bug</li>
+      <li><strong>Build off to the side, then swap.</strong> Construct the replacement <code>Floorplan</code> and item list without touching live state; commit by assignment. A failure discards the half-built replacement and the open design never moved</li>
+      <li><strong><code>LoadSession</code>.</strong> A monotonic generation per <code>Model</code>. Every loader callback captures its generation and returns early if superseded. <code>New</code>, <code>Open</code>, <code>Undo</code>, <code>Redo</code> and <code>dispose()</code> all open a new session</li>
+      <li><strong>A <code>LoadingManager</code> per <code>Scene</code>,</strong> passed to both loaders. Superseding a session calls <code>manager.abort()</code> — real in r185, composed into <code>FileLoader</code> through <code>AbortSignal.any</code>. Today both loaders share the global default manager, so there is nothing per-document to abort</li>
+      <li><strong>Structured results</strong> out of <code>loadSerialized</code>'s new sibling, so <code>useDesignIO</code> can say <em>which</em> item failed instead of &ldquo;could not open that design&rdquo;</li>
+      <li><strong>Simplify the settle gate.</strong> With a session, <code>useHistory</code> asks the session whether it is settled instead of counting events. <code>SETTLE_BACKSTOP_MS</code> can finally be deleted for every path except an embedder's own <code>setItemLoader</code></li>
+    </ol>
+
+    <div class="gate">
+      <div class="g-head">RATIONALE · ALTERNATIVES · COMPATIBILITY</div>
+      <ul>
+        <li><strong>Why build-then-swap rather than try/rollback.</strong> A rollback needs a snapshot of the design to restore, which is a serialize on every open — and it would restore <em>through the same destructive path</em>. Building beside the live design is cheaper and cannot half-fail</li>
+        <li><strong>Alternative rejected — validate only, keep in-place mutation.</strong> Cheaper, and it closes three of the four measured cases. It does not close the fourth, and the fourth is the one that reports success</li>
+        <li><strong>Alternative rejected — a schema library.</strong> A runtime dependency for one document shape, in a library with exactly two peers. Hand-written validation is perhaps 150 lines and can produce messages that name the field</li>
+        <li><strong>Alternative considered — sequence numbers on events</strong> instead of a session object. Equivalent for the race; no cancellation, no place to hang the manager or the settle state</li>
+        <li><strong>Compatibility.</strong> <code>loadSerialized(json)</code> keeps its signature and its two events. It stops throwing on a malformed document — a behaviour change in the safe direction, since throwing was the symptom of the destruction. Anything relying on the throw gets the structured sibling</li>
+      </ul>
+    </div>
+
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE · OBSERVABILITY · DoD</div>
+      <ul>
+        <li><strong>M-6 = 0 of 4.</strong> Every document in the corpus leaves the open design byte-identical, verified by comparing <code>exportSerialized()</code> before and after</li>
+        <li><strong>M-7 = 0.</strong> Two loads with a deferred stub loader: not one item from the superseded document reaches the live scene, and the item events balance per session</li>
+        <li><strong>M-4 drops.</strong> The load path stops calling <code>update()</code> per corner and per wall; one document open dispatches a small constant number rather than 25. Full delivery of M-4 = 1 is A2's</li>
+        <li><strong>Observability.</strong> <code>loadSession.stats()</code> — generation, in flight, aborted, failed. This is what makes M-7 assertable and what an embedder's loading indicator should read</li>
+        <li><strong>Rollback.</strong> The new path sits behind <code>Model.loadDocument()</code>; <code>loadSerialized</code> delegates to it in one line. Reverting that line restores the old behaviour exactly</li>
+        <li><strong>DoD.</strong> Three tiers green · the four-document corpus committed as a fixture · <code>docs/save-format.md</code> gains a validation section · <code>docs/events.md</code> notes the balance guarantee · CHANGELOG</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ---------------- A2 ---------------- -->
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">A2</span>
+      <h3>Typed ChangeSet and incremental projection</h3>
+      <div class="meta"><span class="chip crit">H-4</span><span class="chip">2 weeks</span><span class="chip crit">hard dep: A0</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Let the model say <em>what</em> changed, and let each consumer react to only its own kind — so that dragging a corner stops rebuilding the world and stops moving the camera.</p>
+
+    <div class="tw"><table>
+      <thead><tr><th>Scope</th><th>Excluded</th></tr></thead>
+      <tbody><tr>
+        <td>The <code>ChangeSet</code> contract and its six kinds · an adapter deriving today's events from it · incremental <code>Floorplan3D</code> · 2D repaint on geometry kinds · camera recentring gated on extent</td>
+        <td>Removing any legacy event · stable ids (A3 — A2 addresses entities by current reference, A3 upgrades to ids) · a general reactive graph · the 2D view's whole-canvas repaint, which is correct for a canvas</td>
+      </tr></tbody>
+    </table></div>
+
+    <h4>The contract</h4>
+    <div class="tree">ChangeSet {
+  <span class="a">topology</span>      <span class="c"># corners/walls added, removed, reconnected — rooms may be re-derived</span>
+  <span class="a">geometry</span>      <span class="c"># existing entities moved or resized — room set unchanged</span>
+  <span class="a">surface</span>       <span class="c"># textures, colours, materials — no geometry implication</span>
+  <span class="a">items</span>         <span class="c"># furniture added, removed, moved</span>
+  <span class="a">selection</span>     <span class="c"># what is selected — never a model mutation</span>
+  <span class="a">view</span>          <span class="c"># configuration, units, render profile, palette</span>
+}
+                    <span class="c">each kind carries the affected entities and a</span>
+                    <span class="c">`reason` — 'load' | 'edit' | 'undo' | 'derive'</span>
+
+<span class="c">consumers:</span>
+  Floorplan3D   topology → rebuild affected · geometry → update transforms
+                surface  → swap material    · items    → nothing
+  Main camera   topology <span class="a">only</span>, and only when the plan extent moved
+  2D view       topology, geometry, surface, selection
+  history       any kind with reason 'edit', at the gesture boundary
+  autosave      the same boundary</div>
+
+    <h4>Tasks</h4>
+    <ol>
+      <li><strong>Define the contract and the adapter together.</strong> The adapter is what keeps K-8 at zero: every legacy event is derived from a ChangeSet, and a test walks the tables in <code>docs/events.md</code> row by row asserting each still fires with its payload</li>
+      <li><strong>Batch the load path.</strong> <code>newCorner()</code> and <code>newWall()</code> stop calling <code>update()</code> unconditionally; <code>loadFloorplan()</code> wraps the whole build in one batch and emits one topology change. This alone takes M-4 from 25 to 1</li>
+      <li><strong>Gate the camera.</strong> <code>Main</code> subscribes to topology changes and recentres only when the plan's extent actually moved. The user-visible fix in this sprint</li>
+      <li><strong>Incremental <code>Floorplan3D</code>.</strong> Rebuild only the <code>Edge</code>s and <code>Floor</code>s named by the change; release the replaced ones through A0's registry. <strong>This is why A0 is a hard dependency</strong> — incremental rebuilding without disposal converts one big leak into a continuous one</li>
+      <li><strong>Keep <code>redraw()</code> and diff against it.</strong> A debug mode runs both and compares the resulting scene graph. Not shipped enabled; run in CI on the fixture designs</li>
+      <li><strong>Fix the <code>removeCorner</code>/<code>removeWall</code> asymmetry</strong> while the call graph is open</li>
+    </ol>
+
+    <div class="gate">
+      <div class="g-head">RATIONALE · ALTERNATIVES · COMPATIBILITY</div>
+      <ul>
+        <li><strong>Why a typed set rather than more event constants.</strong> More constants multiply the subscription surface and still cannot express &ldquo;these three walls&rdquo;. The payload is the point, not the name</li>
+        <li><strong>Alternative rejected — a reactive dependency graph</strong> (signals, or an observable store). Real power, wrong shape: it would mean model objects become proxies, and <code>docs/architecture.md</code>'s identity warning exists because <code>===</code> comparisons in room detection and <code>EventDispatcher</code> dedup break silently under proxies</li>
+        <li><strong>Alternative rejected — dirty flags on entities.</strong> Cheaper, and it is roughly what <code>needsUpdate</code> already is. It cannot express <em>why</em>, so the camera still cannot distinguish a load from a drag</li>
+        <li><strong>Alternative considered — extend <code>update()</code>'s existing two booleans.</strong> Honest and small, and it is the fallback if this sprint runs long. It does not give consumers a payload</li>
+        <li><strong>Compatibility.</strong> Purely additive. The one observable difference is <em>frequency</em>: <code>EVENT_UPDATED</code> fires once per load instead of 25 times. That is the K-2 risk, and a test asserting a dispatch count is exactly the sort that gets retired deliberately, with a changelog line</li>
+      </ul>
+    </div>
+
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE · OBSERVABILITY · DoD</div>
+      <ul>
+        <li><strong>M-4 = 1.</strong> One document open, one <code>EVENT_UPDATED</code></li>
+        <li><strong>M-5 = 0.</strong> Dragging a corner triggers no full <code>Floorplan3D.redraw()</code> and no <code>centerCamera()</code></li>
+        <li><strong>Every row of <code>docs/events.md</code> still fires,</strong> with its documented payload, asserted individually</li>
+        <li><strong>The incremental path matches the reference.</strong> For each fixture design and each edit kind, incremental and full redraw produce the same scene graph — same mesh count, same materials, same transforms</li>
+        <li><strong>Still no visual change.</strong> Tier 2 frames unchanged for both profiles</li>
+        <li><strong>Observability.</strong> A counter per ChangeSet kind, and per consumer reaction, readable in tests. The 25 → 1 claim has to be measurable to be true</li>
+        <li><strong>Rollback.</strong> Incremental projection sits behind a flag on <code>Floorplan3D</code> defaulting to the incremental path; flipping it restores full redraw with the ChangeSet still in place. The two halves revert separately</li>
+        <li><strong>DoD.</strong> Three tiers green · adapter test covering the full event table · <code>docs/events.md</code> gains a ChangeSet section · any retired expectation listed in <code>tests/README.md</code>'s retirement table · CHANGELOG</li>
+      </ul>
+    </div>
+    <p class="risk-note"><b>The longest sprint, and the one to timebox.</b> K-4 says the missed case will be one nobody thought of. If the incremental path is not matching the reference by the end of week two, ship the ChangeSet and the camera gate — which are most of the user-visible value — and leave <code>redraw()</code> in place for a follow-up.</p>
+  </div>
+
+  <!-- ---------------- A3 ---------------- -->
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">A3</span>
+      <h3>Stable identities and command history</h3>
+      <div class="meta"><span class="chip crit">H-5</span><span class="chip warn">H-6</span><span class="chip">2 weeks</span><span class="chip crit">hard dep: A1, A2</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Give every entity an identity that survives recomputation, so a room keeps its name when you draw through its wall — and make undo stop re-downloading the furniture.</p>
+
+    <div class="tw"><table>
+      <thead><tr><th>Scope</th><th>Excluded</th></tr></thead>
+      <tbody><tr>
+        <td>Assigned ids on <code>Wall</code>, <code>Room</code>, <code>HalfEdge</code>, <code>Item</code> · id-based room continuity across re-derivation · selection by id · command history over checkpoints · commands for the reversible operations only</td>
+        <td>Converting every mutation to a command — explicitly staged, and the majority stay snapshots · a redo tree · collaborative editing · changing what a save file contains beyond additive optional ids</td>
+      </tr></tbody>
+    </table></div>
+
+    <h4>Identity model</h4>
+    <div class="tw"><table>
+      <thead><tr><th>Entity</th><th>Today</th><th>After</th><th>Old file</th></tr></thead>
+      <tbody>
+        <tr><td><code>Corner</code></td><td><code>Utils.guide()</code> — already stable</td><td>Unchanged</td><td>Already in the file</td></tr>
+        <tr><td><code>Wall</code></td><td><code>[start.id,end.id]</code> frozen at construction</td><td>Assigned id, kept through re-attachment</td><td>Seeded from the derived pair</td></tr>
+        <tr><td><code>Room</code></td><td><strong>Two</strong> disagreeing derived keys</td><td>Assigned id; continuity by corner-set overlap across re-derivation</td><td>Seeded from <code>roomByCornersId</code>, so names and textures carry over on first open</td></tr>
+        <tr><td><code>HalfEdge</code></td><td>None</td><td><code>wallId</code> + side</td><td>Derived, never persisted</td></tr>
+        <tr><td><code>Item</code></td><td>None — array position only</td><td>Assigned id</td><td>Assigned on load, written on next save</td></tr>
+      </tbody>
+    </table></div>
+
+    <h4>Tasks</h4>
+    <ol>
+      <li><strong>Assign ids and make <code>metaroomsdata</code> key off them.</strong> Room continuity across <code>update()</code> is the crux: a re-derived room inherits the id of the previous room it shares the most corners with, so splitting a wall keeps the room's name and floor texture. This is the measured H-5 defect and it is the sprint's headline</li>
+      <li><strong>Reconcile the two room keys.</strong> Floor textures use <code>getUuid()</code> and names use <code>roomByCornersId</code>. Both become the assigned id; both legacy forms are read on load and never written</li>
+      <li><strong>Selection resolves by id.</strong> <code>useSelection</code> holds <code>{type, id}</code> and looks the entity up on demand, so a re-derived room does not orphan the inspector</li>
+      <li><strong>Command history over checkpoints.</strong> A checkpoint is today's snapshot, taken every N commands and on every load. A command carries <code>apply</code>, <code>invert</code> and the ids it touches. Undo prefers the inverse and falls back to the nearest checkpoint plus replay</li>
+      <li><strong>Commands for the operations that are cleanly reversible</strong> — move corner, set texture, rename room, add/remove/move item, set wall attributes. <code>Corner.mergeWithIntersected</code> and anything re-deriving the room set stay snapshot-backed, exactly as <code>useHistory</code>'s docblock argues</li>
+      <li><strong>Legacy direct mutation stays safe.</strong> An embedder writing straight onto a model object still gets a snapshot: a mutation observed through ChangeSet with no command boundary opens an implicit one and closes it at the gesture boundary. Nothing has to be converted for the history to stay correct</li>
+      <li><strong>Round-trip property test</strong> per command: <code>apply(invert(c), apply(c, s))</code> serializes identically to <code>s</code>. A command that cannot pass does not ship as a command</li>
+    </ol>
+
+    <div class="gate">
+      <div class="g-head">RATIONALE · ALTERNATIVES · COMPATIBILITY</div>
+      <ul>
+        <li><strong>Why commands over checkpoints rather than instead of them.</strong> K-5 is the risk that a wrong inverse produces a silently incorrect design, and <code>useHistory</code>'s docblock makes that argument better than this one does. Checkpoints bound the blast radius: a wrong inverse is corrected by the next checkpoint rather than persisting</li>
+        <li><strong>Alternative rejected — keep pure snapshots and optimise the reload.</strong> Tempting, and it is genuinely most of H-6's cost. But an item that has not changed should not be touched at all, and only a command knows that</li>
+        <li><strong>Alternative rejected — content-hash identity.</strong> Derives identity from state, which is exactly the current bug in a more sophisticated form</li>
+        <li><strong>Alternative considered — UUIDs everywhere with no continuity rule.</strong> Stable but useless for rooms, because a re-derived room is a new object and would get a new id. The overlap rule is the whole value</li>
+        <li><strong>Compatibility.</strong> Ids are additive optional fields; save format stays 2.0.0. A file without them opens identically and is upgraded on next save — K-3's mitigation, proved against <code>tests/fixtures/v1/</code></li>
+      </ul>
+    </div>
+
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE · OBSERVABILITY · DoD</div>
+      <ul>
+        <li><strong>H-5's measurement inverts.</strong> Name a room, texture it, draw a wall through one side: the name survives, the texture survives, the id is unchanged</li>
+        <li><strong>M-8 = 0.</strong> Undo of a corner move triggers zero <code>EVENT_ITEM_LOADING</code></li>
+        <li><strong>Every fixture in <code>tests/fixtures/v1/</code> opens unchanged</strong> and round-trips with ids added</li>
+        <li><strong>Every command round-trips</strong> — the property test above, over generated edit sequences</li>
+        <li><strong>Selection survives re-derivation.</strong> Select a room, edit a distant wall, and the inspector is still bound to the same room</li>
+        <li><strong>Observability.</strong> History reports command count, checkpoint count and bytes retained, so the memory claim is checkable rather than asserted</li>
+        <li><strong>Rollback.</strong> Two independent halves. Ids ship first and are inert without the history change; the command stack is behind a flag defaulting to the current snapshot path until the round-trip suite is green</li>
+        <li><strong>DoD.</strong> Three tiers green · <code>docs/save-format.md</code> documents the optional id fields and the reconstruction rule · <code>docs/architecture.md</code> gains an identity section · CHANGELOG</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ---------------- A4 ---------------- -->
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">A4</span>
+      <h3>Multi-document <code>DesignRuntime</code> isolation</h3>
+      <div class="meta"><span class="chip warn">H-7</span><span class="chip">1 week</span><span class="chip acc">soft dep: A0, A1</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Collect the per-document services into one object with an identity, so that disposing one viewer cannot reach into another — the condition <code>Main.dispose()</code>'s own comment says arrived with P7.</p>
+
+    <div class="tw"><table>
+      <thead><tr><th>Scope</th><th>Excluded</th></tr></thead>
+      <tbody><tr>
+        <td><code>DesignRuntime</code> holding configuration, dimensioning, render profile, asset resolver, load session, resource registry and document id · a module-default runtime the statics resolve to · <code>BlueprintJS({runtime})</code> · disposal scoped to the runtime</td>
+        <td><code>floorplannerPalette</code> — deliberately page-level, per P7 · deprecating any static · making the application take a runtime, which would change nothing but which 26 reads resolve to</td>
+      </tr></tbody>
+    </table></div>
+
+    <h4>Tasks</h4>
+    <ol>
+      <li><strong><code>DesignRuntime</code> as a container, not a god object.</strong> It holds services and an id; it holds no design data. <code>Floorplan</code>, <code>Model</code> and <code>Main</code> reach it the way they already reach a <code>Configuration</code></li>
+      <li><strong>The module default is a runtime.</strong> P7's <code>defaultConfiguration</code> becomes <code>defaultRuntime.configuration</code> — <strong>the same object by identity</strong>, so <code>config</code> and <code>wallInformation</code> keep working for the suite and for embedders that mutate them directly</li>
+      <li><strong><code>configurationOf(owner)</code> generalises to <code>runtimeOf(owner)</code></strong>, keeping the same fallback so a Corner built by hand in a test still behaves as it does</li>
+      <li><strong>Disposal becomes a runtime operation.</strong> <code>runtime.dispose()</code> releases that document's registry and aborts its session. <code>clearTextureCache()</code> stops being called from <code>Main.dispose()</code></li>
+      <li><strong>Extend the two-viewer browser suite</strong> to the full matrix: two runtimes, different configurations, different profiles, dispose one, assert the other is untouched in pixels and in <code>renderer.info.memory</code></li>
+    </ol>
+
+    <div class="gate">
+      <div class="g-head">RATIONALE · ALTERNATIVES · COMPATIBILITY</div>
+      <ul>
+        <li><strong>Why now and not in P7.</strong> P7 delivered per-instance state one service at a time, which was right — each stage shipped alone. What it could not deliver is a single object to dispose, because there was nothing to hang a registry or a session on. A4 is the collection step, and it is short precisely because P7 did the hard part</li>
+        <li><strong>Alternative rejected — dependency injection throughout.</strong> Threading seven services through every constructor for a library whose classes already reach their configuration through <code>floorplan</code>. One object on the path that already exists is less code and less churn</li>
+        <li><strong>Alternative rejected — module-level registry keyed by document id.</strong> A global keyed by id is still a global; teardown ordering bugs come straight back</li>
+        <li><strong>Compatibility.</strong> Every static keeps working, by the same mechanism that made P7 free — forwarding to a module default. <code>runtime</code> is an additive constructor option</li>
+      </ul>
+    </div>
+
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE · OBSERVABILITY · DoD</div>
+      <ul>
+        <li><strong>Disposing one viewer changes nothing about another</strong> — not its pixels, not its <code>renderer.info.memory</code>, not its texture handle count. The H-1 finding, closed at the isolation level</li>
+        <li><strong>All 302 static call sites still pass untouched</strong>, as they did through P7</li>
+        <li><strong>Two documents, two configurations, two profiles, side by side in chromium</strong>, each disposable independently in either order</li>
+        <li><strong>Observability.</strong> <code>runtime.stats()</code> — registry size, session state, cache handles — which is also what the acceptance tests read</li>
+        <li><strong>Rollback.</strong> Mechanical and self-contained; the runtime is a container over services that already exist independently</li>
+        <li><strong>DoD.</strong> Three tiers green · <code>docs/architecture.md</code>'s &ldquo;where the layers meet&rdquo; gains the runtime · <code>docs/getting-started.md</code> shows two designs on a page · CHANGELOG</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ---------------- A5 ---------------- -->
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">A5</span>
+      <h3>IndexedDB persistence and asset delivery hardening</h3>
+      <div class="meta"><span class="chip warn">H-8</span><span class="chip">1–2 weeks</span><span class="chip acc">hard dep: A1</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Move the draft off the synchronous 5 MiB main-thread store, and put a manifest between the catalog and the network so assets can be versioned without renaming a single file.</p>
+
+    <div class="tw"><table>
+      <thead><tr><th>Scope</th><th>Excluded</th></tr></thead>
+      <tbody><tr>
+        <td>An async document repository on IndexedDB · a minimal synchronous recovery pointer · quota and corruption handling · <code>AssetManifest</code> + <code>AssetResolver</code> · availability, preload and per-asset budgets</td>
+        <td>Draco, meshopt, KTX2 — per P6, and unchanged · texture resizing, an art-direction call · a recent-files list, which <code>useAutosave</code> argues against on purpose · any CDN being configured; A5 makes one <em>possible</em></td>
+      </tr></tbody>
+    </table></div>
+
+    <h4>Tasks — persistence</h4>
+    <ol>
+      <li><strong>Repository interface first,</strong> with the current localStorage implementation behind it. Ships green with no behaviour change and makes the swap a one-line change</li>
+      <li><strong>IndexedDB implementation.</strong> Web Storage is capped at 5 MiB local per origin (10 MiB across both stores) and its API is synchronous, so a furnished design is written on the main thread against a ceiling <code>useAutosave</code> already anticipates — the first <code>QuotaExceededError</code> disables autosave permanently for the session. IndexedDB's quota is a share of disk rather than a fixed few megabytes</li>
+      <li><strong>Keep a small synchronous pointer in localStorage,</strong> and justify it rather than assume it: this is K-6. <code>pagehide</code> cannot await a promise, so the pointer records &ldquo;a draft exists, at this key, at this timestamp&rdquo; while the body lives in IndexedDB. Kilobytes, synchronous, always completes</li>
+      <li><strong>Quota, corruption and rollback.</strong> Quota exceeded prunes older drafts before giving up; an unreadable record is treated as no draft, which is what <code>readDraft</code> already does; a store at an unknown version is left untouched and reported rather than migrated speculatively</li>
+      <li><strong>Reuse A1's pipeline.</strong> A recovered draft is a document like any other — parse, validate, migrate, swap. No second loading path</li>
+    </ol>
+
+    <h4>Tasks — assets</h4>
+    <ol>
+      <li><strong><code>AssetManifest</code>:</strong> logical name → <code>{url, bytes, hash, kind}</code>, generated by the existing pipeline in <code>asset-pipeline/</code> and committed. It is a build artefact of tooling that already exists</li>
+      <li><strong><code>AssetResolver</code></strong> consults it. Save files keep logical names; the resolver supplies the physical URL. <strong>This is what makes versioning possible without renaming a file</strong> — the constraint P6 discovered and <code>tests/asset-integrity.test.js</code> defends. A configurable base makes a CDN a deployment choice</li>
+      <li><strong>Availability as a policy, not a console line.</strong> The resolver knows what should exist, so a missing asset is a typed failure through A1's structured result and the UI can name the item</li>
+      <li><strong>Preload and prefetch.</strong> The manifest carries sizes, so the catalog can prefetch likely items at idle priority and the loading indicator can show real progress</li>
+      <li><strong>Integrity where it is worth it.</strong> Hashes are in the manifest; enforcement matters for a CDN deployment and not for same-origin <code>public/</code>. Recorded and made available, not switched on by default</li>
+      <li><strong>Per-asset budgets</strong> beside P6's per-file and per-tree ceilings: the download, decode and GPU cost of placing one catalog item</li>
+    </ol>
+
+    <div class="gate">
+      <div class="g-head">RATIONALE · ALTERNATIVES · COMPATIBILITY</div>
+      <ul>
+        <li><strong>Why not hashed filenames.</strong> Vite copies <code>public/</code> <em>as-is</em> and never hashes it, while imported assets do get hashed — so the mechanism exists and is unusable here, because these URLs are written into saved documents. The indirection has to be at runtime</li>
+        <li><strong>Alternative rejected — move assets out of <code>public/</code> into the build graph.</strong> Gets hashing for free and breaks every saved design, plus the deliberate relative-URL arrangement <code>index.html</code> documents</li>
+        <li><strong>Alternative rejected — Cache API / service worker.</strong> Better offline story, much larger surface, and a service worker's update semantics are their own project</li>
+        <li><strong>Alternative considered — keep localStorage and cap the draft size.</strong> One line, and it makes the failure quieter rather than rarer</li>
+        <li><strong>Compatibility.</strong> Existing drafts are read once from localStorage and migrated to IndexedDB. Asset URLs in saved files are unchanged, which is the point of the sprint</li>
+      </ul>
+    </div>
+
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE · OBSERVABILITY · DoD</div>
+      <ul>
+        <li><strong>M-9 = 0 bytes.</strong> No document-sized synchronous write on the main thread; the recovery pointer is under 1 kB</li>
+        <li><strong>A design far larger than 5 MiB autosaves and recovers</strong> — the case that permanently disables autosave today</li>
+        <li><strong>Quota exhaustion degrades rather than fails:</strong> prune, then report, never lose the in-memory design</li>
+        <li><strong>Every asset URL still resolves</strong> — <code>tests/asset-integrity.test.js</code> passes unchanged, and is extended to check the manifest against the tree in both directions</li>
+        <li><strong>Every fixture design opens with its assets,</strong> through the resolver, with no file renamed</li>
+        <li><strong>Observability.</strong> Repository reports bytes used against quota estimate; the resolver reports resolutions, misses and preload hit rate</li>
+        <li><strong>Rollback.</strong> Two independent halves behind interfaces — the localStorage repository and the identity resolver both stay in the tree as the fallback implementation</li>
+        <li><strong>DoD.</strong> Three tiers green · budgets green · <code>docs/save-format.md</code> gains the storage section · <code>docs/getting-started.md</code> documents the manifest and the CDN base · CHANGELOG</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Sequence and effort</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Sprint</th><th>Work</th><th>Effort</th><th>Depends on</th><th>Metrics moved</th></tr></thead>
+    <tbody>
+      <tr><td><strong>A0</strong> <span class="chip ok">done</span></td><td>Resource ownership</td><td>1–2 weeks</td><td>—</td><td>M-1, M-2, M-3 — all met</td></tr>
+      <tr><td><strong>A1</strong></td><td>Transactional loading</td><td>1–2 weeks</td><td>A0 (soft)</td><td>M-6, M-7, part of M-4</td></tr>
+      <tr><td><strong>A2</strong></td><td>ChangeSet + incremental projection</td><td>2 weeks</td><td><strong>A0</strong></td><td>M-4, M-5</td></tr>
+      <tr><td><strong>A3</strong></td><td>Identity + command history</td><td>2 weeks</td><td><strong>A1, A2</strong></td><td>M-8</td></tr>
+      <tr><td><strong>A4</strong></td><td><code>DesignRuntime</code></td><td>1 week</td><td>A0, A1 (soft)</td><td>M-1, M-2 at isolation level</td></tr>
+      <tr><td><strong>A5</strong></td><td>Persistence + asset delivery</td><td>1–2 weeks</td><td><strong>A1</strong></td><td>M-9</td></tr>
+    </tbody>
+  </table></div>
+
+  <p style="margin-top:16px">Eight to eleven weeks end to end, or six to eight if A4 and A5 run beside the A0 → A2 → A3 critical path. <strong>If only one thing gets done: A0.</strong> It is the only sprint with no dependencies, it closes the finding with the largest measured number in this document, and every sprint after it is safer because the registry exists. <strong>If only two: A0 and A1</strong> — because H-2 is the one finding here that loses somebody's work.</p>
+</section>
+
+<footer>
+  <p><strong>Method — RM-003.</strong> Full read of the library's resource, loading, change-propagation, identity, history, isolation and asset paths against the working tree at <code>fff1ebe</code> on branch <code>amit</code>, plus <code>README.md</code>, <code>CHANGELOG.md</code>, <code>package.json</code>, <code>vite.config.mjs</code>, <code>tsconfig.json</code>, <code>docs/architecture.md</code>, <code>docs/events.md</code>, <code>tests/README.md</code> and the RM-001/RM-002 sections above. The four findings marked <span class="chip acc">measured</span> were produced by running the library headlessly and counting — mesh churn per <code>update()</code>, <code>EVENT_UPDATED</code> per document open, the malformed-document corpus, and room identity across a wall split — not by reading the code. <code>renderer.info.memory</code>, <code>LoadingManager.abort()</code> and <code>FileLoader</code>'s <code>AbortSignal.any</code> composition were verified in the installed <code>three@0.185.1</code> rather than from documentation. Two documentation inaccuracies were found and are recorded in §16 H-1 rather than fixed, since this is a planning pass: <code>docs/architecture.md:71–74</code> and <code>blueprint.js:200–203</code> both state the model layer holds no GPU resources, and it holds three meshes per room and one per half-edge.</p>
+  <p><strong>Sources — RM-003.</strong> <a href="https://threejs.org/manual/#en/cleanup">three.js — Cleanup (freeing resources)</a> · <a href="https://threejs.org/docs/#api/en/renderers/WebGLRenderer">WebGLRenderer.info</a> · <a href="https://threejs.org/docs/#api/en/loaders/managers/LoadingManager">LoadingManager</a> · <a href="https://threejs.org/docs/#examples/en/loaders/GLTFLoader">GLTFLoader</a> · <a href="https://github.com/KhronosGroup/glTF">glTF — Runtime 3D Asset Delivery</a> · <a href="https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria">MDN — Storage quotas and eviction criteria</a> · <a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API/Using_the_Web_Storage_API">MDN — Using the Web Storage API</a> · <a href="https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API">MDN — IndexedDB API</a> · <a href="https://vite.dev/guide/assets">Vite — Static asset handling</a></p>
+  <p>architect3d · Architecture hardening program RM-003 rev A · proposal, pending approval · successor to redline RM-002</p>
 </footer>
 
 

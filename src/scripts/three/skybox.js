@@ -58,6 +58,8 @@ export class Skybox extends EventDispatcher
 		this.widthSegments = 32;
 		this.heightSegments = 15;
 		this.sky = null;
+		/** The ground photograph, held so dispose() can release it (RM-003 A0). */
+		this.groundTex = null;
 
 		this.plainVertexShader = ['varying vec3 vWorldPosition;','void main() {','vec4 worldPosition = modelMatrix * vec4( position, 1.0 );','vWorldPosition = worldPosition.xyz;','gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0 );','}'].join('\n');
 		// --- Why these two shaders carry an explicit encode ---------------------
@@ -107,7 +109,12 @@ export class Skybox extends EventDispatcher
 		this.sky = new Mesh(this.skyGeo, this.skyMat);
 		
 		
+		// Held on `this` since RM-003 A0, so dispose() can release it. It was a
+		// local, and `Material.dispose()` in three does not touch the material's
+		// maps - so the ground photograph, the largest single texture the viewer
+		// loads, was leaked once per viewer built.
 		var groundT = new TextureLoader().load('rooms/textures/Ground_4K.jpg', function(){});
+		this.groundTex = groundT;
 		// A photograph of gravel (S8).
 		groundT.colorSpace = SRGBColorSpace;
 		groundT.wrapS = groundT.wrapT = RepeatWrapping;
@@ -210,10 +217,28 @@ export class Skybox extends EventDispatcher
 		this.groundMat.dispose();
 		this.groundGeo.dispose();
 
+		// The maps, separately from the materials that carry them (RM-003 A0).
+		// three's Material.dispose() releases the material's own GPU program and
+		// nothing it points at - which is correct, because a texture can be shared
+		// by several materials, and is exactly why these two need naming here.
+		if(this.groundTex)
+		{
+			this.groundTex.dispose();
+			this.groundTex = null;
+		}
+
 		this.skyGeo.dispose();
 		this.plainSkyMat.dispose();
 		if(this.skyMat)
 		{
+			// The environment photograph lives in a uniform rather than in a
+			// material slot, so nothing would ever have reached it.
+			var envMap = this.skyMat.uniforms && this.skyMat.uniforms.envMap;
+			if(envMap && envMap.value)
+			{
+				envMap.value.dispose();
+				envMap.value = null;
+			}
 			this.skyMat.dispose();
 			this.skyMat = undefined;
 		}

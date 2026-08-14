@@ -2,6 +2,7 @@ import {EVENT_CHANGED, EVENT_ROOM_ATTRIBUTES_CHANGED} from '../core/events.js';
 import {Region} from '../core/utils.js';
 import {EventDispatcher, Vector2, Vector3, Shape, ShapeGeometry, Mesh, MeshBasicMaterial, DoubleSide, Box3} from 'three';
 import {triangleFanGeometry} from '../core/geometry_builders.js';
+import {disposeObject} from '../core/resource_registry.js';
 
 import {WallTypes} from '../core/constants.js';
 
@@ -134,13 +135,10 @@ export class Room extends EventDispatcher
 
 	generateRoofPlane()
 	{
-		if(this.roofPlane && this.roofPlane != null)
-		{
-			if(this.roofPlane.parent != null)
-			{
-					this.roofPlane.parent.remove(this.roofPlane);
-			}
-		}
+		// Detached AND disposed, since RM-003 A0. The detach was already here; the
+		// disposal was not, so every regeneration left a fan geometry and a
+		// material behind. See dispose() below for who owns these.
+		disposeObject(this.roofPlane);
 		// setup texture
 		var points = this.corners.map((corner) => new Vector3(corner.x, corner.elevation, corner.y));
 		var geometry = triangleFanGeometry(points);
@@ -150,6 +148,7 @@ export class Room extends EventDispatcher
 
 	generatePlane()
 	{
+		disposeObject(this.floorPlane);
 		var points = [];
 		this.interiorCorners.forEach((corner) => {
 			points.push(new Vector2(corner.x,corner.y));
@@ -173,6 +172,41 @@ export class Room extends EventDispatcher
 		this.min = b3.min.clone();
 		this.max = b3.max.clone();
 		this.center = this.max.clone().sub(this.min).multiplyScalar(0.5).add(this.min);
+	}
+
+	/**
+	 * Release the two hit-test planes this room owns (RM-003 A0).
+	 *
+	 * ## Why a model class has a dispose() at all
+	 *
+	 * Because a model class builds GPU resources, which `docs/architecture.md`
+	 * used to say it did not. `generatePlane()` and `generateRoofPlane()` each
+	 * build a `Mesh` with its own geometry and material. They are invisible - they
+	 * exist so the raycaster has something to hit for floor and ceiling picking -
+	 * and being invisible is presumably how they escaped the description. A
+	 * `ShapeGeometry` is a `ShapeGeometry` whether or not it is drawn, and
+	 * `Floor.addToScene()` puts both of these into the live scene.
+	 *
+	 * `Floorplan.update()` throws every Room away and builds new ones, so before
+	 * A0 this pair leaked on every call - four of the six resources the RM-003
+	 * measurement counted per update.
+	 *
+	 * ## The ownership boundary
+	 *
+	 * The room owns these two planes; the half edges own theirs, and are released
+	 * through the wall that points at them. The 3D `Floor` *borrows* both of these
+	 * for picking and must never dispose them - see the borrowing test in
+	 * `tests/resource-lifecycle.test.js`, which is what stops a well-meaning
+	 * change in the view layer disposing geometry the model still needs.
+	 *
+	 * Idempotent, because ownership boundaries overlap in practice.
+	 */
+	dispose()
+	{
+		disposeObject(this.floorPlane);
+		disposeObject(this.roofPlane);
+		this.floorPlane = null;
+		this.roofPlane = null;
 	}
 
 	cycleIndex(index)

@@ -82,10 +82,17 @@ export default defineConfig({
 				// the 2D view and the 3D view at once does when it arrives with a
 				// suite of its own: 76.38 lines, 76.48 statements, 63.43 branches,
 				// 74.31 functions.
-				lines: 76,
-				statements: 76,
+				//
+				// RM-003 A0 moved all four again - 77.23 lines, 77.27 statements,
+				// 63.94 branches, 75.09 functions - because disposal paths are
+				// reached by every test that builds a plan, not only by the twenty
+				// that assert on them. Three of the four gained a whole point and
+				// are raised. Branches did not (63.43 -> 63.94) and is left alone:
+				// rounding down is what makes these floors rather than targets.
+				lines: 77,
+				statements: 77,
 				branches: 63,
-				functions: 74,
+				functions: 75,
 			},
 		},
 	},

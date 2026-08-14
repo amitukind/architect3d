@@ -1,5 +1,6 @@
 import {EventDispatcher, Vector2, Vector3, Matrix4, Mesh, MeshBasicMaterial, Box3} from 'three';
 import {firstFaceNormal, triangleFanGeometry} from '../core/geometry_builders.js';
+import {disposeObject} from '../core/resource_registry.js';
 import {EVENT_REDRAW} from '../core/events.js';
 import {Utils} from '../core/utils.js';
 import {WallTypes} from '../core/constants.js';
@@ -219,6 +220,12 @@ export class HalfEdge extends EventDispatcher
 	 */
 	generatePlane()
 	{
+		// Released before it is replaced (RM-003 A0). `Room.updateInteriorCorners()`
+		// calls this once per edge on construction, and a plan being re-derived
+		// builds a fresh HalfEdge each time - so without this line the previous
+		// quad's geometry and material were dropped on every update.
+		disposeObject(this.plane);
+
 		var v1 = this.transformCorner(this.interiorStart());
 		var v2 = this.transformCorner(this.interiorEnd());
 		var v3 = v2.clone();
@@ -258,7 +265,23 @@ export class HalfEdge extends EventDispatcher
 	}
 	
 	/**
-	 * Calculate the transformation matrix for the edge (front/back) baesd on the parameters. 
+	 * Release the intersection plane this half edge owns (RM-003 A0).
+	 *
+	 * The wall is what owns a half edge - the constructor writes itself onto
+	 * `wall.frontEdge` or `wall.backEdge` - so `Floorplan.update()` releases these
+	 * through the wall, immediately before `resetFrontBack()` nulls the pointers
+	 * and makes them unreachable. That was two of the six resources per update.
+	 *
+	 * Idempotent.
+	 */
+	dispose()
+	{
+		disposeObject(this.plane);
+		this.plane = null;
+	}
+
+	/**
+	 * Calculate the transformation matrix for the edge (front/back) baesd on the parameters.
 	 * @param {Matrix4} transform The matrix reference in which the transformation is stored
 	 * @param {Matrix4} invTransform The inverse of the transform that is stored in the invTransform
 	 * @param {Vector2} start The starting point location

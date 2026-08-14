@@ -85,6 +85,8 @@ tests/
 │                       counter for proving dispose() is complete
 ├─ helpers/renderer.js  the fake WebGLRenderer handed to Main.setRendererFactory,
 │                       shared by the viewer and application suites
+├─ helpers/resources.js counts geometries, materials and textures built, disposed
+│                       and still reachable - the probe behind the A0 leak tests
 ├─ fixtures/*.blueprint3d   frozen design files (generated, see below)
 │
 │  headless data layer (S0, characterization) — environment: node
@@ -113,6 +115,12 @@ tests/
 ├─ color-pipeline.test.js   every texture's colour space after a redraw, the
 │                           two sky shader includes, and the two constants the
 │                           flip must not sweep up
+│
+│  resource ownership (RM-003 A0, contract) — environment: jsdom
+├─ resource-lifecycle.test.js  who owns a geometry and who gives it back: the
+│                           model's hit-test planes, Edge's six wall meshes,
+│                           Floor's pair, Item's labels and selection box, the
+│                           HUD's rotation handle, and the shared texture cache
 │
 │  the Vue application (S6-S7, contract) — environment: jsdom
 ├─ app-composables.test.js  the blueprint's lifetime, the single selection, the

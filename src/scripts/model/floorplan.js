@@ -386,6 +386,19 @@ export class Floorplan extends EventDispatcher
 	{
 		this.dispatchEvent({type: EVENT_DELETED, item: this, deleted: wall, item_type: 'wall'});
 		Utils.removeValue(this.walls, wall);
+		// The departing wall's half edges have to be released here, not by the
+		// update() below (RM-003 A0). That release walks `this.walls`, and this wall
+		// has just left it - so its two intersection planes would be unreachable
+		// from anywhere by the time anything looked for them.
+		if (wall.frontEdge)
+		{
+			wall.frontEdge.dispose();
+		}
+		if (wall.backEdge)
+		{
+			wall.backEdge.dispose();
+		}
+		wall.resetFrontBack();
 		this.update();
 	}
 
@@ -792,6 +805,27 @@ export class Floorplan extends EventDispatcher
 		tmpWalls.forEach((wall) => {
 			wall.remove();
 		});
+
+		// Release before the arrays are dropped (RM-003 A0).
+		//
+		// The two assignments below are what makes this necessary. Removing the
+		// walls above runs update() once per wall, and the last of those rebuilds
+		// the rooms and half edges from whatever corners remain - so there is
+		// always a live set at this point, and clearing the arrays is the moment it
+		// stops being reachable. This is a teardown boundary, and reset() is the
+		// first thing loadFloorplan() calls, so it is on the load path too.
+		this.rooms.forEach((room) => {room.dispose();});
+		this.walls.forEach((wall) => {
+			if (wall.frontEdge)
+			{
+				wall.frontEdge.dispose();
+			}
+			if (wall.backEdge)
+			{
+				wall.backEdge.dispose();
+			}
+		});
+		this.rooms = [];
 		this.corners = [];
 		this.walls = [];
 	}
@@ -830,7 +864,35 @@ export class Floorplan extends EventDispatcher
 		
 		
 		var scope = this;
+
+		// Release before replacing (RM-003 A0).
+		//
+		// This is the largest single leak the hardening review measured: every call
+		// to update() built two meshes per room and one per half edge, and dropped
+		// the previous set on the floor - six geometries and six materials per call
+		// on a single square room, with the plan unchanged. Opening a four-wall
+		// design dispatches EVENT_UPDATED twenty-five times, so a file open
+		// abandoned roughly 150 of each before the first frame was drawn.
+		//
+		// The two loops are separate because the ownership is: a Room owns its
+		// floor and roof planes, and a Wall owns its two half edges - the HalfEdge
+		// constructor writes itself onto `wall.frontEdge`/`backEdge`, which is what
+		// makes the wall the thing that can still reach it. That release therefore
+		// has to happen HERE, immediately before resetFrontBack() nulls the
+		// pointers; a line later and the edges are unreachable.
+		//
+		// Both dispose() calls are idempotent, so a half edge reachable from both a
+		// room's edge chain and its wall is disposed once.
+		this.rooms.forEach((room) => {room.dispose();});
 		this.walls.forEach((wall) => {
+			if (wall.frontEdge)
+			{
+				wall.frontEdge.dispose();
+			}
+			if (wall.backEdge)
+			{
+				wall.backEdge.dispose();
+			}
 			wall.resetFrontBack();
 		});
 

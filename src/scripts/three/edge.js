@@ -4,6 +4,7 @@ import {triangleFanGeometry} from '../core/geometry_builders.js';
 import {EVENT_REDRAW, EVENT_CAMERA_MOVED, EVENT_CAMERA_ACTIVE_STATUS} from '../core/events.js';
 import {renderProfile, isStudio} from './render_profile.js';
 import {acquireTexture, releaseTexture} from './texture_cache.js';
+import {ResourceRegistry} from '../core/resource_registry.js';
 
 /**
  * The hand-painted vignette every wall is lit with. One image, one decode -
@@ -34,10 +35,31 @@ export class Edge extends EventDispatcher
 		this.planes = [];
 		this.phantomPlanes = [];
 		this.basePlanes = []; // always visible
-		
+
+		/**
+		 * The geometries and materials this edge built (RM-003 A0).
+		 *
+		 * A registry rather than a walk over `planes` for one reason: not every
+		 * material this class creates ends up on a mesh. `updatePlanes()` builds
+		 * `fillerMaterial` unconditionally and only attaches it inside the
+		 * exterior-wall branch, so on an interior wall it is created and dropped.
+		 * A registry catches that; iterating the meshes cannot.
+		 *
+		 * It also refcounts, which matters because one material is shared by more
+		 * than one mesh here - releasing the first must not leave the second
+		 * drawing with a dead handle.
+		 *
+		 * @type {ResourceRegistry}
+		 */
+		this.resources = new ResourceRegistry();
+
 		// Edge.plane is the plane used for wall intersection. Pushing it into
 		// phantomPlanes renders it, which is how to see what the picker sees.
-		
+		// NOTE that this makes a phantom plane BORROWED - it belongs to the model's
+		// HalfEdge - which is why removeFromScene() detaches those without
+		// disposing them.
+
+
 		// Set by updateTexture() below, and released when it is replaced. The
 		// throwaway `new TextureLoader()` that used to sit here loaded nothing and
 		// was overwritten on the next line of init().
@@ -115,6 +137,21 @@ export class Edge extends EventDispatcher
 		this.addToScene();
 	}
 
+	/**
+	 * Take every plane back out of the scene and release the ones this edge owns.
+	 *
+	 * Called by `redraw()` before rebuilding and by `remove()` at teardown, and in
+	 * both cases the meshes are finished - so this is the release boundary. Before
+	 * RM-003 A0 it disposed nothing, which meant every EVENT_REDRAW abandoned six
+	 * geometries and up to six materials per wall face.
+	 *
+	 * `phantomPlanes` is detached but NOT released: a phantom plane is the model's
+	 * own `HalfEdge.plane`, pushed here to make the picker's geometry visible.
+	 * Disposing it would take out the plane the raycaster needs. It is also
+	 * cleared now, which it was not before - `addToScene()` re-added phantoms that
+	 * `removeFromScene()` had left in the array, so the two were asymmetric.
+	 * Nothing pushes to it today, so that was latent rather than live.
+	 */
 	removeFromScene()
 	{
 		var scope = this;
@@ -127,8 +164,10 @@ export class Edge extends EventDispatcher
 		scope.phantomPlanes.forEach((plane) => {
 			scope.scene.remove(plane);
 		});
+		scope.resources.releaseAll();
 		scope.planes = [];
 		scope.basePlanes = [];
+		scope.phantomPlanes = [];
 	}
 
 	addToScene()
@@ -344,26 +383,34 @@ export class Edge extends EventDispatcher
 			wireframe: false,
 		});
 
+		// Registered at creation, not when attached (RM-003 A0). `fillerMaterial`
+		// is only used inside the exterior branch below, so on an interior wall it
+		// reaches no mesh at all - and a release pass that walked the meshes would
+		// never find it. The mesh geometries and the helper-built materials are
+		// registered as each plane is pushed.
+		this.resources.register(wallMaterial);
+		this.resources.register(fillerMaterial);
+
 		// exterior plane for real exterior walls
 		//If the walls have corners that have more than one room attached
 		//Then there is no need to construct an exterior wall
 		if(this.edge.wall.start.getAttachedRooms().length < 2 || this.edge.wall.end.getAttachedRooms().length < 2)
 		{
-			this.planes.push(this.makeWall(this.edge.exteriorStart(), this.edge.exteriorEnd(), this.edge.exteriorTransform, this.edge.invExteriorTransform, fillerMaterial));
+			this.planes.push(this.resources.registerObject(this.makeWall(this.edge.exteriorStart(), this.edge.exteriorEnd(), this.edge.exteriorTransform, this.edge.invExteriorTransform, fillerMaterial)));
 		}
 		// interior plane
-		this.planes.push(this.makeWall(this.edge.interiorStart(), this.edge.interiorEnd(), this.edge.interiorTransform, this.edge.invInteriorTransform, wallMaterial));
+		this.planes.push(this.resources.registerObject(this.makeWall(this.edge.interiorStart(), this.edge.interiorEnd(), this.edge.interiorTransform, this.edge.invInteriorTransform, wallMaterial)));
 		// bottom
 		// put into basePlanes since this is always visible
-		this.basePlanes.push(this.buildFillerUniformHeight(this.edge, 0, BackSide, this.baseColor));
+		this.basePlanes.push(this.resources.registerObject(this.buildFillerUniformHeight(this.edge, 0, BackSide, this.baseColor)));
 		if(this.edge.wall.start.getAttachedRooms().length < 2 || this.edge.wall.end.getAttachedRooms().length < 2)
 		{
-			this.planes.push(this.buildFillerVaryingHeights(this.edge, DoubleSide, this.fillerColor));
+			this.planes.push(this.resources.registerObject(this.buildFillerVaryingHeights(this.edge, DoubleSide, this.fillerColor)));
 		}
 
 		// sides
-		this.planes.push(this.buildSideFillter(this.edge.interiorStart(), this.edge.exteriorStart(), extStartCorner.elevation, this.sideColor));
-		this.planes.push(this.buildSideFillter(this.edge.interiorEnd(), this.edge.exteriorEnd(), extEndCorner.elevation, this.sideColor));
+		this.planes.push(this.resources.registerObject(this.buildSideFillter(this.edge.interiorStart(), this.edge.exteriorStart(), extStartCorner.elevation, this.sideColor)));
+		this.planes.push(this.resources.registerObject(this.buildSideFillter(this.edge.interiorEnd(), this.edge.exteriorEnd(), extEndCorner.elevation, this.sideColor)));
 	}
 
 	// start, end have x and y attributes (i.e. corners)

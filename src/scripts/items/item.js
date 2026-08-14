@@ -2,6 +2,7 @@ import {Mesh, Matrix4, Vector2, Vector3, BoxHelper, MeshBasicMaterial, AdditiveB
 import {CanvasTexture, PlaneGeometry, DoubleSide, SRGBColorSpace} from 'three';
 import {Color} from 'three';
 import {Utils} from '../core/utils.js';
+import {disposeObject, disposeMaterial} from '../core/resource_registry.js';
 import {Dimensioning} from '../core/dimensioning.js';
 
 /**
@@ -457,9 +458,68 @@ export class Item extends Mesh
 
 	}
 
-	/** */
+	/**
+	 * Release everything this item built (RM-003 A0).
+	 *
+	 * ## What this used to be
+	 *
+	 * An empty method. `Scene.removeItem()` called it and then took the item out
+	 * of the three scene, so deleting a chair released nothing at all: not the
+	 * merged `BufferGeometry`, not the glTF materials or the textures
+	 * `GLTFLoader` created for them - those never enter the shared texture cache,
+	 * so RM-002 R-04 does not cover them - not the two label canvases with their
+	 * geometry, textures and materials, and not the wireframe material.
+	 *
+	 * One object was worse than undisposed. `initObject()` does
+	 * `this.scene.add(this.bhelper)`, and nothing anywhere removed it: a deleted
+	 * item left its selection box in the scene graph, still pointing at an object
+	 * that was no longer in it.
+	 *
+	 * ## Subclasses must call this
+	 *
+	 * `WallItem` overrides `removed()` to detach itself from its wall. Any
+	 * override must call `super.removed()` - it is the one migration note in A0
+	 * and it is in the changelog.
+	 *
+	 * Idempotent: three's `dispose()` is, and the scene removals are no-ops the
+	 * second time.
+	 */
 	removed()
 	{
+		// The selection box, which is a sibling in the scene rather than a child of
+		// this item - so removing the item does not take it with it.
+		if (this.bhelper)
+		{
+			this.scene.remove(this.bhelper);
+			disposeObject(this.bhelper);
+			this.bhelper = null;
+		}
+
+		this.hideError();
+		disposeObject(this.errorGlow);
+		this.errorGlow = null;
+
+		// The label planes are children of this item, so disposeObject(this) would
+		// reach them - but it would also dispose whichever of originalmaterial and
+		// wirematerial is currently swapped in and miss the other. Both are named
+		// explicitly instead.
+		disposeObject(this.canvasPlaneWH);
+		disposeObject(this.canvasPlaneWD);
+		if (this.canvasTextureWH)
+		{
+			this.canvasTextureWH.dispose();
+		}
+		if (this.canvasTextureWD)
+		{
+			this.canvasTextureWD.dispose();
+		}
+
+		if (this.geometry)
+		{
+			this.geometry.dispose();
+		}
+		disposeMaterial(this.originalmaterial);
+		disposeMaterial(this.wirematerial);
 	}
 
 	/** on is a bool */
@@ -649,6 +709,12 @@ export class Item extends Mesh
 		{
 			this.error = false;
 			this.scene.remove(this.errorGlow);
+			// createGlow() clones the whole item geometry, so an item that shows and
+			// hides an error repeatedly was leaking a full copy of itself each time
+			// (RM-003 A0). Replaced with the empty Mesh the constructor starts with,
+			// so showError() has something to position before it builds the next one.
+			disposeObject(this.errorGlow);
+			this.errorGlow = new Mesh();
 		}
 	}
 
