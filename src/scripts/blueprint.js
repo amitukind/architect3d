@@ -42,6 +42,7 @@ export {wallWidth, wallWidthHover, wallWidthSelected, wallColor, wallColorHover,
 export {edgeColor, edgeColorHover, edgeWidth} from './floorplanner/floorplanner_view.js';
 export {cornerRadius, cornerRadiusHover, cornerRadiusSelected, cornerColor, cornerColorHover, cornerColorSelected} from './floorplanner/floorplanner_view.js';
 export {FloorplannerView2D} from './floorplanner/floorplanner_view.js';
+export {floorplannerPalette, setFloorplannerPalette} from './floorplanner/floorplanner_view.js';
 
 
 export {Floorplanner2D} from './floorplanner/floorplanner.js';
