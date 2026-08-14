@@ -42,9 +42,9 @@ are checked in under `public/`, which Vite serves at the site root.
 | Command | What it does |
 |---|---|
 | `npm run dev` | Dev server on port 10001, with hot reload |
-| `npm run build` | Library build &rarr; `dist/bp3djs.js`, an IIFE exposing the `BP3DJS` global |
+| `npm run build` | Library build &rarr; `dist/`: the ESM entry, the `BP3DJS` IIFE, and the declarations |
 | `npm run build:demo` | Application build &rarr; `dist-demo/` |
-| `npm test` | The vitest suite (870 tests, headless) |
+| `npm test` | The vitest suite (886 tests, headless) |
 | `npm run test:coverage` | The same suite, with coverage and its thresholds |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | Type-check the JSDoc and the SFC templates (`vue-tsc`) |
@@ -121,6 +121,26 @@ output is checked against. See
 what each one changes.
 
 
+## Installing it
+
+```bash
+npm install architect3d three bezier-js
+```
+
+`three` and `bezier-js` are **peer dependencies** — the library uses whichever
+copy you already have, so `instanceof` works across the boundary and you are not
+shipping two engines. The peer range is `three >= 0.185.0`, the version the suite
+runs against; three breaks in minor releases, so anything lower is untested
+rather than unsupported.
+
+| Entry | What it is |
+|---|---|
+| `architect3d` | ESM, ~81 kB gzipped, three and bezier-js external |
+| `architect3d/iife` | One self-executing bundle exposing `BP3DJS`, three included — for a plain `<script>` tag |
+| `architect3d/source/*` | The unbundled sources, if you would rather build them yourself |
+
+Types are generated from the JSDoc and ship with the package.
+
 ## Documentation
 
 | | |
@@ -145,7 +165,7 @@ public/        assets the running app loads (models, textures, thumbnails)
 asset-pipeline/ inputs and records that are not served: the 25 pre-migration
                three.js JSON models the .glb files were converted from, the
                .blend authoring files, and the conversion report
-tests/         828 headless tests; see tests/README.md
+tests/         886 headless tests; see tests/README.md
 tools/         one-off and migration tooling (conversion, goldens, parity)
 docs/          this documentation site
 ```

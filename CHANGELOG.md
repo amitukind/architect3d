@@ -4,6 +4,15 @@
 
 ### Added
 
+* **The package is publishable.** `three` and `bezier-js` are `peerDependencies`,
+  and the new ESM entry externalises them — 81 KB gzipped against the IIFE's
+  423 KB, which is the size of the second copy of three that used to ship to
+  every bundler consumer. The IIFE still bundles three deliberately, because it
+  is the drop-in for a plain `<script>` tag; it is reachable as
+  `architect3d/iife`. 45 declaration files are generated from the JSDoc, and
+  `sideEffects: false`, `engines` and an `exports` map are set.
+* **`scene.unloadableItemCount`**, per instance. `Scene.unloadableItemCount`
+  remains the process-wide total.
 * **`EVENT_CONFIG_CHANGED`.** `Configuration.setValue` now says what changed,
   carrying the key, the new value and the old — and only when the value actually
   changed. `Configuration.addEventListener` / `removeEventListener` are statics,
@@ -129,6 +138,12 @@
 
 ### Fixed
 
+* **The published types rejected the most common call in the API.**
+  `Floorplan.newCorner`'s third parameter is described as optional in prose but
+  was not bracketed, so the generated `.d.ts` declared it required — and every
+  real two-argument call, including every one in this repository, was an error
+  for a typed consumer. `Corner`'s constructor had the same. Found by installing
+  the tarball into a scratch project and type-checking against it.
 * **A failed model load now resolves.** Both loaders were called with a null
   `onError` and nothing around them, so a 404, a malformed `.glb`, or a URL the
   environment cannot parse dispatched `EVENT_ITEM_LOADING` and then dispatched

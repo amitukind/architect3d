@@ -369,6 +369,24 @@ describe('Scene.addItem failure path (RM-002 R-01)', () => {
 		expect(model.scene.itemCount()).toBe(0);
 	});
 
+	it('counts per scene as well as per process (RM-002 R-02)', () => {
+		// The static total is what an embedder and the S4 exit gate read, and it
+		// keeps counting everything. The instance figure is the one that means
+		// something when two designs are open - and the one that stops a test
+		// having to zero a process-global between cases.
+		const first = new Model('/textures/');
+		const second = new Model('/textures/');
+		const processBefore = Scene.unloadableItemCount;
+
+		first.scene.addItem(1, 'a.js', {itemName: 'A', itemType: 1}, null, 0, null, false);
+		first.scene.addItem(1, 'b.js', {itemName: 'B', itemType: 1}, null, 0, null, false);
+		second.scene.addItem(1, 'c.js', {itemName: 'C', itemType: 1}, null, 0, null, false);
+
+		expect(first.scene.unloadableItemCount).toBe(2);
+		expect(second.scene.unloadableItemCount).toBe(1);
+		expect(Scene.unloadableItemCount).toBe(processBefore + 3);
+	});
+
 	it('does the same for a formatless item, the branch that set the convention', () => {
 		const model = new Model('/textures/');
 		const seen = countEvents(model.scene);

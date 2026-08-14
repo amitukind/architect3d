@@ -53,6 +53,20 @@ export class Scene extends EventDispatcher
 		this.itemLoadedCallbacks = null;
 		this.itemRemovedCallbacks = null;
 
+		/**
+		 * Items THIS scene asked for that no loader in this build can open.
+		 *
+		 * The static Scene.unloadableItemCount below is the process-wide total and
+		 * still counts everything, because embedders and the S4 exit gate read it.
+		 * It is also the first of the four module-level singletons in RM-002 R-02
+		 * to become per-instance, and the one where the cost of not being was
+		 * already visible: with two designs open the total says nothing about
+		 * either, and the test suite has to zero it between cases.
+		 *
+		 * @type {number}
+		 */
+		this.unloadableItemCount = 0;
+
 	}
 
 	/** Adds a non-item, basically a mesh, to the scene.
@@ -242,6 +256,7 @@ export class Scene extends EventDispatcher
 		 */
 		var failed = function (why)
 		{
+			scope.unloadableItemCount++;
 			Scene.unloadableItemCount++;
 			console.error(`Cannot load "${fileName}": ${why}`);
 			scope.dispatchEvent({type:EVENT_ITEM_LOADED, item: null});
@@ -298,12 +313,18 @@ export class Scene extends EventDispatcher
 }
 
 /**
- * Items a design asked for that no loader in this build can open.
+ * Items ANY scene in this process asked for that no loader in this build can
+ * open. See `scene.unloadableItemCount` for the per-instance figure.
  *
  * Replaces S3's legacyJsonLoadCount, which existed to prove the retired
  * JSONLoader was never entered before S4 deleted it. The branch is gone; what
  * is worth counting now is the failure that took its place, so an embedder can
  * assert on it and the exit gate stays checkable. Zero for the shipped catalog.
+ *
+ * Kept as a process total rather than replaced by the instance field: it is
+ * documented behaviour that an embedder may already read, and the S4 exit gate
+ * is written against it. A second design opening in the same page makes it
+ * ambiguous, which is what the instance field is for.
  */
 Scene.unloadableItemCount = 0;
 

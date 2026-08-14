@@ -958,12 +958,31 @@ footer{margin-top:70px; padding-top:18px; border-top:1px solid var(--line); colo
   <h3>R-02 · Global mutable singletons block a second instance <span class="chip crit">high</span></h3>
   <p>Four pieces of state are module-level and mutable: <code>config</code>, <code>renderProfile</code>, <code>floorplannerPalette</code>, and the static <code>Scene.unloadableItemCount</code>. Two <code>BlueprintJS</code> instances on one page share units, scale, grid spacing, snap tolerance, the whole 2D palette and the render profile. Change one, both move.</p>
   <p>Not hypothetical — the test suite already pays for it. The theme suites snapshot a <code>PRISTINE_PALETTE</code> at import time to stop cross-test pollution corrupting the library-defaults assertions.</p>
+  <div class="gate t2" style="border-left:3px solid var(--warn)">
+    <div class="g-head" style="color:var(--warn)">RE-SCOPED — P4 MEASURED IT AND THE ESTIMATE WAS WRONG</div>
+    <p style="font-size:13.5px;margin:0 0 10px">P4 paired this with R-06 at 4–5 days for both. R-06 is done; this is not, and it is not a few days' work. The measurement, taken before starting rather than after:</p>
+    <div class="tw"><table>
+      <thead><tr><th>Singleton</th><th>Readers</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr><td><code>Scene.unloadableItemCount</code></td><td>1 site</td><td><span class="chip ok">done</span> per-instance, static kept as the process total</td></tr>
+        <tr><td><code>floorplannerPalette</code></td><td>1 file</td><td>Tractable, low value — the app has one 2D view, and <code>useTheme</code> sets the palette globally on purpose</td></tr>
+        <tr><td><code>renderProfile</code></td><td>6 files in <code>three/</code></td><td>Tractable, but the parity grid is calibrated against <code>classic</code>; changing how the profile is resolved risks the frozen goldens for a benefit nobody has asked for</td></tr>
+        <tr><td><code>config</code> + <code>Dimensioning</code></td><td>46 + 224 call sites</td><td><span class="chip crit">the real work</span></td></tr>
+      </tbody>
+    </table></div>
+    <p style="font-size:13.5px;margin:10px 0 0"><strong>Why the last row is the whole finding.</strong> The headline motivation — two designs side by side — needs units and scale to be per-instance. Doing the other three delivers none of it. <code>Dimensioning</code> is a pure static API with 224 call sites across 15 source files, 130 of them in a characterization suite that pins the static form; <code>floorplanner/</code> alone holds 34 <code>Configuration</code> reads and 35 <code>Dimensioning</code> calls.</p>
+  </div>
+
   <div class="gate">
-    <div class="g-head">PROPOSAL</div>
+    <div class="g-head">THE DESIGN, IN STAGES — EACH SHIPPABLE ALONE</div>
     <ul>
-      <li>Instance-scoped state, module singleton kept as the default so nothing breaks: <code>new BlueprintJS({config})</code> gets its own; <code>Configuration.setValue</code> keeps writing to the shared one when no instance is named</li>
-      <li>A comparison view — two plans side by side — is otherwise unbuildable</li>
+      <li><strong>What makes it possible at all:</strong> <code>Corner</code> already takes <code>floorplan</code> as its first constructor argument, and <code>Floorplan</code> is the only factory for Corners and Walls — a Wall reaches one through <code>this.start.floorplan</code>. So the model layer needs no new plumbing, only a config on the Floorplan. It also has just 3 <code>Configuration</code> reads</li>
+      <li><strong>Stage 1</strong> — <code>Floorplan</code> accepts an optional config and the model layer's 3 reads go through it</li>
+      <li><strong>Stage 2, the crux</strong> — <code>Dimensioning</code> gains an instance form and the existing statics delegate to a module-default instance. That is the trick that makes 224 call sites a non-event: they all keep working untouched, the 130-test suite keeps passing, and only a view that wants its own units switches over. The same pattern <code>render_profile.js</code> and <code>floorplannerPalette</code> already use</li>
+      <li><strong>Stage 3</strong> — <code>floorplanner/</code> takes its config from the Floorplan it is drawing</li>
+      <li><strong>Stage 4</strong> — <code>renderProfile</code> per <code>Main</code>, re-baselining the parity grid deliberately</li>
     </ul>
+    <p style="font-size:13.5px;margin:10px 0 0">Roughly a phase of its own, sequenced after P5 so the visual-regression tier exists to catch what Stage 4 moves. Not started.</p>
   </div>
 
   <h3>R-03 · Configuration broadcasts nothing <span class="chip warn">med</span></h3>
@@ -1156,9 +1175,10 @@ footer{margin-top:70px; padding-top:18px; border-top:1px solid var(--line); colo
       <tr><td>P1 <span class="chip ok">done</span></td><td>Tier 0 hooks + Tier 1 CI</td><td>2–3 days</td><td>Costs nothing to run and immediately stops the §10 class of failure. Everything after this is verified by it. <strong>Landed:</strong> pre-commit hook via <code>simple-git-hooks</code> + <code>lint-staged</code>; coverage floor recorded at the first measurement; all three builds and the size budgets in CI. Typecheck arrives with P2</td></tr>
       <tr><td>P2 <span class="chip ok">done</span></td><td>R-07 <code>checkJs</code> + <code>vue-tsc</code> on TS 6</td><td>4–6 days</td><td>No source rewrite. Opt in file by file, core first. Produces the <code>.d.ts</code> P4 needs. <strong>Landed:</strong> 40 files checked and clean — all of <code>core/</code>, all 16 composables, the public entry, 11 SFCs; <code>tsconfig.build.json</code> emits 44 declaration files; the remaining 426 errors are laid out per area in <code>tsconfig.json</code></td></tr>
       <tr><td>P3 <span class="chip ok">done</span></td><td>R-01, R-03, R-04 — the library correctness set</td><td>5–7 days</td><td>Three contained changes with real user-visible consequences. Do them under the type checker, not before it. <strong>Landed:</strong> all three, plus three further leaks the work surfaced — <code>Floor</code>'s unremoved <code>EVENT_CHANGED</code> listener, <code>Floorplan3D</code> having no <code>dispose()</code> at all, and floors being discarded with <code>removeFromScene()</code>. 885 tests; coverage ratcheted to 75%</td></tr>
-      <tr><td>P4</td><td>R-06 packaging + R-02 instance state</td><td>4–5 days</td><td>Both are public-API shaped, so they belong in one minor release with one changelog entry</td></tr>
+      <tr><td>P4 <span class="chip warn">part</span></td><td>R-06 packaging + R-02 instance state</td><td>4–5 days</td><td>Both are public-API shaped, so they belong in one minor release with one changelog entry. <strong>R-06 landed</strong> — peer dependencies, an ESM entry at 81 KB against the IIFE's 423 KB, 45 declaration files, verified by installing the tarball into a scratch project. <strong>R-02 was measured and re-scoped:</strong> one of its four singletons is done, and the other three are a phase of their own, not a few days beside packaging</td></tr>
       <tr><td>P5</td><td>Tier 2 browser + visual regression</td><td>3–4 days</td><td>Baseline against <code>studio</code> once P3 has settled the render path, not while it is still moving</td></tr>
       <tr><td>P6</td><td>R-05 rAF coalescing + asset compression</td><td>3–4 days</td><td>Performance last, because P5 is what proves it changed nothing visible</td></tr>
+      <tr><td>P7</td><td>R-02 instance state, stages 1–4</td><td>1–2 weeks</td><td>Split out of P4 once measured. After P5, so the visual-regression tier exists to catch what stage 4 moves</td></tr>
     </tbody>
   </table></div>
 
