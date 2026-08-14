@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {Camera, Grid2x2, Sparkles, Lock, LockOpen} from '@lucide/vue';
 
 import AppTip from './AppTip.vue';

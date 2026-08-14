@@ -46,7 +46,7 @@ export class Main extends EventDispatcher
 	 * @param {(HTMLElement|string)} element The container to render into, or its
 	 * element id / CSS selector. The string form is the deprecated back-compat
 	 * path.
-	 * @param {string} canvasElement Unused; kept for signature compatibility.
+	 * @param {?string} canvasElement Unused; kept for signature compatibility.
 	 * @param {Object} opts
 	 */
 	constructor(model, element, canvasElement, opts)
@@ -84,6 +84,11 @@ export class Main extends EventDispatcher
 		this.firstpersonmode = false;
 
 		this.renderer = null;
+		// Annotated because init() assigns it through a `scope` alias rather than
+		// through `this`, so inference sees only this line and concludes the
+		// property is permanently null - which made getController() useless to
+		// every caller the type checker looked at.
+		/** @type {?Controller} */
 		this.controller = null;
 
 		this.needsUpdate = false;

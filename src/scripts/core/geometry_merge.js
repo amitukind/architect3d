@@ -1,3 +1,4 @@
+// @ts-check
 import {BufferAttribute, BufferGeometry} from 'three';
 
 /**
@@ -122,7 +123,7 @@ function chunksFor(mesh, pool)
 }
 
 /**
- * @param {Object3D} root A loaded glTF scene, OBJ group, or any Object3D.
+ * @param {import('three').Object3D} root A loaded glTF scene, OBJ group, or any Object3D.
  * @returns {{geometry: BufferGeometry, materials: Array}} The geometry carries
  *          one group per material run; the array is indexed by group.materialIndex.
  */

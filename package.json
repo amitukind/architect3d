@@ -26,6 +26,8 @@
     "budget": "node tools/check-budget.mjs",
     "budget:update": "node tools/check-budget.mjs --update",
     "lint": "eslint .",
+    "typecheck": "vue-tsc --noEmit",
+    "types:emit": "tsc -p tsconfig.build.json",
     "prepare": "simple-git-hooks",
     "docs": "vitepress dev docs",
     "docs:build": "vitepress build docs",
@@ -52,9 +54,11 @@
     "reka-ui": "^2.10.3",
     "simple-git-hooks": "^2.13.1",
     "tailwindcss": "^4.3.3",
+    "typescript": "^6.0.3",
     "vite": "^8.2.1",
     "vitepress": "^1.6.4",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "vue-tsc": "^3.3.9"
   },
   "dependencies": {
     "bezier-js": "^6.1.4",
@@ -63,11 +67,5 @@
   },
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged"
-  },
-  "lint-staged": {
-    "*.{js,mjs,vue}": [
-      "eslint",
-      "vitest related --run --passWithNoTests"
-    ]
   }
 }

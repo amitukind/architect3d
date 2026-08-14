@@ -1,3 +1,4 @@
+// @ts-check
 import {onScopeDispose, ref, watch} from 'vue';
 import {EVENT_UPDATED, EVENT_LOADED, EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED, EVENT_ITEM_MOVE_FINISH} from '../../scripts/blueprint.js';
 
@@ -101,6 +102,7 @@ export function clearDraft()
 export function useAutosave(store)
 {
 	/** When the last successful write happened, or null. */
+	/** @type {import('vue').Ref<?number>} */
 	var savedAt = ref(null);
 	/** Set once storage has refused a write, so the failure is reported once. */
 	var failed = ref(false);

@@ -1,3 +1,4 @@
+// @ts-check
 import {computed} from 'vue';
 import catalog from '../../catalog/catalog.json';
 

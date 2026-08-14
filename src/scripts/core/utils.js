@@ -1,3 +1,4 @@
+// @ts-check
 import {Vector2} from 'three';
 // THREE.Math was renamed MathUtils in r113 and the old alias removed; it also
 // shadowed the global Math, which is why the import was renamed here at all.
@@ -39,6 +40,44 @@ function checkIntersection(x1, y1, x2, y2, x3, y3, x4, y4)
 	return {type: 'none'};
 }
 
+/**
+ * ## The polygon-predicate ledger (PRESERVED BUGS)
+ *
+ * Four call sites in this file pass arguments in a signature that no longer
+ * exists - the pre-refactor form where a point was two loose coordinates rather
+ * than one object. JavaScript discards the extras silently; the type checker
+ * added in RM-002 P2 does not, and each is pinned below with `@ts-expect-error`
+ * rather than corrected.
+ *
+ * The consequence, verified by running them rather than by reading them, and
+ * pinned by the "PRESERVED BUG" tests in tests/dimensioning.test.js:
+ *
+ *   pointInPolygon          always false   (its lineLineIntersect call is broken)
+ *   polygonPolygonIntersect always false   (its linePolygonIntersect call is broken)
+ *   polygonInsidePolygon    always false   (both of the above)
+ *   polygonOutsidePolygon   always true    (the inverse of the same)
+ *   pointInPolygon2         CORRECT        - the sibling nobody refactored
+ *
+ * ## Why they stay
+ *
+ * Room detection depends on what this file returns today, not on what these
+ * functions were meant to return. Correcting one changes which rooms the app
+ * finds and where furniture may be placed, in a codebase whose test suite is
+ * explicitly a characterization of current behaviour. That is a deliberate
+ * change with a re-baselining exercise attached, not a cleanup.
+ *
+ * The one visible consequence is benign and already intended: `pointInPolygon`
+ * is constant-false, so `FloorItem.isValidPosition` never finds an item to be
+ * "in a room" and takes its early `return true` - which the comment there says
+ * is wanted, because placement is left to the user.
+ *
+ * ## Why `@ts-expect-error` and not `@ts-ignore`
+ *
+ * `@ts-expect-error` fails when the error it names goes away. If somebody
+ * corrects one of these signatures, the directive becomes an error and forces
+ * them to come here, read this, and update the characterization tests in the
+ * same change. It is a pin, not a silencer.
+ */
 export class Utils
 {
 	/** Determines the distance of a point from a line.
@@ -204,14 +243,26 @@ export class Utils
 	}
 
 	/**
+	 * The override installed by {@link Utils.setRandomSource}, or null.
+	 *
+	 * This used to be assigned onto the class object without ever being
+	 * declared, because the rollup 1 + Babel 6 toolchain could not parse static
+	 * class properties - with a note to remove the constraint after S1. S1
+	 * removed it, and the type checker is what noticed the note was still
+	 * outstanding: an undeclared static is invisible to it.
+	 *
+	 * `null` and `undefined` are both falsy, so declaring it changes nothing
+	 * about the fallback in guide().
+	 *
+	 * @type {?function(): number}
+	 */
+	static _randomSource = null;
+
+	/**
 	 * Override the random source backing {@link Utils.guide}.
 	 * Tests use this to make generated corner/wall ids deterministic; passing
 	 * no argument (or null) restores Math.random. Production behaviour is
 	 * unchanged - guide() falls back to Math.random whenever nothing is set.
-	 *
-	 * Assigned onto the class object rather than declared as a static field:
-	 * the legacy rollup 1 + Babel 6 toolchain cannot parse static class
-	 * properties. Remove that constraint only after the Vite migration (S1).
 	 *
 	 * @param {function(): number} [fn] Returns a float in [0, 1).
 	 */
@@ -247,6 +298,12 @@ export class Utils
 			{
 				tSecondCorner = firstCorners[tI + 1];
 			}
+			// PRESERVED BUG - do not "fix" this call. See the ledger above the
+			// class. linePolygonIntersect takes (point, point2, corners); this
+			// passes the pre-refactor coordinate form, so `corners` receives a
+			// number, `corners.length` is undefined, the loop never runs, and
+			// polygonPolygonIntersect therefore always returns false.
+			// @ts-expect-error 5 arguments to a 3-parameter function, deliberately.
 			if (Utils.linePolygonIntersect(tFirstCorner.x, tFirstCorner.y,tSecondCorner.x, tSecondCorner.y, secondCorners))
 			{
 				return true;
@@ -360,6 +417,12 @@ export class Utils
 				tSecondCorner = corners[tI + 1];
 			}
 
+			// PRESERVED BUG - do not "fix" this call. See the ledger above the
+			// class. lineLineIntersect takes four points; this passes two points
+			// and four loose coordinates, so lineBStart/lineBEnd are numbers,
+			// reading .x off them yields undefined, every comparison is false,
+			// and pointInPolygon therefore always returns false.
+			// @ts-expect-error 6 arguments to a 4-parameter function, deliberately.
 			if (Utils.lineLineIntersect(start, point, tFirstCorner.x, tFirstCorner.y, tSecondCorner.x, tSecondCorner.y))
 			{
 				tIntersects++;
@@ -377,6 +440,11 @@ export class Utils
 
 		for (var tI = 0; tI < insideCorners.length; tI++)
 		{
+			// PRESERVED BUG - do not "fix" this call. See the ledger above the
+			// class. Doubly broken: the arity is the pre-refactor coordinate
+			// form, and pointInPolygon is a constant false regardless. The first
+			// corner therefore always short-circuits and this always returns false.
+			// @ts-expect-error 4 arguments to a 3-parameter function, deliberately.
 			if (!Utils.pointInPolygon(insideCorners[tI].x, insideCorners[tI].y,outsideCorners,start))
 			{
 				return false;
@@ -393,6 +461,10 @@ export class Utils
 
 		for (var tI = 0; tI < insideCorners.length; tI++)
 		{
+			// PRESERVED BUG - do not "fix" this call. See the ledger above the
+			// class. Same doubly-broken call as polygonInsidePolygon, with the
+			// sense inverted: the test never fires, so this always returns true.
+			// @ts-expect-error 4 arguments to a 3-parameter function, deliberately.
 			if (Utils.pointInPolygon(insideCorners[tI].x, insideCorners[tI].y,outsideCorners,start))
 			{
 				return false;

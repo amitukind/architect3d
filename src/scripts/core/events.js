@@ -1,3 +1,4 @@
+// @ts-check
 export const EVENT_ACTION = 'ACTION_EVENT';
 export const EVENT_DELETED = 'DELETED_EVENT';
 export const EVENT_MOVED = 'MOVED_EVENT';

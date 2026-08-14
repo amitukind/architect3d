@@ -70,6 +70,18 @@ jobs:
           SKIP_INSTALL_SIMPLE_GIT_HOOKS: '1'
         run: npm ci --no-audit --no-fund
 
+      - name: Typecheck
+        # RM-002 P2. `vue-tsc` rather than `tsc`: it is a superset that checks
+        # the .js files exactly as tsc does AND type-checks the SFC templates
+        # against their own script blocks, so one command covers both.
+        #
+        # Checking is opt-in per file (`// @ts-check`), because switching it on
+        # wholesale reports 406 errors in 2014-era library code. The ledger of
+        # what is opted in, and what each remaining area costs, is in
+        # tsconfig.json. It is a ratchet like the coverage floor: files join it,
+        # they do not leave.
+        run: npm run typecheck
+
       - name: Test with coverage
         # Thresholds live in vitest.config.mjs and are a ratchet: raise them when
         # a change earns it, never lower them to make a build pass.

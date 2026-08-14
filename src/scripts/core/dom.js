@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * DOM helpers shared by the 2D floorplanner and the 3D view.
  *
@@ -23,7 +24,11 @@
  */
 export function resolveElement(target, description)
 {
-	if (target && target.nodeType === 1)
+	// `typeof target !== 'string'` is here for the type checker, not the runtime:
+	// a string has no `nodeType`, so the original `target && target.nodeType === 1`
+	// already fell through for one. Reading a property off the union is what the
+	// checker objects to, and the guard is exactly equivalent for every input.
+	if (target && typeof target !== 'string' && target.nodeType === 1)
 	{
 		return target;
 	}

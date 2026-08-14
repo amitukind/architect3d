@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {computed, ref, watch} from 'vue';
 
 import CornerInspector from './CornerInspector.vue';

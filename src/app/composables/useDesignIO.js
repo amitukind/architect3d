@@ -1,3 +1,4 @@
+// @ts-check
 import {ref} from 'vue';
 import {EVENT_GLTF_READY} from '../../scripts/blueprint.js';
 import {DEFAULT_DESIGN} from '../designs/default-design.js';
@@ -49,6 +50,18 @@ function download(data, filename, type)
 }
 
 /**
+ * A caught value is `unknown`, and `throw 'a string'` is legal JavaScript.
+ * Both call sites below want a sentence to show the user.
+ *
+ * @param {unknown} error
+ * @returns {string}
+ */
+function messageOf(error)
+{
+	return (error instanceof Error) ? error.message : String(error);
+}
+
+/**
  * @param {File} file
  * @returns {Promise<string>}
  */
@@ -57,7 +70,19 @@ function readAsText(file)
 	return new Promise(function (resolve, reject)
 	{
 		var reader = new FileReader();
-		reader.onload = function (event) {resolve(event.target.result);};
+		// readAsText guarantees a string result on success, but the DOM types
+		// describe `result` as string | ArrayBuffer | null because the same
+		// reader could have been asked for a buffer. Narrowed rather than cast,
+		// so a surprise here rejects instead of resolving with the wrong thing.
+		reader.onload = function ()
+		{
+			if (typeof reader.result === 'string')
+			{
+				resolve(reader.result);
+				return;
+			}
+			reject(new Error(`Could not read ${file.name} as text.`));
+		};
 		reader.onerror = function () {reject(reader.error || new Error(`Could not read ${file.name}.`));};
 		reader.readAsText(file);
 	});
@@ -112,7 +137,7 @@ export function useDesignIO(store)
 		}
 		catch (error)
 		{
-			fail(`Could not open ${label || 'that design'}: ${error.message}`, error);
+			fail(`Could not open ${label || 'that design'}: ${messageOf(error)}`, error);
 			return false;
 		}
 	}
@@ -135,7 +160,7 @@ export function useDesignIO(store)
 		}
 		catch (error)
 		{
-			fail(`Could not open ${file.name}: ${error.message}`, error);
+			fail(`Could not open ${file.name}: ${messageOf(error)}`, error);
 		}
 	}
 

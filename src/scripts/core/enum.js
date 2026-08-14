@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Minimal replacement for the abandoned `es6-enum` package (last published
  * 2018), inlined in migration sprint S1.

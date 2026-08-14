@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {computed} from 'vue';
 import {Dimensioning, floorplannerModes} from '../../scripts/blueprint.js';
 import {LAYOUT_PLAN} from '../composables/useLayout.js';

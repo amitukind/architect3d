@@ -1,3 +1,4 @@
+// @ts-check
 import {onBeforeUnmount, onMounted} from 'vue';
 
 /**
@@ -81,9 +82,13 @@ function isApple()
 {
 	try
 	{
-		if (navigator.userAgentData && navigator.userAgentData.platform)
+		// userAgentData is Chromium-only and absent from the DOM lib, so it is
+		// read off a widened alias rather than off Navigator. The optional
+		// chaining in the guard below is what makes that safe everywhere else.
+		var uaData = /** @type {{userAgentData?: {platform?: string}}} */ (/** @type {unknown} */ (navigator)).userAgentData;
+		if (uaData && uaData.platform)
 		{
-			return /mac|ios/i.test(navigator.userAgentData.platform);
+			return /mac|ios/i.test(uaData.platform);
 		}
 		return /mac|iphone|ipad|ipod/i.test(navigator.platform || navigator.userAgent || '');
 	}

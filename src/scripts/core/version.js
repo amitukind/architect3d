@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * The save-format version, and the comparison used to reason about it.
  *

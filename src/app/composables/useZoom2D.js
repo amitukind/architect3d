@@ -1,3 +1,4 @@
+// @ts-check
 import {computed, onScopeDispose, ref, watch} from 'vue';
 import {Configuration, gridSpacing, snapToGrid, pixelsPerCm} from '../../scripts/blueprint.js';
 

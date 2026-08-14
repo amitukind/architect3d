@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Compatibility shim for designs saved before the glTF conversion (sprint S3).
  *

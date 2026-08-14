@@ -4,8 +4,24 @@
 
 ### Added
 
+* **Type checking, over the JSDoc that was already there.** `npm run typecheck`
+  runs `vue-tsc`, which checks the annotations and the single-file-component
+  templates against their own script blocks. No `.ts` files, no source rewrite —
+  a file opts in with `// @ts-check` on its first line. Forty are in: all of
+  `core/`, all sixteen composables, the public entry point, and the eleven
+  components that were already clean. TypeScript 6, not 7: 7.0 ships no stable
+  programmatic API until 7.1, so `vue-tsc` cannot run on it.
+
+  It found real defects on the first pass, each fixed here — a `@param` whose
+  name was swallowed by a stray hyphen, so five documented options described
+  nothing; `Main.controller` annotated as permanently `null` because `init()`
+  assigns it through an alias, which made `getController()` useless to every
+  caller; `threeCanvasElement` documented as `string` while the app passes
+  `null`; an undeclared static on `Utils`; and two JSDoc types naming three
+  classes the module never imported.
 * **A pre-commit hook** (`simple-git-hooks` + `lint-staged`), installed by
-  `npm install`. It lints the staged files and runs the suites that import them.
+  `npm install`. It lints the staged files, type-checks the project, and runs
+  the suites that import them.
   This is the cheapest gate in the project and the one that matters most: CI
   deliberately does not run on working branches, so until now *nothing at all*
   ran before a merge. It costs no Actions minutes.
@@ -102,6 +118,14 @@
 
 ### Fixed
 
+* **`Main.getController()` was typed as always returning `null`**, because
+  `init()` assigns the property through a `scope` alias rather than through
+  `this`, so nothing ever declared it. Annotated — no runtime change, but every
+  consumer of that method now gets a real type instead of a useless one.
+* **`BlueprintJS`'s constructor documented five options that did not exist.**
+  `@param {Object} - options` — the stray hyphen made the parameter name empty,
+  so `options.floorplannerElement` and its four siblings were attached to
+  nothing, and generated types omitted all five.
 * **The 2D plan no longer slides off the edge when its pane is resized.** The
   pan origin is the plan coordinate at the canvas' top-left corner, so a resize
   that left it alone pinned the drawing to that corner. Tolerable when only the

@@ -1,3 +1,4 @@
+// @ts-check
 //Classes from core module
 export {Version} from './core/version.js';
 
@@ -99,10 +100,10 @@ export class BlueprintJS
 	/**
 	 * Creates an instance of BlueprintJS. This is the entry point for the application
 	 *
-	 * @param {Object} - options The initialization options.
+	 * @param {Object} options The initialization options.
 	 * @param {(HTMLCanvasElement|string)} options.floorplannerElement - The 2D canvas, or its element id. Ignored in widget mode.
 	 * @param {(HTMLElement|string)} options.threeElement - The container for the 3D view, or its element id / CSS selector.
-	 * @param {string} options.threeCanvasElement - Unused; kept for signature compatibility.
+	 * @param {?string} options.threeCanvasElement - Unused; kept for signature compatibility.
 	 * @param {string} options.textureDir - path to texture directory. No effect
 	 * @param {boolean} options.widget - If widget mode then no 2D floorplanner is created and the 3D controller is disabled
 	 * @example
@@ -126,18 +127,27 @@ export class BlueprintJS
 			* @type {Model}
 		**/
 		this.model = new Model(options.textureDir);
+		// Held in a local as well as on `this`, because the property is nullable
+		// (dispose() clears it) and the checker will not narrow a nullable
+		// property across the branch below. The local is definitely a Main.
+		var three = new Main(this.model, options.threeElement, options.threeCanvasElement, {});
 		/**
 		* @property {Main} three
-		* @type {Main}
+		* @type {?Main}
 		**/
-		this.three = new Main(this.model, options.threeElement, options.threeCanvasElement, {});
+		this.three = three;
+
+		/**
+		 * The 2D view, or null in widget mode - and null again after dispose().
+		 * Declared before the branch so both arms agree on the type; assigning
+		 * null to a property first seen as a Floorplanner2D is what the checker
+		 * objected to, and it was right that the annotation said otherwise.
+		 * @type {?Floorplanner2D}
+		 */
+		this.floorplanner = null;
 
 		if (!options.widget)
 		{
-			/**
-			* @property {Floorplanner2D} floorplanner
-			* @type {Floorplanner2D}
-			**/
 			this.floorplanner = new Floorplanner2D(options.floorplannerElement, this.model.floorplan);
 		}
 		else
@@ -145,9 +155,16 @@ export class BlueprintJS
 			// Widget mode has no 2D view, so nothing ever assigns
 			// floorplan.carbonSheet. Loading a design that carries one used to
 			// dereference null in Floorplan.loadFloorplan; that call is guarded as
-			// of S0 and this property makes the absence explicit.
-			this.floorplanner = null;
-			this.three.getController().enabled = false;
+			// of S0 and the null above makes the absence explicit.
+			// Main.init() runs from its constructor, so the controller exists by
+			// now. The guard is not defensive padding: getController() is genuinely
+			// nullable before init, and "disable the controller" is vacuously
+			// satisfied when there is not one.
+			var controller = three.getController();
+			if (controller)
+			{
+				controller.enabled = false;
+			}
 		}
 	}
 

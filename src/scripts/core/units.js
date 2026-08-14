@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Unit-name constants.
  *

@@ -1,3 +1,4 @@
+// @ts-check
 import {ref} from 'vue';
 import {Configuration, configDimUnit} from '../../scripts/blueprint.js';
 import {dimFeetAndInch, dimInch, dimCentiMeter, dimMilliMeter, dimMeter} from '../../scripts/blueprint.js';

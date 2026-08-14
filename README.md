@@ -47,6 +47,7 @@ are checked in under `public/`, which Vite serves at the site root.
 | `npm test` | The vitest suite (870 tests, headless) |
 | `npm run test:coverage` | The same suite, with coverage and its thresholds |
 | `npm run lint` | ESLint |
+| `npm run typecheck` | Type-check the JSDoc and the SFC templates (`vue-tsc`) |
 | `npm run budget` | Check the built output against `tools/budget.json` |
 | `npm run docs` | The documentation site, with hot reload |
 | `npm run docs:build` | The documentation site &rarr; `docs/.vitepress/dist` |
@@ -68,11 +69,26 @@ takes a couple of seconds.
 skips the hook wherever it is set. To avoid *installing* it at all — which is
 what CI does — set `SKIP_INSTALL_SIMPLE_GIT_HOOKS=1` before `npm ci`.
 
-CI then runs the suite with coverage thresholds, ESLint, all three builds, and
-the size budgets. The coverage floor and the budget limits are both committed
-and both ratchets — raise them when a change earns it, and never lower one to
-make a build pass. The full gate ladder, including the browser-based tier that
-is not built yet, is [RM-002 §13](./docs/public/roadmap.html).
+CI then runs the type check, the suite with coverage thresholds, ESLint, all
+three builds, and the size budgets. The coverage floor, the budget limits and
+the set of type-checked files are all committed and all ratchets — extend them
+when a change earns it, and never relax one to make a build pass. The full gate
+ladder, including the browser-based tier that is not built yet, is
+[RM-002 §13](./docs/public/roadmap.html).
+
+### Types
+
+There are no `.ts` files and there is not meant to be one. The library is ESM
+with thorough JSDoc, and `npm run typecheck` makes that JSDoc mean something —
+`vue-tsc` checks the annotations *and* the SFC templates against their script
+blocks.
+
+Checking is **opt-in per file**: a file joins by putting `// @ts-check` on its
+first line, or on the first line inside `<script setup>`. Forty files are in so
+far — all of `core/`, all of the composables, the public entry point, and the
+components that were already clean. The ledger of what is in, and what each
+remaining area would cost, is at the top of
+[`tsconfig.json`](./tsconfig.json).
 
 
 ## Using it

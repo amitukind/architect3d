@@ -1,3 +1,4 @@
+// @ts-check
 import {Configuration, configDimUnit} from './configuration.js';
 import {dimInch, dimFeetAndInch, dimMeter, dimCentiMeter, dimMilliMeter, dimensioningOptions} from './units.js';
 

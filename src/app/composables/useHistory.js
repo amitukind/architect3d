@@ -1,3 +1,4 @@
+// @ts-check
 import {computed, onScopeDispose, ref, shallowRef, watch} from 'vue';
 import {EVENT_UPDATED, EVENT_LOADED} from '../../scripts/blueprint.js';
 import {EVENT_ITEM_LOADING, EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED, EVENT_ITEM_MOVE_FINISH} from '../../scripts/blueprint.js';
@@ -75,11 +76,20 @@ const SETTLE_BACKSTOP_MS = 8000;
  */
 export function useHistory(store)
 {
-	/** Snapshots older than the current one, oldest first. */
+	/**
+	 * Snapshots older than the current one, oldest first.
+	 * @type {import('vue').ShallowRef<string[]>}
+	 */
 	var past = shallowRef([]);
-	/** Snapshots undone away from, most recently undone last. */
+	/**
+	 * Snapshots undone away from, most recently undone last.
+	 * @type {import('vue').ShallowRef<string[]>}
+	 */
 	var future = shallowRef([]);
-	/** The design as it currently stands, or null before the first capture. */
+	/**
+	 * The design as it currently stands, or null before the first capture.
+	 * @type {import('vue').Ref<?string>}
+	 */
 	var present = ref(null);
 
 	var canUndo = computed(() => past.value.length > 0);
@@ -251,6 +261,13 @@ export function useHistory(store)
 
 		var entries = past.value.slice();
 		var previous = entries.pop();
+		// canUndo already proved the stack is non-empty; this states the invariant
+		// rather than asserting it away, so a future change that breaks it fails
+		// closed instead of applying `undefined` as a design.
+		if (previous === undefined)
+		{
+			return false;
+		}
 
 		if (present.value !== null)
 		{
@@ -274,6 +291,11 @@ export function useHistory(store)
 
 		var entries = future.value.slice();
 		var next = entries.pop();
+		// As in undo(): canRedo proved this, the checker cannot see it.
+		if (next === undefined)
+		{
+			return false;
+		}
 
 		if (present.value !== null)
 		{
