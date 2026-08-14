@@ -5,7 +5,9 @@ import {EventDispatcher, Color} from 'three';
 // the bundle carried three full engines.
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';
-import {Scene as ThreeScene} from 'three';
+import {Scene as ThreeScene, LoadingManager} from 'three';
+import {LoadSession} from './load_session.js';
+import {disposeMaterial} from '../core/resource_registry.js';
 import {Utils} from '../core/utils.js';
 import {mergeMeshes} from '../core/geometry_merge.js';
 import {resolveModelUrl} from '../core/legacy_models.js';
@@ -33,9 +35,40 @@ export class Scene extends EventDispatcher
 		this.scene.background = new Color(0xffffff);
 		this.items = [];
 		this.needsUpdate = false;
+
+		/**
+		 * Which document the loads in flight belong to (RM-003 A1).
+		 *
+		 * Held here rather than on `Model` because this is where loads start and
+		 * finish; `Model` drives it, calling `begin()` as part of applying a
+		 * validated document.
+		 *
+		 * @type {LoadSession}
+		 */
+		this.loadSession = new LoadSession();
+
+		/**
+		 * This scene's own LoadingManager, so a superseded load can be aborted.
+		 *
+		 * Both loaders used to be constructed with no manager, which gives them
+		 * three's global `DefaultLoadingManager` - one shared abort surface for
+		 * every document on the page, which is the same thing as none. With a
+		 * manager per scene, `manager.abort()` stops the fetches this design
+		 * started and nobody else's.
+		 *
+		 * The abort is real in r185: `FileLoader` composes the manager's signal
+		 * with its own through `AbortSignal.any`, and `GLTFLoader` passes the
+		 * manager down to the `FileLoader` and `TextureLoader` it builds. It is
+		 * still only half the mechanism - see LoadSession for why identity has to
+		 * carry the rest.
+		 *
+		 * @type {LoadingManager}
+		 */
+		this.loadingManager = new LoadingManager();
+
 		// init item loader
-		this.gltfloader = new GLTFLoader();
-		this.objloader = new OBJLoader();
+		this.gltfloader = new GLTFLoader(this.loadingManager);
+		this.objloader = new OBJLoader(this.loadingManager);
 		this.gltfloader.setCrossOrigin('');
 
 		/**
@@ -146,6 +179,29 @@ export class Scene extends EventDispatcher
 	}
 
 	/**
+	 * Stop the fetches this scene started (RM-003 A1).
+	 *
+	 * Best-effort, and deliberately not the mechanism the correctness rests on.
+	 * `LoadingManager.abort()` reaches a `FileLoader` that has already issued its
+	 * request, because r185 composes the manager's signal into the fetch through
+	 * `AbortSignal.any` - but it cannot reach an embedder's own `setItemLoader`,
+	 * which is arbitrary code, and it cannot un-decode a model that has already
+	 * arrived. What guarantees the result is the generation check in
+	 * `addItem`'s callbacks; this only saves the bandwidth.
+	 *
+	 * Guarded because the manager is a three object and a caller may have swapped
+	 * in something simpler, and because `abort` arrived in r185 - a peer on an
+	 * older three would not have it.
+	 */
+	abortPendingLoads()
+	{
+		if (this.loadingManager && typeof this.loadingManager.abort === 'function')
+		{
+			this.loadingManager.abort();
+		}
+	}
+
+	/**
 	 * Override how item models are fetched. The data layer's only network
 	 * dependency lives in addItem(); supplying a loader here makes the whole
 	 * model layer runnable headlessly (vitest, Node) and lets an embedder
@@ -196,8 +252,31 @@ export class Scene extends EventDispatcher
 			metadata.legacyConverted = true;
 		}
 
+		// Which document asked (RM-003 A1). Stamped before the load starts, checked
+		// when it comes back. Every exit below - success, failure, and the stale
+		// path - goes through the session exactly once.
+		var generation = this.loadSession.started();
+
 		var loaderCallback = function (geometry, materials)
 		{
+			if (!scope.loadSession.finished(generation))
+			{
+				// A later document superseded this one while the model was in
+				// flight. Nothing here belongs to the design that is now open.
+				//
+				// The geometry and materials still have to be released: the loader
+				// built them whether or not anybody still wants them, and this is the
+				// only place that knows they are unwanted. Without these two lines
+				// A1 would quietly undo A0 on every superseded load.
+				if (geometry && typeof geometry.dispose === 'function')
+				{
+					geometry.dispose();
+				}
+				disposeMaterial(materials);
+				scope.dispatchEvent({type:EVENT_ITEM_LOADED, item: null, stale: true});
+				return;
+			}
+
 			var item = new (Factory.getClass(itemType))(scope.model, metadata, geometry, materials, position, rotation, scale);
 			item.fixed = fixed || false;
 			scope.items.push(item);
@@ -256,6 +335,16 @@ export class Scene extends EventDispatcher
 		 */
 		var failed = function (why)
 		{
+			// Settled either way (RM-003 A1). A superseded failure is still a
+			// failure that has come back, and the session has to stop waiting on it
+			// - but it is not counted against the current document, because it was
+			// never the current document's load.
+			var wanted = scope.loadSession.finished(generation, false);
+			if (!wanted)
+			{
+				scope.dispatchEvent({type:EVENT_ITEM_LOADED, item: null, stale: true});
+				return;
+			}
 			scope.unloadableItemCount++;
 			Scene.unloadableItemCount++;
 			console.error(`Cannot load "${fileName}": ${why}`);

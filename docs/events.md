@@ -27,12 +27,25 @@ Dispatched on `blueprint.model`.
 
 | Event | When | Payload |
 |---|---|---|
-| `EVENT_LOADING` | `loadSerialized()` starts | `{item: model}` |
+| `EVENT_LOADING` | A document has validated and is about to be applied | `{item: model}` |
 | `EVENT_LOADED` | The design is in, items requested | `{item: model}` |
 | `EVENT_GLTF_READY` | `exportForBlender()` finished | `{item, gltf}` — the glTF JSON as a string |
 
 `EVENT_LOADED` fires when the *floorplan* is built and item loads have been
 started, not when the models have arrived. Wait on the item events for that.
+
+::: tip Opening a document is all-or-nothing
+`loadSerialized()` validates the whole document before touching any live state,
+so a file that is not a design leaves the open design exactly as it was — and
+`EVENT_LOADING` is **not** dispatched for a document that fails validation.
+Neither event fires, so a listener that shows a spinner on `LOADING` and hides
+it on `LOADED` cannot be left spinning.
+
+It still throws on a bad document, and the message now names the field. Use
+`model.loadDocument(json)` for the same operation as a value: it returns
+`{ok, document, errors, warnings}`, where each error carries the path to the
+field it is about.
+:::
 
 ## Floorplan
 
@@ -82,6 +95,23 @@ Dispatched on `blueprint.model.scene`.
 | `EVENT_ITEM_LOADED` | The model arrived and is in the scene | `{item}` |
 | `EVENT_ITEM_REMOVED` | An item was deleted | `{item}` |
 | `EVENT_ITEM_MOVE_FINISH` | A drag or rotation settled | `{item}` |
+
+::: warning A LOADED can be for a document you have already left
+Every `EVENT_ITEM_LOADING` is still matched by exactly one `EVENT_ITEM_LOADED`,
+whatever happens — that is RM-002 R-01's guarantee and it is what lets a caller
+count loads in flight. But a model requested by one document can arrive after
+another has been opened, and that arrival is reported rather than swallowed, so
+the count stays balanced.
+
+Those carry **`stale: true`** and a null `item`. The item is not added to the
+scene, and what the loader built for it is disposed. If you are counting loads,
+ignore the flag — the balance is the point. If you are reacting to *content*,
+check `evt.item` for null, as you already must for a failed load.
+
+`scene.loadSession.stats()` is the authoritative answer to "is this document
+still loading": `{generation, inFlight, aborted, failed, settled}`, for the
+current document only.
+:::
 
 `EVENT_ITEM_MOVE_FINISH` is the only signal that a direct manipulation has
 *ended*. The `Controller` mutates an item's position on every `pointermove` and

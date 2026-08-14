@@ -1,7 +1,7 @@
 // @ts-check
 import {computed, onScopeDispose, ref, shallowRef, watch} from 'vue';
 import {EVENT_UPDATED, EVENT_LOADED} from '../../scripts/blueprint.js';
-import {EVENT_ITEM_LOADING, EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED, EVENT_ITEM_MOVE_FINISH} from '../../scripts/blueprint.js';
+import {EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED, EVENT_ITEM_MOVE_FINISH} from '../../scripts/blueprint.js';
 
 /**
  * Undo and redo.
@@ -112,8 +112,6 @@ export function useHistory(store)
 	var backstopTimer = null;
 	/** True while a snapshot we applied is still being rebuilt. */
 	var restoring = false;
-	/** Item models the scene has started loading and not yet finished. */
-	var pending = 0;
 	var attached = null;
 
 	function model()
@@ -208,11 +206,16 @@ export function useHistory(store)
 	 * The gate is a count rather than a timeout because a count is exact: it
 	 * closes the moment the last model lands, however long that takes, and does
 	 * not swallow a real edit that happens to arrive while an arbitrary timer is
-	 * still running. `pending` is maintained from EVENT_ITEM_LOADING against
-	 * EVENT_ITEM_LOADED - and note the ordering that makes it work:
-	 * `Model.newRoom` calls `Scene.addItem` for every item BEFORE
-	 * `loadSerialized` dispatches EVENT_LOADED, so by the time this runs the
-	 * count is already complete.
+	 * still running. The ordering that makes it work is that `Model.newRoom` calls
+	 * `Scene.addItem` for every item BEFORE `loadSerialized` dispatches
+	 * EVENT_LOADED, so by the time this runs the count is already complete.
+	 *
+	 * Since RM-003 A1 the count belongs to `scene.loadSession` rather than to this
+	 * composable. It was maintained here, from EVENT_ITEM_LOADING against
+	 * EVENT_ITEM_LOADED, and that was correct only while one document was ever
+	 * loading - a second load starting before the first had settled interleaved
+	 * two documents in one number, and the gate could close on the wrong one's
+	 * last item. The session knows which generation each load belongs to.
 	 */
 	function holdOff()
 	{
@@ -222,13 +225,29 @@ export function useHistory(store)
 		settleIfIdle();
 	}
 
-	/** Close the gate if nothing is still loading. */
+	/**
+	 * Close the gate if nothing is still loading.
+	 *
+	 * Asks the scene's load session rather than a count of its own since RM-003
+	 * A1. The count was correct only while one document was ever loading: a second
+	 * load starting before the first had settled left the two interleaved in one
+	 * number, so the gate could close on the wrong document's last item. The
+	 * session knows which generation each load belongs to and reports `settled`
+	 * for the current one only.
+	 */
 	function settleIfIdle()
 	{
-		if (restoring && pending <= 0)
+		if (restoring && isSettled())
 		{
 			release();
 		}
+	}
+
+	/** Whether the current document has stopped loading things. */
+	function isSettled()
+	{
+		var scene = attached ? attached.scene : null;
+		return scene ? scene.loadSession.settled : true;
 	}
 
 	function release()
@@ -247,7 +266,6 @@ export function useHistory(store)
 	function apply(state)
 	{
 		clearTimeout(coalesceTimer);
-		pending = 0;
 		restoring = true;
 		model().loadSerialized(state);
 		// loadSerialized dispatches EVENT_LOADED on its way out, which runs
@@ -331,7 +349,6 @@ export function useHistory(store)
 		clearTimeout(coalesceTimer);
 		clearTimeout(backstopTimer);
 		restoring = false;
-		pending = 0;
 		past.value = [];
 		future.value = [];
 		present.value = snapshot();
@@ -350,17 +367,20 @@ export function useHistory(store)
 			// A load - new design, opened file, or our own undo - is the one moment
 			// the stack must not treat as an edit.
 			onLoaded: function () {holdOff();},
-			onItemLoading: function () {pending += 1;},
+			// The session does the counting now, so there is nothing to do when a
+			// load STARTS and the EVENT_ITEM_LOADING subscription is gone. A stale
+			// item - one belonging to a document that has been superseded - still
+			// arrives here on settling, and still must not be recorded as an edit;
+			// the session is what knows the difference, and reports the current
+			// document as settled whatever the stale ones do.
 			onItemSettled: function ()
 			{
-				pending = Math.max(0, pending - 1);
 				settleIfIdle();
 				scheduleCommit();
 			},
 		};
 
 		floorplan.addEventListener(EVENT_UPDATED, attached.onChange);
-		scene.addEventListener(EVENT_ITEM_LOADING, attached.onItemLoading);
 		scene.addEventListener(EVENT_ITEM_LOADED, attached.onItemSettled);
 		scene.addEventListener(EVENT_ITEM_REMOVED, attached.onChange);
 		scene.addEventListener(EVENT_ITEM_MOVE_FINISH, attached.onChange);
@@ -376,7 +396,6 @@ export function useHistory(store)
 			return;
 		}
 		attached.floorplan.removeEventListener(EVENT_UPDATED, attached.onChange);
-		attached.scene.removeEventListener(EVENT_ITEM_LOADING, attached.onItemLoading);
 		attached.scene.removeEventListener(EVENT_ITEM_LOADED, attached.onItemSettled);
 		attached.scene.removeEventListener(EVENT_ITEM_REMOVED, attached.onChange);
 		attached.scene.removeEventListener(EVENT_ITEM_MOVE_FINISH, attached.onChange);
@@ -387,7 +406,6 @@ export function useHistory(store)
 		future.value = [];
 		present.value = null;
 		restoring = false;
-		pending = 0;
 	}
 
 	watch(store.instance, function (blueprint)

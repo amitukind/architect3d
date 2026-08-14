@@ -1033,12 +1033,19 @@ describe('Model.loadSerialized', () => {
 		expect(model.scene.getScene().children).toHaveLength(0);
 	});
 
-	// QUIRK (model.js:43 + model.js:105): items is not defaulted, so a design
-	// without an items key throws - and it throws AFTER EVENT_LOADING has already
-	// been dispatched and after the floorplan has been replaced, leaving the model
-	// half-loaded with no EVENT_LOADED.
-	it('throws on a design with no items array, after EVENT_LOADING and after replacing the floorplan', () => {
+	// RETIRED QUIRK (RM-003 A1). This used to read "throws on a design with no
+	// items array, after EVENT_LOADING and after replacing the floorplan", and it
+	// asserted exactly that: a TypeError, EVENT_LOADING already dispatched, and
+	// the floorplan already replaced - the model left half-loaded with no
+	// EVENT_LOADED and the previous design gone.
+	//
+	// That is the defect A1 exists to remove, so the expectation is retired rather
+	// than the change re-checked. What replaces it is the opposite claim.
+	it('rejects a design with no items array without touching the one that is open', () => {
 		const model = new Model('/textures/');
+		model.loadSerialized(JSON.stringify(makeDesign([])));
+		const before = model.exportSerialized();
+
 		const events = [];
 		model.addEventListener(EVENT_LOADING, (e) => events.push(e.type));
 		model.addEventListener(EVENT_LOADED, (e) => events.push(e.type));
@@ -1046,8 +1053,15 @@ describe('Model.loadSerialized', () => {
 		const design = makeDesign([]);
 		delete design.items;
 
-		expect(() => model.loadSerialized(JSON.stringify(design))).toThrow(TypeError);
-		expect(events).toEqual(['LOADING_EVENT']);
+		// Still throws, because callers already catch and a function that quietly
+		// stops reporting failure is a worse change than one that keeps reporting
+		// it. The message now names the field instead of being whichever TypeError
+		// the mutation happened to hit first.
+		expect(() => model.loadSerialized(JSON.stringify(design))).toThrow(/items/);
+		// And no EVENT_LOADING: nothing started, so saying it did would leave a
+		// listener that shows a spinner on LOADING and hides it on LOADED spinning.
+		expect(events).toEqual([]);
+		expect(model.exportSerialized()).toBe(before);
 		expect(model.floorplan.getWalls()).toHaveLength(4);
 	});
 });

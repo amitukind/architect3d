@@ -28,12 +28,27 @@
     "in the first place. The tree was 15.03 MB against a 16.5 MB ceiling - inside",
     "budget, comfortably - while 3.4 MB of it was a single photograph stored as PNG.",
     "A tree total cannot see that; a per-file ceiling can, and it is the shape of",
-    "limit that matches how these directories actually grow."
+    "limit that matches how these directories actually grow.",
+    "",
+    "RM-003 A0 and A1 RAISED the two library limits, which needs a reason on the",
+    "record. Between them they added a resource registry, a document validator, a",
+    "load session and disposal paths across nine files - real functionality, and",
+    "about 17 KB gzipped on the IIFE. A0 alone consumed the 5% headroom the limit",
+    "was set with and A1 went 2.7 KB over it.",
+    "",
+    "WHAT THAT EXPOSED, which is worth more than the limits themselves: the library",
+    "builds are `minify: false` (vite.config.mjs), so every docblock ships to every",
+    "consumer of architect3d/iife. Measured on the A1 bundle: 443.9 KB gzipped, of",
+    "which 163.4 KB - 37% - is comments. This codebase documents heavily on purpose",
+    "and that is not going to change, so the two facts do not sit well together. The",
+    "limits below are raised to fit the code that exists; whether an unminified",
+    "bundle is the right thing to publish is a separate question and a separate",
+    "change. Do not raise these again without asking it."
   ],
   "budgets": {
     "demo-js-gzip": {
       "limit": 330000,
-      "measured": 314993
+      "measured": 317799
     },
     "demo-css-gzip": {
       "limit": 10000,
@@ -41,19 +56,19 @@
     },
     "demo-total": {
       "limit": 19000000,
-      "measured": 18061415
+      "measured": 18158575
     },
     "lib-iife-gzip": {
-      "limit": 450000,
-      "measured": 436083
+      "limit": 470000,
+      "measured": 452740
     },
     "public-total": {
       "limit": 11700000,
       "measured": 11138159
     },
     "lib-esm-gzip": {
-      "limit": 100000,
-      "measured": 83177
+      "limit": 108000,
+      "measured": 99378
     },
     "public-largest": {
       "limit": 1450000,

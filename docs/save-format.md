@@ -295,6 +295,46 @@ for the `>=` question — a separate function rather than an inverted call,
 because writing `!isVersionHigherThan(check, version)` is precisely how the
 original went wrong.
 
+## Validation
+
+A document is checked in full **before any of it is applied**, so opening a file
+either replaces the design completely or leaves it exactly as it was. There is
+no half-loaded state.
+
+```js
+const result = model.loadDocument(json);
+// { ok, document, errors: [{path, message}], warnings: [{path, message}] }
+if (!result.ok) {
+  console.log(result.errors[0].path);      // 'floorplan.walls[0].corner2'
+  console.log(result.errors[0].message);   // 'names corner "ghost", which is not in this file'
+}
+```
+
+`loadSerialized(json)` is the same operation and still **throws** on a bad
+document — the message names the field. Neither `EVENT_LOADING` nor
+`EVENT_LOADED` fires for a document that fails validation.
+
+What is checked, and nothing beyond it:
+
+| | |
+|---|---|
+| The document | valid JSON, an object, with a `floorplan` object and an `items` array |
+| `corners` | an object; every `x` and `y` a finite number; `elevation` finite when present |
+| `walls` | an array of objects; **every `corner1` and `corner2` must name a corner the file carries** |
+| `rooms` | an object, when present |
+| `items` | an array of objects, each with a `model_url`; positions finite when present |
+
+The reference check is the one that matters most in practice. A wall naming a
+corner that is not in the file used to reach `new Wall(undefined, undefined)`
+and take the load down halfway through, after the previous design was gone.
+
+::: tip Deliberately lenient
+The validator must not be stricter than the files people already have. A
+pre-2.0.0 document has no `units` stamp, no `elevation` on its corners and no
+control points on its walls, and all three stay optional. An unrecognised
+`units` value is a **warning**, not a refusal — see below.
+:::
+
 ## Writing a file by hand
 
 Stamp `"version": "2.0.0"` and `"units": "cm"`, put every coordinate in
@@ -302,4 +342,5 @@ centimetres, and omit `material_colors` unless you mean to override a model's
 own colour. An unrecognised `units` value is read as centimetres with a console
 warning rather than rejected — a design that opens at the wrong scale is a
 better outcome than one that will not open, because the user can see the
-former.
+former. That warning is also on the result, as `warnings[]`, so an application
+can say so rather than leaving it in the console.

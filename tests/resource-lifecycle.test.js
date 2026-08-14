@@ -134,11 +134,16 @@ describe('the model layer gives back the meshes it builds', () =>
 		expect(probe.count().leaked).toBe(0);
 	});
 
-	it('opening a design leaks nothing, across all 25 of its updates', () =>
+	it('opening a design leaks nothing', () =>
 	{
-		// The load path calls update() once per corner, once per wall and once at
-		// the end. A0 does not change that count - that is A2's - so this asserts
-		// the churn is now clean rather than absent.
+		// Written in A0, when this said "across all 25 of its updates" and asserted
+		// that more than one had happened - a guard against the test passing
+		// vacuously because nothing was ever built to leak.
+		//
+		// A1 batched the load path, so a document open now dispatches one update
+		// rather than twenty-five and that guard no longer holds. The claim it was
+		// guarding is unchanged and is asserted directly instead: resources were
+		// built, and none of them leaked.
 		const model = new Model('');
 		model.scene.setItemLoader(() => {});
 		const probe = watchResources({floorplan: model.floorplan, scene: model.scene});
@@ -161,8 +166,10 @@ describe('the model layer gives back the meshes it builds', () =>
 		}));
 		probe.sample();
 
-		expect(updates).toBeGreaterThan(1);
-		expect(probe.count().leaked, `leaked: ${JSON.stringify(byType(probe.leakedResources()))}`).toBe(0);
+		const counts = probe.count();
+		expect(updates).toBeGreaterThan(0);
+		expect(counts.seen).toBeGreaterThan(0);
+		expect(counts.leaked, `leaked: ${JSON.stringify(byType(probe.leakedResources()))}`).toBe(0);
 	});
 
 	it('reset() releases the whole plan', () =>

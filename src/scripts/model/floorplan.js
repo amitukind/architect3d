@@ -124,6 +124,25 @@ export class Floorplan extends EventDispatcher
 		 * @type {Object}
 		 */
 		this.metaroomsdata = {};
+		/**
+		 * How many nested batches are open (RM-003 A1).
+		 *
+		 * `newCorner()` and `newWall()` each call `update()`, which re-derives every
+		 * room in the plan and dispatches EVENT_UPDATED. That is right for a single
+		 * edit and badly wrong for a bulk build: opening a four-corner, four-wall
+		 * design dispatched EVENT_UPDATED **25 times**, and every one of them drove
+		 * a full 3D teardown and rebuild and a camera recentre.
+		 *
+		 * While a batch is open, `update()` records what it was asked for and
+		 * returns; `endBatch()` performs it once. Deliberately the smallest thing
+		 * that works - A2 replaces it with a typed change contract, and this is the
+		 * seed of that rather than a competing mechanism.
+		 *
+		 * @type {number}
+		 */
+		this._batchDepth = 0;
+		/** What the deferred update has to do: null when nothing is pending. */
+		this._pendingUpdate = null;
 		// Removed in S1: new_wall_callbacks, new_corner_callbacks,
 		// redraw_callbacks, updated_rooms and roomLoadedCallbacks. They were
 		// plain Arrays whose only registrars (fireOnNewWall and friends) called
@@ -664,73 +683,88 @@ export class Floorplan extends EventDispatcher
 		// stamp exists. tests/fixtures/v1/ has the corpus, metres-room included.
 		var toCentimetres = cornerReader(floorplan.units);
 
-		for (var id in floorplan.corners)
+		// One re-derivation for the whole build, not one per corner and one per
+		// wall (RM-003 A1). See beginBatch(). The finally is not defensive padding:
+		// a throw between here and the end would otherwise leave the batch open and
+		// the plan permanently frozen, which is a far worse failure than the one
+		// that caused it.
+		this.beginBatch();
+		try
 		{
-			var corner = floorplan.corners[id];
-			corners[id] = this.newCorner(toCentimetres(corner.x), toCentimetres(corner.y), id);
-			if(corner.elevation)
+			for (var id in floorplan.corners)
 			{
-				corners[id].elevation = toCentimetres(corner.elevation);
+				var corner = floorplan.corners[id];
+				corners[id] = this.newCorner(toCentimetres(corner.x), toCentimetres(corner.y), id);
+				if(corner.elevation)
+				{
+					corners[id].elevation = toCentimetres(corner.elevation);
+				}
 			}
-		}
-		var scope = this;
-		floorplan.walls.forEach((wall) => {
-			var newWall = scope.newWall(corners[wall.corner1], corners[wall.corner2]);
-			
-			if (wall.frontTexture)
-			{
-				newWall.frontTexture = wall.frontTexture;
-			}
-			if (wall.backTexture)
-			{
-				newWall.backTexture = wall.backTexture;
-			}
-			// Control points and wallType arrived with save format 0.0.2a. Whether
-			// a given file carries them is a property of THAT FILE, so ask the
-			// record rather than the version stamp.
-			//
-			// This used to read
-			// `if (Version.isVersionHigherThan(floorplan.version, '0.0.2a'))`,
-			// and that call is the reason the save format could not be versioned.
-			// isVersionHigherThan compares its arguments the other way round from
-			// the way its name reads - it is true when the SECOND is >= the first,
-			// per component, as an AND - so the gate let 0.0.2a and anything older
-			// through and rejected everything newer. Stamping a file 0.0.3, 0.1.0
-			// or 1.0.0 turned every curved wall straight and dropped its control
-			// points, with no error. Bumping `version` for any reason at all -
-			// a unit stamp, a colour-space marker - would have silently corrupted
-			// every curved design in existence.
-			//
-			// Reading the data directly removes the trap rather than reasoning
-			// about it, and is what the gate was always a proxy for. It is also
-			// strictly safer: the old form assigned `wall.a` unconditionally once
-			// the version matched, so a file with a version but no control points
-			// threw inside the setter.
-			//
-			// Behaviour is unchanged for every file that can exist. A genuine
-			// pre-0.0.2a file has no `a`/`b` and no `wallType`, so both branches
-			// are skipped exactly as before and the wall keeps the straight
-			// defaults its constructor computed.
-			if (wall.a && wall.b)
-			{
-				newWall.a = wall.a;
-				newWall.b = wall.b;
-			}
-			if (wall.wallType !== undefined)
-			{
-				// Anything that is not exactly 'CURVED' means straight, including
-				// lower-case 'curved'. Preserved: WallTypes are Symbols and this is
-				// their description, so the file carries the description string.
-				newWall.wallType = (wall.wallType === 'CURVED') ? WallTypes.CURVED : WallTypes.STRAIGHT;
-			}
-		});
+			var scope = this;
+			floorplan.walls.forEach((wall) => {
+				var newWall = scope.newWall(corners[wall.corner1], corners[wall.corner2]);
+				
+				if (wall.frontTexture)
+				{
+					newWall.frontTexture = wall.frontTexture;
+				}
+				if (wall.backTexture)
+				{
+					newWall.backTexture = wall.backTexture;
+				}
+				// Control points and wallType arrived with save format 0.0.2a. Whether
+				// a given file carries them is a property of THAT FILE, so ask the
+				// record rather than the version stamp.
+				//
+				// This used to read
+				// `if (Version.isVersionHigherThan(floorplan.version, '0.0.2a'))`,
+				// and that call is the reason the save format could not be versioned.
+				// isVersionHigherThan compares its arguments the other way round from
+				// the way its name reads - it is true when the SECOND is >= the first,
+				// per component, as an AND - so the gate let 0.0.2a and anything older
+				// through and rejected everything newer. Stamping a file 0.0.3, 0.1.0
+				// or 1.0.0 turned every curved wall straight and dropped its control
+				// points, with no error. Bumping `version` for any reason at all -
+				// a unit stamp, a colour-space marker - would have silently corrupted
+				// every curved design in existence.
+				//
+				// Reading the data directly removes the trap rather than reasoning
+				// about it, and is what the gate was always a proxy for. It is also
+				// strictly safer: the old form assigned `wall.a` unconditionally once
+				// the version matched, so a file with a version but no control points
+				// threw inside the setter.
+				//
+				// Behaviour is unchanged for every file that can exist. A genuine
+				// pre-0.0.2a file has no `a`/`b` and no `wallType`, so both branches
+				// are skipped exactly as before and the wall keeps the straight
+				// defaults its constructor computed.
+				if (wall.a && wall.b)
+				{
+					newWall.a = wall.a;
+					newWall.b = wall.b;
+				}
+				if (wall.wallType !== undefined)
+				{
+					// Anything that is not exactly 'CURVED' means straight, including
+					// lower-case 'curved'. Preserved: WallTypes are Symbols and this is
+					// their description, so the file carries the description string.
+					newWall.wallType = (wall.wallType === 'CURVED') ? WallTypes.CURVED : WallTypes.STRAIGHT;
+				}
+			});
 
-		if ('newFloorTextures' in floorplan)
-		{
-			this.floorTextures = floorplan.newFloorTextures;
+			if ('newFloorTextures' in floorplan)
+			{
+				this.floorTextures = floorplan.newFloorTextures;
+			}
+			this.metaroomsdata = floorplan.rooms;
 		}
-		this.metaroomsdata = floorplan.rooms;
-		this.update();
+		finally
+		{
+			// Closes the batch AND performs the single deferred update, so the
+			// explicit update() that used to be here is not needed - and would be a
+			// second full re-derivation if it stayed.
+			this.endBatch();
+		}
 
 		// The CarbonSheet is injected by the 2D floorplanner view. In widget mode
 		// (blueprint.js `options.widget`) and in headless use there is no 2D view,
@@ -847,8 +881,61 @@ export class Floorplan extends EventDispatcher
 	/**
 	 * Update the floorplan with new rooms, remove old rooms etc.
 	 */
+	/**
+	 * Defer the room re-derivation until `endBatch()` (RM-003 A1).
+	 *
+	 * Nests, so a caller need not know whether it is already inside one. Always
+	 * pair with `endBatch()` in a `finally`: a batch left open silently stops the
+	 * plan updating.
+	 */
+	beginBatch()
+	{
+		this._batchDepth += 1;
+	}
+
+	/**
+	 * Close a batch and perform the update it deferred, if any.
+	 *
+	 * The deferred update is the union of what was asked for: if any call during
+	 * the batch wanted a full room re-derivation, the one at the end does it, and
+	 * every corner any call named has its angles updated. So batching cannot do
+	 * less work than not batching - only the same work, once.
+	 */
+	endBatch()
+	{
+		if (this._batchDepth === 0)
+		{
+			return;
+		}
+		this._batchDepth -= 1;
+		if (this._batchDepth > 0 || this._pendingUpdate === null)
+		{
+			return;
+		}
+		var pending = this._pendingUpdate;
+		this._pendingUpdate = null;
+		this.update(pending.rooms, pending.corners.length ? pending.corners : null);
+	}
+
 	update(updateroomconfiguration = true, updatecorners=null)//Should include for , updatewalls=null, updaterooms=null
 	{
+		if (this._batchDepth > 0)
+		{
+			// Record and return. The union rather than the last call's arguments,
+			// because a batch that contained one full update and one partial must
+			// still perform the full one.
+			if (this._pendingUpdate === null)
+			{
+				this._pendingUpdate = {rooms: false, corners: []};
+			}
+			this._pendingUpdate.rooms = this._pendingUpdate.rooms || updateroomconfiguration;
+			if (updatecorners != null)
+			{
+				this._pendingUpdate.corners = this._pendingUpdate.corners.concat(updatecorners);
+			}
+			return;
+		}
+
 		if(updatecorners!=null)
 		{
 			updatecorners.forEach((corner)=>{

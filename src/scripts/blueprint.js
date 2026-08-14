@@ -32,8 +32,14 @@ export {WallTypes} from './core/constants.js';
 //Classes from model module
 export {HalfEdge} from './model/half_edge.js';
 export {Corner} from './model/corner.js';
-export {defaultFloorPlanTolerance, Floorplan} from './model/floorplan.js';
+export {defaultFloorPlanTolerance, Floorplan, SAVE_UNITS} from './model/floorplan.js';
 export {Model} from './model/model.js';
+// Document validation and load ownership (RM-003 A1). `DesignDocument.parse`
+// checks a `.blueprint3d` document without touching anything, which is what
+// makes `Model.loadDocument` atomic; `LoadSession` is how a load knows which
+// document asked for it.
+export {DesignDocument} from './model/document.js';
+export {LoadSession} from './model/load_session.js';
 export {defaultRoomTexture, Room} from './model/room.js';
 export {Scene} from './model/scene.js';
 export {defaultWallTexture, Wall} from './model/wall.js';

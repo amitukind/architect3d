@@ -67,6 +67,7 @@ Expectations retired that way so far, all listed as FIX in the ledger:
 | `Version.isVersionHigherThan` compared its arguments backwards, returned `0`/`1`/`false` from one function, and threw on a hand-edited file. Nine quirk tests replaced; the load gate that depended on it now reads the wall record | post-S9 | `dimensioning.test.js`, `serialization.test.js` |
 | Saved coordinates were stored in the **active display unit**, not centimetres. Nineteen quirk tests replaced by save format 2.0.0, which stores canonical cm and stamps `units` | post-S9 | `serialization.test.js`, `save-format-v1.test.js` |
 | `material_colors` held every material's colour on every save, freezing a model's own appearance into every design using it | post-S9 | `items-and-scene.test.js` |
+| A design with no `items` array threw **after** `EVENT_LOADING` and **after** the floorplan had been replaced, leaving the model half-loaded with no `EVENT_LOADED` and the previous design gone. RM-003 A1 validates the whole document first, so it now throws before anything is touched and dispatches neither event | RM-003 A1 | `items-and-scene.test.js` |
 
 One S0 test **fired as designed** in S4 rather than being retired: the
 zero-length `wallSize` setter produced NaN coordinates that r98's
@@ -115,6 +116,12 @@ tests/
 ├─ color-pipeline.test.js   every texture's colour space after a redraw, the
 │                           two sky shader includes, and the two constants the
 │                           flip must not sweep up
+│
+│  document loading (RM-003 A1, contract) — environment: jsdom
+├─ document-loading.test.js  ten documents that are not designs, each of which
+│                           used to empty the open plan; validation results with
+│                           a path per problem; stale item callbacks and the
+│                           load session that rejects them
 │
 │  resource ownership (RM-003 A0, contract) — environment: jsdom
 ├─ resource-lifecycle.test.js  who owns a geometry and who gives it back: the

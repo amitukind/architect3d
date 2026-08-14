@@ -89,9 +89,15 @@ export default defineConfig({
 				// that assert on them. Three of the four gained a whole point and
 				// are raised. Branches did not (63.43 -> 63.94) and is left alone:
 				// rounding down is what makes these floors rather than targets.
+				//
+				// A1 moved branches over the line it had been sitting under - 63.94
+				// to 64.71 - which is what a sprint made mostly of validation does:
+				// a validator is branches, and the corpus exercises each one. The
+				// other three gained fractions (77.48 lines, 77.51 statements, 75.32
+				// functions) and stay where they are.
 				lines: 77,
 				statements: 77,
-				branches: 63,
+				branches: 64,
 				functions: 75,
 			},
 		},

@@ -92,6 +92,17 @@ why the model layer is so protective of object identity: room detection
 compares `Corner`s with `===`, and so does `EventDispatcher`'s listener
 deduplication.
 
+Because it rebuilds everything, `update()` is expensive, and `newCorner()` and
+`newWall()` each call it. Bulk builds wrap themselves in
+**`beginBatch()` / `endBatch()`**, which defers the re-derivation to one call at
+the end — opening a four-wall design used to dispatch `EVENT_UPDATED` 25 times
+and now dispatches it once. Always pair them in a `finally`: a batch left open
+silently stops the plan updating.
+
+`document.js` is what a `.blueprint3d` file has to satisfy before any of this
+runs. `Model.loadDocument()` validates the whole document first, so a file that
+is not a design cannot reach live state — see the save-format docs.
+
 ::: warning Identity matters
 Never wrap a model object in a Vue `ref()` or `reactive()`. The proxy is not
 `===` the target, which silently breaks both room detection and listener

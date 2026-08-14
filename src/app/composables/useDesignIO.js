@@ -118,10 +118,40 @@ export function useDesignIO(store)
 	}
 
 	/**
+	 * The first problem in a load result, as a sentence to show somebody.
+	 *
+	 * `Model.loadDocument` reports every problem it found, each with a path to the
+	 * field. All of them in a toast is unreadable, and the first one is almost
+	 * always the cause of the rest - a missing `corners` object makes every wall
+	 * that references it wrong too. The full list is on the result for a caller
+	 * that wants to render it properly.
+	 *
+	 * @param {import('../../scripts/model/document.js').ParseResult} result
+	 * @returns {string}
+	 */
+	function firstProblem(result)
+	{
+		var problem = result.errors[0];
+		if (!problem)
+		{
+			return 'the file could not be read.';
+		}
+		var more = result.errors.length > 1 ? ` (and ${result.errors.length - 1} more)` : '';
+		return (problem.path ? `${problem.path} ${problem.message}` : problem.message) + more;
+	}
+
+	/**
 	 * Replace the design with an already-read document.
 	 *
 	 * Split out of openDesign so the autosave recovery path can reuse the parse
 	 * and the error reporting without inventing a File to hand it.
+	 *
+	 * Goes through `loadDocument` rather than `loadSerialized` since RM-003 A1:
+	 * same operation, but the failure arrives as a list of problems with the path
+	 * to each field instead of one exception. The design is untouched either way -
+	 * that is A1's guarantee and it is what made this message worth improving.
+	 * Before, "Could not open that design" was displayed *after* the design had
+	 * been destroyed, so the accuracy of the message was the least of it.
 	 *
 	 * @param {string} text A `.blueprint3d` document.
 	 * @param {string} [label] How to name it if it fails to parse.
@@ -132,11 +162,19 @@ export function useDesignIO(store)
 		lastError.value = null;
 		try
 		{
-			store.model.value.loadSerialized(text);
+			var result = store.model.value.loadDocument(text);
+			if (!result.ok)
+			{
+				fail(`Could not open ${label || 'that design'}: ${firstProblem(result)}`, null);
+				return false;
+			}
 			return true;
 		}
 		catch (error)
 		{
+			// A bug rather than a bad file: validation has already passed by the
+			// time anything is mutated, so reaching here means the library threw
+			// somewhere it should not have.
 			fail(`Could not open ${label || 'that design'}: ${messageOf(error)}`, error);
 			return false;
 		}
@@ -155,7 +193,21 @@ export function useDesignIO(store)
 		try
 		{
 			var text = await readAsText(file);
-			store.model.value.loadSerialized(text);
+			var result = store.model.value.loadDocument(text);
+			if (!result.ok)
+			{
+				fail(`Could not open ${file.name}: ${firstProblem(result)}`, null);
+				return;
+			}
+			if (result.warnings.length)
+			{
+				// A file this build can open but cannot fully vouch for - an unknown
+				// units stamp is the only case today. Worth saying out loud, because
+				// the consequence is a plan at the wrong scale, which looks like a
+				// bug in the application rather than a property of the file.
+				toasts.error(`Opened ${file.name}, with warnings`, {detail: result.warnings[0].message});
+				return;
+			}
 			toasts.success(`Opened ${file.name}`);
 		}
 		catch (error)

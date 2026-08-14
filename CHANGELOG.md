@@ -4,6 +4,35 @@
 
 ### Fixed
 
+* **Opening a file that is not a design no longer destroys the design you have
+  open.** `loadSerialized()` parsed and then mutated live state, and `newRoom()`
+  called `scene.clearItems()` *before* `loadFloorplan()` — which itself opens
+  with `reset()`. So the current design was gone before the incoming one had
+  been looked at. Ten well-formed-JSON documents that are not designs each
+  emptied the open plan, and **one of them did not even throw**: `{"items":[]}`
+  emptied the plan, dispatched `EVENT_LOADED`, showed a success toast, and let
+  autosave write the empty plan over the draft. Only a JSON *syntax* error was
+  safe, and only by accident.
+
+  The whole document is now validated before any live state is touched, so
+  opening a file either replaces the design completely or leaves it exactly as
+  it was. It still throws — callers already catch, and a function that quietly
+  stops reporting failure is a worse change than one that keeps reporting it —
+  but the message names the field, and neither `EVENT_LOADING` nor
+  `EVENT_LOADED` fires for a document that fails.
+* **Furniture from a document you have left no longer arrives in the one you
+  are in.** `Scene.addItem`'s loader callback recorded nothing about which
+  document had asked, so opening a design with thirty items and then opening
+  another put the first one's furniture in the second, and dispatched thirty
+  `EVENT_ITEM_LOADED` into a count that was measuring two documents at once.
+  Every load now carries the generation it started in and is discarded if that
+  generation is no longer current — including disposing the geometry and
+  materials the loader built for it. Applies to New, Open, Undo and Redo alike.
+* **Opening a design dispatches `EVENT_UPDATED` once, not 25 times.**
+  `newCorner()` and `newWall()` each call `update()`, which re-derives every
+  room in the plan; opening a four-corner, four-wall document dispatched 25
+  times and a six-corner one 39, and every dispatch drove a full 3D teardown and
+  rebuild *and* a camera recentre. The load path now batches.
 * **The library now disposes the GPU resources it builds.** Before this it
   disposed almost none of them: the whole of `src/` contained three
   `geometry.dispose()` or `material.dispose()` calls, and `Floorplan.update()`
@@ -53,6 +82,28 @@
 
 ### Added
 
+* **`Model.loadDocument(json)`** — the same operation as `loadSerialized`,
+  reported rather than thrown. Returns `{ok, document, errors, warnings}`, where
+  every error carries the path to the field it is about
+  (`floorplan.walls[0].corner2`). The application uses it to say which part of a
+  file is broken instead of "could not open that design".
+* **`DesignDocument`** (`model/document.js`) — parses and validates a
+  `.blueprint3d` document without touching anything. Deliberately no stricter
+  than the corpus of files that already exist: a pre-2.0.0 document has no
+  `units` stamp, no corner elevations and no wall control points, and all three
+  stay optional. An unrecognised `units` value is a **warning**, not a refusal.
+* **`LoadSession`** (`model/load_session.js`) and **`scene.loadSession`** — which
+  document the loads in flight belong to. `stats()` reports
+  `{generation, inFlight, aborted, failed, settled}` for the current document,
+  which is what `useHistory` now asks instead of keeping a count of its own.
+* **`Scene` has its own `LoadingManager`.** Both loaders were constructed with
+  none, which gives them three's global `DefaultLoadingManager` — one shared
+  abort surface for every document on the page, which is the same as none.
+  `scene.abortPendingLoads()` now stops the fetches this design started and
+  nobody else's.
+* **`Floorplan.beginBatch()` / `endBatch()`** — defer the room re-derivation
+  across a bulk build. Nesting; always pair them in a `finally`, because a batch
+  left open silently stops the plan updating.
 * **`core/resource_registry.js`** — `ResourceRegistry` for batches of GPU
   resources with one owner and one release point, refcounted so a material
   shared by several meshes survives the first release; plus `disposeObject()`
@@ -210,6 +261,12 @@
 
 ### Changed
 
+* **`EVENT_ITEM_LOADED` can now carry `stale: true`.** A model requested by one
+  document can arrive after another has been opened. That arrival is reported
+  rather than swallowed, so every `EVENT_ITEM_LOADING` is still matched by
+  exactly one `EVENT_ITEM_LOADED` and a caller counting loads stays balanced —
+  but the item is null and is not in the scene. If you count, ignore the flag;
+  if you react to content, you already null-check for failed loads.
 * **An `Item` subclass that overrides `removed()` must call
   `super.removed()`.** This is the one migration note in the disposal work
   above: `Item.removed()` used to be empty, so an override that did not chain
