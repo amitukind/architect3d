@@ -12,8 +12,14 @@ The arrow points one way and nothing goes back: there is no Vue anywhere under
 `src/scripts/`, and `npm run build` bundles the library alone.
 
 That is not a style preference — it is what makes the library embeddable in a
-page that has never heard of Vue, and what lets 828 tests exercise the model
+page that has never heard of Vue, and what lets 870 tests exercise the model
 with no renderer and no browser.
+
+It also decides where the UI stack lives. Tailwind, Reka UI, lucide and VueUse
+are **devDependencies**, because `files` in `package.json` publishes
+`src/scripts` alone — nothing a consumer installs could import them, and
+declaring them as runtime dependencies would make npm fetch four packages that
+can never be reached. `dist/bp3djs.js` contains no CSS at all.
 
 ## The layers
 
@@ -84,6 +90,12 @@ removal. Use `shallowRef` for the slot and `markRaw` for the object — see
 no scene graph and no retained objects; every change repaints the whole canvas.
 `carbonsheet.js` is the image underlay you can trace over.
 
+Everything it paints with comes from **`floorplannerPalette`**, a mutable object
+seeded from the twenty-one exported colour constants. A canvas cannot read a
+stylesheet, so a themed application has to hand it colour strings; the
+constants remain the defaults, and an embedder that never calls
+`setFloorplannerPalette` gets pixel-identical output to before.
+
 ### `three` — the 3D view
 
 `main.js` owns the renderer, the cameras and the render loop, which is
@@ -93,7 +105,32 @@ something marked the scene dirty, so an idle design costs nothing.
 `floorPlan.js` builds `Edge`s (wall faces) and `Floor`s from the model and
 throws them all away on every redraw. `controller.js` handles picking and
 dragging, `hud.js` the selection box and rotation arrow, `skybox.js` the
-gradient sky and ground, `lights.js` the two lights.
+gradient sky and ground, `lights.js` the lights.
+
+**`render_profile.js`** decides how all of that is shaded. Two profiles:
+
+| | `classic` | `studio` |
+|---|---|---|
+| Walls | `MeshBasicMaterial`, unlit | `MeshStandardMaterial`, lit, shadow casting |
+| Floors | `MeshPhongMaterial` | `MeshStandardMaterial` |
+| Ambient | one hemisphere light | hemisphere + PMREM environment |
+| Key light | directly overhead, `#330000` | off-axis, white, 2048 shadow map |
+| Tone mapping | none | ACES filmic |
+| Atmosphere | none | linear fog to the horizon |
+
+`classic` is the **default**, and is exactly what shipped through 1.0.0 — which
+is what keeps the parity grid and the colour-pipeline suite meaningful. The
+application opts into `studio` in `src/app/main.js`, before construction:
+materials pick their class while being built, so the profile has to be set
+first. `Main.applyRenderProfile()` switches a live viewer, at the cost of
+rebuilding every `Edge` and `Floor`.
+
+::: tip Why the key light was red
+`lights.js` called `setHSL(1, 1, 0.1)` on a light it had just constructed as
+white. Hue 1 wraps to 0, so the "white" key has always been `#330000` — a dim
+red wash contributing essentially no shadow contrast. It did not matter while
+nothing in the room was lit. `classic` keeps it, bug and all; `studio` does not.
+:::
 
 `orbitcontrols.js` and `pointerlockcontrols.js` are thin subclasses over
 three's own addons — the previously vendored copies are gone as of S5.
@@ -120,15 +157,35 @@ file to the class. Adding a ninth type means a class and a factory entry.
 | `useCatalog` | The item palette and how a click becomes an `addItem` |
 | `useDesignIO` | Save, open, and the exporters |
 | `useDisplayUnit` | A reactive mirror of the unit inside `Configuration` |
+| `useLayout` | Which viewports are on screen, and the split ratio |
+| `useHistory` | Undo and redo, as snapshots of the serialized design |
+| `useZoom2D` | Zoom, framing, snapping and grid density for the plan |
+| `useTheme` | Light and dark, for the chrome and for the canvas |
+| `useShortcuts` | One keyboard map, suppressed while a field has focus |
+| `usePlanStats` | Room, wall and item counts, and total floor area |
+| `useItemActions` | Delete and duplicate the selected item |
+| `useAutosave` | A draft in local storage, offered back after a reload |
+| `useToasts` | Transient notices |
 
 Several of these exist because the library signals through
 `EventDispatcher`, not through anything Vue can watch. A composable subscribes
 on mount, mirrors what it hears into a `ref`, and unsubscribes on unmount.
 
-**`components/`** is the shell, the two viewports and the toolbars.
-**`inspector/`** is the selection panels; its props are live model objects,
-which is why `vue/no-mutating-props` is switched off for that directory alone —
-writing to them is what an inspector *is*.
+**`components/`** is the shell: a top bar, a tool rail, a status bar, and a
+workspace holding the two viewports. **`inspector/`** is the selection panels;
+its props are live model objects, which is why `vue/no-mutating-props` is
+switched off for that directory alone — writing to them is what an inspector
+*is*.
+
+::: warning A hidden viewport is transparent, never absent
+`AppWorkspace.vue` shows one viewport, the other, or both. In every layout
+*both* stay laid out at full size — a hidden one is `opacity: 0` with pointer
+events off, not `v-if` and not `display: none`. The library measures its
+containers with `clientWidth`/`clientHeight` and watches them with a
+ResizeObserver, so a collapsed pane measures zero and the viewer returns with a
+zero aspect ratio. The card flip this replaced had the same constraint for the
+same reason.
+:::
 
 `App.vue` constructs the `BlueprintJS`, because it needs both viewport elements
 in a single call and children mount before parents; the viewports expose their
@@ -146,10 +203,18 @@ one layer does *not* automatically reach the other:
    just in a constructor.
 3. **Textures are reloaded, never cached.** `TextureLoader` runs per wall per
    redraw and nothing is disposed. Known, and on the post-migration backlog.
+4. **The render profile is read at construction.** Setting `renderProfile.mode`
+   by hand changes nothing already built; go through `setRenderProfile` before
+   construction, or `Main.applyRenderProfile()` after it.
+5. **Undo captures what the save format captures.** `saveFloorplan` writes only
+   the corners its walls reach, so a corner with nothing attached is not in a
+   snapshot and cannot be restored by one. Unreachable through the UI, which
+   creates corners and walls together; reachable by an embedder driving the
+   model directly.
 
 ## Testing
 
-`tests/` is 828 tests in 16 files, all headless. jsdom supplies the DOM, a stub
+`tests/` is 870 tests in 17 files, all headless. jsdom supplies the DOM, a stub
 renderer stands in for WebGL, and `tests/helpers/` holds the shared harness.
 
 Most of the suite is *characterization*: it was written against the pre-

@@ -2,8 +2,61 @@
 
 ## [Unreleased]
 
+### Added
+
+* **Undo and redo**, over every edit — walls, corners, rooms, furniture,
+  textures, inspector fields. Entries are snapshots of the serialized design
+  rather than an inverse-command stack, because the library's mutations are not
+  individually invertible: `Corner.mergeWithIntersected` can delete a corner,
+  move another and rebuild the room set in one call. A snapshot cannot be
+  subtly wrong. Continuous gestures coalesce into one entry, and the stack is
+  capped at 50.
+* **A split workspace.** Plan, 3D, or both side by side with a draggable
+  divider, replacing the two-faced card flip — a card has exactly two faces, so
+  there was no arrangement in which both views were visible at once.
+* **Keyboard shortcuts**, in one map, with a reference sheet built from that
+  same map so it cannot drift. Suppressed while a text field has focus.
+* **Light and dark themes**, reaching the drawing canvas as well as the chrome.
+* **Autosave.** The working design is kept in local storage and *offered* back
+  after a reload, rather than restored silently — someone who closed a design
+  to start fresh should not get it back without being asked.
+* **Zoom, framing and grid controls for the plan.** Wheel zoom, a stop table,
+  zoom-to-fit, recentre, snap toggle and grid density. Zoom was a dat.GUI
+  slider from 0.5 to 1.5 in the demo and nothing at all after S7.
+* **Delete and duplicate for the selected item.** Removing one previously meant
+  finding the small red cross the HUD draws over a hovered item; there was no
+  way to duplicate anything.
+* **A status bar**: room, wall and item counts, total floor area, the pointer's
+  plan coordinates, the zoom level, and what the active tool expects next.
+* **`EVENT_ITEM_MOVE_FINISH`**, dispatched on the scene when a drag or rotation
+  settles. Nothing previously marked the *end* of a direct manipulation.
+* **`floorplannerPalette` / `setFloorplannerPalette`**, making every colour the
+  2D canvas draws with themable. The twenty-one exported colour constants are
+  unchanged and are now the palette's defaults, so an embedder that themes
+  nothing gets pixel-identical output.
+* **`three/render_profile.js`**, and a `studio` render profile: physically
+  based walls and floors, an image-based environment from `RoomEnvironment`,
+  ACES filmic tone mapping, a 2048 shadow map on an off-axis key light, and
+  linear fog to the horizon. `classic` — exactly what shipped through 1.0.0 —
+  remains the library default and is switchable at runtime through
+  `Main.applyRenderProfile()`.
+* **`Lights.dispose()`.**
+
 ### Changed
 
+* **The interface was rebuilt.** A top bar, a tool rail, a docked inspector and
+  a status bar around a workspace, built with Tailwind CSS 4, Reka UI, lucide
+  and VueUse — all four devDependencies, because `files` publishes `src/scripts`
+  alone and nothing a consumer installs could import them. The two per-viewport
+  toolbars are gone: they carried the same five file actions twice, which stops
+  being invisible once both viewports can be on screen at once.
+* **The furniture catalog is a drawer, not a modal.** It no longer covers the
+  room being furnished, no longer closes on every pick, and searches all 168
+  models rather than offering eight accordion sections one at a time.
+* **The 2D grid has two weights**, a heavier line every fourth cell, keyed off
+  the plan origin so the heavy lines do not crawl while panning.
+* **Loading a design frames it.** New, open and draft-restore zoom to fit,
+  capped at 200% so there is still somewhere to draw.
 * **Save format 2.0.0.** Coordinates are canonical centimetres throughout and
   the file carries `"units": "cm"` saying so. 0.0.2a wrote corner coordinates
   in whatever display unit was active at save time while control points and
@@ -23,6 +76,18 @@
 
 ### Fixed
 
+* **The 2D plan no longer slides off the edge when its pane is resized.** The
+  pan origin is the plan coordinate at the canvas' top-left corner, so a resize
+  that left it alone pinned the drawing to that corner. Tolerable when only the
+  window resized; not once there is a divider to drag.
+* **`Lights` leaked a floorplan listener on every construction.** `init()`
+  subscribed to `EVENT_UPDATED` and nothing ever unsubscribed, so a
+  mount/unmount cycle left one behind — possible since S2 gave the viewer a
+  `dispose()`.
+* **The 3D key light emits light.** `lights.js` constructed a white
+  `DirectionalLight` and then called `setHSL(1, 1, 0.1)` on it; hue 1 wraps to
+  0, so the "white" key has always been `#330000`. Fixed under `studio` only —
+  `classic` keeps it, because the parity grid is calibrated against it.
 * **The save format can be versioned at all.** `loadFloorplan` gated curved-wall
   control points on the broken comparator, so stamping a file anything newer
   than `0.0.2a` silently turned every curved wall straight and discarded its
@@ -50,6 +115,8 @@
 * **252 lines of commented-out code** across 21 source files.
 
 Tracked files fall from 59.9 MB across 1297 files to 51.9 MB across 721.
+
+The test suite goes from 828 tests in 16 files to 870 in 17.
 
 ### Compatibility
 

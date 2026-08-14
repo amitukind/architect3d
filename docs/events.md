@@ -81,6 +81,15 @@ Dispatched on `blueprint.model.scene`.
 | `EVENT_ITEM_LOADING` | A model file was requested | `{item: scene}` |
 | `EVENT_ITEM_LOADED` | The model arrived and is in the scene | `{item}` |
 | `EVENT_ITEM_REMOVED` | An item was deleted | `{item}` |
+| `EVENT_ITEM_MOVE_FINISH` | A drag or rotation settled | `{item}` |
+
+`EVENT_ITEM_MOVE_FINISH` is the only signal that a direct manipulation has
+*ended*. The `Controller` mutates an item's position on every `pointermove` and
+marks the scene dirty so a frame is drawn, but nothing else says "and now it has
+come to rest" — so a listener watching only what the scene already dispatched
+would either record a hundred states for one drag or none at all. It fires on
+pointer-up out of the dragging and rotating states, and only if the pointer
+actually moved: a click that selects an item is not an edit.
 
 Selection is dispatched on `blueprint.three`, not on the scene:
 

@@ -21,7 +21,7 @@ root.
 | `npm run dev` | Dev server on port 10001, with hot reload |
 | `npm run build` | Library build → `dist/bp3djs.js`, an IIFE exposing the `BP3DJS` global |
 | `npm run build:demo` | Application build → `dist-demo/`, what the Pages deploy publishes |
-| `npm test` | The vitest suite (828 tests, headless, no GPU) |
+| `npm test` | The vitest suite (870 tests, headless, no GPU) |
 | `npm run lint` | ESLint |
 | `npm run docs` | This site, with hot reload |
 | `npm run docs:build` | This site → `docs/.vitepress/dist` |
@@ -33,6 +33,41 @@ screenshot grid comparing this engine against three r98, served from the
 `legacy-demo` git tag; `-- --frozen` adds a third column from before the S8
 colour change. It needs Google Chrome at the standard macOS path. See
 `tests/README.md`.
+
+## Using the application
+
+The workspace shows the 2D plan, the 3D view, or both side by side; in split
+you can drag the divider between them. The tool rail on the left is what the
+pointer does, the inspector on the right is what is selected, and the status bar
+along the bottom carries the counts, the total floor area, the pointer's plan
+coordinates and what the current tool is waiting for.
+
+| | |
+|---|---|
+| Workspace | <kbd>1</kbd> plan · <kbd>2</kbd> split · <kbd>3</kbd> 3D |
+| Drawing | <kbd>V</kbd> select · <kbd>W</kbd> walls · <kbd>X</kbd> delete · <kbd>S</kbd> snap |
+| Zoom | wheel, or <kbd>+</kbd> / <kbd>-</kbd> · <kbd>Shift</kbd><kbd>F</kbd> to frame the plan |
+| Furniture | <kbd>A</kbd> for the catalog |
+| Editing | <kbd>Ctrl/⌘</kbd><kbd>Z</kbd> undo · <kbd>Ctrl/⌘</kbd><kbd>D</kbd> duplicate · <kbd>Del</kbd> delete |
+| 3D | <kbd>F</kbd> walk through · <kbd>O</kbd> orthographic · <kbd>G</kbd> wireframe |
+
+<kbd>Shift</kbd><kbd>?</kbd> opens the full reference. Shortcuts are suppressed
+while a text field has focus, with the deliberate exception of
+<kbd>Esc</kbd> — whose job in a field is to leave it.
+
+Everything is undoable, and the working design is kept in the browser's local
+storage between sessions. After a reload a recovered draft is *offered* rather
+than restored: closing a design to start fresh should not silently bring it
+back.
+
+### Studio and Classic
+
+The switch at the bottom right of the 3D view picks a render profile.
+**Studio** — the application default — has lit walls, an image-based
+environment, filmic tone mapping and fog. **Classic** is what the viewer looked
+like through 1.0.0, and is what the migration's parity grid was calibrated
+against; it is also the *library* default, so an embedder who upgrades sees no
+change. [Architecture](/architecture) lists what each profile alters.
 
 ## Requirements
 
