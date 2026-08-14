@@ -61,8 +61,13 @@ jobs:
           # consume repository cache storage for a marginal time saving.
 
       - name: Install dependencies
-        # `prepare` runs tools/install-hooks.mjs, which detects CI and skips
-        # rather than writing git hooks onto a runner that will never commit.
+        env:
+          # simple-git-hooks installs the pre-commit hook from its OWN
+          # postinstall, which does not look at CI - it honours this variable and
+          # nothing else. Without it a runner that will never make a commit gets
+          # a hook written into .git/hooks anyway. Harmless, but if some future
+          # step here does commit, it would silently start running lint-staged.
+          SKIP_INSTALL_SIMPLE_GIT_HOOKS: '1'
         run: npm ci --no-audit --no-fund
 
       - name: Test with coverage

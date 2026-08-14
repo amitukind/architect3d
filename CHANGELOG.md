@@ -5,8 +5,7 @@
 ### Added
 
 * **A pre-commit hook** (`simple-git-hooks` + `lint-staged`), installed by
-  `npm install` through a `prepare` script that skips on CI and outside a git
-  work tree. It lints the staged files and runs the suites that import them.
+  `npm install`. It lints the staged files and runs the suites that import them.
   This is the cheapest gate in the project and the one that matters most: CI
   deliberately does not run on working branches, so until now *nothing at all*
   ran before a merge. It costs no Actions minutes.

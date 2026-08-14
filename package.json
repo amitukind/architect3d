@@ -26,7 +26,6 @@
     "budget": "node tools/check-budget.mjs",
     "budget:update": "node tools/check-budget.mjs --update",
     "lint": "eslint .",
-    "prepare": "node tools/install-hooks.mjs",
     "docs": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"

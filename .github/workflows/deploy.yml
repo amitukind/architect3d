@@ -54,6 +54,10 @@ jobs:
           node-version: '22'
 
       - name: Install dependencies
+        env:
+          # See the note in ci.yml: simple-git-hooks installs from its own
+          # postinstall and honours only this variable, not CI.
+          SKIP_INSTALL_SIMPLE_GIT_HOOKS: '1'
         run: npm ci --no-audit --no-fund
 
       - name: Test

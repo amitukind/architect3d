@@ -62,8 +62,11 @@ GitHub Pages. Nothing deploys from any other branch.
 staged and runs the test suites that import them. That is deliberate rather than
 incidental: CI runs on `dev` and `master` only, to conserve Actions minutes, so
 without a local hook nothing at all runs before a merge. It costs nothing and
-takes a couple of seconds. `git commit --no-verify` skips it; so does
-`SKIP_SIMPLE_GIT_HOOKS=1`.
+takes a couple of seconds.
+
+`git commit --no-verify` skips a single commit, and `SKIP_SIMPLE_GIT_HOOKS=1`
+skips the hook wherever it is set. To avoid *installing* it at all — which is
+what CI does — set `SKIP_INSTALL_SIMPLE_GIT_HOOKS=1` before `npm ci`.
 
 CI then runs the suite with coverage thresholds, ESLint, all three builds, and
 the size budgets. The coverage floor and the budget limits are both committed

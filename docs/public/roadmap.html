@@ -1089,8 +1089,8 @@ footer{margin-top:70px; padding-top:18px; border-top:1px solid var(--line); colo
       <li>ESLint on staged <code>.js</code> / <code>.vue</code> — errors block, the 28 deliberate warnings do not, matching what <code>npm run lint</code> does in CI</li>
       <li><code>vitest related --run --passWithNoTests</code> on the staged files' suites</li>
       <li><code>tsc --noEmit</code> — <em>pending P2</em></li>
-      <li>Via <code>simple-git-hooks</code> (lighter than Husky, one dev dependency) plus <code>lint-staged</code>, installed from <code>prepare</code> by <code>tools/install-hooks.mjs</code> — which skips on CI and outside a git work tree, so <code>npm ci</code> on a runner does not write hooks it will never use and a consumer installing from a tarball is not handed ours</li>
-      <li>Escape hatches, because a gate with no override gets disabled wholesale: <code>git commit --no-verify</code>, or <code>SKIP_SIMPLE_GIT_HOOKS=1</code></li>
+      <li>Via <code>simple-git-hooks</code> (lighter than Husky, one dev dependency) plus <code>lint-staged</code>. No <code>prepare</code> script: <code>simple-git-hooks</code> installs the hook from its own <code>postinstall</code>, so <code>npm install</code> is enough. A <code>prepare</code> wrapper was written first, to skip installation on CI — it did nothing, because the dependency's postinstall had already run by the time <code>prepare</code> fired, and it honours <code>SKIP_INSTALL_SIMPLE_GIT_HOOKS</code> and nothing else. Both workflows set that variable on the install step instead, which actually works</li>
+      <li>Escape hatches, because a gate with no override gets disabled wholesale: <code>git commit --no-verify</code> for one commit, <code>SKIP_SIMPLE_GIT_HOOKS=1</code> to neuter the hook, <code>SKIP_INSTALL_SIMPLE_GIT_HOOKS=1</code> to not install it</li>
     </ul>
   </div>
   <p class="risk-note"><b>This is the single highest-value item in this document.</b> It catches the §10 class of failure on the machine that caused it, and it makes the no-PR-trigger policy safe rather than merely cheap.</p>
