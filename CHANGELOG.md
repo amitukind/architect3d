@@ -4,6 +4,25 @@
 
 ### Added
 
+* **A pre-commit hook** (`simple-git-hooks` + `lint-staged`), installed by
+  `npm install` through a `prepare` script that skips on CI and outside a git
+  work tree. It lints the staged files and runs the suites that import them.
+  This is the cheapest gate in the project and the one that matters most: CI
+  deliberately does not run on working branches, so until now *nothing at all*
+  ran before a merge. It costs no Actions minutes.
+* **Coverage measurement, with a floor.** `npm run test:coverage`, thresholds in
+  `vitest.config.mjs`, enforced in CI. The first measurement — lines 74.91%,
+  statements 75.07%, branches 61.51%, functions 73.05% — became the floor,
+  rounded down. 870 tests existed before this and nobody knew what they reached.
+  The thresholds are a ratchet: raise them when a change earns it, never lower
+  them to make a build pass.
+* **Size budgets** for the built output — `npm run budget`, limits committed in
+  `tools/budget.json`, enforced in CI and again in the deploy job before the
+  docs are folded into the deployed tree. Gzip for the text bundles, raw bytes
+  for the asset trees. The demo bundle reached 1.1 MB and the deployed tree
+  21.6 MB without anybody deciding either number; a budget does not make them
+  smaller, it makes growth something someone chooses.
+
 * **Undo and redo**, over every edit — walls, corners, rooms, furniture,
   textures, inspector fields. Entries are snapshots of the serialized design
   rather than an inverse-command stack, because the library's mutations are not
@@ -44,6 +63,14 @@
 
 ### Changed
 
+* **CI builds all three outputs, not one.** The application and the
+  documentation builds previously ran only in the deploy job, on `master`, so a
+  broken Vue template or an unresolvable Tailwind token reached `master` before
+  anything noticed. Adding both costs about twenty seconds. The branch policy is
+  unchanged: `dev` and `master` only, never a working branch.
+* The deploy job runs the suite **with coverage thresholds**, matching CI — if
+  it is going to re-run the tests rather than trust CI, it should run the same
+  tests.
 * **The interface was rebuilt.** A top bar, a tool rail, a docked inspector and
   a status bar around a workspace, built with Tailwind CSS 4, Reka UI, lucide
   and VueUse — all four devDependencies, because `files` publishes `src/scripts`

@@ -1,0 +1,38 @@
+{
+  "note": [
+    "Size budgets for the built output. Checked by `npm run budget`, enforced in CI.",
+    "",
+    "`limit` is a ceiling somebody chose. `measured` is what the build produced when",
+    "the limit was last recorded, kept beside it so the headroom is visible without",
+    "running anything. Refresh the measurements with `npm run budget:update`; that",
+    "command deliberately does NOT touch the limits.",
+    "",
+    "Raising a limit is a commit with a reason. The limits below were set at the",
+    "first measurement (2026-08-14, commit b066c89) with roughly 5% headroom on the",
+    "text bundles and the asset trees. demo-css-gzip is the exception: at 7 KB, 5%",
+    "is 360 bytes and one new component's classes would trip it, so it carries a",
+    "flat ceiling instead of a percentage."
+  ],
+  "budgets": {
+    "demo-js-gzip": {
+      "limit": 330000,
+      "measured": 312735
+    },
+    "demo-css-gzip": {
+      "limit": 10000,
+      "measured": 7270
+    },
+    "demo-total": {
+      "limit": 24000000,
+      "measured": 22635414
+    },
+    "lib-iife-gzip": {
+      "limit": 450000,
+      "measured": 426795
+    },
+    "public-total": {
+      "limit": 16500000,
+      "measured": 15758069
+    }
+  }
+}

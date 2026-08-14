@@ -28,5 +28,48 @@ export default defineConfig({
 		globals: false,
 		reporters: ['default'],
 		exclude: ['node_modules/**', 'public/**', 'asset-pipeline/**', 'docs/**'],
+
+		/**
+		 * Coverage, and the floor underneath it (RM-002 P1, tier 1).
+		 *
+		 * The thresholds below are not a target anybody aimed at - they are the
+		 * first measurement, rounded down. 870 tests existed before any of this
+		 * and nobody knew what they reached; the point of writing the number down
+		 * is that it can now only go up.
+		 *
+		 * ## The ratchet
+		 *
+		 * Raise these when a change earns it. NEVER lower them to make a build
+		 * pass: a threshold that moves down on demand measures nothing, and the
+		 * failure it is suppressing is the finding. If a change genuinely cannot
+		 * be covered, exclude that file explicitly, with a reason, so the
+		 * exemption is visible in review rather than hidden in a lowered number.
+		 *
+		 * Branch coverage is the lowest of the four and deliberately so. Much of
+		 * the library's branching is defensive - null guards, format dispatch,
+		 * the preserved-bug paths in utils.js that room detection depends on -
+		 * and several of those branches are unreachable by construction rather
+		 * than merely untested. See RM-002 R-01 for one that turned out to be
+		 * reachable after all, and wrong.
+		 */
+		coverage: {
+			provider: 'v8',
+			// Everything under src/, not just what a test happened to import -
+			// otherwise a file with no test at all is invisible rather than zero.
+			all: true,
+			include: ['src/**/*.{js,vue}'],
+			exclude: [
+				// The bootstrap. It reads the DOM for #app and mounts; tests mount
+				// App.vue directly, which is the right seam. Nothing here is logic.
+				'src/app/main.js',
+			],
+			reporter: ['text-summary', 'json-summary', 'html'],
+			thresholds: {
+				lines: 74,
+				statements: 75,
+				branches: 61,
+				functions: 73,
+			},
+		},
 	},
 });

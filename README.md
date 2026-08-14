@@ -45,7 +45,9 @@ are checked in under `public/`, which Vite serves at the site root.
 | `npm run build` | Library build &rarr; `dist/bp3djs.js`, an IIFE exposing the `BP3DJS` global |
 | `npm run build:demo` | Application build &rarr; `dist-demo/` |
 | `npm test` | The vitest suite (870 tests, headless) |
+| `npm run test:coverage` | The same suite, with coverage and its thresholds |
 | `npm run lint` | ESLint |
+| `npm run budget` | Check the built output against `tools/budget.json` |
 | `npm run docs` | The documentation site, with hot reload |
 | `npm run docs:build` | The documentation site &rarr; `docs/.vitepress/dist` |
 | `npm run fixtures` | Regenerate `tests/fixtures/*.blueprint3d` |
@@ -53,6 +55,21 @@ are checked in under `public/`, which Vite serves at the site root.
 
 Pushing to `master` builds and publishes both the application and the docs to
 GitHub Pages. Nothing deploys from any other branch.
+
+### Checks
+
+`npm install` also installs a **pre-commit hook** — it lints the files you
+staged and runs the test suites that import them. That is deliberate rather than
+incidental: CI runs on `dev` and `master` only, to conserve Actions minutes, so
+without a local hook nothing at all runs before a merge. It costs nothing and
+takes a couple of seconds. `git commit --no-verify` skips it; so does
+`SKIP_SIMPLE_GIT_HOOKS=1`.
+
+CI then runs the suite with coverage thresholds, ESLint, all three builds, and
+the size budgets. The coverage floor and the budget limits are both committed
+and both ratchets — raise them when a change earns it, and never lower one to
+make a build pass. The full gate ladder, including the browser-based tier that
+is not built yet, is [RM-002 §13](./docs/public/roadmap.html).
 
 
 ## Using it

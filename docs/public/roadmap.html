@@ -1066,7 +1066,7 @@ footer{margin-top:70px; padding-top:18px; border-top:1px solid var(--line); colo
       <tr><td>No demo build in CI</td><td><span class="chip crit">high</span></td><td><code>build:demo</code> runs only in the deploy job, on <code>master</code>. A broken Vue template or Tailwind token reaches <code>master</code> before anything notices</td></tr>
       <tr><td>No docs build in CI</td><td><span class="chip warn">med</span></td><td>Same shape. VitePress failures surface at deploy time</td></tr>
       <tr><td>No type check</td><td><span class="chip warn">med</span></td><td>See R-07. Extensive JSDoc, zero verification</td></tr>
-      <tr><td>No coverage floor</td><td><span class="chip warn">med</span></td><td>870 tests and no idea which lines they reach. No <code>@vitest/coverage-v8</code> installed, so the number is currently unknown — measuring it is step one, not setting a threshold</td></tr>
+      <tr><td>No coverage floor</td><td><span class="chip warn">med</span></td><td>870 tests and no idea which lines they reach. No <code>@vitest/coverage-v8</code> installed, so the number was unknown — measuring it was step one, not setting a threshold. <strong>Measured:</strong> lines 74.91%, statements 75.07%, branches 61.51%, functions 73.05%. Thinnest areas: <code>items/</code> 48%, <code>floorplanner/</code> 64%, <code>three/</code> 74%</td></tr>
       <tr><td>No real-browser test</td><td><span class="chip crit">high</span></td><td>Canvas 2D is a call recorder; WebGL is a stub. Neither renderer's output is ever checked. See T-04</td></tr>
       <tr><td>No visual regression</td><td><span class="chip crit">high</span></td><td>The 3D view was just substantially rebuilt. The parity grid that would catch a regression is manual and calibrated against the profile no longer shipped</td></tr>
       <tr><td>No bundle budget</td><td><span class="chip warn">med</span></td><td>The demo is a single 1,129 kB chunk (305 kB gzip) with no <code>manualChunks</code>, and three is eagerly imported even in plan-only</td></tr>
@@ -1078,29 +1078,33 @@ footer{margin-top:70px; padding-top:18px; border-top:1px solid var(--line); colo
     </tbody>
   </table></div>
 
+  <p class="risk-note"><b>Status.</b> P1 has landed. Eight of the thirteen rows above are closed: the exit code is watched (coverage run, thresholds enforced), the demo and docs builds are in CI, the coverage floor is recorded, both budgets are enforced, and the no-PR-trigger gap is covered from the other side by the tier 0 hook rather than by paying for PR runs. Five remain open and are P2 (type check), P5 (real-browser, visual regression, accessibility) and unscheduled (dependency policy, provenance). The table is left as the diagnosis rather than rewritten, so what was found stays legible next to what was done.</p>
+
   <h3>The proposed gate ladder</h3>
   <p>Built around the standing constraint that Actions minutes are worth conserving. The design principle: push the cheap, high-yield checks to the developer's machine where they cost nothing, and spend runner minutes only on what genuinely needs a runner.</p>
 
   <div class="gate">
-    <div class="g-head">TIER 0 · LOCAL PRE-COMMIT — 0 ACTIONS MINUTES, ~2s ON STAGED FILES</div>
+    <div class="g-head">TIER 0 · LOCAL PRE-COMMIT — 0 ACTIONS MINUTES, ~2s ON STAGED FILES — <span style="color:var(--ok)">BUILT</span></div>
     <ul>
-      <li>ESLint on staged <code>.js</code> / <code>.vue</code></li>
-      <li><code>tsc --noEmit</code> once <code>checkJs</code> lands</li>
-      <li><code>vitest related --run</code> on the staged files' suites</li>
-      <li><em>Via <code>simple-git-hooks</code> (lighter than Husky, one dev dependency) plus <code>lint-staged</code>.</em></li>
+      <li>ESLint on staged <code>.js</code> / <code>.vue</code> — errors block, the 28 deliberate warnings do not, matching what <code>npm run lint</code> does in CI</li>
+      <li><code>vitest related --run --passWithNoTests</code> on the staged files' suites</li>
+      <li><code>tsc --noEmit</code> — <em>pending P2</em></li>
+      <li>Via <code>simple-git-hooks</code> (lighter than Husky, one dev dependency) plus <code>lint-staged</code>, installed from <code>prepare</code> by <code>tools/install-hooks.mjs</code> — which skips on CI and outside a git work tree, so <code>npm ci</code> on a runner does not write hooks it will never use and a consumer installing from a tarball is not handed ours</li>
+      <li>Escape hatches, because a gate with no override gets disabled wholesale: <code>git commit --no-verify</code>, or <code>SKIP_SIMPLE_GIT_HOOKS=1</code></li>
     </ul>
   </div>
   <p class="risk-note"><b>This is the single highest-value item in this document.</b> It catches the §10 class of failure on the machine that caused it, and it makes the no-PR-trigger policy safe rather than merely cheap.</p>
 
   <div class="gate">
-    <div class="g-head">TIER 1 · EVERY CI RUN — ~90s, REPLACES THE CURRENT 3 STEPS</div>
+    <div class="g-head">TIER 1 · EVERY CI RUN — ~90s, REPLACED THE PREVIOUS 3 STEPS — <span style="color:var(--ok)">BUILT</span></div>
     <ul>
-      <li><strong>Typecheck</strong> — <code>tsc --noEmit</code> + <code>vue-tsc</code></li>
-      <li><strong>Test with coverage</strong> — <code>@vitest/coverage-v8</code>, threshold set from the first measured run and ratcheted, never lowered</li>
-      <li><strong>Lint</strong> — as today, plus <code>eslint-plugin-vuejs-accessibility</code></li>
-      <li><strong>All three builds</strong> — library, demo <em>and</em> docs. The two missing ones are the biggest holes and cost about twenty seconds</li>
-      <li><strong>Size budget</strong> — fail if the gzipped demo chunk grows &gt;5% over the committed baseline</li>
-      <li><strong>Asset budget</strong> — fail if <code>dist-demo/</code> exceeds a committed ceiling</li>
+      <li><strong>Test with coverage</strong> — <code>@vitest/coverage-v8</code>, thresholds in <code>vitest.config.mjs</code> set from the first measured run, ratcheted, never lowered</li>
+      <li><strong>Lint</strong> — as before; <code>eslint-plugin-vuejs-accessibility</code> lands with the P5 accessibility work rather than here</li>
+      <li><strong>All three builds</strong> — library, demo <em>and</em> docs</li>
+      <li><strong>Size budgets</strong> — <code>tools/check-budget.mjs</code> against limits committed in <code>tools/budget.json</code>: demo JS and CSS gzipped, the library IIFE gzipped, and raw bytes for <code>dist-demo/</code> and <code>public/</code>. Gzip for what is served as text, raw for trees of already-compressed images and models. JS is summed across every file in the assets directory rather than matched by name, so P6's code splitting cannot read as a saving</li>
+      <li><strong>Typecheck</strong> — <code>tsc --noEmit</code> + <code>vue-tsc</code>, <em>pending P2</em></li>
+      <li>Coverage and budget numbers go to the run summary rather than an uploaded artifact, which keeps the workflow's promise to consume no repository storage</li>
+      <li>Still one job: the expensive part is <code>npm ci</code>, and splitting the builds across parallel jobs would pay for it three times to save perhaps thirty seconds. The deploy job also runs the budgets — before it folds the docs into <code>dist-demo/</code>, since that would otherwise inflate the tree it is measuring</li>
     </ul>
   </div>
 
@@ -1130,7 +1134,7 @@ footer{margin-top:70px; padding-top:18px; border-top:1px solid var(--line); colo
   <div class="tw"><table>
     <thead><tr><th>Phase</th><th>Work</th><th>Effort</th><th>Why here</th></tr></thead>
     <tbody>
-      <tr><td>P1</td><td>Tier 0 hooks + Tier 1 CI</td><td>2–3 days</td><td>Costs nothing to run and immediately stops the §10 class of failure. Everything after this is verified by it</td></tr>
+      <tr><td>P1 <span class="chip ok">done</span></td><td>Tier 0 hooks + Tier 1 CI</td><td>2–3 days</td><td>Costs nothing to run and immediately stops the §10 class of failure. Everything after this is verified by it. <strong>Landed:</strong> pre-commit hook via <code>simple-git-hooks</code> + <code>lint-staged</code>; coverage floor recorded at the first measurement; all three builds and the size budgets in CI. Typecheck arrives with P2</td></tr>
       <tr><td>P2</td><td>R-07 <code>checkJs</code> + <code>vue-tsc</code> on TS 6</td><td>4–6 days</td><td>No source rewrite. Opt in file by file, core first. Produces the <code>.d.ts</code> P4 needs</td></tr>
       <tr><td>P3</td><td>R-01, R-03, R-04 — the library correctness set</td><td>5–7 days</td><td>Three contained changes with real user-visible consequences. Do them under the type checker, not before it</td></tr>
       <tr><td>P4</td><td>R-06 packaging + R-02 instance state</td><td>4–5 days</td><td>Both are public-API shaped, so they belong in one minor release with one changelog entry</td></tr>
