@@ -1,6 +1,7 @@
 import {ref} from 'vue';
 import {EVENT_GLTF_READY} from '../../scripts/blueprint.js';
 import {DEFAULT_DESIGN} from '../designs/default-design.js';
+import {useToasts} from './useToasts.js';
 
 /**
  * New / open / save, for all four formats the demo offered.
@@ -68,12 +69,52 @@ function readAsText(file)
 export function useDesignIO(store)
 {
 	var busy = ref(false);
+	// Kept alongside the toasts rather than replaced by them. A toast is
+	// transient by design, and a caller - a test, an embedder - that wants to
+	// know whether the last operation failed should not have to scrape a queue
+	// of UI notices for it.
 	var lastError = ref(null);
+	var toasts = useToasts();
+
+	function fail(message, error)
+	{
+		lastError.value = message;
+		toasts.error(message, {detail: error ? String(error.message || error) : null});
+		if (error)
+		{
+			console.error(error);
+		}
+	}
 
 	function newDesign()
 	{
 		lastError.value = null;
 		store.model.value.loadSerialized(DEFAULT_DESIGN);
+	}
+
+	/**
+	 * Replace the design with an already-read document.
+	 *
+	 * Split out of openDesign so the autosave recovery path can reuse the parse
+	 * and the error reporting without inventing a File to hand it.
+	 *
+	 * @param {string} text A `.blueprint3d` document.
+	 * @param {string} [label] How to name it if it fails to parse.
+	 * @returns {boolean} whether it loaded.
+	 */
+	function loadDesign(text, label)
+	{
+		lastError.value = null;
+		try
+		{
+			store.model.value.loadSerialized(text);
+			return true;
+		}
+		catch (error)
+		{
+			fail(`Could not open ${label || 'that design'}: ${error.message}`, error);
+			return false;
+		}
 	}
 
 	/**
@@ -90,22 +131,24 @@ export function useDesignIO(store)
 		{
 			var text = await readAsText(file);
 			store.model.value.loadSerialized(text);
+			toasts.success(`Opened ${file.name}`);
 		}
 		catch (error)
 		{
-			lastError.value = `Could not open ${file.name}: ${error.message}`;
-			console.error(error);
+			fail(`Could not open ${file.name}: ${error.message}`, error);
 		}
 	}
 
 	function saveDesign()
 	{
 		download(store.model.value.exportSerialized(), 'design.blueprint3d', 'text/plain');
+		toasts.success('Saved design.blueprint3d');
 	}
 
 	function saveMesh()
 	{
 		download(store.model.value.exportMeshAsObj(), 'design.obj', 'text/plain');
+		toasts.success('Exported design.obj');
 	}
 
 	/**
@@ -147,6 +190,7 @@ export function useDesignIO(store)
 			{
 				finish();
 				download(event.gltf, 'design.gltf', 'model/gltf+json');
+				toasts.success('Exported design.gltf');
 				resolve(event.gltf);
 			}
 
@@ -154,11 +198,10 @@ export function useDesignIO(store)
 			three.exportForBlender();
 		}).catch(function (error)
 		{
-			lastError.value = error.message;
-			console.error(error);
+			fail(error.message, error);
 			throw error;
 		});
 	}
 
-	return {busy, lastError, newDesign, openDesign, saveDesign, saveMesh, saveGLTF};
+	return {busy, lastError, newDesign, loadDesign, openDesign, saveDesign, saveMesh, saveGLTF};
 }

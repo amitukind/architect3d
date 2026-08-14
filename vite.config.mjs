@@ -1,5 +1,6 @@
 import {defineConfig} from 'vite';
 import vue from '@vitejs/plugin-vue';
+import tailwind from '@tailwindcss/vite';
 import {resolve} from 'node:path';
 
 /**
@@ -73,7 +74,14 @@ export default defineConfig(({mode}) => {
 		// sources those were produced from live in asset-pipeline/, outside the
 		// deployed tree.
 		publicDir: 'public',
-		plugins: [vue()],
+		// Tailwind is listed here and not in the `isLib` branch above on purpose.
+		// It is a CSS-only plugin and the library build has no stylesheet at all -
+		// src/scripts/ imports no CSS, which is what lets an embedder drop
+		// dist/bp3djs.js into a page with its own design system and get no styling
+		// of ours. The whole UI stack (Tailwind, Reka UI, lucide, VueUse) is a
+		// devDependency for the same reason: `files` in package.json publishes
+		// src/scripts alone, so nothing a consumer installs could import them.
+		plugins: [vue(), tailwind()],
 		server: {
 			port: 10001,
 			open: false,

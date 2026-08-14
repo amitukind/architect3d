@@ -7,7 +7,7 @@ import CheckField from './fields/CheckField.vue';
 import RangeField from './fields/RangeField.vue';
 import TextField from './fields/TextField.vue';
 import {Configuration, Dimensioning, config, wallInformation} from '../../scripts/blueprint.js';
-import {snapTolerance, gridSpacing, scale} from '../../scripts/blueprint.js';
+import {snapTolerance, gridSpacing} from '../../scripts/blueprint.js';
 import {useDisplayUnit} from '../composables/useDisplayUnit.js';
 
 /**
@@ -18,6 +18,13 @@ import {useDisplayUnit} from '../composables/useDisplayUnit.js';
  * changes is that the unit buttons are a radio group rather than five
  * checkboxes pretending to be one, and that nothing has to be rebuilt when the
  * unit changes - the captions are bindings now, not folder names.
+ *
+ * The zoom slider that used to sit at the bottom of the 2D editor group is
+ * gone. Zoom now has a control on the plan itself - a readout, stops, fit and
+ * recentre, a wheel gesture and a keyboard shortcut - and a second one buried
+ * here was both redundant and wrong: it read `Number(config.scale)` from a
+ * plain object nothing makes reactive, so it rendered 1 once and then sat there
+ * saying 1 while the plan was at 300%.
  */
 
 const props = defineProps({
@@ -69,19 +76,6 @@ function setGrid(next)
 	read2d();
 	redraw();
 }
-
-const zoom = computed({
-	get: () => Number(config.scale),
-	set: (next) =>
-	{
-		Configuration.setValue(scale, next);
-		if (floorplanner.value)
-		{
-			floorplanner.value.zoom();
-			floorplanner.value.redraw();
-		}
-	},
-});
 
 // ---- Wall measurements ----------------------------------------------------
 const WALL_FLAGS = [
@@ -142,7 +136,6 @@ function resetClipping()
 			<NumberField
 				label="Grid resolution" :unit="unit" :min="0" :step="0.1" :model-value="editor2d.grid"
 				@update:model-value="setGrid" />
-			<RangeField v-model="zoom" label="Zoom" :min="0.25" :max="5" :step="0.25" />
 		</CollapsibleGroup>
 
 		<CollapsibleGroup title="Wall measurements">

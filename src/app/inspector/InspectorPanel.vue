@@ -7,7 +7,7 @@ import Wall2DInspector from './Wall2DInspector.vue';
 import ItemInspector from './ItemInspector.vue';
 import SurfaceInspector from './SurfaceInspector.vue';
 import SettingsPanel from './SettingsPanel.vue';
-import AppIcon from '../components/AppIcon.vue';
+import {MousePointerClick, SlidersHorizontal} from '@lucide/vue';
 
 import {useBlueprint} from '../composables/useBlueprint.js';
 import {
@@ -31,15 +31,39 @@ import {
  * to another remounts rather than trying to re-point a live component at a new
  * model object. That keeps every listener attach/detach pair inside one
  * component's lifetime.
+ *
+ * ## The `changed` event
+ *
+ * Inspectors write straight onto live model objects - that is what an inspector
+ * is, and why `vue/no-mutating-props` is switched off for this directory. Most
+ * of those writes reach the undo stack through the library events they cause,
+ * but some do not: renaming a room, retexturing a wall and recolouring an item
+ * all change the design without touching the floorplan graph. Those emit
+ * `changed`, and App.vue turns it into a history commit.
  */
 
 const props = defineProps({
 	selection: {type: Object, default: null},
 	camera: {type: Object, required: true},
+	/** Optional v-model, so a control outside the panel can bring a tab forward -
+	 * the rail's backdrop button points at a group inside Settings. Left
+	 * uncontrolled the panel still owns its own tab, as it did before. */
+	tab: {type: String, default: null},
 });
 
+const emit = defineEmits(['changed', 'update:tab']);
+
 const store = useBlueprint();
-const tab = ref('settings');
+const internalTab = ref('settings');
+
+const tab = computed({
+	get: () => props.tab || internalTab.value,
+	set: (value) =>
+	{
+		internalTab.value = value;
+		emit('update:tab', value);
+	},
+});
 
 const INSPECTORS = {
 	[SELECTION_CORNER_2D]: CornerInspector,
@@ -90,19 +114,22 @@ watch(() => props.selection, (selection) =>
 </script>
 
 <template>
-	<aside id="inspector" aria-label="Inspector">
-		<div class="inspector-tabs" role="tablist">
+	<aside
+		id="inspector"
+		class="z-[200] flex w-[300px] flex-none flex-col border-l border-line bg-surface"
+		aria-label="Inspector">
+		<div class="flex flex-none border-b border-line" role="tablist">
 			<button
 				type="button" class="inspector-tab" role="tab"
 				:class="{'is-active': tab === 'selection'}" :aria-selected="tab === 'selection'"
 				@click="tab = 'selection'">
-				<AppIcon name="cursor" /> Selection
+				<MousePointerClick :size="14" /> Selection
 			</button>
 			<button
 				type="button" class="inspector-tab" role="tab"
 				:class="{'is-active': tab === 'settings'}" :aria-selected="tab === 'settings'"
 				@click="tab = 'settings'">
-				<AppIcon name="sliders" /> Settings
+				<SlidersHorizontal :size="14" /> Settings
 			</button>
 		</div>
 
@@ -111,14 +138,15 @@ watch(() => props.selection, (selection) =>
 				<component
 					:is="component" v-if="component"
 					:key="props.selection.object.id || props.selection.object"
-					v-bind="bindings" />
+					v-bind="bindings"
+					@changed="emit('changed')" />
 				<p v-else class="inspector-empty">
 					Nothing selected. Click a corner, a wall or a room on the plan, or an item,
 					a wall or a floor in the 3D view.
 				</p>
 			</template>
 
-			<SettingsPanel v-else :store="store" :camera="props.camera" />
+			<SettingsPanel v-else :store="store" :camera="props.camera" @changed="emit('changed')" />
 		</div>
 	</aside>
 </template>

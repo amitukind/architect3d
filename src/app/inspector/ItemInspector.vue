@@ -3,7 +3,7 @@ import {onBeforeUnmount, reactive, ref, watch} from 'vue';
 import NumberField from './fields/NumberField.vue';
 import CheckField from './fields/CheckField.vue';
 import ColorField from './fields/ColorField.vue';
-import AppIcon from '../components/AppIcon.vue';
+import {Trash2, Copy} from '@lucide/vue';
 import {Dimensioning} from '../../scripts/blueprint.js';
 import {useDisplayUnit} from '../composables/useDisplayUnit.js';
 
@@ -22,6 +22,11 @@ import {useDisplayUnit} from '../composables/useDisplayUnit.js';
 const props = defineProps({
 	item: {type: Object, required: true},
 });
+
+// Resizes and colour changes reach the design without touching the floorplan
+// graph, so nothing the library dispatches would tell the history stack about
+// them. See the note in InspectorPanel.
+const emit = defineEmits(['changed', 'duplicate']);
 
 const {unit} = useDisplayUnit();
 
@@ -71,6 +76,7 @@ function resize(axis, next)
 		Dimensioning.cmFromMeasureRaw(dimensions.width),
 		Dimensioning.cmFromMeasureRaw(dimensions.depth));
 	readBack();
+	emit('changed');
 }
 
 function setProportional(next)
@@ -89,12 +95,14 @@ function setColor(entry, hex)
 {
 	props.item.setMaterialColor(hex, entry.index);
 	entry.color = hex;
+	emit('changed');
 }
 
 function remove()
 {
 	// Removing dispatches EVENT_ITEM_REMOVED, the controller drops the selection,
-	// and this component unmounts. Nothing to clean up here.
+	// and this component unmounts. Nothing to clean up here - and no `changed`
+	// either, because that event IS what the history stack listens to.
 	props.item.remove();
 }
 
@@ -132,8 +140,13 @@ onBeforeUnmount(() => {materials.value = [];});
 				@update:model-value="setColor(entry, $event)" />
 		</template>
 
-		<button type="button" class="btn btn-danger btn-block" @click="remove">
-			<AppIcon name="trash" /> Delete item
-		</button>
+		<div class="mt-2 flex gap-1.5">
+			<button type="button" class="btn btn-outline flex-1" @click="emit('duplicate')">
+				<Copy :size="14" /> Duplicate
+			</button>
+			<button type="button" class="btn btn-outline btn-danger flex-1" @click="remove">
+				<Trash2 :size="14" /> Delete
+			</button>
+		</div>
 	</section>
 </template>

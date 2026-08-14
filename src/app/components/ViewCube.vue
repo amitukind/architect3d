@@ -1,19 +1,21 @@
 <script setup>
-import AppIcon from './AppIcon.vue';
+import {Box, ChevronUp, ChevronDown, ChevronLeft, ChevronRight} from '@lucide/vue';
+import AppTip from './AppTip.vue';
 import {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY} from '../../scripts/blueprint.js';
 
 /**
- * The five camera presets, laid out as the cross the demo drew with nested
- * Bootstrap button groups (build/index.html:83-102): left and right on the
- * flanks, top / 3D / front stacked between them.
+ * The five camera presets, arranged as they point.
  *
- * S7 rebuilt the cross as a 3x3 grid. The Bootstrap version relied on inline
- * button groups aligning on a text baseline, which pushed the bottom two
- * buttons off the edge of the window - visible in the demo too.
+ * A 3x3 grid: the four orthogonal views on the arms, the isometric in the
+ * middle. The arrangement is the control's whole explanation - the button on
+ * the left shows you the plan from the left - so it survives from S7 unchanged
+ * in structure and changed only in weight: the buttons are joined into one
+ * plate rather than floating separately, which is what stops five identical
+ * squares reading as five unrelated toggles.
  *
- * The demo read the preset out of the button's DOM id and handed the string
- * straight to `switchView` - the ids *were* the API. They still are, but the
- * constants are imported now rather than spelled out in markup.
+ * The demo read the preset out of each button's DOM id and passed the string
+ * straight to `switchView` - the ids *were* the API. They still are; the
+ * constants are imported rather than spelled into markup.
  */
 
 const props = defineProps({
@@ -23,22 +25,26 @@ const props = defineProps({
 const emit = defineEmits(['switch-view']);
 
 const VIEWS = [
-	{id: VIEW_LEFT, area: 'cube-left', icon: 'align-left', title: 'Show side view (left)'},
-	{id: VIEW_TOP, area: 'cube-top', icon: 'align-top', title: 'Show top view'},
-	{id: VIEW_ISOMETRY, area: 'cube-iso', icon: 'cube', title: 'Show 3d view'},
-	{id: VIEW_FRONT, area: 'cube-front', icon: 'align-bottom', title: 'Show front view'},
-	{id: VIEW_RIGHT, area: 'cube-right', icon: 'align-right', title: 'Show side view (right)'},
+	{id: VIEW_LEFT, area: 'col-start-1 row-start-2', icon: ChevronLeft, label: 'Left elevation'},
+	{id: VIEW_TOP, area: 'col-start-2 row-start-1', icon: ChevronUp, label: 'Top view'},
+	{id: VIEW_ISOMETRY, area: 'col-start-2 row-start-2', icon: Box, label: 'Isometric view'},
+	{id: VIEW_FRONT, area: 'col-start-2 row-start-3', icon: ChevronDown, label: 'Front elevation'},
+	{id: VIEW_RIGHT, area: 'col-start-3 row-start-2', icon: ChevronRight, label: 'Right elevation'},
 ];
 </script>
 
 <template>
-	<div class="view-cube" role="group" aria-label="Camera views">
-		<button
-			v-for="view in VIEWS" :key="view.id" type="button" class="btn"
-			:class="[view.area, {'is-active': props.activeView === view.id}]"
-			:aria-pressed="props.activeView === view.id"
-			:title="view.title" @click="emit('switch-view', view.id)">
-			<AppIcon :name="view.icon" />
-		</button>
+	<div id="viewcube" class="grid grid-cols-3 grid-rows-3 gap-0.5" role="group" aria-label="Camera views">
+		<AppTip
+			v-for="view in VIEWS" :key="view.id" :label="view.label"
+			side="left" :delay="0">
+			<button
+				type="button" class="btn btn-icon h-7 w-7" :class="[view.area, {'is-active': props.activeView === view.id}]"
+				:aria-pressed="props.activeView === view.id"
+				:title="view.label"
+				@click="emit('switch-view', view.id)">
+				<component :is="view.icon" :size="view.id === VIEW_ISOMETRY ? 15 : 14" />
+			</button>
+		</AppTip>
 	</div>
 </template>

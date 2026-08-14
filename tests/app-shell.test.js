@@ -1,15 +1,29 @@
 // @vitest-environment jsdom
 /**
- * Sprint S6: the Vue shell, mounted for real.
+ * The Vue shell, mounted for real.
  *
  * app-composables.test.js pins the logic; this pins the component tree around
- * it - that the app boots, that the two panes flip, that the toolbar highlight
- * renders, that the catalog is populated from the catalog file, and that
- * mounting and unmounting the whole thing is symmetric.
+ * it - that the app boots, that the workspace layouts show what they should,
+ * that the tool rail highlight renders, that the catalog is populated from the
+ * catalog file, and that mounting and unmounting the whole thing is symmetric.
  *
- * The last one is the reason the sprint could happen at all. S2 gave the
+ * The last one is the reason the S6 sprint could happen at all. S2 gave the
  * library a `dispose()`; this is where a Vue route's unmount is shown to use
  * it, leaving no listener and no renderer behind.
+ *
+ * ## What changed when the shell was rebuilt
+ *
+ * The card flip is gone, so the assertions that read `#interfaces.flipped` now
+ * read the workspace layout instead. The two per-viewport toolbars are gone,
+ * so the file actions are looked up in the top bar and the editor modes in the
+ * tool rail. The catalog is a drawer rather than a modal accordion, so "one
+ * section open at a time" is replaced by what the drawer actually promises:
+ * search and a category filter over one flat list.
+ *
+ * Buttons are still found by `title`. Reka's tooltip supplies the accessible
+ * name now, but Tip passes the label through to `title` as well - partly as a
+ * fallback where the portal cannot render, and partly so this suite keeps
+ * identifying controls the way it always has.
  */
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 import {nextTick} from 'vue';
@@ -18,6 +32,7 @@ import {mount} from '@vue/test-utils';
 import App from '../src/app/App.vue';
 import {Main} from '../src/scripts/three/main.js';
 import {floorplannerModes} from '../src/scripts/floorplanner/floorplanner_view.js';
+import {LAYOUT_PLAN, LAYOUT_SPLIT, LAYOUT_VIEW} from '../src/app/composables/useLayout.js';
 
 import {resetAll} from './helpers/harness.js';
 import {installCanvas2D, installListenerCounter, installPointerApis, installResizeObserver} from './helpers/dom.js';
@@ -59,28 +74,46 @@ function realLeaks()
 }
 
 /**
- * App.vue has several root nodes - the flip card, the bottom bar, the catalog,
- * the inspector - so a mount has to settle before the inspector's watcher has
- * built its panel, and selectors are scoped below rather than named from the
- * root (test-utils cannot match a descendant selector whose ancestor is itself
- * one of the roots).
+ * App.vue has several root nodes - the shell, the catalog drawer, the shortcuts
+ * dialog, the toast stack - so selectors are scoped below rather than named
+ * from the root (test-utils cannot match a descendant selector whose ancestor
+ * is itself one of the roots).
+ *
+ * `localStorage` is cleared first: useLayout and useTheme both persist, and a
+ * test that left the workspace in split mode would otherwise decide the boot
+ * state of the next one.
  */
 async function mountApp()
 {
+	window.localStorage.clear();
 	const wrapper = mount(App, {attachTo: document.body});
 	await nextTick();
 	return wrapper;
 }
 
-function bottomBarButton(wrapper, title)
+/** A button anywhere in the shell, by its tooltip text. */
+function byTitle(wrapper, title, scope)
 {
-	return wrapper.get('#interface-controls').findAll('button')
-		.find((button) => button.attributes('title') === title);
+	const root = scope ? wrapper.get(scope) : wrapper;
+	return root.findAll('button, label').find((node) => node.attributes('title') === title);
 }
 
-function toolbarButton(wrapper, title)
+function railButton(wrapper, title)
 {
-	return wrapper.findAll('#floorplanner-controls button').find((button) => button.attributes('title') === title);
+	return byTitle(wrapper, title, '#tool-rail');
+}
+
+/** The 2D / Split / 3D segmented control, by its visible label. */
+function layoutButton(wrapper, label)
+{
+	return wrapper.findAll('[aria-label="Workspace layout"] button')
+		.find((button) => button.text() === label);
+}
+
+/** What App.vue's own state says the workspace is showing. */
+function layoutOf(wrapper)
+{
+	return wrapper.vm.$.setupState.workspace.layout.value;
 }
 
 beforeEach(() =>
@@ -121,37 +154,66 @@ describe('App boot', () =>
 		wrapper.unmount();
 	});
 
-	it('boots showing the 2D pane, with the 3D controls hidden', async () =>
+	it('boots into the plan-only layout', async () =>
 	{
 		const wrapper = await mountApp();
 
-		expect(wrapper.find('#interfaces').classes()).toContain('card');
-		expect(wrapper.find('#interfaces').classes()).not.toContain('flipped');
-		// v-show, so the element exists and is display:none.
-		expect(wrapper.find('#viewcontrols').element.style.display).toBe('none');
+		expect(layoutOf(wrapper)).toBe(LAYOUT_PLAN);
+		expect(layoutButton(wrapper, '2D').classes()).toContain('is-active');
+		expect(layoutButton(wrapper, '3D').classes()).not.toContain('is-active');
 
 		wrapper.unmount();
 	});
 
-	it('renders the whole camera preset cross and the walk-through button', async () =>
+	it('keeps both viewports laid out in every layout, never collapsed', async () =>
+	{
+		// The constraint the whole Workspace component exists to satisfy: the
+		// library measures its containers with clientWidth/clientHeight, so a
+		// hidden pane must be transparent rather than absent or zero-wide. A
+		// regression here is a divide-by-zero in the projection matrix, which is
+		// exactly the kind of thing that only shows up in a browser.
+		const wrapper = await mountApp();
+		const panes = () => wrapper.get('#workspace').element.children;
+
+		for (const layout of [LAYOUT_PLAN, LAYOUT_SPLIT, LAYOUT_VIEW])
+		{
+			wrapper.vm.$.setupState.workspace.setLayout(layout);
+			await nextTick();
+
+			expect(wrapper.find('canvas#floorplanner-canvas').exists()).toBe(true);
+			expect(wrapper.find('#viewer').exists()).toBe(true);
+
+			// Neither pane is display:none, and neither has been given a zero width.
+			for (const pane of [panes()[0], panes()[1]])
+			{
+				expect(pane.style.display).not.toBe('none');
+				expect(pane.style.width).not.toBe('0%');
+				expect(pane.style.width).not.toBe('0px');
+			}
+		}
+
+		wrapper.unmount();
+	});
+
+	it('renders the whole camera preset cross', async () =>
 	{
 		const wrapper = await mountApp();
-		const titles = wrapper.get('#interface-controls').findAll('button').map((b) => b.attributes('title'));
+		const titles = wrapper.get('#viewcube').findAll('button').map((b) => b.attributes('title'));
 
-		expect(titles).toContain('Show top view');
-		expect(titles).toContain('Show 3d view');
-		expect(titles).toContain('Show front view');
-		expect(titles).toContain('Show side view (left)');
-		expect(titles).toContain('Show side view (right)');
+		expect(titles).toEqual(expect.arrayContaining([
+			'Top view', 'Isometric view', 'Front elevation', 'Left elevation', 'Right elevation',
+		]));
+
 		// Present in the demo's markup but commented out; restored in S6 so that
-		// parity scenario P10 is reachable without the console.
-		expect(titles).toContain('Walk through');
+		// parity scenario P10 is reachable without the console. It lives on the
+		// tool rail now rather than the bottom bar.
+		expect(railButton(wrapper, 'Walk through')).toBeTruthy();
 
 		wrapper.unmount();
 	});
 });
 
-describe('the 2D toolbar highlight', () =>
+describe('the tool rail highlight', () =>
 {
 	it('marks the active mode, and moves with it', async () =>
 	{
@@ -159,19 +221,19 @@ describe('the 2D toolbar highlight', () =>
 		// event object to a mode number. See useFloorplannerMode.
 		const wrapper = await mountApp();
 
-		const move = toolbarButton(wrapper, 'Move Walls');
-		const draw = toolbarButton(wrapper, 'Draw New Walls');
-		const remove = toolbarButton(wrapper, 'Delete Walls');
+		const move = railButton(wrapper, 'Select and move');
+		const draw = railButton(wrapper, 'Draw walls');
+		const remove = railButton(wrapper, 'Delete walls');
 
 		expect(move.classes()).toContain('is-active');
 		expect(draw.classes()).not.toContain('is-active');
 
 		await draw.trigger('click');
 
-		expect(draw.classes()).toContain('is-active');
-		expect(move.classes()).not.toContain('is-active');
+		expect(railButton(wrapper, 'Draw walls').classes()).toContain('is-active');
+		expect(railButton(wrapper, 'Select and move').classes()).not.toContain('is-active');
 		expect(remove.classes()).not.toContain('is-active');
-		expect(draw.attributes('aria-pressed')).toBe('true');
+		expect(railButton(wrapper, 'Draw walls').attributes('aria-pressed')).toBe('true');
 
 		wrapper.unmount();
 	});
@@ -181,7 +243,7 @@ describe('the 2D toolbar highlight', () =>
 		const wrapper = await mountApp();
 
 		expect(wrapper.find('.btn-hint').element.style.display).toBe('none');
-		await toolbarButton(wrapper, 'Draw New Walls').trigger('click');
+		await railButton(wrapper, 'Draw walls').trigger('click');
 		expect(wrapper.find('.btn-hint').element.style.display).not.toBe('none');
 		expect(wrapper.find('.btn-hint').text()).toContain('Esc');
 
@@ -191,70 +253,127 @@ describe('the 2D toolbar highlight', () =>
 	it('follows a mode the library sets by itself', async () =>
 	{
 		const wrapper = await mountApp();
-		await toolbarButton(wrapper, 'Draw New Walls').trigger('click');
+		await railButton(wrapper, 'Draw walls').trigger('click');
 
 		// Esc, straight at the library - no click involved.
 		wrapper.vm.$.setupState.editor.setMode(floorplannerModes.MOVE);
 		await wrapper.vm.$nextTick();
 
-		expect(toolbarButton(wrapper, 'Move Walls').classes()).toContain('is-active');
+		expect(railButton(wrapper, 'Select and move').classes()).toContain('is-active');
+
+		wrapper.unmount();
+	});
+
+	it('hides the plan tools when the plan is not on screen', async () =>
+	{
+		const wrapper = await mountApp();
+		expect(railButton(wrapper, 'Draw walls')).toBeTruthy();
+
+		wrapper.vm.$.setupState.workspace.setLayout(LAYOUT_VIEW);
+		await nextTick();
+
+		// They act on a canvas that is not visible; the demo hid its camera
+		// controls in the 2D pane for the same reason.
+		expect(railButton(wrapper, 'Draw walls')).toBeUndefined();
+		expect(railButton(wrapper, 'Furniture catalog')).toBeTruthy();
 
 		wrapper.unmount();
 	});
 });
 
-describe('switching panes', () =>
+describe('switching layouts', () =>
 {
-	it('flips the card and reveals the 3D controls', async () =>
+	it('moves between plan, split and 3D, and resumes the viewer when 3D is shown', async () =>
 	{
 		const wrapper = await mountApp();
+		const three = wrapper.vm.$.setupState.store.three.value;
 
-		await bottomBarButton(wrapper, 'Edit 3D floorplan').trigger('click');
+		// Boots into the plan, so the 3D render loop is paused - nobody is looking
+		// at it.
+		expect(three.pauseRender).toBe(true);
 
-		expect(wrapper.find('#interfaces').classes()).toContain('flipped');
-		expect(wrapper.find('#viewcontrols').element.style.display).not.toBe('none');
+		await layoutButton(wrapper, '3D').trigger('click');
+		expect(layoutOf(wrapper)).toBe(LAYOUT_VIEW);
+		expect(three.pauseRender).toBe(false);
 
-		await bottomBarButton(wrapper, 'Edit 2D floorplan').trigger('click');
+		// Split counts as showing the design: both panes are live.
+		await layoutButton(wrapper, 'Split').trigger('click');
+		expect(layoutOf(wrapper)).toBe(LAYOUT_SPLIT);
+		expect(three.pauseRender).toBe(false);
 
-		expect(wrapper.find('#interfaces').classes()).not.toContain('flipped');
-		expect(wrapper.find('#viewcontrols').element.style.display).toBe('none');
+		await layoutButton(wrapper, '2D').trigger('click');
+		expect(layoutOf(wrapper)).toBe(LAYOUT_PLAN);
+		expect(three.pauseRender).toBe(true);
+
+		wrapper.unmount();
+	});
+
+	it('offers a divider only in split', async () =>
+	{
+		const wrapper = await mountApp();
+		expect(wrapper.find('[role="separator"]').exists()).toBe(false);
+
+		await layoutButton(wrapper, 'Split').trigger('click');
+		expect(wrapper.find('[role="separator"]').exists()).toBe(true);
 
 		wrapper.unmount();
 	});
 });
 
-describe('the catalog', () =>
+describe('the catalog drawer', () =>
 {
-	it('opens with every section from the catalog file, and closes again', async () =>
+	/** The drawer is portalled out of the app root, so it is found in the body. */
+	function drawer()
+	{
+		return document.querySelector('[role="dialog"]');
+	}
+
+	async function openCatalog(wrapper)
+	{
+		await layoutButton(wrapper, '3D').trigger('click');
+		await railButton(wrapper, 'Furniture catalog').trigger('click');
+		await nextTick();
+		await nextTick();
+	}
+
+	it('opens with every model from the catalog file, and a chip per section', async () =>
 	{
 		const wrapper = await mountApp();
-		await bottomBarButton(wrapper, 'Edit 3D floorplan').trigger('click');
+		expect(drawer()).toBeNull();
 
-		expect(wrapper.find('.catalog-backdrop').exists()).toBe(false);
-		await bottomBarButton(wrapper, 'Add/Remove items in 3D').trigger('click');
+		await openCatalog(wrapper);
+		const panel = drawer();
+		expect(panel).not.toBeNull();
 
-		const headings = wrapper.findAll('.catalog-section-heading').map((h) => h.text());
-		expect(headings).toHaveLength(8);
-		expect(headings[0]).toContain('Floor Items');
-		expect(headings[7]).toContain('Anywhere Items');
+		// One flat list rather than eight accordions, so the count is the catalog.
+		expect(panel.querySelectorAll('li').length).toBe(168);
 
-		await wrapper.find('.catalog-footer .btn').trigger('click');
-		expect(wrapper.find('.catalog-backdrop').exists()).toBe(false);
+		const chips = [...panel.querySelectorAll('button')]
+			.map((button) => button.textContent.trim());
+		expect(chips).toContain('Floor Items');
+		expect(chips).toContain('Anywhere Items');
 
 		wrapper.unmount();
 	});
 
-	it('shows one section at a time', async () =>
+	it('filters by search and by section, and stays open when an item is picked', async () =>
 	{
 		const wrapper = await mountApp();
-		await bottomBarButton(wrapper, 'Edit 3D floorplan').trigger('click');
-		await bottomBarButton(wrapper, 'Add/Remove items in 3D').trigger('click');
+		await openCatalog(wrapper);
 
-		const open = () => wrapper.findAll('.catalog-grid').filter((g) => g.element.style.display !== 'none');
-		expect(open()).toHaveLength(1);
+		const field = drawer().querySelector('input[type="search"]');
+		field.value = 'sofa';
+		field.dispatchEvent(new window.Event('input'));
+		await nextTick();
 
-		await wrapper.findAll('.catalog-section-heading')[2].trigger('click');
-		expect(open()).toHaveLength(1);
+		const names = [...drawer().querySelectorAll('li')].map((li) => li.textContent.toLowerCase());
+		expect(names.length).toBeGreaterThan(0);
+		expect(names.every((name) => name.includes('sofa'))).toBe(true);
+
+		// Picking adds and does NOT close - the whole reason this is a drawer.
+		drawer().querySelector('li button').click();
+		await nextTick();
+		expect(drawer()).not.toBeNull();
 
 		wrapper.unmount();
 	});

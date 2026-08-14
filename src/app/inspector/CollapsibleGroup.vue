@@ -1,5 +1,6 @@
 <script setup>
 import {ref} from 'vue';
+import {ChevronRight} from '@lucide/vue';
 
 /**
  * A titled, collapsible group of fields (sprint S7).
@@ -23,7 +24,7 @@ const expanded = ref(props.open);
 		<button
 			type="button" class="group-title" :aria-expanded="expanded"
 			@click="expanded = !expanded">
-			<span class="group-caret" aria-hidden="true">{{ expanded ? '–' : '+' }}</span>
+			<ChevronRight class="group-caret" :size="13" aria-hidden="true" />
 			{{ props.title }}
 		</button>
 		<div v-show="expanded" class="group-body">

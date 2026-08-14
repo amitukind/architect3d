@@ -1,826 +1,904 @@
+@import 'tailwindcss';
+
 /*
- * Application styles (sprints S6-S7).
+ * Application styles.
  *
- * S6 kept Bootstrap's stylesheet and the glyphicon webfont so the shell rewrite
- * would not also be a visual rewrite. S7 drops both: 115 KB of CSS and 220 KB
- * of font in four formats, for a button style, a panel border and sixteen
- * icons. The buttons below are deliberately close to what Bootstrap 3 drew -
- * this sprint retires a dependency, and S8 is the one allowed to move pixels.
+ * ## History
  *
- * Layout rules for the two panes and the bottom bar come from build/css/app.css
- * unchanged, so the app still lands where the demo did.
+ * S6 kept Bootstrap 3 so the shell rewrite would not also be a visual rewrite.
+ * S7 dropped it - 115 KB of CSS and 220 KB of glyphicon webfont for a button
+ * style, a panel border and sixteen icons - and hand-wrote the ~800 lines that
+ * replaced it. This file is the third generation: Tailwind v4 owns layout and
+ * spacing in the templates, and what remains here is the *design system* -
+ * tokens, base, and the handful of component classes that repeat often enough
+ * to earn a name.
+ *
+ * ## The look, and why
+ *
+ * A drafting studio, not a dashboard. The ground is a cool near-black with a
+ * blue bias; the accent is a pencil amber. The blue-on-blue "blueprint" palette
+ * is the obvious move for a floorplanner and precisely why it is not used here
+ * - the 2D canvas is already full of cyan and green interaction states, and an
+ * amber chrome around them reads as brass instruments around a drawing rather
+ * than more of the same hue.
+ *
+ * Every measurement in the interface is set in the mono face with tabular
+ * figures. That is the one typographic rule the whole app follows: if it is a
+ * number with a unit, it is monospaced, so a column of dimensions lines up and
+ * a changing readout does not reflow the bar it sits in.
+ *
+ * No webfont. S7 deleted 220 KB of one and the project has had no network
+ * dependency for a glyph since; the sans/mono contrast below comes from the
+ * system stack, which costs nothing and never flashes.
+ *
+ * ## Theming
+ *
+ * Two palettes, switched by `data-theme` on <html>. The tokens are plain custom
+ * properties and `@theme inline` tells Tailwind to reference them rather than
+ * inline their values, which is what makes `bg-surface` follow a runtime theme
+ * change instead of freezing whichever palette was compiled first.
+ *
+ * The media query exists so the first paint is correct before useTheme has run:
+ * without it a dark-mode user gets one white frame on every load.
  */
+
+/* ------------------------------------------------------------------ tokens */
 
 :root
 {
-	--ink: #333333;
-	--ink-soft: #6b6b6b;
-	--line: #cccccc;
-	--line-soft: #e2e2e2;
+	color-scheme: light;
+
+	/* Paper: the light palette. Cool rather than cream - the warm-cream-and-
+	   serif look is a template, and the 2D canvas needs a neutral it can print
+	   dark ink onto. */
+	--ground: #eef0f4;
 	--surface: #ffffff;
-	--surface-sunk: #f5f5f5;
-	--accent: #337ab7;
-	--accent-dark: #2e6da4;
-	--danger: #c9302c;
-	--danger-dark: #ac2925;
-	--radius: 3px;
-	--font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+	--raised: #ffffff;
+	--overlay: #ffffff;
+	--sunk: #f4f6f9;
+
+	--line: #d8dde6;
+	--line-soft: #e9edf2;
+	--line-strong: #c2cad6;
+
+	--ink: #141821;
+	--ink-soft: #5c6577;
+	--ink-faint: #939cad;
+
+	--accent: #d9601a;
+	--accent-hi: #ef7526;
+	--accent-ink: #ffffff;
+	--accent-wash: rgb(217 96 26 / 0.10);
+
+	--select: #0a7fcc;
+	--select-wash: rgb(10 127 204 / 0.12);
+	--danger: #cf3239;
+	--danger-wash: rgb(207 50 57 / 0.10);
+	--good: #12945f;
+
+	--shadow-panel: 0 1px 2px rgb(20 24 33 / 0.06), 0 8px 24px rgb(20 24 33 / 0.08);
+	--shadow-float: 0 2px 6px rgb(20 24 33 / 0.10), 0 12px 32px rgb(20 24 33 / 0.14);
+
 }
 
-html
+:root[data-theme='dark']
 {
-	overflow: hidden;
-	height: 100%;
+	color-scheme: dark;
+
+	/* Studio: the dark palette, and the default the app boots into. */
+	--ground: #0b0d11;
+	--surface: #12151c;
+	--raised: #1a1f29;
+	--overlay: #212836;
+	--sunk: #0e1116;
+
+	--line: #262d3a;
+	--line-soft: #1c222d;
+	--line-strong: #38414f;
+
+	--ink: #e7eaf0;
+	--ink-soft: #8d97a9;
+	--ink-faint: #5c6577;
+
+	--accent: #ff8a3d;
+	--accent-hi: #ffa063;
+	--accent-ink: #1a0e04;
+	--accent-wash: rgb(255 138 61 / 0.14);
+
+	--select: #4cc2ff;
+	--select-wash: rgb(76 194 255 / 0.16);
+	--danger: #ff5c63;
+	--danger-wash: rgb(255 92 99 / 0.14);
+	--good: #3ed598;
+
+	--shadow-panel: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.35);
+	--shadow-float: 0 2px 6px rgb(0 0 0 / 0.45), 0 12px 32px rgb(0 0 0 / 0.5);
+
 }
 
-body
+/* Correct before JS runs. useTheme stamps data-theme on <html> as soon as it
+   loads, and from then on the attribute wins over this block. */
+@media (prefers-color-scheme: dark)
 {
-	margin: 0;
-	padding: 0;
-	overflow: hidden;
-	height: 100%;
-	font-family: var(--font);
-	font-size: 14px;
-	line-height: 1.42857;
-	color: var(--ink);
-}
-
-*,
-*::before,
-*::after
-{
-	box-sizing: border-box;
-}
-
-/* ---------------------------------------------------------------- buttons */
-
-.btn
-{
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-	padding: 5px 10px;
-	margin: 0;
-	font-family: inherit;
-	font-size: 12px;
-	line-height: 1.5;
-	color: var(--ink);
-	background: var(--surface);
-	border: 1px solid var(--line);
-	border-radius: var(--radius);
-	cursor: pointer;
-	user-select: none;
-	white-space: nowrap;
-}
-
-.btn:hover:not(:disabled)
-{
-	background: #e6e6e6;
-	border-color: #adadad;
-}
-
-.btn:focus-visible
-{
-	outline: 2px solid var(--accent);
-	outline-offset: 1px;
-}
-
-.btn:disabled
-{
-	opacity: 0.55;
-	cursor: default;
-}
-
-.btn.is-active
-{
-	color: #ffffff;
-	background: var(--accent);
-	border-color: var(--accent-dark);
-}
-
-.btn.is-active:hover
-{
-	background: var(--accent-dark);
-}
-
-.btn-danger
-{
-	color: #ffffff;
-	background: var(--danger);
-	border-color: var(--danger-dark);
-}
-
-.btn-danger:hover:not(:disabled)
-{
-	background: var(--danger-dark);
-	border-color: var(--danger-dark);
-}
-
-.btn-block
-{
-	display: flex;
-	justify-content: center;
-	width: 100%;
-	margin-top: 10px;
-}
-
-/* A file input dressed as a button. */
-.btn-file
-{
-	position: relative;
-	overflow: hidden;
-}
-
-.btn-file input[type=file]
-{
-	position: absolute;
-	inset: 0;
-	width: 100%;
-	height: 100%;
-	opacity: 0;
-	cursor: pointer;
-}
-
-.btn-row
-{
-	display: inline-flex;
-	gap: 4px;
-}
-
-/* ------------------------------------------------------------------ panes */
-
-#interfaces,
-#interface-controls
-{
-	position: absolute;
-}
-
-#interfaces
-{
-	z-index: 0;
-	width: 100vw;
-	height: 100vh;
-	/*
-	 * The flip, replacing jquery.flip (build/js/app.js:903).
-	 *
-	 * jquery.flip did exactly this - a CSS 3D rotation on a preserve-3d card -
-	 * and its defaults are reproduced: 500ms, ease-out, rotation about X.
-	 *
-	 * Both faces stay laid out at full size for the whole animation and after
-	 * it, which is the property that matters most here. The library measures its
-	 * containers with clientWidth/clientHeight and watches them with a
-	 * ResizeObserver; a v-if or a display:none would collapse the hidden pane to
-	 * zero, and the viewer would come back with a zero aspect ratio. That is also
-	 * why core/dom.js measures with clientWidth rather than
-	 * getBoundingClientRect - the latter reports the *transformed* box, which is
-	 * foreshortened mid-flip.
-	 */
-	perspective: 2000px;
-}
-
-.card
-{
-	position: relative;
-	width: 100%;
-	height: 100%;
-	transform-style: preserve-3d;
-	transition: transform 0.5s ease-out;
-}
-
-.card.flipped
-{
-	transform: rotateX(180deg);
-}
-
-.card > .front,
-.card > .back
-{
-	position: absolute;
-	inset: 0;
-	backface-visibility: hidden;
-}
-
-.card > .back
-{
-	transform: rotateX(180deg);
-}
-
-/*
- * The face turned away from the viewer is invisible but still hit-testable in
- * some engines. Nothing behind the card should take a click.
- */
-.card:not(.flipped) > .back,
-.card.flipped > .front
-{
-	pointer-events: none;
-}
-
-@media (prefers-reduced-motion: reduce)
-{
-	.card
+	:root:not([data-theme='light'])
 	{
-		transition: none;
+		color-scheme: dark;
+
+		--ground: #0b0d11;
+		--surface: #12151c;
+		--raised: #1a1f29;
+		--overlay: #212836;
+		--sunk: #0e1116;
+
+		--line: #262d3a;
+		--line-soft: #1c222d;
+		--line-strong: #38414f;
+
+		--ink: #e7eaf0;
+		--ink-soft: #8d97a9;
+		--ink-faint: #5c6577;
+
+		--accent: #ff8a3d;
+		--accent-hi: #ffa063;
+		--accent-ink: #1a0e04;
+		--accent-wash: rgb(255 138 61 / 0.14);
+
+		--select: #4cc2ff;
+		--select-wash: rgb(76 194 255 / 0.16);
+		--danger: #ff5c63;
+		--danger-wash: rgb(255 92 99 / 0.14);
+		--good: #3ed598;
+
+		--shadow-panel: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.35);
+		--shadow-float: 0 2px 6px rgb(0 0 0 / 0.45), 0 12px 32px rgb(0 0 0 / 0.5);
+
 	}
 }
 
-#floorplanner,
-#viewer
+/*
+ * `inline` is doing real work here: it makes Tailwind emit
+ * `background-color: var(--ground)` for `bg-ground` instead of resolving the
+ * token to a literal at build time. Without it every utility would bake in the
+ * light palette and the theme toggle would change nothing.
+ */
+@theme inline
 {
-	position: absolute;
-	width: 100%;
-	height: 100%;
+	--color-ground: var(--ground);
+	--color-surface: var(--surface);
+	--color-raised: var(--raised);
+	--color-overlay: var(--overlay);
+	--color-sunk: var(--sunk);
+
+	--color-line: var(--line);
+	--color-line-soft: var(--line-soft);
+	--color-line-strong: var(--line-strong);
+
+	--color-ink: var(--ink);
+	--color-ink-soft: var(--ink-soft);
+	--color-ink-faint: var(--ink-faint);
+
+	--color-accent: var(--accent);
+	--color-accent-hi: var(--accent-hi);
+	--color-accent-ink: var(--accent-ink);
+	--color-accent-wash: var(--accent-wash);
+
+	--color-select: var(--select);
+	--color-select-wash: var(--select-wash);
+	--color-danger: var(--danger);
+	--color-danger-wash: var(--danger-wash);
+	--color-good: var(--good);
+
+	--font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+	--font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+	--shadow-panel: var(--shadow-panel);
+	--shadow-float: var(--shadow-float);
+
+	--radius-panel: 10px;
 }
 
-#floorplanner-canvas
+/* -------------------------------------------------------------------- base */
+
+@layer base
 {
-	display: block;
+	html
+	{
+		height: 100%;
+		overflow: hidden;
+	}
+
+	body
+	{
+		height: 100%;
+		margin: 0;
+		overflow: hidden;
+		background: var(--ground);
+		color: var(--ink);
+		font-family: var(--font-sans);
+		font-size: 13px;
+		line-height: 1.45;
+		-webkit-font-smoothing: antialiased;
+		text-rendering: optimizeLegibility;
+	}
+
+	/* Every focusable thing gets the same ring, once, rather than each component
+	   inventing one. :focus-visible so a mouse click on a tool button does not
+	   leave a ring behind it. */
+	:focus-visible
+	{
+		outline: 2px solid var(--accent);
+		outline-offset: 1px;
+		border-radius: 4px;
+	}
+
+	::selection
+	{
+		background: var(--accent-wash);
+		color: var(--ink);
+	}
+
+	/* The panels scroll a lot and the platform scrollbar is a light-mode
+	   artefact on a dark ground in every browser that still draws one. */
+	* {scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;}
+	*::-webkit-scrollbar {width: 10px; height: 10px;}
+	*::-webkit-scrollbar-track {background: transparent;}
+	*::-webkit-scrollbar-thumb {background: var(--line); border: 3px solid transparent; background-clip: content-box; border-radius: 6px;}
+	*::-webkit-scrollbar-thumb:hover {background: var(--line-strong); background-clip: content-box;}
 }
 
-#floorplanner-controls
+/* -------------------------------------------------------- component layer */
+
+@layer components
 {
-	position: absolute;
-	left: 0;
-	top: 0;
-	margin: 20px 0;
-	padding: 0 20px;
-	width: 100%;
-	z-index: 10;
+	/*
+	 * Numbers. The one rule the whole interface follows - see the header note.
+	 * Applied to dimensions, areas, coordinates, zoom percentages and the
+	 * inspector's numeric fields.
+	 */
+	.num
+	{
+		font-family: var(--font-mono);
+		font-variant-numeric: tabular-nums;
+		font-size: 11px;
+		letter-spacing: -0.01em;
+	}
+
+	/* Small uppercase section labels. Tracking is what makes 10px uppercase
+	   legible rather than a smudge. */
+	.eyebrow
+	{
+		font-size: 10px;
+		font-weight: 600;
+		letter-spacing: 0.09em;
+		text-transform: uppercase;
+		color: var(--ink-faint);
+	}
+
+	/* ---- buttons ---- */
+
+	.btn
+	{
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		height: 28px;
+		padding: 0 10px;
+		font: inherit;
+		font-size: 12px;
+		font-weight: 500;
+		color: var(--ink-soft);
+		background: transparent;
+		border: 1px solid transparent;
+		border-radius: 7px;
+		cursor: pointer;
+		white-space: nowrap;
+		user-select: none;
+		transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+	}
+
+	.btn:hover:not(:disabled)
+	{
+		color: var(--ink);
+		background: var(--raised);
+	}
+
+	.btn:disabled
+	{
+		opacity: 0.4;
+		cursor: default;
+	}
+
+	.btn.is-active
+	{
+		color: var(--accent);
+		background: var(--accent-wash);
+	}
+
+	/* Bordered variant, for actions that need to read as a control rather than
+	   a menu item - the toolbar clusters floating over the viewport. */
+	.btn-outline
+	{
+		color: var(--ink);
+		background: var(--surface);
+		border-color: var(--line);
+	}
+
+	.btn-outline:hover:not(:disabled)
+	{
+		border-color: var(--line-strong);
+	}
+
+	.btn-primary
+	{
+		color: var(--accent-ink);
+		background: var(--accent);
+		border-color: transparent;
+	}
+
+	.btn-primary:hover:not(:disabled)
+	{
+		color: var(--accent-ink);
+		background: var(--accent-hi);
+	}
+
+	.btn-danger
+	{
+		color: var(--danger);
+	}
+
+	.btn-danger:hover:not(:disabled)
+	{
+		color: var(--danger);
+		background: var(--danger-wash);
+	}
+
+	/* Square icon-only button: the tool rail and the floating clusters. */
+	.btn-icon
+	{
+		width: 30px;
+		padding: 0;
+	}
+
+	.btn-tool
+	{
+		width: 36px;
+		height: 36px;
+		padding: 0;
+		border-radius: 9px;
+	}
+
+	/* A file input dressed as a button. The input covers the label so the whole
+	   control is the drop target and the click target. */
+	.btn-file
+	{
+		position: relative;
+		overflow: hidden;
+	}
+
+	.btn-file input[type='file']
+	{
+		position: absolute;
+		inset: 0;
+		opacity: 0;
+		cursor: pointer;
+	}
+
+	/* ---- surfaces ---- */
+
+	/* Floating clusters over the viewport. The blur is what keeps a control
+	   legible over both a bright floor and a dark sky without a solid fill
+	   hiding the model. */
+	.glass
+	{
+		background: color-mix(in srgb, var(--surface) 78%, transparent);
+		backdrop-filter: blur(14px) saturate(1.4);
+		border: 1px solid var(--line);
+		border-radius: var(--radius-panel);
+		box-shadow: var(--shadow-float);
+	}
+
+	.panel
+	{
+		background: var(--surface);
+		border: 1px solid var(--line);
+		border-radius: var(--radius-panel);
+	}
+
+	/* ---- form controls ---- */
+
+	.field-input
+	{
+		width: 100%;
+		height: 28px;
+		padding: 0 8px;
+		font: inherit;
+		font-size: 12px;
+		color: var(--ink);
+		background: var(--sunk);
+		border: 1px solid var(--line);
+		border-radius: 7px;
+		transition: border-color 120ms ease;
+	}
+
+	.field-input:hover
+	{
+		border-color: var(--line-strong);
+	}
+
+	.field-input:focus
+	{
+		outline: none;
+		border-color: var(--accent);
+		box-shadow: 0 0 0 3px var(--accent-wash);
+	}
+
+	.field-input.num
+	{
+		text-align: right;
+	}
+
+	select.field-input
+	{
+		cursor: pointer;
+		appearance: none;
+		padding-right: 22px;
+		background-image: linear-gradient(45deg, transparent 50%, var(--ink-faint) 50%), linear-gradient(135deg, var(--ink-faint) 50%, transparent 50%);
+		background-position: calc(100% - 12px) 12px, calc(100% - 8px) 12px;
+		background-size: 4px 4px, 4px 4px;
+		background-repeat: no-repeat;
+	}
+
+	textarea.field-input
+	{
+		height: auto;
+		padding: 6px 8px;
+		resize: vertical;
+	}
+
+	/* Range inputs are the one native control with no useful cross-browser
+	   styling hook, so both thumbs are written out. */
+	.field-slider
+	{
+		flex: 1;
+		min-width: 0;
+		height: 18px;
+		appearance: none;
+		background: transparent;
+		cursor: pointer;
+	}
+
+	.field-slider::-webkit-slider-runnable-track
+	{
+		height: 4px;
+		background: var(--line);
+		border-radius: 2px;
+	}
+
+	.field-slider::-moz-range-track
+	{
+		height: 4px;
+		background: var(--line);
+		border-radius: 2px;
+	}
+
+	.field-slider::-webkit-slider-thumb
+	{
+		appearance: none;
+		width: 13px;
+		height: 13px;
+		margin-top: -4.5px;
+		background: var(--accent);
+		border: 0;
+		border-radius: 50%;
+	}
+
+	.field-slider::-moz-range-thumb
+	{
+		width: 13px;
+		height: 13px;
+		background: var(--accent);
+		border: 0;
+		border-radius: 50%;
+	}
+
+	.field-checkbox
+	{
+		flex: none;
+		width: 15px;
+		height: 15px;
+		margin: 0;
+		accent-color: var(--accent);
+		cursor: pointer;
+	}
+
+	/* Segmented control: the 2D/Split/3D switch and the unit picker. */
+	.segmented
+	{
+		display: inline-flex;
+		padding: 2px;
+		background: var(--sunk);
+		border: 1px solid var(--line);
+		border-radius: 8px;
+	}
+
+	.segment
+	{
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 5px;
+		height: 24px;
+		padding: 0 9px;
+		font: inherit;
+		font-size: 11px;
+		font-weight: 500;
+		color: var(--ink-soft);
+		background: transparent;
+		border: 0;
+		border-radius: 6px;
+		cursor: pointer;
+		white-space: nowrap;
+		transition: background-color 120ms ease, color 120ms ease;
+	}
+
+	.segment:hover:not(.is-active)
+	{
+		color: var(--ink);
+	}
+
+	.segment.is-active
+	{
+		color: var(--ink);
+		background: var(--raised);
+		box-shadow: var(--shadow-panel);
+	}
+
+	/* ---- inspector ---- */
+
+	.inspector-tab
+	{
+		display: flex;
+		flex: 1;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		height: 34px;
+		font: inherit;
+		font-size: 12px;
+		color: var(--ink-faint);
+		background: transparent;
+		border: 0;
+		border-bottom: 2px solid transparent;
+		cursor: pointer;
+		transition: color 120ms ease, border-color 120ms ease;
+	}
+
+	.inspector-tab:hover
+	{
+		color: var(--ink-soft);
+	}
+
+	.inspector-tab.is-active
+	{
+		color: var(--ink);
+		border-bottom-color: var(--accent);
+	}
+
+	.inspector-body
+	{
+		flex: 1;
+		overflow-y: auto;
+		padding: 12px;
+	}
+
+	.inspector-section
+	{
+		display: flex;
+		flex-direction: column;
+		gap: 9px;
+	}
+
+	.inspector-heading
+	{
+		margin: 0;
+		font-size: 13px;
+		font-weight: 600;
+	}
+
+	.inspector-subheading
+	{
+		margin: 6px 0 0;
+		font-size: 10px;
+		font-weight: 600;
+		letter-spacing: 0.09em;
+		text-transform: uppercase;
+		color: var(--ink-faint);
+	}
+
+	.inspector-empty,
+	.inspector-note
+	{
+		margin: 0;
+		color: var(--ink-faint);
+		line-height: 1.55;
+	}
+
+	.inspector-readout
+	{
+		margin: 0;
+		color: var(--ink-soft);
+	}
+
+	/* ---- collapsible groups ---- */
+
+	.group
+	{
+		border: 1px solid var(--line-soft);
+		border-radius: 9px;
+		overflow: hidden;
+	}
+
+	.group-title
+	{
+		display: flex;
+		align-items: center;
+		gap: 7px;
+		width: 100%;
+		padding: 8px 10px;
+		font: inherit;
+		font-size: 12px;
+		font-weight: 600;
+		text-align: left;
+		color: var(--ink-soft);
+		background: var(--sunk);
+		border: 0;
+		cursor: pointer;
+		transition: color 120ms ease;
+	}
+
+	.group-title:hover
+	{
+		color: var(--ink);
+	}
+
+	.group.is-open .group-title
+	{
+		color: var(--ink);
+		border-bottom: 1px solid var(--line-soft);
+	}
+
+	.group-caret
+	{
+		display: inline-flex;
+		flex: none;
+		color: var(--ink-faint);
+		transition: transform 140ms ease;
+	}
+
+	.group.is-open .group-caret
+	{
+		transform: rotate(90deg);
+	}
+
+	.group-body
+	{
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 10px;
+	}
+
+	/* ---- field rows ---- */
+
+	.field
+	{
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.field-label
+	{
+		font-size: 11px;
+		color: var(--ink-faint);
+	}
+
+	.field-check
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 8px;
+		cursor: pointer;
+	}
+
+	.field-check .field-label
+	{
+		font-size: 12px;
+		color: var(--ink-soft);
+	}
+
+	.field-range-row,
+	.field-color-row
+	{
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.field-output
+	{
+		flex: none;
+		min-width: 46px;
+		text-align: right;
+		font-family: var(--font-mono);
+		font-variant-numeric: tabular-nums;
+		font-size: 11px;
+		color: var(--ink-soft);
+	}
+
+	.field-swatch
+	{
+		flex: none;
+		width: 34px;
+		height: 26px;
+		padding: 0;
+		background: none;
+		border: 1px solid var(--line);
+		border-radius: 6px;
+		cursor: pointer;
+	}
+
+	.field-hex
+	{
+		font-family: var(--font-mono);
+		font-size: 11px;
+		color: var(--ink-faint);
+	}
+
+	.radio-list
+	{
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.radio-row
+	{
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 12px;
+		color: var(--ink-soft);
+		cursor: pointer;
+	}
+
+	.radio-row input
+	{
+		accent-color: var(--accent);
+	}
+
+	.radio-suffix
+	{
+		margin-left: auto;
+		font-family: var(--font-mono);
+		font-size: 10px;
+		color: var(--ink-faint);
+	}
+
+	.btn-block
+	{
+		display: flex;
+		width: 100%;
+		margin-top: 8px;
+	}
+
+	/* ---- texture grid ---- */
+
+	.texture-grid
+	{
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+		gap: 6px;
+	}
+
+	.texture-swatch
+	{
+		display: block;
+		padding: 3px;
+		font: inherit;
+		font-size: 10px;
+		line-height: 1.25;
+		color: var(--ink-faint);
+		background: var(--sunk);
+		border: 2px solid transparent;
+		border-radius: 8px;
+		cursor: pointer;
+		transition: border-color 120ms ease, color 120ms ease;
+	}
+
+	.texture-swatch:hover:not(:disabled)
+	{
+		color: var(--ink-soft);
+		border-color: var(--line-strong);
+	}
+
+	.texture-swatch.is-current
+	{
+		color: var(--ink);
+		border-color: var(--accent);
+	}
+
+	.texture-swatch:disabled
+	{
+		opacity: 0.4;
+		cursor: default;
+	}
+
+	.texture-swatch img
+	{
+		display: block;
+		width: 100%;
+		height: 42px;
+		object-fit: cover;
+		border-radius: 5px;
+		margin-bottom: 3px;
+	}
+
+	.texture-name
+	{
+		display: block;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	/* ---- kbd ---- */
+
+	kbd
+	{
+		display: inline-block;
+		min-width: 17px;
+		padding: 1px 4px;
+		font-family: var(--font-mono);
+		font-size: 10px;
+		line-height: 15px;
+		text-align: center;
+		color: var(--ink-soft);
+		background: var(--sunk);
+		border: 1px solid var(--line);
+		border-bottom-width: 2px;
+		border-radius: 4px;
+	}
 }
 
-#main-controls
-{
-	position: absolute;
-	top: 20px;
-	left: 20px;
-	padding: 0;
-	z-index: 10;
-}
-
-#interface-controls
-{
-	margin: 0 auto;
-	width: 100%;
-	text-align: center;
-	bottom: 10px;
-	z-index: 100;
-	display: flex;
-	align-items: flex-end;
-	justify-content: center;
-	gap: 6px;
-	pointer-events: none;
-}
-
-#interface-controls > *
-{
-	pointer-events: auto;
-}
+/* ------------------------------------------------------------------ motion */
 
 /*
- * The camera cross: presets arranged as they point, with the two toggles under
- * them. The demo built this out of nested Bootstrap button groups that
- * overflowed the bottom of the window; a grid keeps it inside the bar.
+ * Reka UI drives its own enter/leave state via data attributes; these are the
+ * two transitions the app reuses across dialogs, drawers and popovers rather
+ * than each one restating them.
  */
-#viewcontrols
+@keyframes a3d-fade-in {from {opacity: 0;} to {opacity: 1;}}
+@keyframes a3d-fade-out {from {opacity: 1;} to {opacity: 0;}}
+@keyframes a3d-slide-in-right {from {transform: translateX(16px); opacity: 0;} to {transform: translateX(0); opacity: 1;}}
+@keyframes a3d-pop-in {from {transform: scale(0.97); opacity: 0;} to {transform: scale(1); opacity: 1;}}
+
+[data-state='open'].a3d-fade {animation: a3d-fade-in 140ms ease-out;}
+[data-state='closed'].a3d-fade {animation: a3d-fade-out 110ms ease-in;}
+[data-state='open'].a3d-pop {animation: a3d-pop-in 150ms cubic-bezier(0.16, 1, 0.3, 1);}
+[data-state='closed'].a3d-pop {animation: a3d-fade-out 110ms ease-in;}
+[data-state='open'].a3d-slide {animation: a3d-slide-in-right 180ms cubic-bezier(0.16, 1, 0.3, 1);}
+[data-state='closed'].a3d-slide {animation: a3d-fade-out 130ms ease-in;}
+
+@media (prefers-reduced-motion: reduce)
 {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: 4px;
-	padding: 4px;
-	background: rgba(255, 255, 255, 0.85);
-	border: 1px solid var(--line);
-	border-radius: var(--radius);
-}
-
-.view-cube
-{
-	display: grid;
-	grid-template-columns: repeat(3, auto);
-	gap: 2px;
-	align-items: center;
-	justify-items: center;
-}
-
-.view-cube .cube-left {grid-area: 2 / 1;}
-.view-cube .cube-top {grid-area: 1 / 2;}
-.view-cube .cube-iso {grid-area: 2 / 2;}
-.view-cube .cube-front {grid-area: 3 / 2;}
-.view-cube .cube-right {grid-area: 2 / 3;}
-
-.btn-hint
-{
-	position: absolute;
-	left: 20px;
-	bottom: 20px;
-	background-color: rgba(0, 0, 0, 0.5);
-	color: #ffffff;
-	padding: 5px 10px;
-	border-radius: var(--radius);
-	z-index: 10;
-	font-size: 13px;
-}
-
-/* --------------------------------------------------------------- catalog */
-
-.catalog-backdrop
-{
-	position: fixed;
-	inset: 0;
-	background: rgba(0, 0, 0, 0.5);
-	z-index: 1040;
-	display: flex;
-	align-items: flex-start;
-	justify-content: center;
-	overflow-y: auto;
-	padding: 30px 15px;
-}
-
-.catalog-dialog
-{
-	background: var(--surface);
-	border-radius: 6px;
-	box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
-	width: 620px;
-	max-width: 100%;
-}
-
-.catalog-header,
-.catalog-footer
-{
-	padding: 14px 16px;
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-}
-
-.catalog-header
-{
-	border-bottom: 1px solid var(--line-soft);
-}
-
-.catalog-footer
-{
-	border-top: 1px solid var(--line-soft);
-	justify-content: flex-end;
-}
-
-.catalog-title
-{
-	margin: 0;
-	font-size: 18px;
-	font-weight: 600;
-}
-
-.catalog-close
-{
-	border: 0;
-	background: none;
-	font-size: 22px;
-	line-height: 1;
-	color: var(--ink-soft);
-	cursor: pointer;
-	padding: 0 4px;
-}
-
-.catalog-body
-{
-	padding: 12px 16px;
-	max-height: 65vh;
-	overflow-y: auto;
-}
-
-.catalog-section + .catalog-section
-{
-	margin-top: 8px;
-}
-
-.catalog-section-heading
-{
-	width: 100%;
-	text-align: left;
-	font-family: inherit;
-	font-size: 15px;
-	background: var(--surface-sunk);
-	border: 1px solid var(--line-soft);
-	border-radius: var(--radius);
-	padding: 10px 14px;
-	cursor: pointer;
-	color: var(--ink);
-}
-
-.catalog-section-heading:hover
-{
-	background: #ececec;
-}
-
-.catalog-grid
-{
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-	gap: 10px;
-	padding: 12px 2px;
-}
-
-.catalog-item
-{
-	display: block;
-	width: 100%;
-	text-align: center;
-	font-family: inherit;
-	font-size: 12px;
-	line-height: 1.3;
-	color: var(--ink);
-	padding: 6px;
-	background: var(--surface);
-	border: 1px solid var(--line-soft);
-	border-radius: var(--radius);
-	cursor: pointer;
-}
-
-.catalog-item:hover,
-.catalog-item:focus-visible
-{
-	border-color: var(--accent);
-}
-
-.catalog-item img
-{
-	display: block;
-	width: 100%;
-	height: 110px;
-	object-fit: contain;
-	margin-bottom: 6px;
-}
-
-/* ------------------------------------------------------------- inspector */
-
-#inspector
-{
-	position: absolute;
-	top: 0;
-	right: 0;
-	bottom: 0;
-	width: 300px;
-	z-index: 200;
-	display: flex;
-	flex-direction: column;
-	background: var(--surface);
-	border-left: 1px solid var(--line);
-	box-shadow: -2px 0 8px rgba(0, 0, 0, 0.08);
-	font-size: 13px;
-}
-
-.inspector-tabs
-{
-	display: flex;
-	flex: none;
-	border-bottom: 1px solid var(--line);
-}
-
-.inspector-tab
-{
-	flex: 1;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 6px;
-	padding: 10px 8px;
-	font-family: inherit;
-	font-size: 13px;
-	color: var(--ink-soft);
-	background: var(--surface-sunk);
-	border: 0;
-	border-bottom: 2px solid transparent;
-	cursor: pointer;
-}
-
-.inspector-tab.is-active
-{
-	color: var(--ink);
-	background: var(--surface);
-	border-bottom-color: var(--accent);
-	font-weight: 600;
-}
-
-.inspector-body
-{
-	flex: 1;
-	overflow-y: auto;
-	padding: 12px;
-}
-
-.inspector-section
-{
-	display: flex;
-	flex-direction: column;
-	gap: 10px;
-}
-
-.inspector-heading
-{
-	margin: 0 0 2px;
-	font-size: 14px;
-	font-weight: 600;
-}
-
-.inspector-subheading
-{
-	margin: 8px 0 0;
-	font-size: 12px;
-	font-weight: 600;
-	text-transform: uppercase;
-	letter-spacing: 0.04em;
-	color: var(--ink-soft);
-}
-
-.inspector-empty,
-.inspector-note
-{
-	margin: 0;
-	color: var(--ink-soft);
-	line-height: 1.5;
-}
-
-.inspector-readout
-{
-	margin: 0;
-	color: var(--ink-soft);
-}
-
-/* ------------------------------------------------------------- settings */
-
-.settings
-{
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-}
-
-.group
-{
-	border: 1px solid var(--line-soft);
-	border-radius: var(--radius);
-}
-
-.group-title
-{
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	width: 100%;
-	padding: 8px 10px;
-	font-family: inherit;
-	font-size: 13px;
-	font-weight: 600;
-	text-align: left;
-	color: var(--ink);
-	background: var(--surface-sunk);
-	border: 0;
-	border-radius: var(--radius);
-	cursor: pointer;
-}
-
-.group.is-open .group-title
-{
-	border-radius: var(--radius) var(--radius) 0 0;
-	border-bottom: 1px solid var(--line-soft);
-}
-
-.group-caret
-{
-	display: inline-block;
-	width: 12px;
-	text-align: center;
-	color: var(--ink-soft);
-}
-
-.group-body
-{
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-	padding: 10px;
-}
-
-/* ---------------------------------------------------------------- fields */
-
-.field
-{
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-}
-
-.field-label
-{
-	color: var(--ink-soft);
-}
-
-.field-input
-{
-	width: 100%;
-	padding: 5px 7px;
-	font-family: inherit;
-	font-size: 13px;
-	color: var(--ink);
-	background: var(--surface);
-	border: 1px solid var(--line);
-	border-radius: var(--radius);
-}
-
-.field-input:focus
-{
-	outline: none;
-	border-color: var(--accent);
-}
-
-.field-check
-{
-	flex-direction: row;
-	align-items: center;
-	gap: 8px;
-	cursor: pointer;
-}
-
-.field-check .field-label
-{
-	color: var(--ink);
-}
-
-.field-checkbox
-{
-	flex: none;
-	margin: 0;
-}
-
-.field-range-row,
-.field-color-row
-{
-	display: flex;
-	align-items: center;
-	gap: 8px;
-}
-
-.field-slider
-{
-	flex: 1;
-	min-width: 0;
-}
-
-.field-output
-{
-	flex: none;
-	min-width: 44px;
-	text-align: right;
-	font-variant-numeric: tabular-nums;
-	color: var(--ink-soft);
-}
-
-.field-swatch
-{
-	flex: none;
-	width: 34px;
-	height: 26px;
-	padding: 0;
-	border: 1px solid var(--line);
-	border-radius: var(--radius);
-	background: none;
-	cursor: pointer;
-}
-
-.field-hex
-{
-	color: var(--ink-soft);
-	font-size: 12px;
-}
-
-.radio-list
-{
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-}
-
-.radio-row
-{
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	cursor: pointer;
-}
-
-.radio-suffix
-{
-	margin-left: auto;
-	color: var(--ink-soft);
-	font-size: 11px;
-}
-
-.segmented
-{
-	display: flex;
-}
-
-.segment
-{
-	flex: 1;
-	padding: 5px 8px;
-	font-family: inherit;
-	font-size: 12px;
-	color: var(--ink);
-	background: var(--surface);
-	border: 1px solid var(--line);
-	cursor: pointer;
-}
-
-.segment:first-child
-{
-	border-radius: var(--radius) 0 0 var(--radius);
-}
-
-.segment:last-child
-{
-	border-left-width: 0;
-	border-radius: 0 var(--radius) var(--radius) 0;
-}
-
-.segment.is-active
-{
-	color: #ffffff;
-	background: var(--accent);
-	border-color: var(--accent-dark);
-}
-
-/* ---------------------------------------------------------- texture grid */
-
-.texture-grid
-{
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
-	gap: 6px;
-}
-
-.texture-swatch
-{
-	display: block;
-	padding: 3px;
-	font-family: inherit;
-	font-size: 11px;
-	line-height: 1.2;
-	color: var(--ink-soft);
-	background: var(--surface);
-	border: 2px solid var(--line-soft);
-	border-radius: var(--radius);
-	cursor: pointer;
-}
-
-.texture-swatch:hover:not(:disabled)
-{
-	border-color: var(--line);
-}
-
-.texture-swatch.is-current
-{
-	border-color: var(--accent);
-	color: var(--ink);
-}
-
-.texture-swatch:disabled
-{
-	opacity: 0.45;
-	cursor: default;
-}
-
-.texture-swatch img
-{
-	display: block;
-	width: 100%;
-	height: 44px;
-	object-fit: cover;
-	border-radius: 2px;
-	margin-bottom: 3px;
-}
-
-.texture-name
-{
-	display: block;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-/* ------------------------------------------------------------------ misc */
-
-.app-error
-{
-	position: absolute;
-	left: 50%;
-	transform: translateX(-50%);
-	top: 12px;
-	z-index: 300;
-	background: #a94442;
-	color: #ffffff;
-	padding: 8px 14px;
-	border-radius: var(--radius);
-	font-size: 13px;
+	*,
+	*::before,
+	*::after
+	{
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
 }

@@ -1,43 +1,65 @@
 <script setup>
-import {onBeforeUnmount, onMounted, ref} from 'vue';
+import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue';
+import {TooltipProvider} from 'reka-ui';
 
+import TopBar from './components/TopBar.vue';
+import ToolRail from './components/ToolRail.vue';
+import StatusBar from './components/StatusBar.vue';
+import AppWorkspace from './components/AppWorkspace.vue';
 import FloorplannerView from './components/FloorplannerView.vue';
 import ThreeViewport from './components/ThreeViewport.vue';
-import FloorplanToolbar from './components/FloorplanToolbar.vue';
-import ViewerToolbar from './components/ViewerToolbar.vue';
-import InterfaceControls from './components/InterfaceControls.vue';
-import CatalogModal from './components/CatalogModal.vue';
+import PlanOverlay from './components/PlanOverlay.vue';
+import SceneOverlay from './components/SceneOverlay.vue';
+import CatalogDrawer from './components/CatalogDrawer.vue';
+import ShortcutsDialog from './components/ShortcutsDialog.vue';
+import ToastStack from './components/ToastStack.vue';
 import InspectorPanel from './inspector/InspectorPanel.vue';
 
 import {provideBlueprint} from './composables/useBlueprint.js';
 import {useSelection} from './composables/useSelection.js';
-import {useCameraViews, MODE_FLOORPLAN} from './composables/useCameraViews.js';
+import {useCameraViews, MODE_WALKTHROUGH} from './composables/useCameraViews.js';
 import {useFloorplannerMode} from './composables/useFloorplannerMode.js';
 import {useDesignIO} from './composables/useDesignIO.js';
 import {useCatalog} from './composables/useCatalog.js';
-import {syncDisplayUnit} from './composables/useDisplayUnit.js';
-import {floorplannerModes, Configuration, configSystemUI} from '../scripts/blueprint.js';
+import {useDisplayUnit, syncDisplayUnit} from './composables/useDisplayUnit.js';
+import {useTheme, applyTheme} from './composables/useTheme.js';
+import {useLayout, LAYOUT_PLAN, LAYOUT_SPLIT, LAYOUT_VIEW} from './composables/useLayout.js';
+import {useHistory} from './composables/useHistory.js';
+import {useZoom2D} from './composables/useZoom2D.js';
+import {usePlanStats} from './composables/usePlanStats.js';
+import {useItemActions} from './composables/useItemActions.js';
+import {useAutosave, readDraft, clearDraft} from './composables/useAutosave.js';
+import {useToasts} from './composables/useToasts.js';
+import {useShortcuts} from './composables/useShortcuts.js';
+
+import {floorplannerModes, Configuration, configSystemUI, Dimensioning} from '../scripts/blueprint.js';
+import {renderProfile} from '../scripts/blueprint.js';
 
 /**
- * The application shell (sprints S6-S7), replacing build/js/app.js.
+ * The application shell.
  *
- * ## Where construction happens, and why here
+ * ## What changed, and what did not
  *
- * `BlueprintJS` takes the 2D canvas and the 3D container in one call, so no
- * single leaf component can own it. App.vue does: it reads both elements out of
- * its children (Vue mounts children before parents, so both exist by the time
- * this onMounted runs) and constructs once.
+ * S6 rebuilt this as a Vue component over the library and S7 dressed it. This
+ * revision changes the *shape* of the interface - a rail, a dock and a status
+ * bar around a workspace that can show either viewport or both - and adds the
+ * three things a tool of this kind is expected to have and this one did not:
+ * undo, keyboard shortcuts, and a way to recover work after a reload.
  *
- * That also makes the teardown one place instead of none. The demo had no
- * teardown at all - it assumed the page it booted into was the page it would
- * die on.
+ * What did not change is the part that is load-bearing. `BlueprintJS` still
+ * takes both viewport elements in one call, so App.vue still owns construction
+ * and reads both elements out of its children (Vue mounts children before
+ * parents, so both exist by the time this onMounted runs). Teardown is still
+ * one place. The boot order below is still the demo's, for the reasons S6
+ * documented: the design loads before the inspector is built, and `stopSpin()`
+ * runs after construction rather than `spin: false` being passed into it.
  *
- * ## Boot order
+ * ## Where the keyboard map lives
  *
- * Reproduced from build/js/app.js:884-903, which is load-bearing in two places:
- * the default design is loaded *before* the inspector is built, and
- * `stopSpin()` is called after construction rather than `spin: false` being
- * passed into it. See useCameraViews for the second one.
+ * Here, in one array, because a shortcut needs to know things no leaf component
+ * knows - whether the plan is on screen, whether anything is selected, whether
+ * an inspector field has focus. The array is also what feeds the shortcuts
+ * dialog, so the documentation cannot drift from the bindings.
  */
 
 const store = provideBlueprint();
@@ -46,10 +68,24 @@ const camera = useCameraViews(store);
 const editor = useFloorplannerMode(store);
 const io = useDesignIO(store);
 const catalog = useCatalog(store, selection.placementContext);
+const display = useDisplayUnit(store);
+const theme = useTheme(store);
+const workspace = useLayout();
+const history = useHistory(store);
+const zoom = useZoom2D(store);
+const stats = usePlanStats(store);
+const items = useItemActions(store, selection, history);
+const autosave = useAutosave(store);
+const toasts = useToasts();
 
 const floorplanRef = ref(null);
 const viewportRef = ref(null);
 const catalogOpen = ref(false);
+const shortcutsOpen = ref(false);
+const inspectorTab = ref('settings');
+const renderMode = ref(renderProfile.mode);
+
+const walkthrough = computed(() => camera.mode.value === MODE_WALKTHROUGH);
 
 onMounted(() =>
 {
@@ -71,8 +107,19 @@ onMounted(() =>
 	// BlueprintJS's constructor sets dimMeter as its first statement, so the
 	// panel has to re-read the unit rather than trust what it last showed.
 	syncDisplayUnit();
+	// Same reason, and additionally: the canvas palette has to be pushed into a
+	// library that now exists. applyTheme ran once before mount for the CSS; this
+	// run is the one that reaches the floorplanner.
+	applyTheme(store);
 
 	io.newDesign();
+	// The default design counts as the starting point, not as an edit - so the
+	// stack is seeded from it rather than recording it.
+	history.reset();
+	frameDesign();
+
+	offerDraft();
+	applyLayoutToCamera(workspace.layout.value);
 });
 
 onBeforeUnmount(() =>
@@ -80,57 +127,411 @@ onBeforeUnmount(() =>
 	store.unmount();
 });
 
+/**
+ * Frame whatever was just loaded.
+ *
+ * Every CAD tool zoom-extents on open and this one never has: the default
+ * design is a 5 m room, which at 1:1 occupies about a fifth of the canvas and
+ * leaves a new user looking at mostly grid. An opened file can be anywhere,
+ * including entirely off screen if the previous design was panned.
+ *
+ * Deferred by a frame because the canvas has to have been laid out for
+ * `zoomToFit` to have a size to fit into - on the very first call it is running
+ * inside the same onMounted that created the canvas.
+ */
+const FRAME_MAX_ZOOM = 2;
+
+function frameDesign()
+{
+	requestAnimationFrame(() => {zoom.zoomToFit({max: FRAME_MAX_ZOOM});});
+}
+
+/**
+ * Offer a recovered draft, if the last session left one.
+ *
+ * Deliberately an offer and not a restore - see useAutosave. It is read here
+ * rather than inside the composable because the decision is a UI one, and
+ * because it has to happen after `newDesign()` has already put something on
+ * screen: a prompt over a blank canvas gives no sense of what would be lost.
+ */
+function offerDraft()
+{
+	const draft = readDraft(Date.now());
+	if (!draft)
+	{
+		return;
+	}
+
+	toasts.info('A draft from your last session was recovered.', {
+		action: {
+			label: 'Restore',
+			run: function ()
+			{
+				if (io.loadDesign(draft.design, 'the recovered draft'))
+				{
+					history.reset();
+					frameDesign();
+					toasts.success('Draft restored.');
+				}
+			},
+		},
+	});
+}
+
+/**
+ * Keep the viewer's run state in step with what is on screen.
+ *
+ * `showFloorplan` / `showDesign` are more than visibility: they pause and
+ * resume the render loop, drop the 3D selection, and force a floorplan update
+ * so walls edited while 3D was paused are rebuilt before being shown again. The
+ * layout is the thing that decides which applies, so it drives them.
+ *
+ * Split counts as showing the design: both panes are live, and a 3D pane that
+ * is visible but not rendering is worse than not showing it at all.
+ */
+function applyLayoutToCamera(next)
+{
+	if (next === LAYOUT_PLAN)
+	{
+		camera.showFloorplan();
+		return;
+	}
+	camera.showDesign();
+}
+
+watch(() => workspace.layout.value, applyLayoutToCamera);
+
+/**
+ * Leaving walk-through has to put the layout back somewhere sensible: the
+ * pointer-lock exit path calls showDesign(), and if the workspace were still on
+ * the plan-only layout the user would be looking at the 2D canvas with the 3D
+ * camera quietly reset behind it.
+ */
+watch(() => camera.mode.value, function (mode)
+{
+	if (mode === MODE_WALKTHROUGH && workspace.layout.value === LAYOUT_PLAN)
+	{
+		workspace.setLayout(LAYOUT_VIEW);
+	}
+});
+
+/**
+ * Open or close the catalog, putting the 3D view on screen if it is not.
+ *
+ * Split rather than 3D-only: you are furnishing a plan, and seeing where the
+ * thing you picked landed relative to the walls is the point. It only forces
+ * the change when coming from plan-only - a user already in 3D stays in 3D.
+ */
+function toggleCatalog()
+{
+	catalogOpen.value = !catalogOpen.value;
+	if (catalogOpen.value && workspace.layout.value === LAYOUT_PLAN)
+	{
+		workspace.setLayout(LAYOUT_SPLIT);
+	}
+}
+
+function toggleWalkthrough()
+{
+	if (walkthrough.value)
+	{
+		camera.showDesign();
+		return;
+	}
+	if (workspace.layout.value === LAYOUT_PLAN)
+	{
+		workspace.setLayout(LAYOUT_VIEW);
+	}
+	camera.showWalkthrough();
+}
+
+/**
+ * Bring the carbon-sheet controls forward.
+ *
+ * Tracing a scanned floorplan is one of the more useful things this app can do
+ * and it has always been three clicks deep in a settings accordion. The rail
+ * button is the shortcut; the panel still owns the controls.
+ */
+function openBackdropSettings()
+{
+	workspace.inspectorOpen.value = true;
+	inspectorTab.value = 'settings';
+}
+
+function setRenderMode(mode)
+{
+	renderMode.value = mode;
+	if (store.three.value)
+	{
+		store.three.value.applyRenderProfile(mode);
+	}
+}
+
+/**
+ * The plan-space coordinate readout.
+ *
+ * Recomputed here rather than read off `floorplanner.mouseX`, which would be
+ * one event stale: this component's listener is bound when the canvas mounts,
+ * which is before App's onMounted constructs the library, so the library's own
+ * pointermove handler runs *after* this one. The arithmetic is the library's,
+ * from Floorplanner2D.mousemove.
+ */
+function onPlanPointerMove(event)
+{
+	const planner = store.floorplanner.value;
+	if (!planner)
+	{
+		return;
+	}
+	const bounds = event.currentTarget.getBoundingClientRect();
+	stats.setCursor({
+		x: Dimensioning.pixelToCm(event.clientX - bounds.left) + Dimensioning.pixelToCm(planner.originX),
+		y: Dimensioning.pixelToCm(event.clientY - bounds.top) + Dimensioning.pixelToCm(planner.originY),
+	});
+}
+
 function onAddItem(entry)
 {
 	catalog.addItem(entry);
 }
+
+function onNewDesign()
+{
+	io.newDesign();
+	history.reset();
+	frameDesign();
+	clearDraft();
+}
+
+async function onOpenDesign(file)
+{
+	await io.openDesign(file);
+	history.reset();
+	frameDesign();
+}
+
+function undo()
+{
+	if (history.undo())
+	{
+		// Nothing else reports it, and an undo whose effect is off screen - a wall
+		// restored while looking at the 3D view - is otherwise indistinguishable
+		// from a key that did not register.
+		toasts.info('Undo', {ttl: 1200});
+	}
+}
+
+function redo()
+{
+	if (history.redo())
+	{
+		toasts.info('Redo', {ttl: 1200});
+	}
+}
+
+/**
+ * The keyboard map.
+ *
+ * A computed rather than a constant, so `enabled` and the bindings themselves
+ * can depend on live state; useShortcuts calls it on every keystroke and the
+ * shortcuts dialog renders from the same array.
+ */
+const bindings = computed(() => [
+	// --- document ---
+	{group: 'Document', keys: 'mod+n', label: 'New layout', run: onNewDesign},
+	{group: 'Document', keys: 'mod+s', label: 'Save layout', run: io.saveDesign},
+	{group: 'Document', keys: 'mod+z', label: 'Undo', run: undo, enabled: () => history.canUndo.value},
+	{group: 'Document', keys: 'mod+shift+z', label: 'Redo', run: redo, enabled: () => history.canRedo.value},
+	// Windows and Linux editors also bind Ctrl+Y. Harmless on Apple platforms,
+	// where `mod` is Cmd and Cmd+Y is not taken by anything here.
+	{group: 'Document', keys: 'mod+y', label: 'Redo', run: redo, alias: true, enabled: () => history.canRedo.value},
+
+	// --- tools ---
+	{group: 'Tools', keys: 'v', label: 'Select and move', run: () => editor.setMode(floorplannerModes.MOVE)},
+	{group: 'Tools', keys: 'w', label: 'Draw walls', run: () => editor.setMode(floorplannerModes.DRAW)},
+	{group: 'Tools', keys: 'x', label: 'Delete walls', run: () => editor.setMode(floorplannerModes.DELETE)},
+	{group: 'Tools', keys: 's', label: 'Toggle snap to grid', run: () => zoom.setSnap(!zoom.snap.value)},
+	{group: 'Tools', keys: 'a', label: 'Furniture catalog', run: toggleCatalog},
+	{
+		group: 'Tools', keys: 'mod+d', label: 'Duplicate item',
+		run: items.duplicateSelected, enabled: () => items.canActOnItem.value,
+	},
+	{
+		group: 'Tools', keys: 'delete', label: 'Delete item',
+		run: items.deleteSelected, enabled: () => items.canActOnItem.value,
+	},
+	{
+		group: 'Tools', keys: 'backspace', label: 'Delete item', alias: true,
+		run: items.deleteSelected, enabled: () => items.canActOnItem.value,
+	},
+
+	// --- view ---
+	{group: 'View', keys: '1', label: 'Plan only', run: () => workspace.setLayout(LAYOUT_PLAN)},
+	{group: 'View', keys: '2', label: 'Split view', run: () => workspace.setLayout(LAYOUT_SPLIT)},
+	{group: 'View', keys: '3', label: '3D only', run: () => workspace.setLayout(LAYOUT_VIEW)},
+	{group: 'View', keys: 'f', label: 'Walk through', run: toggleWalkthrough},
+	{group: 'View', keys: 'o', label: 'Orthographic camera', run: () => camera.setOrthographic(!camera.orthographic.value)},
+	{group: 'View', keys: 'g', label: 'Wireframe', run: () => camera.setWireframe(!camera.wireframe.value)},
+	{group: 'View', keys: '=', label: 'Zoom in', run: zoom.zoomIn},
+	{group: 'View', keys: '-', label: 'Zoom out', run: zoom.zoomOut},
+	{group: 'View', keys: 'shift+f', label: 'Frame the whole plan', run: zoom.zoomToFit},
+	{group: 'View', keys: 'mod+.', label: 'Toggle the inspector', run: workspace.toggleInspector},
+	{group: 'View', keys: 'shift+?', label: 'Keyboard shortcuts', run: () => {shortcutsOpen.value = true;}},
+
+	// Escape closes whatever is open, and is the one binding that fires while
+	// typing - its job in a field is to leave the field.
+	{
+		group: 'View', keys: 'escape', label: 'Close panels and stop drawing',
+		whileTyping: true,
+		run: function ()
+		{
+			if (catalogOpen.value)
+			{
+				catalogOpen.value = false;
+				return;
+			}
+			if (shortcutsOpen.value)
+			{
+				shortcutsOpen.value = false;
+				return;
+			}
+			// The library binds Esc itself to stop drawing walls, so the fall-through
+			// is deliberately nothing: preventing the default here would take that
+			// away, and the mode reset is the behaviour people expect from Esc on a
+			// canvas.
+			if (document.activeElement && document.activeElement.blur)
+			{
+				document.activeElement.blur();
+			}
+		},
+	},
+]);
+
+useShortcuts(() => bindings.value);
 </script>
 
 <template>
-	<div id="interfaces" :class="{card: true, flipped: camera.mode.value !== MODE_FLOORPLAN}">
-		<FloorplannerView ref="floorplanRef">
-			<FloorplanToolbar
-				:mode="editor.mode.value"
-				@set-mode="editor.setMode"
-				@new-design="io.newDesign"
-				@save-design="io.saveDesign"
-				@open-design="io.openDesign" />
-			<div v-show="editor.mode.value === floorplannerModes.DRAW" class="btn-hint">
-				Press the "Esc" key to stop drawing walls
-			</div>
-		</FloorplannerView>
-
-		<ThreeViewport ref="viewportRef">
-			<ViewerToolbar
+	<TooltipProvider :delay-duration="260" :skip-delay-duration="240">
+		<div id="app-shell" class="flex h-screen w-screen flex-col overflow-hidden bg-ground text-ink">
+			<TopBar
+				:layout="workspace.layout.value"
+				:theme="theme.theme.value"
+				:unit="display.unit.value"
+				:units="display.units"
+				:can-undo="history.canUndo.value"
+				:can-redo="history.canRedo.value"
 				:exporting="io.busy.value"
-				@new-design="io.newDesign"
+				:inspector-open="workspace.inspectorOpen.value"
+				:saved-at="autosave.savedAt.value"
+				@new-design="onNewDesign"
+				@open-design="onOpenDesign"
 				@save-design="io.saveDesign"
-				@open-design="io.openDesign"
 				@save-mesh="io.saveMesh"
-				@save-gltf="io.saveGLTF" />
-		</ThreeViewport>
-	</div>
+				@save-gltf="io.saveGLTF"
+				@undo="undo"
+				@redo="redo"
+				@set-layout="workspace.setLayout"
+				@set-unit="display.setUnit"
+				@toggle-theme="theme.toggleTheme"
+				@toggle-inspector="workspace.toggleInspector"
+				@show-shortcuts="shortcutsOpen = true" />
 
-	<InterfaceControls
-		:mode="camera.mode.value"
-		:active-view="camera.activeView.value"
-		:orthographic="camera.orthographic.value"
-		:wireframe="camera.wireframe.value"
-		@show-floorplan="camera.showFloorplan"
-		@show-design="camera.showDesign"
-		@show-walkthrough="camera.showWalkthrough"
-		@switch-view="camera.switchView"
-		@toggle-orthographic="camera.setOrthographic(!camera.orthographic.value)"
-		@toggle-wireframe="camera.setWireframe(!camera.wireframe.value)"
-		@open-catalog="catalogOpen = true" />
+			<div class="flex min-h-0 flex-1">
+				<ToolRail
+					:mode="editor.mode.value"
+					:layout="workspace.layout.value"
+					:can-act-on-item="items.canActOnItem.value"
+					:catalog-open="catalogOpen"
+					:walkthrough="walkthrough"
+					@set-mode="editor.setMode"
+					@open-catalog="toggleCatalog"
+					@duplicate-item="items.duplicateSelected"
+					@delete-item="items.deleteSelected"
+					@toggle-walkthrough="toggleWalkthrough"
+					@open-backdrop="openBackdropSettings" />
 
-	<CatalogModal
-		v-if="catalogOpen"
-		:sections="catalog.sections.value"
-		@close="catalogOpen = false"
-		@add-item="onAddItem" />
+				<AppWorkspace
+					:layout="workspace.layout.value"
+					:split-ratio="workspace.splitRatio.value"
+					@update:split-ratio="workspace.setSplitRatio">
+					<template #plan>
+						<FloorplannerView
+							ref="floorplanRef"
+							@wheel-zoom="zoom.nudge"
+							@pointer-move="onPlanPointerMove"
+							@pointer-leave="stats.setCursor(null)">
+							<PlanOverlay
+								:zoom-percent="zoom.percent.value"
+								:can-zoom-in="zoom.canZoomIn.value"
+								:can-zoom-out="zoom.canZoomOut.value"
+								:snap="zoom.snap.value"
+								:spacing="zoom.spacing.value"
+								:spacings="zoom.gridSpacings"
+								:mode="editor.mode.value"
+								@zoom-in="zoom.zoomIn"
+								@zoom-out="zoom.zoomOut"
+								@zoom-fit="zoom.zoomToFit"
+								@zoom-reset="zoom.resetZoom"
+								@centre="zoom.centre"
+								@set-snap="zoom.setSnap"
+								@set-spacing="zoom.setSpacing" />
+						</FloorplannerView>
+					</template>
 
-	<InspectorPanel :selection="selection.selection.value" :camera="camera" />
+					<template #view>
+						<ThreeViewport ref="viewportRef">
+							<SceneOverlay
+								v-show="!walkthrough"
+								:active-view="camera.activeView.value"
+								:orthographic="camera.orthographic.value"
+								:wireframe="camera.wireframe.value"
+								:view-locked="camera.viewLocked.value"
+								:render-mode="renderMode"
+								@switch-view="camera.switchView"
+								@toggle-orthographic="camera.setOrthographic(!camera.orthographic.value)"
+								@toggle-wireframe="camera.setWireframe(!camera.wireframe.value)"
+								@toggle-lock="camera.setViewLocked(!camera.viewLocked.value)"
+								@set-render-mode="setRenderMode" />
 
-	<div v-if="io.lastError.value" class="app-error" role="alert">{{ io.lastError.value }}</div>
+							<div
+								v-if="walkthrough"
+								class="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center p-4">
+								<p class="glass px-3 py-2 text-[11px]">
+									<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> to walk ·
+									move the mouse to look · <kbd>Esc</kbd> to leave
+								</p>
+							</div>
+						</ThreeViewport>
+					</template>
+				</AppWorkspace>
+
+				<InspectorPanel
+					v-show="workspace.inspectorOpen.value"
+					v-model:tab="inspectorTab"
+					:selection="selection.selection.value"
+					:camera="camera"
+					@changed="history.commit" />
+			</div>
+
+			<StatusBar
+				:rooms="stats.rooms.value"
+				:walls="stats.walls.value"
+				:items="stats.items.value"
+				:area-label="stats.areaLabel.value"
+				:cursor="stats.cursor.value"
+				:zoom="zoom.percent.value"
+				:mode="editor.mode.value"
+				:layout="workspace.layout.value" />
+		</div>
+
+		<CatalogDrawer
+			v-model:open="catalogOpen"
+			:sections="catalog.sections.value"
+			:placement="selection.placementContext.value"
+			@add-item="onAddItem" />
+
+		<ShortcutsDialog v-model:open="shortcutsOpen" :bindings="bindings" />
+
+		<ToastStack />
+	</TooltipProvider>
 </template>

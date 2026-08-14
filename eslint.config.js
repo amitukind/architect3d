@@ -98,6 +98,12 @@ export default [
 
 	{
 		// Single-file components. Same house style as the rest of src/.
+		//
+		// The globals list grew when the shell was rebuilt: the components now
+		// schedule work against the frame clock (zoom-to-fit has to wait for
+		// layout), read the pointer through PointerEvent APIs, and time their own
+		// toasts. These are the browser APIs a component may reach for; anything
+		// beyond them belongs in a composable.
 		files: ['src/**/*.vue'],
 		languageOptions: {
 			ecmaVersion: 2022,
@@ -106,6 +112,12 @@ export default [
 				window: 'readonly',
 				document: 'readonly',
 				console: 'readonly',
+				navigator: 'readonly',
+				requestAnimationFrame: 'readonly',
+				cancelAnimationFrame: 'readonly',
+				setTimeout: 'readonly',
+				clearTimeout: 'readonly',
+				Date: 'readonly',
 			},
 		},
 		rules: {
