@@ -359,6 +359,24 @@ describe('the catalog drawer', () =>
 	it('filters by search and by section, and stays open when an item is picked', async () =>
 	{
 		const wrapper = await mountApp();
+
+		// Picking an item is the one action in the shell that reaches the network.
+		// Under Node the real GLTFLoader does not merely fail on a relative URL, it
+		// throws synchronously out of `new Request` - past addItem, past the Vue
+		// event handler, out of the test - and Vitest fails the whole run on the
+		// unhandled exception while every assertion still passes.
+		//
+		// So this stubs the seam the library provides for exactly this
+		// (Scene.setItemLoader), the same way the suite already stubs the WebGL
+		// renderer. It is a real limitation being worked around rather than a test
+		// detail: `addItem` has no failure path at all - null onError, no try/catch
+		// - so in a browser a 404 leaves EVENT_ITEM_LOADING unbalanced forever.
+		// That is why useHistory needs SETTLE_BACKSTOP_MS. Giving it one is not a
+		// test fix; see the note in items-and-scene.test.js about the ReferenceError
+		// this method is pinned to propagate, and Controller.itemLoaded, which
+		// dereferences the null item the formatless branch already dispatches.
+		wrapper.vm.$.setupState.store.model.value.scene.setItemLoader(() => {});
+
 		await openCatalog(wrapper);
 
 		const field = drawer().querySelector('input[type="search"]');
