@@ -16,7 +16,7 @@ export class Corner extends EventDispatcher
 	 * @param {Floorplan} floorplan The associated model floorplan.
 	 * @param {Number} x X coordinate.
 	 * @param {Number} y Y coordinate.
-	 * @param {String} id An optional unique id. If not set, created internally.
+	 * @param {String} [id] An optional unique id. If not set, created internally.
 	 */
 	constructor(floorplan, x, y, id)
 	{

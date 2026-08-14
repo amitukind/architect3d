@@ -41,6 +41,7 @@ const ROOT = import.meta.dirname;
  */
 export default defineConfig(({mode}) => {
 	const isLib = mode === 'lib';
+	const isLibEsm = mode === 'lib-esm';
 
 	if (isLib)
 	{
@@ -50,6 +51,11 @@ export default defineConfig(({mode}) => {
 				emptyOutDir: true,
 				// Matches the old rollup output: one self-executing bundle that
 				// hangs the public API off window.BP3DJS for build/js/app.js.
+				//
+				// three is BUNDLED here, unlike the ESM build below, and that is the
+				// point of this artifact: it is the drop-in for a plain <script> tag,
+				// where there is no resolver and nothing to peer with. The ESM entry
+				// is what a bundler consumer gets.
 				lib: {
 					entry: resolve(ROOT, 'src/scripts/blueprint.js'),
 					name: 'BP3DJS',
@@ -60,6 +66,43 @@ export default defineConfig(({mode}) => {
 				// three r98 is large and not tree-shakeable; the warning is noise.
 				chunkSizeWarningLimit: 5000,
 				minify: false,
+			},
+		};
+	}
+
+	if (isLibEsm)
+	{
+		return {
+			build: {
+				outDir: 'dist',
+				// The IIFE build ran first and this must not delete it.
+				emptyOutDir: false,
+				lib: {
+					entry: resolve(ROOT, 'src/scripts/blueprint.js'),
+					formats: ['es'],
+					fileName: () => 'architect3d.js',
+				},
+				sourcemap: true,
+				chunkSizeWarningLimit: 5000,
+				minify: false,
+				rollupOptions: {
+					/**
+					 * three and bezier-js stay OUT of this bundle (RM-002 R-06).
+					 *
+					 * They are peerDependencies, so the consumer already has them and
+					 * their copy is the one that must be used. Bundling ours would give
+					 * a page two three.js instances: `instanceof` silently false across
+					 * the boundary, two WebGL renderer registries, and several hundred
+					 * kB paid twice. That is the exact failure the S4 notes describe
+					 * from the old bundled loader repacks, and it would have been
+					 * reintroduced one level up.
+					 *
+					 * Subpaths are matched with a regex because the addons are imported
+					 * as `three/addons/...`, which a bare string in `external` does not
+					 * cover.
+					 */
+					external: [/^three(\/.*)?$/, /^bezier-js(\/.*)?$/],
+				},
 			},
 		};
 	}

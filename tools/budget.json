@@ -11,7 +11,12 @@
     "first measurement (2026-08-14, commit b066c89) with roughly 5% headroom on the",
     "text bundles and the asset trees. demo-css-gzip is the exception: at 7 KB, 5%",
     "is 360 bytes and one new component's classes would trip it, so it carries a",
-    "flat ceiling instead of a percentage."
+    "flat ceiling instead of a percentage.",
+    "",
+    "lib-esm-gzip guards a property, not a size: the ESM entry externalises three",
+    "and bezier-js as peerDependencies. Losing that config takes it from ~81 KB to",
+    "~423 KB, so the limit is set well below the bundled figure and nowhere near",
+    "the unbundled one."
   ],
   "budgets": {
     "demo-js-gzip": {
@@ -33,6 +38,10 @@
     "public-total": {
       "limit": 16500000,
       "measured": 15758069
+    },
+    "lib-esm-gzip": {
+      "limit": 100000,
+      "measured": 82934
     }
   }
 }

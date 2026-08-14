@@ -3,19 +3,39 @@
   "version": "1.0.0",
   "description": "This is the core framework of architect3d for creating floorplans in 2d and 3d",
   "type": "module",
-  "main": "./src/scripts/blueprint.js",
+  "main": "./dist/architect3d.js",
+  "module": "./dist/architect3d.js",
+  "types": "./dist/types/blueprint.d.ts",
+  "unpkg": "./dist/bp3djs.js",
+  "jsdelivr": "./dist/bp3djs.js",
   "exports": {
-    ".": "./src/scripts/blueprint.js",
+    ".": {
+      "types": "./dist/types/blueprint.d.ts",
+      "default": "./dist/architect3d.js"
+    },
+    "./iife": "./dist/bp3djs.js",
+    "./source/*": "./src/scripts/*",
     "./package.json": "./package.json"
   },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22"
+  },
   "files": [
+    "dist/architect3d.js",
+    "dist/architect3d.js.map",
+    "dist/bp3djs.js",
+    "dist/bp3djs.js.map",
+    "dist/types",
     "src/scripts",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "dev": "vite",
-    "build": "vite build --mode lib",
+    "build": "npm run build:iife && npm run build:esm && npm run types:emit",
+    "build:iife": "vite build --mode lib",
+    "build:esm": "vite build --mode lib-esm",
     "build:demo": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
@@ -47,6 +67,7 @@
     "@vitest/coverage-v8": "^4.1.10",
     "@vue/test-utils": "^2.4.11",
     "@vueuse/core": "^14.4.0",
+    "bezier-js": "^6.1.4",
     "eslint": "^10.8.1",
     "eslint-plugin-vue": "^10.10.0",
     "jsdom": "^30.0.1",
@@ -54,16 +75,17 @@
     "reka-ui": "^2.10.3",
     "simple-git-hooks": "^2.13.1",
     "tailwindcss": "^4.3.3",
+    "three": "^0.185.1",
     "typescript": "^6.0.3",
     "vite": "^8.2.1",
     "vitepress": "^1.6.4",
     "vitest": "^4.1.10",
+    "vue": "^3.5.41",
     "vue-tsc": "^3.3.9"
   },
-  "dependencies": {
+  "peerDependencies": {
     "bezier-js": "^6.1.4",
-    "three": "^0.185.1",
-    "vue": "^3.5.41"
+    "three": ">=0.185.0"
   },
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged"

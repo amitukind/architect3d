@@ -296,9 +296,13 @@ export class Floorplan extends EventDispatcher
 	 *            x The x coordinate.
 	 * @param {Number}
 	 *            y The y coordinate.
-	 * @param {String}
-	 *            id An optional id. If unspecified, the id will be created
-	 *            internally.
+	 * @param {String} [id]
+	 *            An optional id. If unspecified, the id will be created
+	 *            internally. Bracketed because the word "optional" in the prose
+	 *            is not what makes it optional to a type checker - and the
+	 *            generated .d.ts declared it required, so every two-argument
+	 *            call was an error for a typed consumer. That is every real call
+	 *            in this repository.
 	 * @returns {Corner} The new corner.
 	 */
 	newCorner(x, y, id)

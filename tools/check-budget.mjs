@@ -96,6 +96,13 @@ const MEASUREMENTS = [
 		measure: () => treeBytes('dist-demo')},
 	{key: 'lib-iife-gzip', label: 'Library IIFE (gzip)', needs: 'build',
 		measure: () => gzipFile('dist/bp3djs.js')},
+	// The one budget here that guards a property rather than a size. The ESM
+	// entry excludes three and bezier-js because they are peerDependencies; if
+	// that externals config is ever lost, this jumps from ~81 KB to ~423 KB and
+	// the build fails rather than quietly shipping a second copy of three to
+	// every consumer.
+	{key: 'lib-esm-gzip', label: 'Library ESM (gzip)', needs: 'build',
+		measure: () => gzipFile('dist/architect3d.js')},
 	{key: 'public-total', label: 'Runtime assets', needs: null,
 		measure: () => treeBytes('public')},
 ];
