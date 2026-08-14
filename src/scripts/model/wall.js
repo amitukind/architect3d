@@ -192,8 +192,6 @@ export class Wall extends EventDispatcher
 		{
 			(this.getStart() != null) ? this.getStart().floorplan.update(false) : (this.getEnd() != null) ? this.getEnd().floorplan.update(false) : false;
 		}		
-//		this._a_vector = this._a.clone().sub(this.start.location);
-//		this._b_vector = this._b.clone().sub(this.start.location);
 	}
 
 	getUuid()
@@ -227,7 +225,6 @@ export class Wall extends EventDispatcher
 	fireAction(action)
 	{
 		this.dispatchEvent({type:EVENT_ACTION, action: action});
-		//this.action_callbacks.fire(action);
 	}
 
 	relativeMove(dx, dy)
@@ -235,8 +232,6 @@ export class Wall extends EventDispatcher
 		this.start.relativeMove(dx, dy);
 		this.end.relativeMove(dx, dy);
 		
-//		this.a = this.start.location.clone().add(this._a_vector);
-//		this.b = this.start.location.clone().add(this._b_vector);
 		
 		this.updateControlVectors();
 		
@@ -251,15 +246,11 @@ export class Wall extends EventDispatcher
 	{
 		if (this.frontEdge)
 		{
-//			this.frontEdge.dispatchEvent({type: EVENT_REDRAW});
 			this.frontEdge.dispatchRedrawEvent();
-			//this.frontEdge.redrawCallbacks.fire();
 		}
 		if (this.backEdge)
 		{
-//			this.backEdge.dispatchEvent({type: EVENT_REDRAW});
 			this.backEdge.dispatchRedrawEvent();
-			//this.backEdge.redrawCallbacks.fire();
 		}
 	}
 	
@@ -319,8 +310,6 @@ export class Wall extends EventDispatcher
 			
 			this.updateAttachedRooms();
 			
-//			vector = vector.multiplyScalar(changeInLength).add(this.getStart().location);
-//			this.getEnd().move(vector.x, vector.y);
 		}
 	}
 	

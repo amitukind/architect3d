@@ -64,7 +64,6 @@ export class Lights extends EventDispatcher
 		this.scene.add(this.dirLight);
 		this.scene.add(this.dirLight.target);
 
-//		this.floorplan.fireOnUpdatedRooms(updateShadowCamera);
 		this.floorplan.addEventListener(EVENT_UPDATED, this.updatedroomsevent);
 
 	}
@@ -77,8 +76,6 @@ export class Lights extends EventDispatcher
 		var pos = new Vector3(center.x, this.height, center.z);
 		this.dirLight.position.copy(pos);
 		this.dirLight.target.position.copy(center);
-		//dirLight.updateMatrix();
-		//dirLight.updateWorldMatrix()
 		this.dirLight.shadow.camera.left = -d;
 		this.dirLight.shadow.camera.right = d;
 		this.dirLight.shadow.camera.top = d;

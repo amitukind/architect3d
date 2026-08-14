@@ -1,4 +1,4 @@
-import {Mesh, Matrix4, Vector2, Vector3, BoxGeometry, BoxHelper, Box3, MeshBasicMaterial, MeshStandardMaterial, AdditiveBlending} from 'three';
+import {Mesh, Matrix4, Vector2, Vector3, BoxHelper, MeshBasicMaterial, AdditiveBlending} from 'three';
 import {CanvasTexture, PlaneGeometry, DoubleSide, SRGBColorSpace} from 'three';
 import {Color} from 'three';
 import {Utils} from '../core/utils.js';
@@ -13,22 +13,25 @@ export class Item extends Mesh
 	/**
 	 * Constructs an item.
 	 *
-	 * @param model
-	 *            TODO
-	 * @param metadata
-	 *            TODO
-	 * @param geometry
-	 *            TODO
-	 * @param material
-	 *            TODO
-	 * @param position
-	 *            TODO
-	 * @param rotation
-	 *            TODO
-	 * @param scale
-	 *            TODO
+	 * Called by Scene's loader callback once a model file has been fetched and
+	 * flattened - see `Scene.setItemLoader`. The geometry and materials arrive
+	 * already merged into a single BufferGeometry with material groups
+	 * (core/geometry_merge.js), whatever format they were loaded from.
+	 *
+	 * @param {Model} model The owning model; `model.scene` is where this lands.
+	 * @param {Object} metadata `{itemName, itemType, format, modelUrl,
+	 *        resizable, materialColors}`, as remapped from the save file by
+	 *        Model.newRoom.
+	 * @param {BufferGeometry} geometry The merged geometry. Re-centred on its
+	 *        own bounding box here, so callers need not.
+	 * @param {(Material|Material[])} material One material, or one per group.
+	 * @param {Vector3} [position] Where to put it. Omitted for a fresh drop,
+	 *        which is positioned later by the placement logic.
+	 * @param {number} [rotation] Y rotation in radians.
+	 * @param {Vector3} [scale] Applied through setScale, so the label canvases
+	 *        and the pick box follow.
 	 */
-	constructor(model, metadata, geometry, material, position, rotation, scale, isgltf=false)
+	constructor(model, metadata, geometry, material, position, rotation, scale)
 	{
 		super();
 
@@ -71,28 +74,21 @@ export class Item extends Mesh
 		this.scene = this.model.scene;
 		this._freePosition = true;
 
-		if(!isgltf)
-		{
-				this.geometry = geometry;
-				this.material = material;
-				// center in its boundingbox
-				this.geometry.computeBoundingBox();
-				this.geometry.applyMatrix4(new Matrix4().makeTranslation(- 0.5 * (this.geometry.boundingBox.max.x + this.geometry.boundingBox.min.x),- 0.5 * (this.geometry.boundingBox.max.y + this.geometry.boundingBox.min.y),- 0.5 * (this.geometry.boundingBox.max.z + this.geometry.boundingBox.min.z)));
-				this.geometry.computeBoundingBox();
-		}
-		else
-		{
-				var objectBox = new Box3();
-				// precise: r140 made the default path expand each child's own
-				// bounding box, which is looser than r98 and would resize the
-				// invisible pick box every loaded item is measured by.
-				objectBox.setFromObject(geometry, true);
-				var hsize = objectBox.max.clone().sub(objectBox.min).multiplyScalar(0.5);
-				this.geometry = new BoxGeometry(hsize.x*0.5, hsize.y*0.5, hsize.z*0.5);
-				this.material =  new MeshStandardMaterial({color: 0x000000, wireframe: true, visible:false});
-				this.geometry.computeBoundingBox();
-				this.add(geometry);
-		}
+		// Removed with the `isgltf` flag: a second construction path that wrapped
+		// the loaded object in an invisible wireframe BoxGeometry and added it as
+		// a child. It predated the merge pipeline (S3), and by the time that
+		// landed nothing could reach it - Scene's loader callback declares
+		// `(geometry, materials)` and both of its call sites pass the merged pair,
+		// so the flag defaulted to false on every item ever built. It was also
+		// wrong by then: it left `this.material` as the invisible box's material,
+		// which is what setMaterialColor would have painted and getMetaData
+		// serialized.
+		this.geometry = geometry;
+		this.material = material;
+		// center in its boundingbox
+		this.geometry.computeBoundingBox();
+		this.geometry.applyMatrix4(new Matrix4().makeTranslation(- 0.5 * (this.geometry.boundingBox.max.x + this.geometry.boundingBox.min.x),- 0.5 * (this.geometry.boundingBox.max.y + this.geometry.boundingBox.min.y),- 0.5 * (this.geometry.boundingBox.max.z + this.geometry.boundingBox.min.z)));
+		this.geometry.computeBoundingBox();
 
 		if(!this.material.color)
 		{
@@ -391,7 +387,6 @@ export class Item extends Mesh
 			this.bhelper.update();
 		}
 
-//		this.updateCanvasTexture(canvas, context, material, w, h);
 		this.updateCanvasTexture(this.canvasWH, this.canvascontextWH, this.canvasMaterialWH, this.getWidth(), this.getHeight(), 'w:', 'h:');
 		this.updateCanvasTexture(this.canvasWD, this.canvascontextWD, this.canvasMaterialWD, this.getWidth(), this.getDepth(), 'w:', 'd:');
 
@@ -610,7 +605,6 @@ export class Item extends Mesh
 		var c4 = new Vector3(-halfSize.x, 0, halfSize.z);
 
 		var transform = new Matrix4();
-		// console.log(this.rotation.y);
 		transform.makeRotationY(this.rotation.y); // + Math.PI/2)
 
 		c1.applyMatrix4(transform);
@@ -623,10 +617,7 @@ export class Item extends Mesh
 		c3.add(position);
 		c4.add(position);
 
-		// halfSize.applyMatrix4(transform);
 
-		// var min = position.clone().sub(halfSize);
-		// var max = position.clone().add(halfSize);
 
 		var corners = [{ x: c1.x, y: c1.z },{ x: c2.x, y: c2.z },{ x: c3.x, y: c3.z },{ x: c4.x, y: c4.z }];
 		return corners;
@@ -664,8 +655,6 @@ export class Item extends Mesh
 	/** */
 	objectHalfSize()
 	{
-		// var objectBox = new Box3();
-		// objectBox.setFromObject(this);
     this.geometry.computeBoundingBox();
     var objectBox = this.geometry.boundingBox.clone();
 		return objectBox.max.clone().sub(objectBox.min).divideScalar(2);

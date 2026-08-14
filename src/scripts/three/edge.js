@@ -20,8 +20,8 @@ export class Edge extends EventDispatcher
 		this.phantomPlanes = [];
 		this.basePlanes = []; // always visible
 		
-		//Debug wall intersection planes. Edge.plane is the plane used for intersection
-//		this.phantomPlanes.push(this.edge.plane);//Enable this line to see the wall planes
+		// Edge.plane is the plane used for wall intersection. Pushing it into
+		// phantomPlanes renders it, which is how to see what the picker sees.
 		
 		this.texture = new TextureLoader();
 
@@ -174,20 +174,12 @@ export class Edge extends EventDispatcher
 		scope.planes.forEach((plane) => {
 			plane.material.transparent = !scope.visible;
 			plane.material.opacity = (scope.visible)? 1.0 : 0.3;
-//			plane.visible = scope.visible;
 		});
 		scope.updateObjectVisibility();
 	}
 
 	updateObjectVisibility()
 	{
-//		var scope = this;
-//		this.wall.items.forEach((item) => {
-//			item.updateEdgeVisibility(scope.visible, scope.front);
-//		});
-//		this.wall.onItems.forEach((item) => {
-//			item.updateEdgeVisibility(scope.visible, scope.front);
-//		});
 	}
 
 	updateTexture(callback)
@@ -216,8 +208,6 @@ export class Edge extends EventDispatcher
 
 	updatePlanes()
 	{
-//		var extStartCorner = this.wall.getClosestCorner(this.edge.exteriorStart());
-//		var extEndCorner = this.wall.getClosestCorner(this.edge.exteriorEnd());		
 		
 		var extStartCorner = this.edge.getStart();
 		var extEndCorner = this.edge.getEnd();
@@ -292,8 +282,6 @@ export class Edge extends EventDispatcher
 		// sides
 		this.planes.push(this.buildSideFillter(this.edge.interiorStart(), this.edge.exteriorStart(), extStartCorner.elevation, this.sideColor));
 		this.planes.push(this.buildSideFillter(this.edge.interiorEnd(), this.edge.exteriorEnd(), extEndCorner.elevation, this.sideColor));
-//		this.planes.push(this.buildSideFillter(this.edge.interiorStart(), this.edge.exteriorStart(), this.wall.startElevation, this.sideColor));
-//		this.planes.push(this.buildSideFillter(this.edge.interiorEnd(), this.edge.exteriorEnd(), extEndCorner.endElevation, this.sideColor));
 	}
 
 	// start, end have x and y attributes (i.e. corners)
@@ -306,9 +294,6 @@ export class Edge extends EventDispatcher
 		
 		v3.y = this.edge.getEnd().elevation;
 		v4.y = this.edge.getStart().elevation;
-		
-//		v3.y = this.wall.getClosestCorner(end).elevation;
-//		v4.y = this.wall.getClosestCorner(start).elevation;
 		
 		var points = [v1.clone(), v2.clone(), v3.clone(), v4.clone()];
 
@@ -394,10 +379,6 @@ export class Edge extends EventDispatcher
 		var c = this.toVec3(edge.interiorEnd(), this.edge.getEnd().elevation);
 		var d = this.toVec3(edge.interiorStart(), this.edge.getStart().elevation);
 		
-//		var a = this.toVec3(edge.exteriorStart(), this.wall.getClosestCorner(edge.exteriorStart()).elevation);
-//		var b = this.toVec3(edge.exteriorEnd(), this.wall.getClosestCorner(edge.exteriorEnd()).elevation);
-//		var c = this.toVec3(edge.interiorEnd(), this.wall.getClosestCorner(edge.interiorEnd()).elevation);
-//		var d = this.toVec3(edge.interiorStart(), this.wall.getClosestCorner(edge.interiorStart()).elevation);
 		
 		
 		var fillerMaterial = new MeshBasicMaterial({color: color,side: side});

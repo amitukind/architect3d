@@ -2,7 +2,6 @@ import {EVENT_ACTION, EVENT_DELETED, EVENT_MOVED, EVENT_CORNER_ATTRIBUTES_CHANGE
 import {EventDispatcher, Vector2} from 'three';
 import {Utils} from '../core/utils.js';
 import {WallTypes} from '../core/constants.js';
-//import {Dimensioning} from '../core/dimensioning.js';
 import {Configuration, configWallHeight, cornerTolerance} from '../core/configuration.js';
 
 
@@ -140,7 +139,6 @@ export class Corner extends EventDispatcher
 		{
 			this._co.x = this._x;
 			this.updateAttachedRooms();
-//			this.floorplan.update(false);
 			this.dispatchEvent({type:EVENT_CORNER_ATTRIBUTES_CHANGED, item:this, info:{from: oldvalue, to: this._x}});
 		}		
 	}
@@ -162,7 +160,6 @@ export class Corner extends EventDispatcher
 		{
 			this._co.y = this._y;
 			this.updateAttachedRooms();
-//			this.floorplan.update(false);
 			this.dispatchEvent({type:EVENT_CORNER_ATTRIBUTES_CHANGED, item:this, info:{from: oldvalue, to: this._y}});
 		}
 	}
@@ -227,7 +224,6 @@ export class Corner extends EventDispatcher
 	fireAction(action)
 	{
 		this.dispatchEvent({type:EVENT_ACTION, item: this, action:action});
-		//      this.action_callbacks.fire(action)
 	}
 
 	/**
@@ -294,7 +290,6 @@ export class Corner extends EventDispatcher
 	remove()
 	{
 		this.dispatchEvent({type:EVENT_DELETED, item:this});
-		//      this.deleted_callbacks.fire(this);
 	}
 
 	/**
@@ -325,8 +320,6 @@ export class Corner extends EventDispatcher
 	 */
 	move(newX, newY, mergeWithIntersections=true)
 	{
-//		this.x = newX;
-//		this.y = newY;
 		this._x = newX;
 		this._y = newY;
 		this._co.x = newX;
@@ -344,7 +337,6 @@ export class Corner extends EventDispatcher
 		}
 		
 		this.dispatchEvent({type:EVENT_MOVED, item: this, position: new Vector2(newX, newY)});
-		//      this.moved_callbacks.fire(this.x, this.y);
 
 		this.wallStarts.forEach((wall) => {
 			wall.fireMoved();
@@ -405,7 +397,6 @@ export class Corner extends EventDispatcher
 		var indicesAndAngles = Utils.getCyclicOrder(points, start);
 		var indices = indicesAndAngles['indices'];
 		var angles = indicesAndAngles['angles'];
-//		var N = (indices.length%2 == 0)? (indices.length < 3) ? indices.length - 1 : indices.length : indices.length - 1;
 		var N = (indices.length < 3) ? 1 : indices.length;
 		for (i=0;i<N;i++)
 		{
@@ -457,7 +448,6 @@ export class Corner extends EventDispatcher
 		{
 			return;
 		}
-//		console.log('UPDATE ALL ATTACHED ROOMS :: ');
 		this.attachedRooms.forEach((room)=>{
 			room.updateArea();
 		});
@@ -515,7 +505,6 @@ export class Corner extends EventDispatcher
 	distanceFrom(point)
 	{
 		var distance = Utils.distance(point, new Vector2(this.x, this.y));
-		//console.log('x,y ' + x + ',' + y + ' to ' + this.getX() + ',' + this.getY() + ' is ' + distance);
 		return distance;
 	}
 
@@ -625,8 +614,6 @@ export class Corner extends EventDispatcher
 	{
 		var i = 0;
 		// update position to other corner's
-//		this.x = corner.x;
-//		this.y = corner.y;
 		this.move(corner.x, corner.y, false);
 		// absorb the other corner's wallStarts and wallEnds
 		for (i = corner.wallStarts.length - 1; i >= 0; i--)
@@ -663,7 +650,6 @@ export class Corner extends EventDispatcher
 	mergeWithIntersected(updateFloorPlan=true)
 	{
 		var i =0;
-		//console.log('mergeWithIntersected for object: ' + this.type);
 		// check corners
 		for (i = 0; i < this.floorplan.getCorners().length; i++)
 		{

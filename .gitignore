@@ -14,8 +14,6 @@ dist/
 dist-demo/
 tools/parity/
 
-# VitePress output and its build cache. The root .vitepress/ is a stray Vite
-# dep-cache VitePress drops beside the config's vite root; harmless, ignored.
+# VitePress output and its build cache.
 docs/.vitepress/dist/
 docs/.vitepress/cache/
-/.vitepress/

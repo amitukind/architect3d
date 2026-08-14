@@ -28,11 +28,9 @@ export class Scene extends EventDispatcher
 		this.model = model;
 		this.textureDir = textureDir;
 
-//		var grid = new GridHelper(4000, 200);
 
 		this.scene = new ThreeScene();
 		this.scene.background = new Color(0xffffff);
-//		this.scene.fog = new Fog(0xFAFAFA, 0.001, 6000);
 		this.items = [];
 		this.needsUpdate = false;
 		// init item loader
@@ -54,7 +52,6 @@ export class Scene extends EventDispatcher
 		this.itemLoadingCallbacks = null;
 		this.itemLoadedCallbacks = null;
 		this.itemRemovedCallbacks = null;
-//		this.add(grid);
 
 	}
 
@@ -102,7 +99,6 @@ export class Scene extends EventDispatcher
 	/** Removes all items. */
 	clearItems()
 	{
-		// var items_copy = this.items ;
 		var scope = this;
 		this.items.forEach((item) => {
 			scope.removeItem(item, true);
@@ -120,7 +116,6 @@ export class Scene extends EventDispatcher
 		keepInList = keepInList || false;
 		// use this for item meshes
 		this.dispatchEvent({type: EVENT_ITEM_REMOVED, item:item});
-		//this.itemRemovedCallbacks.fire(item);
 		item.removed();
 		this.scene.remove(item);
 		if (!keepInList)
@@ -187,10 +182,9 @@ export class Scene extends EventDispatcher
 			metadata.legacyConverted = true;
 		}
 
-		var loaderCallback = function (geometry, materials, isgltf=false)
+		var loaderCallback = function (geometry, materials)
 		{
-//			var item = new (Factory.getClass(itemType))(scope.model, metadata, geometry, new MeshFaceMaterial(materials), position, rotation, scale);
-			var item = new (Factory.getClass(itemType))(scope.model, metadata, geometry, materials, position, rotation, scale, isgltf);
+			var item = new (Factory.getClass(itemType))(scope.model, metadata, geometry, materials, position, rotation, scale);
 			item.fixed = fixed || false;
 			scope.items.push(item);
 			scope.add(item);

@@ -170,7 +170,6 @@ export class CarbonSheet extends EventDispatcher
 	set x(val)
 	{
 		this._x = val;
-//		this._anchorX = val;
 		this._updated();
 	}
 	
@@ -182,7 +181,6 @@ export class CarbonSheet extends EventDispatcher
 	set y(val)
 	{
 		this._y = val;
-//		this._anchorY = val;
 		this._updated();
 	}
 	
@@ -261,10 +259,6 @@ export class CarbonSheet extends EventDispatcher
 		this.context.fillStyle = '#FF0000';
 		this.context.fillRect(ox-1.5, oy-15, 3, 30);
 		this.context.fillRect(ox-15, oy-1.5, 30, 3);
-//		this.context.lineWidth = 1;
-//		this.context.strokeStyle = '#FF0000';
-//		this.context.strokeRect(ox-1.5, oy-15, 1.5, 30);
-//		this.context.strokeRect(ox-15, oy-1.5, 28, 1.5);
 	}	
 
 	/** */

@@ -24,12 +24,10 @@ export class Floor extends EventDispatcher
 
 	init()
 	{
-//		this.room.fireOnFloorChange(redraw);
 		this.room.addEventListener(EVENT_CHANGED, this.changedevent);
 
 		this.floorPlane = this.buildFloor();
 		// roofs look weird, so commented out
-		// this.roofPlane = this.buildRoofUniformHeight();
 		this.roofPlane = this.buildRoofVaryingHeight();
 	}
 
@@ -45,7 +43,6 @@ export class Floor extends EventDispatcher
 	{
 		var textureSettings = this.room.getTexture();
 		// setup texture
-//		var floorTexture = ImageUtils.loadTexture(textureSettings.url);
 		var floorTexture = new TextureLoader().load(textureSettings.url);
 		// sRGB (S8). This one matters more than the others: the floor is
 		// MeshPhongMaterial and so the only lit surface in most views, which
@@ -89,8 +86,6 @@ export class Floor extends EventDispatcher
 		var points = this.room.corners.map((corner) => new Vector3(corner.x, corner.elevation, corner.y));
 		var geometry = triangleFanGeometry(points);
 		var roof = new Mesh(geometry, roofMaterial);
-		// roof.rotation.set(Math.PI / 2, 0, 0);
-		// roof.position.y = Configuration.getNumericValue(configWallHeight);
 		return roof;
 	}
 
@@ -115,7 +110,6 @@ export class Floor extends EventDispatcher
 	{
 		this.scene.add(this.floorPlane);
 		this.scene.add(this.roofPlane);
-		//scene.add(roofPlane);
 		// hack so we can do intersect testing
 		this.scene.add(this.room.floorPlane);
 		this.scene.add(this.room.roofPlane);
@@ -132,6 +126,5 @@ export class Floor extends EventDispatcher
 	showRoof(flag)
 	{
 		console.log(flag);
-		// this.roofPlane.visible = flag;
 	}
 }

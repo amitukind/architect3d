@@ -40,7 +40,10 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const LEGACY_DIR = join(ROOT, 'asset-pipeline/legacy-json');
 const CONVERTED_DIR = join(ROOT, 'public/models/js-glb');
 const CATALOG = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog.json'), 'utf8'));
-const REPORT = JSON.parse(readFileSync(join(CONVERTED_DIR, 'conversion-report.json'), 'utf8'));
+// The converter's own record of what it produced. It lives beside the other
+// pipeline inputs rather than in public/ - it is a build artifact this test
+// reads, and it was being served to every visitor for no reason.
+const REPORT = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/conversion-report.json'), 'utf8'));
 
 let restoreImages;
 beforeAll(() => {restoreImages = installImageStub();});

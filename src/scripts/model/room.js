@@ -3,9 +3,6 @@ import {Region} from '../core/utils.js';
 import {EventDispatcher, Vector2, Vector3, Shape, ShapeGeometry, Mesh, MeshBasicMaterial, DoubleSide, Box3} from 'three';
 import {triangleFanGeometry} from '../core/geometry_builders.js';
 
-//import { grahamScan2 } from '@thi.ng/geom-hull';
-//import * as concaveman from 'concaveman';
-
 import {WallTypes} from '../core/constants.js';
 
 import {Utils} from '../core/utils.js';
@@ -133,7 +130,6 @@ export class Room extends EventDispatcher
 		var uuid = this.getUuid();
 		this.floorplan.setFloorTexture(uuid, textureUrl, textureScale);
 		this.dispatchEvent({type:EVENT_CHANGED, item: this});
-//		this.floorChangeCallbacks.fire();
 	}
 
 	generateRoofPlane()

@@ -6,9 +6,9 @@ import {faceIndices} from '../core/geometry_builders.js';
  */
 export class RoofItem extends Item
 {
-	constructor(model, metadata, geometry, material, position, rotation, scale, isgltf=false)
+	constructor(model, metadata, geometry, material, position, rotation, scale)
 	{
-		super(model, metadata, geometry, material, position, rotation, scale, isgltf);
+		super(model, metadata, geometry, material, position, rotation, scale);
 		this.allowRotate = false;
 		this.boundToFloor = false;
 		this._freePosition = false;

@@ -206,7 +206,6 @@ export class Controller extends EventDispatcher
 			if (wallIntersects.length > 0)
 			{
 				var wall = wallIntersects[0].object.edge;
-				// three.wallClicked.fire(wall);
 				this.three.wallIsClicked(wall);
 				return;
 			}
@@ -217,11 +216,9 @@ export class Controller extends EventDispatcher
 			if (floorIntersects.length > 0)
 			{
 				var room = floorIntersects[0].object.room;
-				// this.three.floorClicked.fire(room);
 				this.three.floorIsClicked(room);
 				return;
 			}
-			// three.nothingClicked.fire();
 			this.three.nothingIsClicked();
 		}
 	}
@@ -596,13 +593,11 @@ export class Controller extends EventDispatcher
 		{
 			this.selectedObject = object;
 			this.selectedObject.setSelected();
-// three.itemSelectedCallbacks.fire(object);
 			this.three.itemIsSelected(object);
 		}
 		else
 		{
 			this.selectedObject = null;
-// three.itemUnselectedCallbacks.fire();
 			this.three.itemIsUnselected();
 		}
 		this.needsUpdate = true;

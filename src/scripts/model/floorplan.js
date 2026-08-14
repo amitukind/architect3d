@@ -257,25 +257,6 @@ export class Floorplan extends EventDispatcher
 				intersections = true;
 			}
 		}
-//		for( i=0;i<this.corners.length;i++)
-//		{
-//			var aCorner = this.corners[i];
-//			if(aCorner)
-//			{
-//				aCorner.relativeMove(0, 0);
-//				aCorner.snapToAxis(25);
-//			}
-//		}
-//		this.update();
-//		for( i=0;i<this.corners.length;i++)
-//		{
-//			aCorner = this.corners[i];
-//			if(aCorner)
-//			{
-//				aCorner.relativeMove(0, 0);
-//				aCorner.snapToAxis(25);
-//			}
-//		}
 		this.update();
 		
 		return intersections;
@@ -343,14 +324,12 @@ export class Floorplan extends EventDispatcher
 			var updatecorners = o.item.adjacentCorners();
 			updatecorners.push(o.item);
 			scope.update(false, updatecorners);
-//			scope.update(false);//For debug reasons
 			});
 		corner.addEventListener(EVENT_MOVED, function(o){
 			scope.dispatchEvent(o);
 			var updatecorners = o.item.adjacentCorners();
 			updatecorners.push(o.item);
 			scope.update(false, updatecorners);
-//			scope.update(false);//For debug reasons
 			});
 		
 		this.dispatchEvent({type: EVENT_NEW, item: this, newItem: corner});
@@ -509,9 +488,7 @@ export class Floorplan extends EventDispatcher
 		tolerance = tolerance || defaultFloorPlanTolerance;
 		for (var i = 0; i < this.walls.length; i++)
 		{
-			var newtolerance = tolerance;// (tolerance+
-											// ((this.walls[i].wallType ==
-											// WallTypes.CURVED)*tolerance*10));
+			var newtolerance = tolerance;
 			if (this.walls[i].distanceFrom(new Vector2(x, y)) < newtolerance)
 			{
 				return this.walls[i];
@@ -531,11 +508,6 @@ export class Floorplan extends EventDispatcher
 		  var metaRoomData = {};
 			this.rooms.forEach((room)=>{
 				var metaroom = {};
-				// var cornerids = [];
-				// room.corners.forEach((corner)=>{
-				// cornerids.push(corner.id);
-				// });
-				// var ids = cornerids.join(',');
 				var ids = room.roomByCornersId;
 				metaroom['name'] = room.name;
 				metaRoomData[ids] = metaroom;
@@ -573,9 +545,6 @@ export class Floorplan extends EventDispatcher
 // is having a bug. This is because some walls have corners
 // that aren't part of the corners array anymore. This is a quick fix
 // by adding the corners to the json file based on the corners in the walls
-// this.corners.forEach((corner) => {
-// floorplans.corners[corner.id] = {'x': corner.x,'y': corner.y};
-// });
 
 		this.walls.forEach((wall) => {
 			if(wall.getStart() && wall.getEnd())
@@ -601,16 +570,6 @@ export class Floorplan extends EventDispatcher
 			floorplans.corners[corner.id] = {'x': corner.x,'y': corner.y, 'elevation': corner.elevation};
 		});
 
-// this.rooms.forEach((room)=>{
-// var metaroom = {};
-// var cornerids = [];
-// room.corners.forEach((corner)=>{
-// cornerids.push(corner.id);
-// });
-// var ids = cornerids.join(',');
-// metaroom['name'] = room.name;
-// floorplans.rooms[ids] = metaroom;
-// });
 		floorplans.rooms = this.metaroomsdata;
 
 		if(this.carbonSheet)
@@ -745,7 +704,6 @@ export class Floorplan extends EventDispatcher
 			this.carbonSheet.maintainProportion = true;
 		}
 		this.dispatchEvent({type: EVENT_LOADED, item: this});
-// this.roomLoadedCallbacks.fire();
 	}
 
 	/**
@@ -824,7 +782,6 @@ export class Floorplan extends EventDispatcher
 	{
 		if(updatecorners!=null)
 		{
-//			console.log('UPDATE CORNER ANGLES ::: ', updatecorners.length);
 			updatecorners.forEach((corner)=>{
 				corner.updateAngles();
 			});
@@ -836,15 +793,12 @@ export class Floorplan extends EventDispatcher
 			return;			
 		}
 		
-//		console.log('UPDATE ROOM WITH NEW ENTRIES ::: ');
 		
 		var scope = this;
 		this.walls.forEach((wall) => {
 			wall.resetFrontBack();
 		});
 
-		// this.rooms.forEach((room)=>{room.removeEventListener(EVENT_ROOM_NAME_CHANGED,
-		// scope.roomNameChanged)});
 
 		var roomCorners = this.findRooms(this.corners);
 		this.rooms = [];
@@ -852,7 +806,6 @@ export class Floorplan extends EventDispatcher
 
 		this.corners.forEach((corner)=>{
 			corner.clearAttachedRooms();
-//			corner.updateAngles();
 		});
 
 		roomCorners.forEach((corners) =>
@@ -887,7 +840,6 @@ export class Floorplan extends EventDispatcher
 		this.assignOrphanEdges();
 		this.updateFloorTextures();
 		this.dispatchEvent({type: EVENT_UPDATED, item: this});
-// console.log('TOTAL WALLS ::: ', this.walls.length);
 	}
 
 	/**

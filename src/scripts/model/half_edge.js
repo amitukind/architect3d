@@ -190,7 +190,6 @@ export class HalfEdge extends EventDispatcher
 			this.wall.backTexture = texture;
 		}
 
-		//this.redrawCallbacks.fire();
 		this.dispatchEvent({type:EVENT_REDRAW, item: this});
 	}
 	
@@ -224,9 +223,6 @@ export class HalfEdge extends EventDispatcher
 		var v2 = this.transformCorner(this.interiorEnd());
 		var v3 = v2.clone();
 		var v4 = v1.clone();
-
-		// v3.y = this.wall.height;
-		// v4.y = this.wall.height;
 
 		v3.y = this.wall.startElevation;
 		v4.y = this.wall.endElevation;
@@ -412,7 +408,6 @@ export class HalfEdge extends EventDispatcher
 	{
 		var vec = this.halfAngleVector(this.prev, this);
 		return new Vector2(this.getStart().x + vec.x, this.getStart().y + vec.y);
-		// return {x:this.getStart().x + vec.x, y:this.getStart().y + vec.y};
 	}
 	
 	/**
@@ -425,7 +420,6 @@ export class HalfEdge extends EventDispatcher
 	{
 		var vec = this.halfAngleVector(this, this.next);
 		return new Vector2(this.getEnd().x + vec.x, this.getEnd().y + vec.y);
-		// return {x:this.getEnd().x + vec.x, y:this.getEnd().y + vec.y};
 	}
 	
 	/**
@@ -497,39 +491,6 @@ export class HalfEdge extends EventDispatcher
 		return [this.interiorStart(), this.interiorEnd(), this.exteriorEnd(), this.exteriorStart()];
 	}	
 	
-//	curvedCorners()
-//	{
-//		if(this.wall)
-//		{
-//			var curves = [];
-//			var o = new Vector2(0, 0);
-//			var s = this.wall.start.location;
-//			var e = this.wall.end.location;
-//			
-////			var avect = this.wall.a.clone().sub(this.wall.start);
-////			var bvect = this.wall.b.clone().sub(this.wall.start);
-//			
-//			var sevect = s.clone().sub(e).normalize();
-//			var se90plus = sevect.clone().rotateAround(o, 3.14*0.5).multiplyScalar(this.wall.thickness*0.5);
-//			var se90minus = sevect.clone().rotateAround(o, -3.14*0.5).multiplyScalar(this.wall.thickness*0.5);
-//			
-//			var s1 = se90plus.clone().add(s);
-//			var e1 = se90plus.clone().add(e);
-//			var e2 = se90minus.clone().add(e);
-//			var s2 = se90minus.clone().add(s);
-//			
-//			curves.push([s1]);
-//			curves.push([this.wall.a.clone().add(se90plus), this.wall.b.clone().add(se90plus), e1]);
-//			curves.push([e2]);
-//			curves.push([this.wall.b.clone().add(se90minus), this.wall.a.clone().add(se90minus), s2]);
-////			curves.push([s2]);
-//			
-//			
-//			return curves;			
-//		}
-//		return [];
-//	}
-
 	/**
 	 * Gets CCW angle from v1 to v2
 	 * @param {Vector2} v1 The point a

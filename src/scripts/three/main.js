@@ -2,7 +2,6 @@ import {EventDispatcher, Vector2, Vector3, WebGLRenderer, PerspectiveCamera, Ort
 import {ColorManagement, SRGBColorSpace} from 'three';
 import {Plane} from 'three';
 import {PCFSoftShadowMap} from 'three';
-// import {FirstPersonControls} from './first-person-controls.js';
 import {PointerLockControls} from './pointerlockcontrols.js';
 
 import {EVENT_UPDATED, EVENT_WALL_CLICKED, EVENT_NOTHING_CLICKED, EVENT_FLOOR_CLICKED, EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED, EVENT_GLTF_READY} from '../core/events.js';
@@ -12,7 +11,6 @@ import {resolveElement, elementBox, measureViewport, pixelRatio} from '../core/d
 
 import {OrbitControls} from './orbitcontrols.js';
 
-// import {Controls} from './controls.js';
 import {Controller} from './controller.js';
 import {HUD} from './hud.js';
 import {Floorplan3D} from './floorPlan.js';
@@ -117,7 +115,6 @@ export class Main extends EventDispatcher
 		this.clippingEmpty = Object.freeze([]);
 		this.clippingEnabled = false;
 
-//		console.log('THIS ON MOBILE DEVICE ::: ', isMobile, isTablet);
 
 		this.init();
 	}
@@ -145,9 +142,6 @@ export class Main extends EventDispatcher
 		// renderer we were handed costs nothing, keeps the fake honest, and is
 		// what lets tests/viewer-lifecycle.test.js assert on the output colour
 		// space at all.
-// scope.renderer = new WebGLRenderer({antialias: true, preserveDrawingBuffer:
-// true, alpha:true}); // preserveDrawingBuffer:true - required to support
-// .toDataURL()
 		var renderer = Main._rendererFactory
 			? Main._rendererFactory(this)
 			: new WebGLRenderer({antialias: true, alpha:true});
@@ -160,14 +154,12 @@ export class Main extends EventDispatcher
 		// undecoded one into an encoded frame lands far too bright.
 		renderer.outputColorSpace = SRGBColorSpace;
 
-// scope.renderer.autoClear = false;
 		renderer.shadowMap.enabled = true;
 		renderer.shadowMapSoft = true;
 		renderer.shadowMap.type = PCFSoftShadowMap;
 		renderer.setClearColor( 0xFFFFFF, 1 );
 		renderer.clippingPlanes = this.clippingEmpty;
 		renderer.localClippingEnabled = false;
-// renderer.sortObjects = false;
 
 		return renderer;
 	}
@@ -194,7 +186,6 @@ export class Main extends EventDispatcher
 		scope.orthocamera = new OrthographicCamera(orthoWidth / -orthoScale, orthoWidth /orthoScale, orthoHeight /orthoScale, orthoHeight / -orthoScale, scope.cameraNear, scope.cameraFar);
 
 		scope.camera = scope.perspectivecamera;
-// scope.camera = scope.orthocamera;
 
 		scope.renderer = scope.getARenderer();
 		scope.domElement.appendChild(scope.renderer.domElement);
@@ -546,7 +537,6 @@ export class Main extends EventDispatcher
 		scope.controls.target = pan;
 		var distance = scope.model.floorplan.getSize().z * 1.5;
 		var offset = pan.clone().add(new Vector3(0, distance, distance));
-		// scope.controls.setOffset(offset);
 		scope.camera.position.copy(offset);
 		scope.controls.update();
 	}

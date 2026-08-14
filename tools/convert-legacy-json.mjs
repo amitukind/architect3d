@@ -73,7 +73,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE_DIR = join(ROOT, 'asset-pipeline/legacy-json');
 const OUTPUT_DIR = join(ROOT, 'public/models/js-glb');
 const TEXTURE_DIR = join(OUTPUT_DIR, 'textures');
-const REPORT = join(OUTPUT_DIR, 'conversion-report.json');
+const REPORT = join(ROOT, 'asset-pipeline', 'conversion-report.json');
 
 /** Filled by convert(); reported at the end so broken maps are visible, not silent. */
 const missingTextures = new Map();

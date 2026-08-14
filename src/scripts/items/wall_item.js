@@ -8,9 +8,9 @@ import {Item} from './item.js';
  */
 export class WallItem extends Item
 {
-	constructor(model, metadata, geometry, material, position, rotation, scale, isgltf=false)
+	constructor(model, metadata, geometry, material, position, rotation, scale)
 	{
-		super(model, metadata, geometry, material, position, rotation, scale, isgltf);
+		super(model, metadata, geometry, material, position, rotation, scale);
 		/** The currently applied wall edge. */
 		this.currentWallEdge = null;
 		/* TODO:
@@ -138,7 +138,6 @@ export class WallItem extends Item
 		this.changeWallEdge(intersectionEdge);
 		this.boundMove(vec3);
 
-//		this.position.copy(vec3);
 		super.moveToPosition(vec3);
 		this.redrawWall();
 	}
@@ -175,10 +174,8 @@ export class WallItem extends Item
 		// handle subscription to wall being removed
 		if (this.currentWallEdge != null)
 		{
-//			this.currentWallEdge.wall.dontFireOnDelete(this.remove.bind(this));
 			this.currentWallEdge.wall.removeEventListener(EVENT_DELETED, __remove);
 		}
-//		wallEdge.wall.fireOnDelete(this.remove.bind(this));
 		wallEdge.wall.addEventListener(EVENT_DELETED, __remove);
 
 		// find angle between wall normals
@@ -236,11 +233,9 @@ export class WallItem extends Item
 			{
 				vec3.y = this.sizeY / 2.0 + tolerance;
 			}
-			//Commenting the below condition where it will restrict the movement of the item to an uniform height
-//			else if (vec3.y > edge.height - this.sizeY / 2.0 - tolerance)
-//			{
-//				vec3.y = edge.height - this.sizeY / 2.0 - tolerance;
-//			}
+			// Deliberately no upper clamp. Restricting vec3.y to
+			// `edge.height - sizeY/2 - tolerance` would pin every wall item to a
+			// uniform height and stop it being dragged up a sloped wall.
 		}
 		vec3.z = this.getWallOffset();
 		vec3.applyMatrix4(edge.invInteriorTransform);

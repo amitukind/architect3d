@@ -75,8 +75,9 @@ src/scripts/   the library - plain ESM, 56 exports, no Vue
 src/app/       the Vue 3 application built on it
 src/catalog/   the item palette and the texture list, as JSON
 public/        assets the running app loads (models, textures, thumbnails)
-asset-pipeline/ the sources those were produced from - .obj/.mtl, .blend,
-               the 25 pre-migration three.js JSON models, inventory scripts
+asset-pipeline/ inputs and records that are not served: the 25 pre-migration
+               three.js JSON models the .glb files were converted from, the
+               .blend authoring files, and the conversion report
 tests/         828 headless tests; see tests/README.md
 tools/         one-off and migration tooling (conversion, goldens, parity)
 docs/          this documentation site

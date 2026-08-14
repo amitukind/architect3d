@@ -22,7 +22,7 @@ export default [
 			'dist/**',
 			'dist-demo/**',
 			'public/**',         // deployed assets - one .gltf, no source
-			'asset-pipeline/**', // model sources: 25 three.js JSON models, .obj/.mtl, inventory scripts
+			'asset-pipeline/**', // conversion inputs and records, not served
 			'index.html',
 			'node_modules/**',
 			'tools/parity/**',   // capture output: served copies of every engine's asset root
@@ -31,7 +31,6 @@ export default [
 			// beside them IS source and is linted below.
 			'docs/.vitepress/dist/**',
 			'docs/.vitepress/cache/**',
-			'.vitepress/**',
 		],
 	},
 
@@ -77,11 +76,19 @@ export default [
 			//
 			// Both rules are new since the ESLint 4 config this replaces, and both
 			// fire only on 2020-era library code (24 and 4 occurrences). Silencing
-			// them would hide real cleanup; making them errors would either block
-			// CI or force unrelated source edits during a toolchain-only sprint -
-			// exactly the "one variable per sprint" rule the migration plan sets.
-			// Clear them alongside the modules they live in, as later sprints
-			// rewrite those files.
+			// them would hide real cleanup; making them errors would force source
+			// edits under time pressure.
+			//
+			// The post-migration cleanup looked at all 28 and left them, because
+			// several are not style at all. utils.js:346-347 are the linter
+			// pointing straight at a PRESERVED BUG: pointInPolygon takes a `start`
+			// object where it used to take two coordinates, so `startX` is never
+			// undefined and the block that would compute it is unreachable. Room
+			// detection depends on the current output, so clearing that warning
+			// means changing what rooms the app finds. The rest are C-style
+			// declarations initialised to a placeholder and immediately
+			// overwritten - harmless, and each one should be fixed with the
+			// function it lives in rather than in a sweep.
 			'no-useless-assignment': 'warn',
 			'no-prototype-builtins': 'warn',
 		},

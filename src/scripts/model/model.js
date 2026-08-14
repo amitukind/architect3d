@@ -22,11 +22,6 @@ export class Model extends EventDispatcher
 		super();
 		this.floorplan = new Floorplan();
 		this.scene = new Scene(this, textureDir);
-		this.roomLoadingCallbacks = null;
-		this.roomLoadedCallbacks = null;
-		this.roomSavedCallbacks = null;
-		this.roomDeletedCallbacks = null;
-
 	}
 
 	switchWireframe(flag)
@@ -34,18 +29,27 @@ export class Model extends EventDispatcher
 		this.scene.switchWireframe(flag);
 	}
 
+	/**
+	 * Replace the current design with a serialized one.
+	 *
+	 * The format is documented field by field in docs/save-format.md, including
+	 * how a file written before version 2.0.0 is read. Two TODOs sat here for
+	 * the life of this file asking for exactly those two things - the
+	 * documentation and a better format - and both are now done.
+	 *
+	 * @param {string} json A `.blueprint3d` document.
+	 * @emits {EVENT_LOADING} before parsing.
+	 * @emits {EVENT_LOADED} once the floorplan is built and item loads have been
+	 * started - not when the models have arrived. Listen on the scene for that.
+	 */
 	loadSerialized(json)
 	{
-		// TODO: better documentation on serialization format.
-		// TODO: a much better serialization format.
 		this.dispatchEvent({type: EVENT_LOADING, item: this});
-		//      this.roomLoadingCallbacks.fire();
 
 		var data = JSON.parse(json);
 		this.newRoom(data.floorplan, data.items);
 
 		this.dispatchEvent({type: EVENT_LOADED, item: this});
-		//      this.roomLoadedCallbacks.fire();
 	}
 
 	exportMeshAsObj()
@@ -100,7 +104,6 @@ export class Model extends EventDispatcher
 		for (var i = 0; i < objects.length; i++)
 		{
 			var obj = objects[i];
-//			items_arr[i] = {item_name: obj.metadata.itemName,item_type: obj.metadata.itemType,model_url: obj.metadata.modelUrl,xpos: obj.position.x,ypos: obj.position.y,zpos: obj.position.z,rotation: obj.rotation.y,scale_x: obj.scale.x,scale_y: obj.scale.y,scale_z: obj.scale.z,fixed: obj.fixed};
 			items_arr[i] = obj.getMetaData();
 		}
 
