@@ -181,16 +181,64 @@ Omit `runtime` entirely and you get one built for you, carrying the page-wide
 settings. Note what that is *not*: a shared runtime. Settings default to shared;
 lifetimes never are.
 
-### Assets are relative URLs
+### Assets are relative URLs, and now they are resolvable
 
 Every asset path the library composes is a **bare relative string**, resolved
 by the browser against the page: `rooms/textures/wallmap.png`,
-`models/js-glb/open_door.glb`. Saved designs carry the same form inside them.
+`models/js-glb/open_door.glb`. Saved designs carry the same form inside them, so
+those strings are a compatibility contract — renaming a file breaks documents
+that already exist, on disks this project cannot reach. Vite copies `public/`
+as-is and never hashes it, so content-addressed filenames are not available as
+an answer.
 
-So an embedder has two choices: serve the contents of `public/` at the same
-path prefix as the page, or add a `<base>` tag. There is no asset-base option
-threaded through the loaders, and that is on purpose — it means a design saved
-against one host loads against another without rewriting a single URL.
+The simplest deployment is therefore unchanged: serve the contents of `public/`
+at the same path prefix as the page, or add a `<base>` tag, and everything
+resolves.
+
+#### The manifest and the CDN base
+
+Since RM-003 A5 the string in a document is a **logical name**, and an
+`AssetResolver` decides what is actually fetched. `npm run manifest` generates
+`public/asset-manifest.json` — logical name to `{bytes, hash, kind}`, plus a
+`url` for any asset that is not where its name says — and the resolver consults
+it:
+
+```js
+import {AssetManifest, AssetResolver, BlueprintJS} from 'architect3d';
+
+const response = await fetch('asset-manifest.json');
+const {manifest} = AssetManifest.parse(await response.json());
+
+const blueprint = new BlueprintJS({
+    ...options,
+    assets: new AssetResolver({
+        manifest,
+        base: 'https://cdn.example.com/architect3d',   // optional
+    }),
+});
+```
+
+That buys three things that were not possible before, and **none of them
+requires renaming a file or rewriting a document**:
+
+- **Versioning.** Give an entry a different `url` and every design naming it
+  follows.
+- **A CDN.** `base` is prepended to every resolution. The demo honours
+  `?assetBase=https://…` on the query string so this is checkable in a browser.
+- **Availability as a policy.** A resolver with a manifest knows what the build
+  ships, so a name it does not have fails *before* the network with a message
+  that can name the item, rather than as a 404 in the console.
+
+The manifest also carries a subresource-integrity hash per asset.
+`resolver.integrityFor(name)` hands it over for `fetch(url, {integrity})`;
+nothing enforces it by default, because for same-origin `public/` it guards
+nothing the origin does not already guarantee, while a mismatch after a
+legitimate redeploy of an unhashed file is an outage. It matters for the CDN
+case, which is why it is recorded.
+
+Omit `assets` entirely and every logical name resolves to itself — exactly what
+the library did before, and what it still does by default. `npm run manifest:check`
+fails if the committed manifest has drifted from `public/`.
 
 ### The IIFE build
 

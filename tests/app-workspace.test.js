@@ -667,31 +667,35 @@ describe('useToasts', () =>
 
 describe('useAutosave', () =>
 {
-	it('reads back nothing when there is nothing, and ignores a corrupt entry', () =>
+	// Asynchronous since RM-003 A5: the draft may be in IndexedDB now. Under
+	// jsdom there is no IndexedDB, so the repository detects localStorage and
+	// these read exactly the records the pre-A5 build wrote - which is the
+	// compatibility claim, asserted by leaving the assertions alone.
+	it('reads back nothing when there is nothing, and ignores a corrupt entry', async () =>
 	{
-		expect(readDraft(Date.now())).toBeNull();
+		expect(await readDraft(Date.now())).toBeNull();
 
 		window.localStorage.setItem('architect3d.autosave', 'not json at all');
-		expect(readDraft(Date.now())).toBeNull();
+		expect(await readDraft(Date.now())).toBeNull();
 
 		window.localStorage.setItem('architect3d.autosave', JSON.stringify({design: 7}));
-		expect(readDraft(Date.now())).toBeNull();
+		expect(await readDraft(Date.now())).toBeNull();
 	});
 
-	it('offers a fresh draft and refuses a stale one', () =>
+	it('offers a fresh draft and refuses a stale one', async () =>
 	{
 		const now = 1_700_000_000_000;
 		window.localStorage.setItem('architect3d.autosave', JSON.stringify({
 			design: TWO_ROOMS,
 			savedAt: now - 60_000,
 		}));
-		expect(readDraft(now).design).toBe(TWO_ROOMS);
+		expect((await readDraft(now)).design).toBe(TWO_ROOMS);
 
 		// A week-old draft is not a crash recovery, it is a surprise.
-		expect(readDraft(now + (8 * 24 * 60 * 60 * 1000))).toBeNull();
+		expect(await readDraft(now + (8 * 24 * 60 * 60 * 1000))).toBeNull();
 
-		clearDraft();
-		expect(readDraft(now)).toBeNull();
+		await clearDraft();
+		expect(await readDraft(now)).toBeNull();
 	});
 });
 

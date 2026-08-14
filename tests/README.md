@@ -176,6 +176,16 @@ tests/
 │                           which is the bug this suite caught while it was
 │                           being written
 │
+│  persistence and asset delivery (RM-003 A5, contract) — environment: jsdom
+├─ persistence-and-assets.test.js  the draft repository behind an interface -
+│                           the localStorage implementation that shipped before
+│                           A5, the quota prune-and-retry, and the pointer that
+│                           can tell a write that never landed from one that
+│                           did; then the manifest and the resolver, including
+│                           the claim the whole asset half rests on: the URL a
+│                           browser fetches moves and the name in the document
+│                           does not
+│
 │  the Vue application (S6-S7, contract) — environment: jsdom
 ├─ app-composables.test.js  the blueprint's lifetime, the single selection, the
 │                           camera modes, catalog placement, file IO
@@ -202,6 +212,10 @@ tests/browser/
 │                           back as pixels and compared byte for byte (A2)
 ├─ plan-canvas.test.js      the 2D canvas under a real 2D context
 ├─ plan-coalescing.test.js  one repaint per frame, not one per event
+├─ draft-storage.test.js    the draft store against a REAL IndexedDB, which
+│                           jsdom does not have: a design far larger than the
+│                           5 MiB Web Storage cap, refused by the old path and
+│                           stored by the new one, and M-9 measured on both
 ├─ two-designs.test.js      two independent viewers on one page, and (A4) the
 │                           full matrix: two runtimes, two configurations, two
 │                           profiles, one disposed in either order, the survivor

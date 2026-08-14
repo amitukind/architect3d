@@ -101,7 +101,22 @@
     "measuring code again. If IT starts climbing, that is a real finding about the",
     "library's size rather than about its documentation - which is exactly what a",
     "budget on a minified artifact is for, and what this one could not tell you",
-    "before."
+    "before.",
+    "",
+    "A5 ADDED catalog-item-largest, which is a new KIND of ceiling rather than a",
+    "new number. public-total asks what the deployment weighs and public-largest",
+    "asks whether one file has got out of hand; neither can answer 'what happens",
+    "when somebody clicks a chair'. A catalog item is a .glb plus every image it",
+    "references plus the thumbnail already on screen, and that sum is what a user",
+    "waits for. Measured across all 168 items: the median is 17 KB and the worst",
+    "is 1.53 MB (Full Bed), which is 90x the median and was invisible to both of",
+    "the other two.",
+    "",
+    "A5 also grew public-total by 58 KB - the generated asset manifest, which is",
+    "served rather than bundled. See src/scripts/core/asset_manifest.js for why",
+    "it is not in the library bundle: 17.6 KB gzipped would have gone straight",
+    "into every consumer's download and through the IIFE ceiling A4 had just",
+    "tightened."
   ],
   "budgets": {
     "demo-js-gzip": {
@@ -122,7 +137,7 @@
     },
     "public-total": {
       "limit": 11700000,
-      "measured": 11138159
+      "measured": 11196436
     },
     "lib-esm-gzip": {
       "limit": 128000,
@@ -131,6 +146,10 @@
     "public-largest": {
       "limit": 1450000,
       "measured": 1364616
+    },
+    "catalog-item-largest": {
+      "limit": 1690000,
+      "measured": 1608513
     }
   }
 }

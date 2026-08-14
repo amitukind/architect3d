@@ -45,6 +45,8 @@
     "test:browser:watch": "vitest --config vitest.browser.config.mjs",
     "fixtures": "node tools/make-fixtures.mjs",
     "parity": "node tools/capture-parity.mjs",
+    "manifest": "node tools/make-asset-manifest.mjs",
+    "manifest:check": "node tools/make-asset-manifest.mjs --check",
     "budget": "node tools/check-budget.mjs",
     "budget:update": "node tools/check-budget.mjs --update",
     "lint": "eslint .",

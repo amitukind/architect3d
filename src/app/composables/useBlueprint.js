@@ -1,6 +1,7 @@
 // @ts-check
 import {inject, provide, markRaw, shallowRef} from 'vue';
 import {BlueprintJS} from '../../scripts/blueprint.js';
+import {assetResolver} from './useAssets.js';
 
 /**
  * Owns the one BlueprintJS instance and its lifetime.
@@ -79,6 +80,11 @@ export function createBlueprintStore()
 			threeCanvasElement: null,
 			textureDir: options.textureDir || 'models/textures/',
 			widget: Boolean(options.widget),
+			// Where this deployment's assets live (RM-003 A5). The shared resolver,
+			// which is identity until `loadManifest()` installs a manifest into it -
+			// so a viewer mounted before the fetch lands still loads everything, and
+			// picks up the indirection when it arrives.
+			assets: assetResolver(),
 		}));
 
 		instance.value = blueprint;

@@ -28,7 +28,8 @@ import {useHistory} from './composables/useHistory.js';
 import {useZoom2D} from './composables/useZoom2D.js';
 import {usePlanStats} from './composables/usePlanStats.js';
 import {useItemActions} from './composables/useItemActions.js';
-import {useAutosave, readDraft, clearDraft} from './composables/useAutosave.js';
+import {useAutosave, readDraft, clearDraft, RECOVERY_LOST_TAIL} from './composables/useAutosave.js';
+import {useAssets, applyAssetBaseFromQuery} from './composables/useAssets.js';
 import {useToasts} from './composables/useToasts.js';
 import {useShortcuts} from './composables/useShortcuts.js';
 
@@ -76,6 +77,7 @@ const zoom = useZoom2D(store);
 const stats = usePlanStats(store);
 const items = useItemActions(store, selection, history);
 const autosave = useAutosave(store);
+const assets = useAssets();
 const toasts = useToasts();
 
 const floorplanRef = ref(null);
@@ -119,8 +121,33 @@ onMounted(() =>
 	frameDesign();
 
 	offerDraft();
+	loadAssetManifest();
 	applyLayoutToCamera(workspace.layout.value);
 });
+
+/**
+ * Collect the asset manifest, and honour an `?assetBase=` if one is on the URL.
+ *
+ * After the viewer is up, not before: the manifest is an improvement to how
+ * assets are fetched, not a precondition for fetching them, and blocking first
+ * paint on a metadata file would trade a certain cost for an occasional
+ * benefit. Everything already on screen keeps its URLs; everything loaded after
+ * it lands goes through the manifest.
+ *
+ * The base is applied first so that if both happen, the manifest is fetched
+ * from the page as always and only the assets it names move.
+ */
+function loadAssetManifest()
+{
+	const base = applyAssetBaseFromQuery();
+	assets.load().then(function ()
+	{
+		if (base)
+		{
+			console.info(`architect3d: serving assets from ${base}`);
+		}
+	});
+}
 
 onBeforeUnmount(() =>
 {
@@ -153,16 +180,29 @@ function frameDesign()
  * rather than inside the composable because the decision is a UI one, and
  * because it has to happen after `newDesign()` has already put something on
  * screen: a prompt over a blank canvas gives no sense of what would be lost.
+ *
+ * Asynchronous since A5, because the store beneath it is. Nothing waits on it -
+ * the default design is already on screen by the time this resolves, which was
+ * the ordering before too.
+ *
+ * The message names the discrepancy when there is one. A5's recovery pointer
+ * can tell that the last write never landed, and a prompt that says "recovered"
+ * about a draft several minutes behind what the user actually had is a prompt
+ * that loses work quietly.
  */
-function offerDraft()
+async function offerDraft()
 {
-	const draft = readDraft(Date.now());
+	const draft = await readDraft(Date.now());
 	if (!draft)
 	{
 		return;
 	}
 
-	toasts.info('A draft from your last session was recovered.', {
+	const message = draft.recovery === RECOVERY_LOST_TAIL
+		? `A draft from your last session was recovered, but the final ${describeGap(draft.lostMs)} of changes did not save.`
+		: 'A draft from your last session was recovered.';
+
+	toasts.info(message, {
 		action: {
 			label: 'Restore',
 			run: function ()
@@ -293,6 +333,27 @@ function onPlanPointerMove(event)
 function onAddItem(entry)
 {
 	catalog.addItem(entry);
+}
+
+/**
+ * How much was lost, in words a person can act on.
+ *
+ * Rounded up rather than down: telling somebody they lost "0 seconds" of work
+ * when they lost most of a second is the kind of reassurance that gets a
+ * message ignored.
+ *
+ * @param {number} ms
+ * @returns {string}
+ */
+function describeGap(ms)
+{
+	const seconds = Math.ceil(ms / 1000);
+	if (seconds < 60)
+	{
+		return `${seconds} second${seconds === 1 ? '' : 's'}`;
+	}
+	const minutes = Math.ceil(seconds / 60);
+	return `${minutes} minute${minutes === 1 ? '' : 's'}`;
 }
 
 function onNewDesign()
@@ -528,7 +589,8 @@ useShortcuts(() => bindings.value);
 			v-model:open="catalogOpen"
 			:sections="catalog.sections.value"
 			:placement="selection.placementContext.value"
-			@add-item="onAddItem" />
+			@add-item="onAddItem"
+			@prefetch-item="assets.prefetchItem" />
 
 		<ShortcutsDialog v-model:open="shortcutsOpen" :bindings="bindings" />
 

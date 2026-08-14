@@ -63,6 +63,19 @@ export default [
 				prompt: 'readonly',
 				location: 'readonly',
 				ResizeObserver: 'readonly',
+				// Added by RM-003 A5. `fetch` is how the asset resolver warms the
+				// HTTP cache and how the application collects its manifest;
+				// `TextEncoder` is what makes a byte count a byte count rather than
+				// a UTF-16 code-unit count, which matters when the number is being
+				// compared against a storage quota. Both are in every environment
+				// this runs in, jsdom included.
+				fetch: 'readonly',
+				TextEncoder: 'readonly',
+				// The draft store, also A5. `indexedDB` is reached through `window`
+				// everywhere in src/, but the IDB event and cursor types appear in
+				// annotations.
+				indexedDB: 'readonly',
+				URLSearchParams: 'readonly',
 			},
 		},
 		rules: {

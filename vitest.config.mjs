@@ -118,10 +118,25 @@ export default defineConfig({
 				// in each order, which walks teardown paths a single-viewer test
 				// never reaches. Functions gained a fraction (77.26 -> 77.62) and
 				// stays at 77.
+				//
+				// A5 is the first sprint where the ratchet BIT rather than moved:
+				// the persistence and asset code landed at 78.01 statements against
+				// a floor of 79, and all four thresholds failed. The floor is not
+				// negotiable - the standing rule is that a threshold never comes
+				// down to make a build pass - so the answer was tests, and the tests
+				// it forced were the right ones. The IndexedDB repository was 88
+				// uncovered lines reachable only from the browser tier; it now has a
+				// fake IDBFactory (tests/helpers/indexeddb.js) that reaches the quota
+				// retry, the version refusal and the failed open, none of which a
+				// real IndexedDB will produce on request.
+				//
+				// Final: 79.47 lines, 79.47 statements, 68.12 branches, 78.14
+				// functions. Branches and functions each crossed a whole number and
+				// are raised; lines and statements gained fractions and stay.
 				lines: 79,
 				statements: 79,
-				branches: 67,
-				functions: 77,
+				branches: 68,
+				functions: 78,
 			},
 		},
 	},

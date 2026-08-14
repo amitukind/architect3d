@@ -35,7 +35,7 @@ const props = defineProps({
 	placement: {type: Object, default: null},
 });
 
-const emit = defineEmits(['update:open', 'add-item']);
+const emit = defineEmits(['update:open', 'add-item', 'prefetch-item']);
 
 const query = ref('');
 const activeSection = ref(null);
@@ -155,7 +155,9 @@ watch(() => props.open, async function (open)
 								type="button"
 								class="group relative w-full overflow-hidden rounded-lg border border-line-soft bg-sunk p-2 text-left transition-colors hover:border-accent"
 								:title="`Add ${row.item.name}`"
-								@click="pick(row.item)">
+								@click="pick(row.item)"
+								@pointerenter="emit('prefetch-item', row.item)"
+								@focus="emit('prefetch-item', row.item)">
 								<!-- alt="" on purpose: the button is already named "Add {name}"
 								     and the label below repeats it, so a described thumbnail makes
 								     a screen reader say the item three times. axe calls this

@@ -29,8 +29,11 @@
 import {describe, expect, it} from 'vitest';
 import {readFileSync, readdirSync, existsSync, statSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
-import {dirname, join} from 'node:path';
+import {dirname, join, sep} from 'node:path';
+import {createHash} from 'node:crypto';
 import {resolveModelUrl} from '../src/scripts/core/legacy_models.js';
+import {AssetManifest, MANIFEST_VERSION} from '../src/scripts/core/asset_manifest.js';
+import {AssetResolver} from '../src/scripts/core/asset_resolver.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC = join(ROOT, 'public');
@@ -39,6 +42,8 @@ const FIXTURES = join(ROOT, 'tests/fixtures');
 const CATALOG = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog.json'), 'utf8'));
 const TEXTURES = JSON.parse(readFileSync(join(ROOT, 'src/catalog/textures.json'), 'utf8'));
 const COMPRESSION = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/texture-compression.json'), 'utf8'));
+const MANIFEST_FILE = join(PUBLIC, 'asset-manifest.json');
+const MANIFEST_JSON = JSON.parse(readFileSync(MANIFEST_FILE, 'utf8'));
 
 /** Anything that looks like a path into public/, wherever it appears. */
 const ASSET_URL = /(?:models|rooms)\/[A-Za-z0-9_./-]+\.(?:png|jpg|jpeg|glb|gltf|js)/g;
@@ -244,5 +249,110 @@ describe('the compression pass left nothing behind', () =>
 		// a lower quality would have to move this number, in a commit, on purpose.
 		const poor = COMPRESSION.converted.filter((entry) => entry.psnr !== null && entry.psnr < 36);
 		expect(poor.map((entry) => `${entry.to} @ ${entry.psnr} dB`)).toEqual([]);
+	});
+});
+
+
+describe('the asset manifest describes the tree it ships with (RM-003 A5)', () =>
+{
+	/**
+	 * Both directions, and both matter for different reasons.
+	 *
+	 * A manifest entry with no file is a **404 the resolver will confidently
+	 * produce**: it says the asset exists, so the availability check passes and
+	 * the load fails at the network instead - worse than no manifest, because it
+	 * removed the one check that would have caught it early.
+	 *
+	 * A file with no manifest entry is the opposite failure: `missing()` returns
+	 * true for it, so the availability policy **refuses to load an asset that is
+	 * right there**. Somebody adds a model, forgets to regenerate, and the item
+	 * silently stops working.
+	 *
+	 * Neither is caught by anything else in this repository, and the second is
+	 * new in A5 - before it, a stale manifest could not exist to be wrong.
+	 */
+	it('names a real file for every entry', () =>
+	{
+		const phantom = Object.keys(MANIFEST_JSON.assets)
+			.map((name) => [name, MANIFEST_JSON.assets[name].url || name])
+			.filter(([, url]) => !existsSync(join(PUBLIC, url)))
+			.map(([name, url]) => (name === url ? name : `${name} -> ${url}`));
+
+		expect(phantom, `the manifest declares files that are not there:\n  ${phantom.join('\n  ')}`).toEqual([]);
+	});
+
+	it('and has an entry for every file', () =>
+	{
+		// The manifest is not part of the tree it describes.
+		const onDisk = walk(PUBLIC)
+			.map((path) => path.slice(PUBLIC.length + 1).split(sep).join('/'))
+			.filter((name) => name !== 'asset-manifest.json');
+
+		const undeclared = onDisk.filter((name) => !MANIFEST_JSON.assets[name]);
+		expect(undeclared, `run \`npm run manifest\` - these files are not declared:\n  ${undeclared.join('\n  ')}`)
+			.toEqual([]);
+	});
+
+	it('records the size and hash each file actually has', () =>
+	{
+		// Not a spot check: a stale byte count makes the prefetch budget and the
+		// per-item ceiling lie, and a stale hash makes integrity enforcement - the
+		// thing A5 records it for - reject a file that is perfectly good.
+		const wrong = [];
+		for (const [name, entry] of Object.entries(MANIFEST_JSON.assets))
+		{
+			const bytes = readFileSync(join(PUBLIC, entry.url || name));
+			if (bytes.length !== entry.bytes)
+			{
+				wrong.push(`${name}: manifest says ${entry.bytes} bytes, file is ${bytes.length}`);
+				continue;
+			}
+			const hash = 'sha256-' + createHash('sha256').update(bytes).digest('base64');
+			if (hash !== entry.hash)
+			{
+				wrong.push(`${name}: hash does not match`);
+			}
+		}
+
+		expect(wrong, `run \`npm run manifest\`:\n  ${wrong.join('\n  ')}`).toEqual([]);
+	});
+
+	it('parses through the library, at the version the library understands', () =>
+	{
+		const result = AssetManifest.parse(MANIFEST_JSON);
+		expect(MANIFEST_JSON.version).toBe(MANIFEST_VERSION);
+		expect(result.ok).toBe(true);
+		expect(result.manifest.count).toBe(Object.keys(MANIFEST_JSON.assets).length);
+		expect(result.manifest.totalBytes).toBeGreaterThan(10 * 1024 * 1024);
+	});
+
+	it('resolves every URL a saved design names, through the resolver', () =>
+	{
+		// The compatibility gate at the top of this file, asked again of the layer
+		// A5 put in front of it. A fixture that resolved before and does not now
+		// is a document that stopped opening.
+		const {manifest} = AssetManifest.parse(MANIFEST_JSON);
+		const resolver = new AssetResolver({manifest});
+
+		const broken = [...fixtureUrls().keys()]
+			.map((url) => resolveModelUrl(url).url)
+			.filter((url) => resolver.missing(url) || !existsSync(join(PUBLIC, resolver.resolve(url).url)));
+
+		expect(broken, `the resolver cannot reach these:\n  ${broken.join('\n  ')}`).toEqual([]);
+	});
+
+	it('and a base moves every one of them without touching the name', () =>
+	{
+		// H-8's claim, checked rather than described: the logical name a document
+		// records is unchanged and the URL a browser fetches is somewhere else.
+		const {manifest} = AssetManifest.parse(MANIFEST_JSON);
+		const resolver = new AssetResolver({manifest, base: 'https://cdn.example.com/a3d'});
+
+		const name = 'rooms/textures/hardwood.png';
+		const resolution = resolver.resolve(name);
+		expect(resolution.name).toBe(name);
+		expect(resolution.url).toBe('https://cdn.example.com/a3d/rooms/textures/hardwood.png');
+		expect(resolution.known).toBe(true);
+		expect(resolution.hash).toMatch(/^sha256-/);
 	});
 });

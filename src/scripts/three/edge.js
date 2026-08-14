@@ -91,7 +91,7 @@ export class Edge extends EventDispatcher
 
 		// One decode for the whole scene, not one per wall (RM-002 R-04). Every
 		// Edge asks for the same URL, and every Edge used to get its own copy.
-		this.lightMap = acquireTexture(LIGHT_MAP_URL);
+		this.lightMap = acquireTexture(this.runtime.assets.resolve(LIGHT_MAP_URL).url);
 		// sRGB, and written out rather than left to default (S8).
 		//
 		// three's own guidance is that a lightMap holds linear data, and for a
@@ -291,7 +291,10 @@ export class Edge extends EventDispatcher
 		// one GPU texture per wall surface behind, and redraw is wired to
 		// EVENT_REDRAW - so the leak grew with editing, not with the design.
 		releaseTexture(this.texture);
-		this.texture = acquireTexture(url, callback);
+		// Logical name to physical URL (A5). `wallTextures[].url` is written into
+		// every save file that has one, so what the document names and what the
+		// browser fetches are two different questions - see asset_resolver.js.
+		this.texture = acquireTexture(this.runtime.assets.resolve(url).url, callback);
 
 		// A wall texture is a picture of a wall (S8). Set per clone, which is the
 		// reason the cache hands out clones rather than one shared Texture: this

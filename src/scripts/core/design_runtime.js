@@ -3,6 +3,7 @@ import {defaultConfiguration} from './configuration.js';
 import {Dimensioning, defaultDimensioning} from './dimensioning.js';
 import {ResourceRegistry} from './resource_registry.js';
 import {LoadSession} from './load_session.js';
+import {defaultAssetResolver} from './asset_resolver.js';
 import {renderProfile} from './render_profile.js';
 import {Utils} from './utils.js';
 
@@ -12,6 +13,7 @@ import {Utils} from './utils.js';
  * bundle and a lint error in the source.
  *
  * @typedef {import('./configuration.js').Configuration} Configuration
+ * @typedef {import('./asset_resolver.js').AssetResolver} AssetResolver
  */
 
 /**
@@ -70,10 +72,17 @@ import {Utils} from './utils.js';
  * would re-describe a shared resource as an owned one - the exact mistake, in a
  * new place. `textureCacheStats()` is page-wide and says so.
  *
- * **An asset resolver.** The A4 scope names one, and A5 is the sprint that
- * builds it. A property initialised to null that nothing reads is a promise,
- * not a seam; when the resolver exists it will be constructed here alongside
- * the rest, and no call site above this line will need to change to find it.
+ * A5 did not change that, and the two are not in tension: `assets` decides
+ * *which URL* is fetched, which is a per-document question, and the cache
+ * decides *how many times* the image behind it is decoded, which is a per-page
+ * one.
+ *
+ * ## What A5 added
+ *
+ * `assets`, an {@link AssetResolver}. A4's note here said a resolver would be
+ * "constructed here alongside the rest, and no call site above this line will
+ * need to change to find it". That held: A5 added one property, and `Scene`,
+ * `Edge` and `Floor` reached it through the runtime they already had.
  */
 export class DesignRuntime
 {
@@ -83,6 +92,9 @@ export class DesignRuntime
 	 *        alone. Omit to share the page-wide default.
 	 * @param {Object} [options.renderProfile] A look for this document alone,
 	 *        from `createRenderProfile`. Omit to share the page-wide default.
+	 * @param {AssetResolver} [options.assets] Where this document's asset URLs
+	 *        come from (A5). Omit for the identity resolver, which returns every
+	 *        logical name unchanged.
 	 * @param {string} [options.id] An id of the embedder's choosing. Omit for a
 	 *        generated one.
 	 */
@@ -126,6 +138,18 @@ export class DesignRuntime
 		 * @type {Object}
 		 */
 		this.renderProfile = settings.renderProfile || renderProfile;
+
+		/**
+		 * Logical asset name to physical URL (RM-003 A5).
+		 *
+		 * The shared identity resolver unless one was asked for, which resolves
+		 * every name to itself and is what the library did before A5. An
+		 * application that has fetched a manifest passes one with it - see
+		 * asset_resolver.js for what that buys.
+		 *
+		 * @type {AssetResolver}
+		 */
+		this.assets = settings.assets || defaultAssetResolver;
 
 		/**
 		 * GPU resources belonging to the document itself rather than to a view
@@ -244,7 +268,7 @@ export class DesignRuntime
 	 * owners that build and drop within one method, and a registry there would
 	 * be ceremony around a single pairing.
 	 *
-	 * @returns {{id: string, disposed: boolean, registries: number, resources: number, handles: number, session: import('./load_session.js').LoadSessionStats}}
+	 * @returns {{id: string, disposed: boolean, registries: number, resources: number, handles: number, session: import('./load_session.js').LoadSessionStats, assets: import('./asset_resolver.js').ResolverStats}}
 	 */
 	stats()
 	{
@@ -268,6 +292,7 @@ export class DesignRuntime
 			resources: resources,
 			handles: handles,
 			session: this.loadSession.stats(),
+			assets: this.assets.stats(),
 		};
 	}
 }

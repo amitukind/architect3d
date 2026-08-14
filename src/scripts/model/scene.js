@@ -422,6 +422,28 @@ export class Scene extends EventDispatcher
 		};
 
 		this.dispatchEvent({type:EVENT_ITEM_LOADING});
+
+		/**
+		 * Availability as a policy rather than a console line (RM-003 A5).
+		 *
+		 * A resolver carrying a manifest knows what this build ships, so a name
+		 * that is not in it is answerable **before** the network is touched - and
+		 * the message can name the item rather than being whichever 404 the loader
+		 * happened to surface. `missing()` is false whenever there is no manifest,
+		 * which is what keeps a build that ships none behaving exactly as before.
+		 */
+		if (this.runtime.assets.missing(fileName))
+		{
+			failed(`this build does not ship that asset. "${metadata.itemName || 'The item'}" names a file the asset manifest does not declare.`);
+			return;
+		}
+
+		// Logical name in, physical URL out (A5). `fileName` stays logical: it is
+		// what `metadata.modelUrl` records and therefore what the next save writes,
+		// and rewriting it here would bake one deployment's URLs into the document
+		// - which is the whole failure H-8 describes.
+		var physicalUrl = this.runtime.assets.resolve(fileName).url;
+
 		if(this.itemLoader)
 		{
 			// Test/embedding seam - see this.itemLoader in the constructor.
@@ -431,6 +453,10 @@ export class Scene extends EventDispatcher
 			// catch failures thrown by item construction rather than by loading,
 			// which is a different thing and is pinned as such by the DOM-boundary
 			// test in tests/items-and-scene.test.js.
+			//
+			// Handed the LOGICAL name, not the resolved URL. An embedder's loader is
+			// their own asset pipeline and is entitled to its own naming; a resolver
+			// they did not configure must not rewrite what reaches it.
 			this.itemLoader(fileName, metadata, loaderCallback);
 		}
 		else if(metadata.format == 'gltf' || metadata.format == 'obj')
@@ -443,7 +469,7 @@ export class Scene extends EventDispatcher
 				// FileLoader builds a Request up front, and a URL the environment
 				// cannot parse throws there - synchronously, past the onError
 				// callback that exists for exactly this and never sees it.
-				loader.load(fileName, onLoad, undefined, function (error) {failed(describeError(error));});
+				loader.load(physicalUrl, onLoad, undefined, function (error) {failed(describeError(error));});
 			}
 			catch (error)
 			{

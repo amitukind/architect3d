@@ -67,6 +67,12 @@ they already had, so nothing took a new constructor argument to find it.
 `runtime.configuration` everywhere it appears, so `configurationOf(x)` and
 `runtimeOf(x).configuration` cannot come apart.
 
+`asset_manifest.js` and `asset_resolver.js` are the indirection between the
+logical asset name a saved design records and the physical URL fetched for it.
+The library ships an identity resolver - every name to itself - and a manifest
+is a runtime input rather than a bundled table, because 370 entries is 58 kB
+nobody who serves their own assets should download.
+
 `dimensioning.js` converts between centimetres (what the model stores) and
 whatever unit the user picked. `render_profile.js` is the table of shading
 constants the 3D view reads — it lives here rather than in `three/` because the
@@ -285,7 +291,7 @@ elements with `defineExpose`.
 
 ## Where the layers meet
 
-Ten seams are worth knowing, because each one is a place where a change in
+Eleven seams are worth knowing, because each one is a place where a change in
 one layer does *not* automatically reach the other:
 
 1. **`Configuration` announces a change but redraws nothing.** It dispatches
@@ -370,11 +376,19 @@ one layer does *not* automatically reach the other:
     session; it does **not** touch the shared texture cache, which is refcounted
     across the page and is nobody's to clear from the teardown of one viewer.
     `runtime.stats()` is how the accounting is read: `{id, disposed, registries,
-    resources, handles, session}`.
+    resources, handles, session, assets}`.
+11. **An asset URL in a document is a name, not an address.** `model_url` and
+    the texture `url`s are logical names; `runtime.assets` resolves each to
+    what is actually fetched, and with no manifest that is the same string.
+    Two consequences worth knowing: the **logical** name is what
+    `Item.getMetaData()` writes back out, so a resolved URL never gets baked
+    into a document; and `Scene.setItemLoader`'s seam is handed the logical
+    name too, because an embedder's own loader is their asset pipeline and a
+    resolver they did not configure must not rewrite what reaches it.
 
 ## Testing
 
-`tests/` is 1,147 headless tests in 25 files, plus 41 in a real browser. jsdom
+`tests/` is 1,192 headless tests in 26 files, plus 49 in a real browser. jsdom
 supplies the DOM, a stub renderer stands in for WebGL, and `tests/helpers/`
 holds the shared harness.
 

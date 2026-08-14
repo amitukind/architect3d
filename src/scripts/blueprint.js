@@ -42,6 +42,13 @@ export {cornerTolerance, configDimUnit, configWallHeight, configWallThickness, c
 // runtime gets one of its own carrying those same defaults: shared settings,
 // its own lifetime.
 export {DesignRuntime, defaultRuntime, runtimeOf, resolveRuntime} from './core/design_runtime.js';
+// Logical asset name to physical URL (RM-003 A5). A saved design names a file
+// by path and that string is a contract - it is in documents on other people's
+// disks - so versioning and CDN relocation have to happen at runtime, between
+// the name in the file and the URL on the network. With no manifest the
+// resolver returns every name unchanged, which is what the library did before.
+export {AssetManifest, MANIFEST_VERSION} from './core/asset_manifest.js';
+export {AssetResolver, defaultAssetResolver} from './core/asset_resolver.js';
 export {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY} from './core/constants.js';
 export {WallTypes} from './core/constants.js';
 
@@ -135,6 +142,7 @@ export class BlueprintJS
 	 * @param {boolean} options.widget - If widget mode then no 2D floorplanner is created and the 3D controller is disabled
 	 * @param {import('./core/configuration.js').Configuration} [options.configuration] - Settings for this design alone (P7). Omit to share the page-wide default.
 	 * @param {Object} [options.renderProfile] - A look for this viewer alone (P7), from `createRenderProfile`. Omit to share the page-wide default.
+	 * @param {import('./core/asset_resolver.js').AssetResolver} [options.assets] - Where this document's asset URLs come from (A5), from `new AssetResolver({manifest, base})`. Omit for the identity resolver, which returns every logical name unchanged - what the library did before A5.
 	 * @param {import('./core/design_runtime.js').DesignRuntime} [options.runtime] - This document's services as one object (A4): its configuration, dimensioning, render profile, load session and resource registries. Omit and one is built here from `configuration`/`renderProfile`. A runtime passed in belongs to the caller and is never disposed by `dispose()`.
 	 * @example
 	 * let blueprint3d = new BP3DJS.BlueprintJS(opts);
@@ -153,9 +161,10 @@ export class BlueprintJS
 		 * - `options.runtime` - an embedder that wants to hold the document's
 		 *   lifetime itself, put two viewers on one document, or read
 		 *   `runtime.stats()`. It is theirs; `dispose()` will not touch it.
-		 * - otherwise one is built here, around `options.configuration` and
-		 *   `options.renderProfile` if they were given. Omit both and it carries
-		 *   the page-wide defaults, which is what every caller had before P7.
+		 * - otherwise one is built here, around `options.configuration`,
+		 *   `options.renderProfile` and `options.assets` if they were given. Omit
+		 *   them and it carries the page-wide defaults, which is what every caller
+		 *   had before P7.
 		 *
 		 * Note what the second case does NOT do: reuse `defaultRuntime`. Settings
 		 * are shared by default and lifetimes never are - see the note on that
@@ -165,7 +174,11 @@ export class BlueprintJS
 		 * @type {import('./core/design_runtime.js').DesignRuntime}
 		 */
 		this.runtime = options.runtime
-			|| new DesignRuntime({configuration: options.configuration, renderProfile: options.renderProfile});
+			|| new DesignRuntime({
+				configuration: options.configuration,
+				renderProfile: options.renderProfile,
+				assets: options.assets,
+			});
 
 		/**
 		 * Whether `dispose()` should dispose the runtime as well. Only when this

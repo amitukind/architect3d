@@ -171,6 +171,66 @@
 
 ### Added
 
+* **The working draft is kept in IndexedDB, not `localStorage`.** The old path
+  wrote the whole design synchronously on the main thread, on a two-second
+  debounce during editing and again on `pagehide` — and Web Storage is capped at
+  about **5 MiB per origin**. That cap was not theoretical: a furnished design
+  can exceed it, and the first `QuotaExceededError` **disabled autosave for the
+  rest of the session**, so the larger the design the sooner it stopped being
+  protected. Metric M-9: the largest synchronous main-thread persistence write
+  goes from the whole document to **0 bytes**.
+
+  Behind an interface, with two implementations that both stay.
+  `LocalStorageDraftRepository` is exactly what shipped before, and is the
+  fallback where IndexedDB is missing — private browsing, some embedded
+  webviews — and the rollback if this turns out to be wrong. A draft written by
+  an older build is read from the old key once, copied across and removed.
+
+  A store written by a **newer** build is left untouched and reported, never
+  migrated on the guess that its shape is close enough.
+* **A recovery pointer, so a lost write is detectable.** `pagehide` cannot await
+  a promise, which is what moving to IndexedDB costs (risk K-6). The fix is not
+  to write the document synchronously — that gives back everything above.
+  Instead a sub-kilobyte pointer goes into `localStorage` *before* the body
+  write is started, carrying the timestamp that write is about to have. On the
+  next load a pointer newer than the body means the tail did not land, and the
+  recovery prompt says how much instead of implying the draft is current.
+* **An asset manifest and an `AssetResolver`.** Every asset URL is a bare
+  relative string and those strings are **inside saved designs**, so renaming a
+  file breaks documents on other people's disks — and Vite copies `public/`
+  as-is and never hashes it, so content-addressed filenames were not available
+  as an answer. Finding H-8.
+
+  The string in a document is now a *logical name* and the resolver decides what
+  is fetched. `npm run manifest` generates `public/asset-manifest.json` — 370
+  entries of `{bytes, hash, kind}`, plus a `url` for anything not where its name
+  says. Three things follow, none of which renames a file or rewrites a
+  document: **versioning** (give an entry a different `url`), **a CDN** (`base`
+  is prepended to every resolution; the demo honours `?assetBase=` so it is
+  checkable in a browser), and **availability as a policy** — a resolver with a
+  manifest knows what the build ships, so a name it does not have fails before
+  the network with a message that can name the item.
+
+  It is fetched, not bundled: 58 kB of JSON in the library would be charged to
+  every consumer and would go straight through the size ceiling A4 tightened.
+  Omit `assets` and every name resolves to itself — the pre-A5 behaviour, and
+  still the default.
+* **Prefetch on hover, bounded by bytes.** The manifest carries sizes, so the
+  catalog can warm a model's cache from the pointer resting on its thumbnail —
+  a few hundred milliseconds before the click, which is most of the fetch.
+* **Integrity hashes, recorded and not enforced.** Every entry carries a
+  subresource-integrity string and `resolver.integrityFor(name)` hands it over
+  for `fetch(url, {integrity})`. Off by default deliberately: for same-origin
+  `public/` it guards nothing the origin does not already guarantee, while a
+  mismatch after a legitimate redeploy of an unhashed file is an outage. It
+  matters for the CDN case, which is why it exists.
+* **A per-asset size budget**, `catalog-item-largest`, beside the per-file and
+  per-tree ceilings. Neither of those can answer *what happens when somebody
+  clicks a chair* — a catalog item is a `.glb` plus every image it references
+  plus the thumbnail. Measured across all 168: the median is **17 kB** and the
+  worst is **1.53 MB**, 90× the median and invisible to both existing limits.
+* **A creator credit** in the application's status bar, on the documentation
+  site, and on the roadmap page, linking to amitukind.com.
 * **A document's services are one object, `DesignRuntime`.** P7 made five
   module-level singletons per-instance, one at a time, and each stage was right.
   What none of them could deliver is a single thing to dispose — there was

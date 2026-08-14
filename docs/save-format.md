@@ -384,3 +384,92 @@ warning rather than rejected — a design that opens at the wrong scale is a
 better outcome than one that will not open, because the user can see the
 former. That warning is also on the result, as `warnings[]`, so an application
 can say so rather than leaving it in the console.
+
+## Where the working draft is kept
+
+A `.blueprint3d` file is what a user saves deliberately. Separately from that,
+the application keeps the **working design** in browser storage so an accidental
+reload does not lose twenty minutes of drawing. Same format, different lifetime:
+one slot, overwritten, offered back after a reload rather than restored.
+
+Since RM-003 A5 that slot is **IndexedDB**, not `localStorage`.
+
+| | Before A5 | Now |
+|---|---|---|
+| Store | `localStorage`, key `architect3d.autosave` | IndexedDB, database `architect3d`, store `drafts` |
+| Write | **synchronous, on the main thread** | asynchronous |
+| Ceiling | ~5 MiB per origin, shared with everything else | a share of disk |
+| Over the ceiling | autosave **disabled for the session**, permanently | prune the old record, retry, then report |
+
+The old cap was not theoretical. A furnished design can exceed 5 MiB, and the
+first `QuotaExceededError` turned autosave off for the rest of the session — so
+the larger the design, the sooner it stopped being protected.
+
+### The recovery pointer
+
+One thing is still written synchronously, and it is deliberate. `pagehide` is
+the last moment a page reliably gets and **it cannot await a promise**, so an
+IndexedDB write started there may not finish.
+
+The fix is not to write the document synchronously — that would give back
+everything above. Instead a **pointer** goes into `localStorage` first, under
+`architect3d.draft-pointer`, recording the timestamp the body write is *about
+to* carry:
+
+```json
+{"savedAt": 1755212400000, "bytes": 1048576, "store": "indexeddb"}
+```
+
+Three numbers and a string, well under a kilobyte, and always completes. On the
+next load the two are compared:
+
+| Pointer vs. body | What it means |
+|---|---|
+| no pointer, body present | a clean session; the last write landed |
+| timestamps agree | the last write landed |
+| **pointer newer than body** | the final write did not land — the draft is still restorable, and is older than the user thinks |
+| pointer, no body | the store was cleared underneath, or the first write never landed |
+
+Only the third row is new information, and it is the reason the pointer exists:
+a prompt that says "recovered" about a draft several minutes behind what was on
+screen is a prompt that loses work quietly. The application says how much
+instead.
+
+### If IndexedDB is not there
+
+Private-browsing modes and some embedded webviews do not offer it. The
+`localStorage` implementation stays in the tree as the fallback, selected
+automatically, and behaves exactly as the pre-A5 build did — including the 5 MiB
+cap. A draft written by an older build is read from the old key once, copied
+across, and removed, so the two stores never both hold one.
+
+A store written by a **newer** build is left untouched and reported, never
+migrated on the guess that its shape is close enough.
+
+## Asset URLs are logical names
+
+Every asset path in this file — `model_url` on an item, `url` on a wall or
+floor texture — is a **bare relative string**, and that has always been a
+compatibility contract: those strings are in documents on other people's disks,
+so renaming a file breaks designs that already exist. Vite copies `public/`
+as-is and never hashes it, so the usual answer of content-addressed filenames is
+unavailable here.
+
+Since A5 the string in the file is a *logical name*, and an `AssetResolver`
+decides what is actually fetched:
+
+```js
+import {AssetManifest, AssetResolver, BlueprintJS} from 'architect3d';
+
+const {manifest} = AssetManifest.parse(await (await fetch('asset-manifest.json')).json());
+const blueprint = new BlueprintJS({
+    ...options,
+    assets: new AssetResolver({manifest, base: 'https://cdn.example.com/a3d'}),
+});
+```
+
+**Nothing in the file changes.** A design saved against one deployment opens
+against another, a model can be versioned by giving its manifest entry a
+different `url`, and a CDN becomes a deployment choice rather than a rewrite.
+Omit `assets` and every logical name resolves to itself, which is what the
+library did before A5 and what it still does by default.

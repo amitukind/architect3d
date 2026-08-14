@@ -35,7 +35,7 @@
  */
 import {gzipSync} from 'node:zlib';
 import {readFileSync, writeFileSync, existsSync, readdirSync, statSync} from 'node:fs';
-import {join, extname} from 'node:path';
+import {join, extname, dirname} from 'node:path';
 
 const BUDGET_FILE = 'tools/budget.json';
 const update = process.argv.includes('--update');
@@ -128,6 +128,106 @@ function largestFile(dir)
  * whose input is absent is skipped, not failed: `npm run budget` is useful
  * after one build without demanding all of them.
  */
+/**
+ * The JSON chunk of a binary glTF, or null.
+ *
+ * Same reader as `tests/asset-integrity.test.js` and
+ * `asset-pipeline/compress-textures.mjs`. A .glb is a 12-byte header followed
+ * by length-prefixed chunks; the first is always JSON.
+ */
+function glbJson(path)
+{
+	const buffer = readFileSync(path);
+	if (buffer.length < 12 || buffer.readUInt32LE(0) !== 0x46546c67)
+	{
+		return null;
+	}
+	let offset = 12;
+	while (offset + 8 <= buffer.length)
+	{
+		const length = buffer.readUInt32LE(offset);
+		const type = buffer.readUInt32LE(offset + 4);
+		if (type === 0x4e4f534a)
+		{
+			try {return JSON.parse(buffer.subarray(offset + 8, offset + 8 + length).toString('utf8'));}
+			catch {return null;}
+		}
+		offset += 8 + length;
+	}
+	return null;
+}
+
+/**
+ * What placing one catalog item costs to download, worst case (RM-003 A5).
+ *
+ * ## Why this is a different question from the two ceilings beside it
+ *
+ * `public-total` asks what the deployment weighs and `public-largest` asks
+ * whether one file has got out of hand. Neither can answer **"what happens when
+ * somebody clicks a chair"** - and that is the number a user experiences. A
+ * model is not one file: it is a .glb plus every image the .glb references,
+ * plus the thumbnail the palette already showed. P6 found a 3.4 MB photograph
+ * hiding inside a 15 MB tree that was comfortably inside its ceiling; this is
+ * the same shape of blind spot one level down.
+ *
+ * External images are counted once each even when several models share one -
+ * because a second model that shares them is cheap, and charging it the full
+ * cost would report a number no user ever pays.
+ */
+function largestCatalogItem()
+{
+	const catalogPath = 'src/catalog/catalog.json';
+	if (!existsSync(catalogPath) || !existsSync('public'))
+	{
+		return null;
+	}
+
+	const catalog = JSON.parse(readFileSync(catalogPath, 'utf8'));
+	const items = catalog.items || [];
+	const sizeOf = (relative) =>
+	{
+		const path = join('public', relative);
+		return existsSync(path) ? statSync(path).size : 0;
+	};
+
+	let worst = 0;
+	let name = null;
+
+	for (const item of items)
+	{
+		if (!item.model)
+		{
+			continue;
+		}
+		let total = sizeOf(item.model) + (item.image ? sizeOf(item.image) : 0);
+
+		const modelPath = join('public', item.model);
+		if (existsSync(modelPath) && modelPath.endsWith('.glb'))
+		{
+			const json = glbJson(modelPath);
+			const seen = new Set();
+			for (const image of (json && json.images) || [])
+			{
+				if (!image.uri || seen.has(image.uri))
+				{
+					continue;
+				}
+				seen.add(image.uri);
+				const beside = join(dirname(modelPath), image.uri);
+				total += existsSync(beside) ? statSync(beside).size : 0;
+			}
+		}
+
+		if (total > worst)
+		{
+			worst = total;
+			name = item.name;
+		}
+	}
+
+	return worst ? {bytes: worst, note: name} : null;
+}
+
 const MEASUREMENTS = [
 	{key: 'demo-js-gzip', label: 'Demo JS (gzip)', needs: 'build:demo',
 		measure: () => gzipBytes('dist-demo/assets', ['.js'])},
@@ -148,6 +248,11 @@ const MEASUREMENTS = [
 		measure: () => treeBytes('public')},
 	{key: 'public-largest', label: 'Largest single asset', needs: null,
 		measure: () => largestFile('public')},
+	// The per-asset ceiling A5 added beside the per-file and per-tree ones. See
+	// largestCatalogItem for why "what does placing this chair cost" is a
+	// question neither of the others can answer.
+	{key: 'catalog-item-largest', label: 'Costliest catalog item', needs: null,
+		measure: () => largestCatalogItem()},
 ];
 
 function human(bytes)

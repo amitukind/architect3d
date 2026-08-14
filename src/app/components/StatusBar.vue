@@ -82,6 +82,18 @@ const cursorLabel = computed(function ()
 		class="z-[200] flex h-7 flex-none items-center gap-3 border-t border-line bg-surface px-3 text-ink-faint">
 		<p class="truncate text-[11px]">{{ hint }}</p>
 
+		<!-- The credit. Placed after the hint and before the counts so it is the
+		     one thing on this bar that never moves: the hint truncates and the
+		     counts change width, and a link that shifts under the pointer is a
+		     link nobody clicks on purpose. -->
+		<span class="hidden h-3.5 w-px flex-none bg-line sm:block" />
+		<a
+			class="hidden flex-none text-[11px] transition-colors hover:text-ink sm:inline"
+			href="https://amitukind.com" target="_blank" rel="noopener noreferrer"
+			title="amitukind.com">
+			Created by <span class="text-ink-soft">Amit Verma</span>
+		</a>
+
 		<div class="ml-auto flex items-center gap-3">
 			<span class="num" :title="`${plural(props.rooms, 'room')}, ${plural(props.walls, 'wall')}, ${plural(props.items, 'item')}`">
 				<span class="text-ink-soft">{{ props.rooms }}</span> {{ props.rooms === 1 ? 'room' : 'rooms' }}

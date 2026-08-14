@@ -203,7 +203,7 @@ export class Floorplan3D extends EventDispatcher
 			var floor = scope.floorsByRoom.get(room);
 			if (!floor)
 			{
-				floor = new Floor(scope.scene, room, scope.renderProfile);
+				floor = new Floor(scope.scene, room, scope.renderProfile, scope.runtime);
 				floor.addToScene();
 				scope.floorsByRoom.set(room, floor);
 				scope._stats.floorsAdded += 1;
@@ -329,7 +329,7 @@ export class Floorplan3D extends EventDispatcher
 
 		// draw floors
 		this.floorplan.getRooms().forEach((room) => {
-			var threeFloor = new Floor(this.scene, room, this.renderProfile);
+			var threeFloor = new Floor(this.scene, room, this.renderProfile, this.runtime);
 			this.floors.push(threeFloor);
 			this.floorsByRoom.set(room, threeFloor);
 			threeFloor.addToScene();

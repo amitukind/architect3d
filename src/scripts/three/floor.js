@@ -5,10 +5,11 @@ import {acquireTexture, releaseTexture} from './texture_cache.js';
 import {disposeObject} from '../core/resource_registry.js';
 import {Configuration, configWallHeight} from '../core/configuration.js';
 import {renderProfile, isStudio} from '../core/render_profile.js';
+import {runtimeOf} from '../core/design_runtime.js';
 
 export class Floor extends EventDispatcher
 {
-	constructor(scene, room, profile)
+	constructor(scene, room, profile, runtime)
 	{
 		super();
 	/**
@@ -17,6 +18,14 @@ export class Floor extends EventDispatcher
 	 * parity grid still measures.
 	 */
 		this.renderProfile = profile || renderProfile;
+		/**
+		 * Which document this floor belongs to (RM-003 A4), and where its texture
+		 * URL is resolved (A5). Derived from the room when it is not passed, for
+		 * the same reason `Edge` derives it: `Floor` is public API and the
+		 * three-argument form has to keep working.
+		 * @type {import('../core/design_runtime.js').DesignRuntime}
+		 */
+		this.runtime = runtime || runtimeOf(room && room.floorplan);
 		this.scene = scene;
 		this.room = room;
 		this.floorPlane = null;
@@ -99,7 +108,11 @@ export class Floor extends EventDispatcher
 		var textureSettings = this.room.getTexture();
 		// setup texture
 		releaseTexture(this.floorTexture);
-		var floorTexture = acquireTexture(textureSettings.url);
+		// Logical name to physical URL (A5). The document records the logical one -
+		// `newFloorTextures[].url` is in every save file that has a custom floor -
+		// and the resolver decides what is actually fetched. With no manifest it is
+		// the same string, which is what it was before A5.
+		var floorTexture = acquireTexture(this.runtime.assets.resolve(textureSettings.url).url);
 		this.floorTexture = floorTexture;
 		// sRGB (S8). This one matters more than the others: the floor is
 		// MeshPhongMaterial and so the only lit surface in most views, which

@@ -188,6 +188,9 @@ tbody tr:hover{background:var(--accent-soft)}
 .oracle .id{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11px; color:var(--accent); font-weight:700; margin-right:6px}
 
 footer{margin-top:70px; padding-top:18px; border-top:1px solid var(--line); color:var(--muted); font-size:12.5px}
+footer .credit{margin-top:14px; padding-top:12px; border-top:1px solid var(--line); font-size:13px}
+footer .credit a{color:var(--accent); text-decoration:none; font-weight:600}
+footer .credit a:hover{text-decoration:underline}
 @media print{
   nav.toc{display:none} body{font-size:12px} .sprint,.card,.tw{box-shadow:none}
   section{margin-top:32px}
@@ -1382,7 +1385,7 @@ footer{margin-top:70px; padding-top:18px; border-top:1px solid var(--line); colo
       <tr><td>H-5</td><td>Room identity is derived from its corners, so editing a wall renames the room</td><td><span class="chip crit">high</span></td><td><code>model/room.js:53, 87–92</code> · <code>model/wall.js:74, 202</code></td><td>A3</td></tr>
       <tr><td>H-6</td><td>Undo is a document reload, so it re-fetches every model</td><td><span class="chip warn">med</span></td><td><code>app/composables/useHistory.js:247–256</code></td><td>A3</td></tr>
       <tr><td>H-7</td><td>The texture cache and the loaders are still process-wide</td><td><span class="chip warn">med</span></td><td><code>three/main.js:525</code> · <code>model/scene.js:37–38</code></td><td>A4 <span class="chip ok">closed</span></td></tr>
-      <tr><td>H-8</td><td>Assets are unhashed, unversioned, and their URLs are a save-format contract</td><td><span class="chip warn">med</span></td><td><code>public/</code> via Vite <code>publicDir</code> · <code>index.html:13–31</code></td><td>A5</td></tr>
+      <tr><td>H-8</td><td>Assets are unhashed, unversioned, and their URLs are a save-format contract</td><td><span class="chip warn">med</span></td><td><code>public/</code> via Vite <code>publicDir</code> · <code>index.html:13–31</code></td><td>A5 <span class="chip ok">closed</span></td></tr>
     </tbody>
   </table></div>
 
@@ -2058,7 +2061,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
     <div class="sprint-head">
       <span class="sprint-no">A5</span>
       <h3>IndexedDB persistence and asset delivery hardening</h3>
-      <div class="meta"><span class="chip warn">H-8</span><span class="chip">1–2 weeks</span><span class="chip acc">hard dep: A1</span></div>
+      <div class="meta"><span class="chip ok">done</span><span class="chip warn">H-8</span><span class="chip">1–2 weeks</span><span class="chip acc">hard dep: A1</span></div>
     </div>
     <p class="goal"><strong>Objective.</strong> Move the draft off the synchronous 5 MiB main-thread store, and put a manifest between the catalog and the network so assets can be versioned without renaming a single file.</p>
 
@@ -2113,6 +2116,25 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
         <li><strong>DoD.</strong> Three tiers green · budgets green · <code>docs/save-format.md</code> gains the storage section · <code>docs/getting-started.md</code> documents the manifest and the CDN base · CHANGELOG</li>
       </ul>
     </div>
+
+    <div class="gate">
+      <div class="g-head">LANDED &mdash; A5</div>
+      <ul>
+        <li><strong>M-9 = 0 bytes,</strong> and it is measured on both sides in one test. The same six-megabyte design: <code>localStorage</code> refuses it outright &mdash; which is the finding, not a hypothetical &mdash; and IndexedDB stores and returns it byte for byte. A one-megabyte design, which the old path <em>can</em> hold, reports the whole body as a synchronous main-thread write through the old repository and <strong>zero</strong> through the new one</li>
+        <li><strong>The recovery pointer earns its keep by being detectable, not by rescuing anything.</strong> Nothing can rescue a write <code>pagehide</code> did not finish; writing the document synchronously as a fallback would hand back the metric to get the guarantee back. What the pointer does is record the timestamp the body write was <em>about to</em> carry, so a pointer newer than the body means the tail was lost &mdash; and the recovery prompt says how much instead of implying the draft is current. Under a kilobyte, asserted on every write rather than described</li>
+        <li><strong>Both storage implementations stay, and the fallback is not a stepping stone.</strong> jsdom has no IndexedDB, so <code>createDraftRepository()</code> selects <code>localStorage</code> there &mdash; which means the pre-A5 autosave assertions were left completely untouched and still pass. That is the compatibility claim, asserted by not editing anything</li>
+        <li><strong>The asset manifest is fetched, not bundled, and the reason is a number.</strong> 370 entries is 58 kB of JSON, 17.6 kB gzipped. In the library bundle that is charged to every consumer whether or not they serve this project's assets &mdash; and it would go straight through the IIFE ceiling A4 had just tightened by minifying to get under. It is a runtime input; a library with no manifest resolves every name to itself, which is what it did before</li>
+        <li><strong>H-8's claim, in one assertion:</strong> the URL the browser fetches moves and the name in the document does not. <code>metadata.modelUrl</code> keeps the logical name, so a resolved URL never gets baked into a save file &mdash; which would be the same failure one level down</li>
+        <li><strong><code>Scene.setItemLoader</code> is handed the logical name too</strong>, and that is deliberate rather than an oversight. An embedder's own loader IS their asset pipeline, and a resolver they did not configure must not rewrite what reaches it</li>
+        <li><strong>Availability is answered before the network.</strong> A resolver with a manifest knows what the build ships, so a name it does not have fails through the ordinary <code>EVENT_ITEM_LOADED</code> path with a message that names the item &mdash; and <code>missing()</code> is false whenever there is no manifest, which is what keeps a build that ships none behaving exactly as before</li>
+        <li><strong>A new KIND of budget, not a new number.</strong> <code>catalog-item-largest</code> asks what placing one chair costs: the <code>.glb</code>, every image it references, and the thumbnail already on screen. Across all 168 items the median is <strong>17 kB</strong> and the worst is <strong>1.53 MB</strong> &mdash; 90x the median, and invisible to both the per-file and per-tree ceilings that already existed. Same shape of blind spot P6 found one level up</li>
+        <li><strong>The coverage ratchet BIT for the first time, and the tests it forced were the right ones.</strong> A5's code landed at 78.01 statements against a floor of 79 and failed all four thresholds. The floor does not come down, so the gap was closed with tests &mdash; and the largest hole was the IndexedDB repository at 88 uncovered lines, reachable only from the browser tier. It now has a fake <code>IDBFactory</code> that reaches the quota retry, the version refusal and the failed open, none of which a real IndexedDB produces on request. Final: <strong>79.47 lines, 79.47 statements, 68.12 branches, 78.14 functions</strong>, with branches and functions both raised</li>
+        <li><strong>Nine deliberate breaks; eight failed the headless suite and the ninth failed nothing.</strong> Making the IndexedDB repository report the body size as a synchronous write passed every headless test &mdash; because with no IndexedDB the write never succeeds, so a zero there is also what a dishonest implementation reports. The browser tier caught it instantly (<em>expected 6291362 to be +0</em>). The headless test was rewritten to assert the unavailable path and to say where the M-9 claim is actually gated. That is the metric of this sprint, and its tier-1 assertion was a tautology until it was broken on purpose</li>
+        <li><strong>The manifest generator found a bug in itself before shipping.</strong> Probing the store version before opening it read as more careful and was wrong: <code>open(name)</code> with no version creates the database at version 1 with <em>no object store</em>, and the follow-up open at version 1 fires no upgrade event &mdash; so the store was never created and every read came back null. jsdom, having no IndexedDB, could not have caught it; the browser tier did, on the first run</li>
+        <li><strong>1,203 headless tests</strong> (56 new) and <strong>49 in the browser</strong> (8 new), all green. The browser tier stayed at <strong>77.0s</strong>: IndexedDB is fast, unlike everything else in that tier</li>
+        <li><strong>One number to watch, deliberately not acted on.</strong> <code>lib-esm-gzip</code> is at <strong>0.8% headroom</strong> and was not raised. It is passing, and raising a limit before it is breached is slack the change did not earn &mdash; the argument <code>tools/budget.json</code> has been making since P6. The next thing that adds a docblock to the library will trip it, which is what a budget is for. Note what that entry actually guards: the ESM build externalises three and bezier-js, and losing that config takes it from ~124 KB to ~423 KB. Any ceiling well under 423 KB still catches the failure it exists to catch</li>
+      </ul>
+    </div>
   </div>
 
   <h3>Sequence and effort</h3>
@@ -2124,7 +2146,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
       <tr><td><strong>A2</strong> <span class="chip ok">done</span></td><td>ChangeSet + incremental projection</td><td>2 weeks</td><td><strong>A0</strong></td><td>M-5 — met, both halves</td></tr>
       <tr><td><strong>A3</strong> <span class="chip ok">done</span></td><td>Identity + command history</td><td>2 weeks</td><td><strong>A1, A2</strong></td><td>M-8 — met; H-5 inverted. Command layer not built — see LANDED</td></tr>
       <tr><td><strong>A4</strong> <span class="chip ok">done</span></td><td><code>DesignRuntime</code></td><td>1 week</td><td>A0, A1 (soft)</td><td>M-1, M-2 at isolation level — met. Stats omit cache handles on purpose — see LANDED</td></tr>
-      <tr><td><strong>A5</strong></td><td>Persistence + asset delivery</td><td>1–2 weeks</td><td><strong>A1</strong></td><td>M-9</td></tr>
+      <tr><td><strong>A5</strong> <span class="chip ok">done</span></td><td>Persistence + asset delivery</td><td>1–2 weeks</td><td><strong>A1</strong></td><td>M-9 — met, 0 bytes. Draco/meshopt/KTX2 remain out of scope, as planned</td></tr>
     </tbody>
   </table></div>
 
@@ -2135,6 +2157,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
   <p><strong>Method — RM-003.</strong> Full read of the library's resource, loading, change-propagation, identity, history, isolation and asset paths against the working tree at <code>fff1ebe</code> on branch <code>amit</code>, plus <code>README.md</code>, <code>CHANGELOG.md</code>, <code>package.json</code>, <code>vite.config.mjs</code>, <code>tsconfig.json</code>, <code>docs/architecture.md</code>, <code>docs/events.md</code>, <code>tests/README.md</code> and the RM-001/RM-002 sections above. The four findings marked <span class="chip acc">measured</span> were produced by running the library headlessly and counting — mesh churn per <code>update()</code>, <code>EVENT_UPDATED</code> per document open, the malformed-document corpus, and room identity across a wall split — not by reading the code. <code>renderer.info.memory</code>, <code>LoadingManager.abort()</code> and <code>FileLoader</code>'s <code>AbortSignal.any</code> composition were verified in the installed <code>three@0.185.1</code> rather than from documentation. Two documentation inaccuracies were found and are recorded in §16 H-1 rather than fixed, since this is a planning pass: <code>docs/architecture.md:71–74</code> and <code>blueprint.js:200–203</code> both state the model layer holds no GPU resources, and it holds three meshes per room and one per half-edge.</p>
   <p><strong>Sources — RM-003.</strong> <a href="https://threejs.org/manual/#en/cleanup">three.js — Cleanup (freeing resources)</a> · <a href="https://threejs.org/docs/#api/en/renderers/WebGLRenderer">WebGLRenderer.info</a> · <a href="https://threejs.org/docs/#api/en/loaders/managers/LoadingManager">LoadingManager</a> · <a href="https://threejs.org/docs/#examples/en/loaders/GLTFLoader">GLTFLoader</a> · <a href="https://github.com/KhronosGroup/glTF">glTF — Runtime 3D Asset Delivery</a> · <a href="https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria">MDN — Storage quotas and eviction criteria</a> · <a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API/Using_the_Web_Storage_API">MDN — Using the Web Storage API</a> · <a href="https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API">MDN — IndexedDB API</a> · <a href="https://vite.dev/guide/assets">Vite — Static asset handling</a></p>
   <p>architect3d · Architecture hardening program RM-003 rev A · proposal, pending approval · successor to redline RM-002</p>
+  <p class="credit">Created by <a href="https://amitukind.com" target="_blank" rel="noopener noreferrer">Amit Verma</a></p>
 </footer>
 
 
