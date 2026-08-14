@@ -55,12 +55,73 @@ Dispatched on `blueprint.model.floorplan`.
 |---|---|
 | `EVENT_NEW` | A new floorplan replaced the old one |
 | `EVENT_LOADED` | A floorplan finished loading |
+| `EVENT_CHANGESET` | Something changed, and the payload says what |
 | `EVENT_UPDATED` | The wall graph changed and rooms were re-derived |
 | `EVENT_DELETED` | A corner or wall was removed |
 
 `EVENT_UPDATED` is the one to listen to if you care about rooms. Rooms are
 derived, not stored, so this is the only moment the room list is known to be
 current.
+
+## What changed, and why
+
+`EVENT_UPDATED` says *that* something happened. `EVENT_CHANGESET` says **what**,
+and it is what you want if the reaction is expensive.
+
+```js
+import {EVENT_CHANGESET, CHANGE_TOPOLOGY, CHANGE_GEOMETRY, REASON_LOAD} from 'architect3d';
+
+floorplan.addEventListener(EVENT_CHANGESET, ({changes}) => {
+    if (changes.has(CHANGE_TOPOLOGY)) { rebuild(changes.entities(CHANGE_TOPOLOGY)); }
+    else if (changes.has(CHANGE_GEOMETRY)) { nudge(changes.entities(CHANGE_GEOMETRY)); }
+    if (changes.reason === REASON_LOAD) { frameTheView(); }
+});
+```
+
+A `ChangeSet` carries kinds, the entities each kind affects, and a reason.
+
+| Kind | Means | Entities | Emitted today |
+|---|---|---|---|
+| `CHANGE_TOPOLOGY` | Corners or walls added, removed or reconnected; rooms were re-derived | the rooms, as re-derived | yes |
+| `CHANGE_GEOMETRY` | Existing entities moved. The room set is the same objects | the corners whose angles moved | yes |
+| `CHANGE_SURFACE` | Textures, colours, materials | — | no |
+| `CHANGE_ITEMS` | Furniture added, removed, moved | — | no |
+| `CHANGE_SELECTION` | What is selected | — | no |
+| `CHANGE_VIEW` | Configuration, units, render profile | — | no |
+
+| Reason | When |
+|---|---|
+| `REASON_LOAD` | A document was opened |
+| `REASON_EDIT` | A person did something. The default |
+| `REASON_UNDO` | History put a previous state back |
+| `REASON_DERIVE` | The library recomputed something off the back of another change |
+
+The four kinds with no emitter are named because a half-stated vocabulary is
+worse than none — a `switch` needs to know the whole set. `surface` is the one
+that looks like an omission and is not: `Room.setTexture()` and
+`HalfEdge.setTexture()` already dispatch `EVENT_CHANGED` and `EVENT_REDRAW`
+straight to the `Floor` and `Edge` drawing them, so that path is per-entity and
+already incremental. A plan-level broadcast on top would be new traffic that
+autosave and history would start recording.
+
+::: tip Both events fire, always
+Every `EVENT_CHANGESET` is followed by the `EVENT_UPDATED` it derives, at the
+same moment and with the same `item`. The ChangeSet also rides along on the
+legacy payload as `evt.changes`, so a consumer can adopt the typed form without
+changing which event it subscribes to. Nothing that listened before has to move.
+:::
+
+::: warning A corner drag no longer moves the 3D camera
+That is the one intended behaviour change. `Main` reframes on topology changes
+only, and only when the plan's bounding box actually moved — so dragging a
+corner, and adding a corner strictly inside the existing plan, both leave the
+camera where the user put it. Opening a document still frames it.
+
+`three.cameraStats()` reports `{recentred, declined}`, and
+`three.floorplan.projectionStats()` reports what the 3D projection rebuilt.
+Setting `three.floorplan.incremental = false` restores the old full redraw on
+every change, with the ChangeSet still in place.
+:::
 
 ## Corners, walls and rooms
 

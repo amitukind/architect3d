@@ -63,15 +63,19 @@ export class Model extends EventDispatcher
 	 * operation as a value for callers that would rather branch than catch.
 	 *
 	 * @param {string} json A `.blueprint3d` document.
+	 * @param {{reason?: string}} [options] `reason` labels the ChangeSets this
+	 * load produces - one of `CHANGE_REASONS`, defaulting to `REASON_LOAD`.
+	 * History passes `REASON_UNDO` so a restoration is distinguishable from an
+	 * open; see core/change_set.js.
 	 * @throws {Error} if the document is not a valid design. The design is
 	 * untouched when it does.
 	 * @emits {EVENT_LOADING} before parsing.
 	 * @emits {EVENT_LOADED} once the floorplan is built and item loads have been
 	 * started - not when the models have arrived. Listen on the scene for that.
 	 */
-	loadSerialized(json)
+	loadSerialized(json, options)
 	{
-		var result = this.loadDocument(json);
+		var result = this.loadDocument(json, options);
 		if (!result.ok)
 		{
 			var detail = result.errors.map(function (problem)
@@ -97,10 +101,11 @@ export class Model extends EventDispatcher
 	 * LOADING and hides it on LOADED would be left spinning.
 	 *
 	 * @param {string} json A `.blueprint3d` document.
+	 * @param {{reason?: string}} [options] See {@link Model#loadSerialized}.
 	 * @returns {import('./document.js').ParseResult} `ok`, the parsed document,
 	 * and every error and warning found.
 	 */
-	loadDocument(json)
+	loadDocument(json, options)
 	{
 		var result = DesignDocument.parse(json);
 		if (!result.ok)
@@ -123,7 +128,7 @@ export class Model extends EventDispatcher
 		this.scene.loadSession.begin();
 		this.scene.abortPendingLoads();
 
-		this.newRoom(result.document.floorplan, result.document.items);
+		this.newRoom(result.document.floorplan, result.document.items, options && options.reason);
 
 		this.dispatchEvent({type: EVENT_LOADED, item: this});
 		return result;
@@ -188,10 +193,10 @@ export class Model extends EventDispatcher
 		return JSON.stringify(room);
 	}
 
-	newRoom(floorplan, items)
+	newRoom(floorplan, items, reason)
 	{
 		this.scene.clearItems();
-		this.floorplan.loadFloorplan(floorplan);
+		this.floorplan.loadFloorplan(floorplan, reason);
 		items.forEach((item) => {
 			var matColors = (item.material_colors) ? item.material_colors : [];
 			var position = new Vector3(item.xpos, item.ypos, item.zpos);

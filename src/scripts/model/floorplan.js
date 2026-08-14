@@ -1,5 +1,6 @@
-import {EVENT_UPDATED, EVENT_LOADED, EVENT_NEW, EVENT_DELETED, EVENT_ROOM_NAME_CHANGED} from '../core/events.js';
+import {EVENT_UPDATED, EVENT_LOADED, EVENT_NEW, EVENT_DELETED, EVENT_ROOM_NAME_CHANGED, EVENT_CHANGESET} from '../core/events.js';
 import {EVENT_CORNER_ATTRIBUTES_CHANGED, EVENT_WALL_ATTRIBUTES_CHANGED, EVENT_ROOM_ATTRIBUTES_CHANGED, EVENT_MOVED} from '../core/events.js';
+import {ChangeSet, CHANGE_TOPOLOGY, CHANGE_GEOMETRY, REASON_EDIT, REASON_LOAD, newChangeCounts} from '../core/change_set.js';
 import {EventDispatcher, Vector2, Vector3} from 'three';
 import {Utils} from '../core/utils.js';
 import {Dimensioning} from '../core/dimensioning.js';
@@ -143,6 +144,29 @@ export class Floorplan extends EventDispatcher
 		this._batchDepth = 0;
 		/** What the deferred update has to do: null when nothing is pending. */
 		this._pendingUpdate = null;
+		/**
+		 * Why the open batch is happening, or null outside one (RM-003 A2).
+		 *
+		 * Set by the OUTERMOST `beginBatch()` and cleared when depth returns to
+		 * zero, because the outermost batch is the gesture: `loadFloorplan()` opens
+		 * one for `'load'` and every `newCorner()` inside it is part of that load,
+		 * not an edit of its own.
+		 *
+		 * @type {?string}
+		 */
+		this._batchReason = null;
+		/**
+		 * How many ChangeSets carrying each kind this plan has dispatched.
+		 *
+		 * The observability half of A2: "one EVENT_UPDATED per document open
+		 * instead of twenty-five" is a claim, and a claim nobody can compute is a
+		 * slogan. Read it with {@link Floorplan#changeStats}.
+		 *
+		 * @type {Object<string, number>}
+		 */
+		this._changeCounts = newChangeCounts();
+		/** How many ChangeSets have been dispatched at all, of any kind. */
+		this._changeDispatches = 0;
 		// Removed in S1: new_wall_callbacks, new_corner_callbacks,
 		// redraw_callbacks, updated_rooms and roomLoadedCallbacks. They were
 		// plain Arrays whose only registrars (fireOnNewWall and friends) called
@@ -431,6 +455,21 @@ export class Floorplan extends EventDispatcher
 	{
 		this.dispatchEvent({type: EVENT_DELETED, item: this, deleted: corner, item_type: 'corner'});
 		Utils.removeValue(this.corners, corner);
+		// The asymmetry A2 closes (RM-003 A2, task 6).
+		//
+		// removeWall() has always ended with an update() and this has never had
+		// one, so removing a corner left the plan announcing EVENT_DELETED and
+		// nothing else: the rooms still contained the departed corner, getSize()
+		// still counted it, and the 3D view still drew it, until some unrelated
+		// edit came along and re-derived. The usual path hid it - Corner.removeAll()
+		// removes the corner's walls first and each of THOSE updated - so the
+		// symptom only showed on a corner with no walls, or on the last update
+		// before something read the plan.
+		//
+		// Costs nothing on the usual path either, because removeAll() now opens a
+		// batch: what used to be one update per wall plus none for the corner is
+		// one update for the whole gesture.
+		this.update();
 	}
 
 	/**
@@ -659,104 +698,37 @@ export class Floorplan extends EventDispatcher
 	/**
 	 * @param {JSON}
 	 *            floorplan
+	 * @param {string} [reason] Why this load is happening - one of
+	 *            `CHANGE_REASONS`. Defaults to `REASON_LOAD`; history passes
+	 *            `REASON_UNDO` so consumers can tell a restoration from an open.
 	 * @return {void}
 	 * @emits {EVENT_LOADED}
 	 */
-	loadFloorplan(floorplan)
+	loadFloorplan(floorplan, reason)
 	{
-		this.reset();		
 		var corners = {};
-		if (floorplan == null || !('corners' in floorplan) || !('walls' in floorplan))
-		{
-			return;
-		}
-		// How to read the corner coordinates, decided by the file rather than by
-		// its version number - the same rule as the wall records below.
+		// The whole document swap is one gesture, `reset()` included (RM-003 A2).
 		//
-		// A stamped file says what unit it is in and this build only writes one,
-		// so `toCentimetres` is the identity for everything 2.0.0 and later. An
-		// unstamped file is 0.0.2a or older, where coordinates were written in
-		// whatever display unit was active at save time and the only guess
-		// available is the unit active now. That guess is wrong whenever the two
-		// differ, it always was, and no amount of care here can recover
-		// information the file does not contain - which is the entire reason the
-		// stamp exists. tests/fixtures/v1/ has the corpus, metres-room included.
-		var toCentimetres = cornerReader(floorplan.units);
-
-		// One re-derivation for the whole build, not one per corner and one per
-		// wall (RM-003 A1). See beginBatch(). The finally is not defensive padding:
-		// a throw between here and the end would otherwise leave the batch open and
-		// the plan permanently frozen, which is a far worse failure than the one
-		// that caused it.
-		this.beginBatch();
+		// A1 batched the build but left `reset()` outside it, which was invisible
+		// while the only tested case was opening a document into an empty plan.
+		// Opening one OVER an existing design is the real case: reset() removes
+		// every wall and every corner, each removal re-derives, and the second file
+		// open of a session announced thirteen changes before it had built
+		// anything - all of them labelled `edit`, because the batch that would have
+		// labelled them `load` had not started yet.
+		//
+		// The finally is not defensive padding: a throw between here and the end
+		// would otherwise leave the batch open and the plan permanently frozen,
+		// which is a far worse failure than the one that caused it.
+		var usable = floorplan != null && ('corners' in floorplan) && ('walls' in floorplan);
+		this.beginBatch(reason || REASON_LOAD);
 		try
 		{
-			for (var id in floorplan.corners)
+			this.reset();
+			if (usable)
 			{
-				var corner = floorplan.corners[id];
-				corners[id] = this.newCorner(toCentimetres(corner.x), toCentimetres(corner.y), id);
-				if(corner.elevation)
-				{
-					corners[id].elevation = toCentimetres(corner.elevation);
-				}
+				this._buildFloorplan(floorplan, corners);
 			}
-			var scope = this;
-			floorplan.walls.forEach((wall) => {
-				var newWall = scope.newWall(corners[wall.corner1], corners[wall.corner2]);
-				
-				if (wall.frontTexture)
-				{
-					newWall.frontTexture = wall.frontTexture;
-				}
-				if (wall.backTexture)
-				{
-					newWall.backTexture = wall.backTexture;
-				}
-				// Control points and wallType arrived with save format 0.0.2a. Whether
-				// a given file carries them is a property of THAT FILE, so ask the
-				// record rather than the version stamp.
-				//
-				// This used to read
-				// `if (Version.isVersionHigherThan(floorplan.version, '0.0.2a'))`,
-				// and that call is the reason the save format could not be versioned.
-				// isVersionHigherThan compares its arguments the other way round from
-				// the way its name reads - it is true when the SECOND is >= the first,
-				// per component, as an AND - so the gate let 0.0.2a and anything older
-				// through and rejected everything newer. Stamping a file 0.0.3, 0.1.0
-				// or 1.0.0 turned every curved wall straight and dropped its control
-				// points, with no error. Bumping `version` for any reason at all -
-				// a unit stamp, a colour-space marker - would have silently corrupted
-				// every curved design in existence.
-				//
-				// Reading the data directly removes the trap rather than reasoning
-				// about it, and is what the gate was always a proxy for. It is also
-				// strictly safer: the old form assigned `wall.a` unconditionally once
-				// the version matched, so a file with a version but no control points
-				// threw inside the setter.
-				//
-				// Behaviour is unchanged for every file that can exist. A genuine
-				// pre-0.0.2a file has no `a`/`b` and no `wallType`, so both branches
-				// are skipped exactly as before and the wall keeps the straight
-				// defaults its constructor computed.
-				if (wall.a && wall.b)
-				{
-					newWall.a = wall.a;
-					newWall.b = wall.b;
-				}
-				if (wall.wallType !== undefined)
-				{
-					// Anything that is not exactly 'CURVED' means straight, including
-					// lower-case 'curved'. Preserved: WallTypes are Symbols and this is
-					// their description, so the file carries the description string.
-					newWall.wallType = (wall.wallType === 'CURVED') ? WallTypes.CURVED : WallTypes.STRAIGHT;
-				}
-			});
-
-			if ('newFloorTextures' in floorplan)
-			{
-				this.floorTextures = floorplan.newFloorTextures;
-			}
-			this.metaroomsdata = floorplan.rooms;
 		}
 		finally
 		{
@@ -764,6 +736,18 @@ export class Floorplan extends EventDispatcher
 			// explicit update() that used to be here is not needed - and would be a
 			// second full re-derivation if it stayed.
 			this.endBatch();
+		}
+
+		if (!usable)
+		{
+			// Preserved exactly, quirk and all: a file that is not a floorplan has
+			// by now wiped the plan that was open, and says nothing about it - no
+			// EVENT_LOADED, no error. `tests/serialization.test.js` pins this under
+			// "CONTRADICTS the no-op reading of this branch". It is not the defect
+			// it looks like from here, because A1 put `DesignDocument.parse` in
+			// front of the only path an application reaches this by; a caller that
+			// hands raw JSON straight to loadFloorplan still gets the old behaviour.
+			return;
 		}
 
 		// The CarbonSheet is injected by the 2D floorplanner view. In widget mode
@@ -786,6 +770,99 @@ export class Floorplan extends EventDispatcher
 			this.carbonSheet.maintainProportion = true;
 		}
 		this.dispatchEvent({type: EVENT_LOADED, item: this});
+	}
+
+	/**
+	 * Build corners, walls and room metadata from a validated document.
+	 *
+	 * Split out of `loadFloorplan` in A2 only so that the reset, the build and the
+	 * carbon sheet read as the three steps they are, with the batch around the
+	 * first two. The body is unchanged.
+	 *
+	 * @param {Object} floorplan
+	 * @param {Object} corners Filled in with the corners this builds, by file id.
+	 */
+	_buildFloorplan(floorplan, corners)
+	{
+		// How to read the corner coordinates, decided by the file rather than by
+		// its version number - the same rule as the wall records below.
+		//
+		// A stamped file says what unit it is in and this build only writes one,
+		// so `toCentimetres` is the identity for everything 2.0.0 and later. An
+		// unstamped file is 0.0.2a or older, where coordinates were written in
+		// whatever display unit was active at save time and the only guess
+		// available is the unit active now. That guess is wrong whenever the two
+		// differ, it always was, and no amount of care here can recover
+		// information the file does not contain - which is the entire reason the
+		// stamp exists. tests/fixtures/v1/ has the corpus, metres-room included.
+		var toCentimetres = cornerReader(floorplan.units);
+
+		for (var id in floorplan.corners)
+		{
+			var corner = floorplan.corners[id];
+			corners[id] = this.newCorner(toCentimetres(corner.x), toCentimetres(corner.y), id);
+			if(corner.elevation)
+			{
+				corners[id].elevation = toCentimetres(corner.elevation);
+			}
+		}
+		var scope = this;
+		floorplan.walls.forEach((wall) => {
+			var newWall = scope.newWall(corners[wall.corner1], corners[wall.corner2]);
+			
+			if (wall.frontTexture)
+			{
+				newWall.frontTexture = wall.frontTexture;
+			}
+			if (wall.backTexture)
+			{
+				newWall.backTexture = wall.backTexture;
+			}
+			// Control points and wallType arrived with save format 0.0.2a. Whether
+			// a given file carries them is a property of THAT FILE, so ask the
+			// record rather than the version stamp.
+			//
+			// This used to read
+			// `if (Version.isVersionHigherThan(floorplan.version, '0.0.2a'))`,
+			// and that call is the reason the save format could not be versioned.
+			// isVersionHigherThan compares its arguments the other way round from
+			// the way its name reads - it is true when the SECOND is >= the first,
+			// per component, as an AND - so the gate let 0.0.2a and anything older
+			// through and rejected everything newer. Stamping a file 0.0.3, 0.1.0
+			// or 1.0.0 turned every curved wall straight and dropped its control
+			// points, with no error. Bumping `version` for any reason at all -
+			// a unit stamp, a colour-space marker - would have silently corrupted
+			// every curved design in existence.
+			//
+			// Reading the data directly removes the trap rather than reasoning
+			// about it, and is what the gate was always a proxy for. It is also
+			// strictly safer: the old form assigned `wall.a` unconditionally once
+			// the version matched, so a file with a version but no control points
+			// threw inside the setter.
+			//
+			// Behaviour is unchanged for every file that can exist. A genuine
+			// pre-0.0.2a file has no `a`/`b` and no `wallType`, so both branches
+			// are skipped exactly as before and the wall keeps the straight
+			// defaults its constructor computed.
+			if (wall.a && wall.b)
+			{
+				newWall.a = wall.a;
+				newWall.b = wall.b;
+			}
+			if (wall.wallType !== undefined)
+			{
+				// Anything that is not exactly 'CURVED' means straight, including
+				// lower-case 'curved'. Preserved: WallTypes are Symbols and this is
+				// their description, so the file carries the description string.
+				newWall.wallType = (wall.wallType === 'CURVED') ? WallTypes.CURVED : WallTypes.STRAIGHT;
+			}
+		});
+
+		if ('newFloorTextures' in floorplan)
+		{
+			this.floorTextures = floorplan.newFloorTextures;
+		}
+		this.metaroomsdata = floorplan.rooms;
 	}
 
 	/**
@@ -888,8 +965,17 @@ export class Floorplan extends EventDispatcher
 	 * pair with `endBatch()` in a `finally`: a batch left open silently stops the
 	 * plan updating.
 	 */
-	beginBatch()
+	/**
+	 * @param {string} [reason] Why this batch is happening - one of
+	 * `CHANGE_REASONS`. Only the outermost batch's reason is used; a nested
+	 * `beginBatch()` inside a load is still part of the load.
+	 */
+	beginBatch(reason)
 	{
+		if (this._batchDepth === 0)
+		{
+			this._batchReason = reason || null;
+		}
 		this._batchDepth += 1;
 	}
 
@@ -908,17 +994,31 @@ export class Floorplan extends EventDispatcher
 			return;
 		}
 		this._batchDepth -= 1;
-		if (this._batchDepth > 0 || this._pendingUpdate === null)
+		if (this._batchDepth > 0)
+		{
+			return;
+		}
+		var reason = this._batchReason;
+		this._batchReason = null;
+		if (this._pendingUpdate === null)
 		{
 			return;
 		}
 		var pending = this._pendingUpdate;
 		this._pendingUpdate = null;
-		this.update(pending.rooms, pending.corners.length ? pending.corners : null);
+		this.update(pending.rooms, pending.corners.length ? pending.corners : null, reason);
 	}
 
-	update(updateroomconfiguration = true, updatecorners=null)//Should include for , updatewalls=null, updaterooms=null
+	/**
+	 * @param {boolean} [updateroomconfiguration] Re-derive the rooms. A topology
+	 * change; false is a geometry change.
+	 * @param {?Corner[]} [updatecorners] The corners whose angles moved.
+	 * @param {?string} [reason] Why - one of `CHANGE_REASONS`. Defaults to the
+	 * open batch's reason, then to `REASON_EDIT`.
+	 */
+	update(updateroomconfiguration = true, updatecorners=null, reason=null)//Should include for , updatewalls=null, updaterooms=null
 	{
+		var effectiveReason = reason || this._batchReason || REASON_EDIT;
 		if (this._batchDepth > 0)
 		{
 			// Record and return. The union rather than the last call's arguments,
@@ -945,11 +1045,17 @@ export class Floorplan extends EventDispatcher
 		
 		if(!updateroomconfiguration)
 		{
-			this.dispatchEvent({type: EVENT_UPDATED, item: this});
-			return;			
+			// A geometry change: entities that already exist moved. The room set is
+			// the same set of OBJECTS, which is what lets the 3D projection redraw
+			// the handful of walls the moved corners touch instead of rebuilding the
+			// scene (RM-003 A2). The corner list is the payload because the corners
+			// are what the caller knew had moved - see newCorner()'s EVENT_MOVED
+			// listener, which passes the corner and its neighbours.
+			this._emitChanges(new ChangeSet(effectiveReason).add(CHANGE_GEOMETRY, updatecorners));
+			return;
 		}
-		
-		
+
+
 		var scope = this;
 
 		// Release before replacing (RM-003 A0).
@@ -1023,7 +1129,61 @@ export class Floorplan extends EventDispatcher
 		});				
 		this.assignOrphanEdges();
 		this.updateFloorTextures();
-		this.dispatchEvent({type: EVENT_UPDATED, item: this});
+		// A topology change, and the rooms it carries are the set as re-derived -
+		// every one of them a new object, because that is what this method does.
+		// Consumers reconcile against it rather than diffing it, which is why the
+		// payload is the whole set rather than a delta: until A3 gives an entity an
+		// identity that survives recomputation, there is no delta to state.
+		//
+		// A corner list means the caller asked for both at once: the angles moved
+		// AND the rooms were re-derived. Both kinds go out on one ChangeSet, which
+		// is the point of a set.
+		var changes = new ChangeSet(effectiveReason).add(CHANGE_TOPOLOGY, this.rooms);
+		if (updatecorners != null)
+		{
+			changes.add(CHANGE_GEOMETRY, updatecorners);
+		}
+		this._emitChanges(changes);
+	}
+
+	/**
+	 * Announce a change, and derive the legacy event from it (RM-003 A2).
+	 *
+	 * The single place either event is dispatched, and the reason the adapter is
+	 * an adapter rather than a parallel mechanism: `EVENT_UPDATED` cannot fire
+	 * without a ChangeSet describing it, so the two can never disagree about
+	 * whether something happened. It fires at exactly the moments it fired before
+	 * and carries exactly what it carried before, plus `.changes` - so a consumer
+	 * can adopt the typed payload without changing which event it listens to, and
+	 * one that never adopts it notices nothing.
+	 *
+	 * @param {ChangeSet} changes
+	 */
+	_emitChanges(changes)
+	{
+		if (changes.isEmpty())
+		{
+			return;
+		}
+		var scope = this;
+		changes.kinds().forEach(function (kind) {scope._changeCounts[kind] += 1;});
+		this._changeDispatches += 1;
+		this.dispatchEvent({type: EVENT_CHANGESET, item: this, changes: changes});
+		this.dispatchEvent({type: EVENT_UPDATED, item: this, changes: changes});
+	}
+
+	/**
+	 * How many ChangeSets this plan has dispatched, per kind (RM-003 A2, M-4).
+	 *
+	 * `dispatches` is the number of announcements; the per-kind counts are how
+	 * many of those carried each kind, so they sum to more than `dispatches` when
+	 * a single change was both topological and geometric.
+	 *
+	 * @returns {{dispatches: number, topology: number, geometry: number, surface: number, items: number, selection: number, view: number}}
+	 */
+	changeStats()
+	{
+		return Object.assign({dispatches: this._changeDispatches}, this._changeCounts);
 	}
 
 	/**

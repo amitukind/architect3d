@@ -5,6 +5,14 @@ export {Version} from './core/version.js';
 export {EVENT_SAVED, EVENT_UPDATED, EVENT_LOADING, EVENT_LOADED, EVENT_NEW, EVENT_ACTION, EVENT_GLTF_READY} from './core/events.js';
 export {EVENT_DELETED, EVENT_MOVED, EVENT_REDRAW, EVENT_CHANGED, EVENT_MODE_RESET} from './core/events.js';
 export {EVENT_CONFIG_CHANGED} from './core/events.js';
+// The typed change contract (RM-003 A2). EVENT_CHANGESET carries a ChangeSet
+// saying which kinds of thing changed and which entities each kind affects, so
+// a consumer can stop reacting to a corner drag as though a document had been
+// opened. Every EVENT_CHANGESET is followed by the EVENT_UPDATED it derives.
+export {EVENT_CHANGESET} from './core/events.js';
+export {ChangeSet, CHANGE_KINDS, CHANGE_REASONS} from './core/change_set.js';
+export {CHANGE_TOPOLOGY, CHANGE_GEOMETRY, CHANGE_SURFACE, CHANGE_ITEMS, CHANGE_SELECTION, CHANGE_VIEW} from './core/change_set.js';
+export {REASON_LOAD, REASON_EDIT, REASON_UNDO, REASON_DERIVE} from './core/change_set.js';
 export {EVENT_ROOM_NAME_CHANGED} from './core/events.js';
 export {EVENT_ITEM_LOADING, EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED, EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED} from './core/events.js';
 export {EVENT_ITEM_MOVE_FINISH} from './core/events.js';

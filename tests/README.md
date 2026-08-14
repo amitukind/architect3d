@@ -69,6 +69,15 @@ Expectations retired that way so far, all listed as FIX in the ledger:
 | `material_colors` held every material's colour on every save, freezing a model's own appearance into every design using it | post-S9 | `items-and-scene.test.js` |
 | A design with no `items` array threw **after** `EVENT_LOADING` and **after** the floorplan had been replaced, leaving the model half-loaded with no `EVENT_LOADED` and the previous design gone. RM-003 A1 validates the whole document first, so it now throws before anything is touched and dispatches neither event | RM-003 A1 | `items-and-scene.test.js` |
 
+**RM-003 A2 retired nothing**, which is worth recording because it was the
+sprint most likely to have to. Its risk register named characterization drift as
+the high one: coalescing `EVENT_UPDATED` changes how often it fires, and a test
+asserting a dispatch count would have had to go. None did — the counts the suite
+pinned were all of `EVENT_LOADED`, `EVENT_NEW` and `EVENT_DELETED`, none of
+which moved. One expectation *was* wrong and was corrected rather than retired:
+A2 briefly stopped `loadFloorplan` returning early on a malformed file, and
+`serialization.test.js` caught it inside a minute.
+
 One S0 test **fired as designed** in S4 rather than being retired: the
 zero-length `wallSize` setter produced NaN coordinates that r98's
 `Vector2(x, y) { this.x = x || 0; }` used to launder back to zero. r125 replaced
@@ -129,6 +138,15 @@ tests/
 │                           Floor's pair, Item's labels and selection box, the
 │                           HUD's rotation handle, and the shared texture cache
 │
+│  typed change and incremental projection (RM-003 A2, contract) — jsdom
+├─ helpers/scene_graph.js   a three scene as a sorted list of mesh descriptions,
+│                           so two of them can be diffed
+├─ change-projection.test.js  the ChangeSet contract; every legacy event walked
+│                           row by row against docs/events.md; the camera gate
+│                           against a REAL Main; and the matrix that matters -
+│                           three designs by ten edit kinds, incremental against
+│                           full redraw, mesh by mesh
+│
 │  the Vue application (S6-S7, contract) — environment: jsdom
 ├─ app-composables.test.js  the blueprint's lifetime, the single selection, the
 │                           camera modes, catalog placement, file IO
@@ -137,6 +155,26 @@ tests/
 │                           symmetry
 └─ app-inspector.test.js    the native panels: each one against a real model
                             object, the texture grid, and the unit switch
+```
+
+`tests/browser/` is a separate project - `npm run test:browser`, config in
+`vitest.browser.config.mjs` - because it needs a real WebGL context and
+`npm test` must stay runnable on a machine with no chromium. It answers the
+questions a stub renderer cannot:
+
+```
+tests/browser/
+├─ viewer-webgl.test.js     the frame composites, and the two render profiles
+│                           are not the same picture
+├─ environment-map.test.js  the PMREM environment actually reaches the materials
+├─ gpu-memory.test.js       renderer.info.memory over edit cycles: the driver's
+│                           own count of what it holds (RM-003 A0)
+├─ incremental-projection.test.js  the incremental path and a full redraw, read
+│                           back as pixels and compared byte for byte (A2)
+├─ plan-canvas.test.js      the 2D canvas under a real 2D context
+├─ plan-coalescing.test.js  one repaint per frame, not one per event
+├─ two-designs.test.js      two independent viewers on one page
+└─ accessibility.test.js    the application's keyboard and ARIA surface
 ```
 
 The application and colour-pipeline modules are contract tests, not characterization: the

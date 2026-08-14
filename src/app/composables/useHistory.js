@@ -2,6 +2,7 @@
 import {computed, onScopeDispose, ref, shallowRef, watch} from 'vue';
 import {EVENT_UPDATED, EVENT_LOADED} from '../../scripts/blueprint.js';
 import {EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED, EVENT_ITEM_MOVE_FINISH} from '../../scripts/blueprint.js';
+import {REASON_UNDO} from '../../scripts/blueprint.js';
 
 /**
  * Undo and redo.
@@ -267,7 +268,11 @@ export function useHistory(store)
 	{
 		clearTimeout(coalesceTimer);
 		restoring = true;
-		model().loadSerialized(state);
+		// `undo` rather than the default `load` (RM-003 A2). History is the only
+		// thing that knows a document is being put back rather than opened, and a
+		// consumer that wants to treat the two differently - a viewer that keeps
+		// the camera still when you undo, say - has no other way to find out.
+		model().loadSerialized(state, {reason: REASON_UNDO});
 		// loadSerialized dispatches EVENT_LOADED on its way out, which runs
 		// holdOff below; this covers the case where nothing is listening yet.
 		holdOff();

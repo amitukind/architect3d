@@ -4,6 +4,44 @@
 
 ### Fixed
 
+* **Dragging a corner no longer moves the 3D camera, and no longer rebuilds the
+  scene.** `Floorplan` had one way of saying anything had happened —
+  `EVENT_UPDATED`, with a payload of the floorplan the listener already had —
+  and six unrelated consumers hung off it. None could tell a corner drag from a
+  file open, so every one did its most expensive thing every time. Measured on a
+  four-wall room: a ten-step drag ran **10 full `Floorplan3D.redraw()` calls and
+  10 `centerCamera()` calls**, tearing down and rebuilding eight wall faces and
+  two floors per pointermove, and yanking the camera back to the plan centre
+  each time.
+
+  It is now **0 and 0**. The 3D view redraws the faces the moved corners touch;
+  the camera reframes on topology changes only, and only when the plan's
+  bounding box actually moved.
+
+  The one intended behaviour change: **a topological edit that leaves the
+  bounding box where it was no longer reframes either** — adding a corner
+  strictly inside the plan, splitting a wall. Opening a document still frames
+  it.
+* **Moving a corner announced itself three times.** A corner with two walls
+  dispatched `EVENT_UPDATED` once from its own move and once from each wall,
+  because a wall listens to its corners and `Wall.updateControlVectors()` calls
+  `update()` of its own — with no payload at all, so two of the three said only
+  "something geometric changed, somewhere". `Corner.move()` now batches the
+  gesture and the wall names the corners it moved, so one change comes out
+  carrying all of them.
+* **Removing a corner updates the plan, as removing a wall always did.**
+  `removeWall()` has always ended with an `update()` and `removeCorner()` never
+  had one, so a removed corner stayed in the rooms and in `getSize()` — which is
+  what the camera frames and what the shadow camera is sized from — until some
+  unrelated edit re-derived. The usual path hid it, because `Corner.removeAll()`
+  removes the walls first and each of those updated. `removeAll()` now opens a
+  batch, so what used to be one re-derivation per wall plus none for the corner
+  is one for the whole gesture.
+* **Opening a document over an existing one announced thirteen changes before
+  building anything.** The batch added in A1 started *after* `reset()`, so every
+  wall and corner the outgoing design was made of re-derived the plan on its way
+  out — and each one was labelled an edit rather than part of the load. `reset()`
+  is now inside the batch.
 * **Opening a file that is not a design no longer destroys the design you have
   open.** `loadSerialized()` parsed and then mutated live state, and `newRoom()`
   called `scene.clearItems()` *before* `loadFloorplan()` — which itself opens
@@ -82,6 +120,58 @@
 
 ### Added
 
+* **`EVENT_CHANGESET` and `core/change_set.js`** — the model can now say *what*
+  changed, not only *that* something did. A `ChangeSet` carries the kinds that
+  changed (`topology`, `geometry`, `surface`, `items`, `selection`, `view`), the
+  entities each kind affects, and a reason (`load`, `edit`, `undo`, `derive`).
+
+  ```js
+  floorplan.addEventListener(EVENT_CHANGESET, ({changes}) => {
+      if (changes.has(CHANGE_GEOMETRY)) { nudge(changes.entities(CHANGE_GEOMETRY)); }
+  });
+  ```
+
+  **Purely additive.** Every `EVENT_CHANGESET` is followed by the
+  `EVENT_UPDATED` derived from it, at the same moment and with the same `item` —
+  `Floorplan._emitChanges` is the only place either is dispatched, so the two
+  cannot disagree about whether something happened. The ChangeSet also rides
+  along on the legacy payload as `evt.changes`, so a consumer can adopt the
+  typed form without changing which event it listens to.
+
+  `Floorplan` emits two of the six kinds today, and the other four are named
+  rather than emitted. That is a decision, not an omission: A2 types the
+  dispatch that exists and does not invent dispatch. `surface` is the one that
+  looks wrong and is not — `Room.setTexture()` and `HalfEdge.setTexture()`
+  already go straight to the `Floor` and `Edge` drawing them, which is
+  per-entity and already incremental, and a plan-level broadcast on top would be
+  new traffic that autosave and history would start recording.
+* **`Floorplan3D` projects incrementally.** Topology changes reconcile — build a
+  view for every model entity that has none, dispose every view whose entity is
+  gone, keep the rest — and geometry changes redraw only the affected faces and
+  floors. `projectionStats()` reports what it did.
+  `Floorplan3D.incremental = false` restores a full `redraw()` on every change,
+  with the ChangeSet still in place, so the two halves of this revert
+  separately.
+
+  Reconciliation after a *topology* change still rebuilds everything, because
+  `update(true)` constructs a new `Room` and a new `HalfEdge` for every one and
+  the diff finds nothing in common. It is written as a reconciliation because
+  that is the shape that becomes incremental once entities have an identity that
+  survives recomputation. The geometry path is the one that is incremental now,
+  and it is the one a drag takes.
+* **`Main.cameraStats()`** — `{recentred, declined}`, so "the camera stopped
+  following the drag" is a number rather than a claim.
+* **`Floorplan.changeStats()`** — how many ChangeSets this plan has dispatched,
+  per kind.
+* **`Floorplan.beginBatch(reason)`** takes an optional reason, and
+  `Model.loadSerialized(json, {reason})` / `loadDocument(json, {reason})` pass
+  one through. History passes `undo`, because it is the only thing that knows a
+  document is being put back rather than opened.
+* **`textureUrlOf(texture)`** — which URL a cached texture came from. The cache
+  already kept it, and it is the only stable way to ask whether two textures are
+  the same image: every clone has its own `uuid`, `source.uuid` changes when an
+  entry is released and reacquired, and `texture.image` is null until the decode
+  lands and forever in a headless environment.
 * **`Model.loadDocument(json)`** — the same operation as `loadSerialized`,
   reported rather than thrown. Returns `{ok, document, errors, warnings}`, where
   every error carries the path to the field it is about
@@ -261,6 +351,17 @@
 
 ### Changed
 
+* **`Main` and `Floorplan3D` subscribe to `EVENT_CHANGESET` rather than
+  `EVENT_UPDATED`.** Both need to know *what* changed, and the legacy event
+  cannot say. `EVENT_UPDATED` still fires at exactly the moments it always did,
+  and `Lights`, autosave, history and the statistics panel are unchanged.
+
+  Two properties are worth knowing if you subclass or replace either: the
+  ChangeSet listeners run before the `EVENT_UPDATED` ones, because the model
+  dispatches the typed event first; and a `Floorplan3D` handed an
+  `EVENT_CHANGESET` with no `changes` payload falls back to a full redraw,
+  because "something changed and I cannot tell what" has exactly one safe
+  reaction.
 * **`EVENT_ITEM_LOADED` can now carry `stale: true`.** A model requested by one
   document can arrive after another has been opened. That arrival is reported
   rather than swallowed, so every `EVENT_ITEM_LOADING` is still matched by

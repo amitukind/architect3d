@@ -12,8 +12,8 @@ The arrow points one way and nothing goes back: there is no Vue anywhere under
 `src/scripts/`, and `npm run build` bundles the library alone.
 
 That is not a style preference — it is what makes the library embeddable in a
-page that has never heard of Vue, and what lets 870 tests exercise the model
-with no renderer and no browser.
+page that has never heard of Vue, and what lets a thousand tests exercise the
+model with no renderer and no browser.
 
 It also decides where the UI stack lives. Tailwind, Reka UI, lucide and VueUse
 are **devDependencies**, because `files` in `package.json` publishes
@@ -97,7 +97,22 @@ Because it rebuilds everything, `update()` is expensive, and `newCorner()` and
 **`beginBatch()` / `endBatch()`**, which defers the re-derivation to one call at
 the end — opening a four-wall design used to dispatch `EVENT_UPDATED` 25 times
 and now dispatches it once. Always pair them in a `finally`: a batch left open
-silently stops the plan updating.
+silently stops the plan updating. `beginBatch(reason)` labels the gesture; only
+the outermost batch's reason is used, because the outermost batch *is* the
+gesture. `loadFloorplan()`, `Corner.move()` and `Corner.removeAll()` each open
+one.
+
+Every change the plan announces is a **`ChangeSet`** (`core/change_set.js`),
+carrying which kinds changed, the entities each kind affects, and why — see
+[Events](/events). `Floorplan._emitChanges` is the only place either event is
+dispatched, and it dispatches both: `EVENT_CHANGESET` and then the
+`EVENT_UPDATED` derived from it. That is what keeps the legacy event honest —
+it cannot fire without a ChangeSet describing it, so the two cannot disagree
+about whether anything happened.
+
+Which kind you get is decided by the argument `update()` already took:
+`update(true)` re-derives the rooms and is a **topology** change,
+`update(false, corners)` is a **geometry** change carrying those corners.
 
 `document.js` is what a `.blueprint3d` file has to satisfy before any of this
 runs. `Model.loadDocument()` validates the whole document first, so a file that
@@ -130,7 +145,8 @@ constants remain the defaults, and an embedder that never calls
 something marked the scene dirty, so an idle design costs nothing.
 
 `floorPlan.js` builds `Edge`s (wall faces) and `Floor`s from the model and
-throws them all away on every redraw. `controller.js` handles picking and
+keeps them, reacting to what changed rather than rebuilding the scene — see
+seam 3 below. `controller.js` handles picking and
 dragging, `hud.js` the selection box and rotation arrow, `skybox.js` the
 gradient sky and ground, `lights.js` the lights.
 
@@ -220,7 +236,7 @@ elements with `defineExpose`.
 
 ## Where the layers meet
 
-Seven seams are worth knowing, because each one is a place where a change in
+Eight seams are worth knowing, because each one is a place where a change in
 one layer does *not* automatically reach the other:
 
 1. **`Configuration` announces a change but redraws nothing.** It dispatches
@@ -233,9 +249,22 @@ one layer does *not* automatically reach the other:
    and the 2D view read. Construct a `Floorplan` (or a `BlueprintJS`) without
    one and it shares the page-wide default, which is what the `Configuration`
    and `Dimensioning` statics also read.
-3. **`Floorplan3D.redraw()` rebuilds every `Edge` and `Floor`.** Anything
-   configured on a wall material must be reapplied in the rebuild path, not
-   just in a constructor.
+3. **`Floorplan3D` projects incrementally, and `redraw()` is the reference.**
+   It reacts to a topology change by *reconciling* — building a view for every
+   model entity that has none, disposing every view whose entity is gone — and
+   to a geometry change by redrawing only the faces and floors the moved corners
+   touch. Anything configured on a wall material must be reapplied in `Edge`'s
+   rebuild path, not just in a constructor, because both paths go through it.
+   `redraw()` is still there and still correct; `incremental = false` restores
+   it as the reaction to everything, which is the rollback switch and is what
+   `tests/change-projection.test.js` diffs against.
+
+   Note what a topology change costs today: `update(true)` constructs a new
+   `Room` and a new `HalfEdge` for every one, so reconciliation finds nothing in
+   common and rebuilds the lot. It is written as a reconciliation because that
+   is the shape that becomes genuinely incremental once entities have an
+   identity that survives recomputation. The geometry path is the one that is
+   incremental now, and it is the one a drag takes.
 4. **Textures are shared and refcounted.** `acquireTexture` hands out a
    `Texture.clone()` over one decoded image, and the last `releaseTexture`
    disposes it. Each surface keeps its own `repeat` and `wrap`; the pixels are
@@ -257,7 +286,12 @@ one layer does *not* automatically reach the other:
    construction, or `Main.applyRenderProfile()` after it. A viewer given its own
    profile — `new BlueprintJS({renderProfile: createRenderProfile(RENDER_STUDIO)})`
    — does not touch the shared one.
-7. **Undo captures what the save format captures.** `saveFloorplan` writes only
+7. **The camera reframes on topology, not on change.** `Main` subscribes to
+   `EVENT_CHANGESET` and calls `centerCamera()` only for a topology change whose
+   plan extent actually moved. A drag does not reach it; nor does a corner added
+   strictly inside the existing plan. `cameraStats()` reports
+   `{recentred, declined}`.
+8. **Undo captures what the save format captures.** `saveFloorplan` writes only
    the corners its walls reach, so a corner with nothing attached is not in a
    snapshot and cannot be restored by one. Unreachable through the UI, which
    creates corners and walls together; reachable by an embedder driving the
@@ -265,8 +299,9 @@ one layer does *not* automatically reach the other:
 
 ## Testing
 
-`tests/` is 870 tests in 17 files, all headless. jsdom supplies the DOM, a stub
-renderer stands in for WebGL, and `tests/helpers/` holds the shared harness.
+`tests/` is 1,049 headless tests in 22 files, plus 37 in a real browser. jsdom
+supplies the DOM, a stub renderer stands in for WebGL, and `tests/helpers/`
+holds the shared harness.
 
 Most of the suite is *characterization*: it was written against the pre-
 migration behaviour and it pins that behaviour, quirks included. Two known bugs

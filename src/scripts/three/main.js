@@ -5,7 +5,8 @@ import {PCFSoftShadowMap, ACESFilmicToneMapping, NoToneMapping, PMREMGenerator} 
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {PointerLockControls} from './pointerlockcontrols.js';
 
-import {EVENT_UPDATED, EVENT_WALL_CLICKED, EVENT_NOTHING_CLICKED, EVENT_FLOOR_CLICKED, EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED, EVENT_GLTF_READY} from '../core/events.js';
+import {EVENT_CHANGESET, EVENT_WALL_CLICKED, EVENT_NOTHING_CLICKED, EVENT_FLOOR_CLICKED, EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED, EVENT_GLTF_READY} from '../core/events.js';
+import {CHANGE_TOPOLOGY} from '../core/change_set.js';
 import {EVENT_CAMERA_ACTIVE_STATUS, EVENT_FPS_EXIT, EVENT_CAMERA_VIEW_CHANGE} from '../core/events.js';
 import {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY} from '../core/constants.js';
 import {resolveElement, elementBox, measureViewport, pixelRatio} from '../core/dom.js';
@@ -38,6 +39,28 @@ import {renderProfile, isStudio, setRenderProfile} from './render_profile.js';
 // converts when it is constructed, and materials are built long before any
 // renderer exists.
 ColorManagement.enabled = true;
+
+/**
+ * Half a millimetre, in the centimetres the model is measured in.
+ *
+ * The tolerance the camera gate compares plan extents with (RM-003 A2). Exact
+ * equality would very nearly do - the same corners run through the same
+ * arithmetic give the same float - but "very nearly" is how a camera ends up
+ * twitching once in a thousand edits, and half a millimetre is far below
+ * anything a person can see moving in a framed 3D view.
+ */
+const EXTENT_EPSILON = 0.05;
+
+/**
+ * @param {{center: Vector3, size: Vector3}} a
+ * @param {{center: Vector3, size: Vector3}} b
+ * @returns {boolean} Whether the two bounding boxes are the same one.
+ */
+function sameExtent(a, b)
+{
+	return a.center.distanceToSquared(b.center) < EXTENT_EPSILON * EXTENT_EPSILON
+		&& a.size.distanceToSquared(b.size) < EXTENT_EPSILON * EXTENT_EPSILON;
+}
 
 export class Main extends EventDispatcher
 {
@@ -124,8 +147,18 @@ export class Main extends EventDispatcher
 
 		this.floorplan = null;
 
+		/**
+		 * The plan extent the camera was last framed against, or null before the
+		 * first framing (RM-003 A2). Compared on every topology change; see
+		 * onModelChanged.
+		 *
+		 * @type {?{center: Vector3, size: Vector3}}
+		 */
+		this._lastFramedExtent = null;
+		this._cameraStats = {recentred: 0, declined: 0};
+
 		var scope = this;
-		this.updatedevent = ()=>{scope.centerCamera();};
+		this.updatedevent = (evt)=>{scope.onModelChanged(evt.changes);};
 		this.gltfreadyevent = (o)=>{scope.gltfReady(o);};
 
 		this.clippingPlaneActive = new Plane(new Vector3(0, 0, 1), 0.0);
@@ -399,7 +432,7 @@ export class Main extends EventDispatcher
 		// setup camera nicely
 		scope.centerCamera();
 
-		scope.model.floorplan.addEventListener(EVENT_UPDATED, this.updatedevent);
+		scope.model.floorplan.addEventListener(EVENT_CHANGESET, this.updatedevent);
 		scope.model.addEventListener(EVENT_GLTF_READY, this.gltfreadyevent);
 
 		scope.lights = new Lights(scope.scene, scope.model.floorplan, scope.renderProfile);
@@ -459,7 +492,7 @@ export class Main extends EventDispatcher
 		this.element.removeEventListener('mouseleave', this._mouseLeaveEvent);
 		this.element.removeEventListener('click', this._clickEvent);
 
-		this.model.floorplan.removeEventListener(EVENT_UPDATED, this.updatedevent);
+		this.model.floorplan.removeEventListener(EVENT_CHANGESET, this.updatedevent);
 		this.model.removeEventListener(EVENT_GLTF_READY, this.gltfreadyevent);
 
 		if (this.controller)
@@ -760,11 +793,75 @@ export class Main extends EventDispatcher
 		scope.needsUpdate = true;
 	}
 
+	/**
+	 * Recentre the camera, but only when the plan it is framing actually moved
+	 * (RM-003 A2, M-5).
+	 *
+	 * ## The finding
+	 *
+	 * This class subscribed to `EVENT_UPDATED` and called `centerCamera()` for
+	 * every one, and `EVENT_UPDATED` is what a corner drag dispatches. So dragging
+	 * a corner in the 2D view yanked the 3D camera back to the plan's centre on
+	 * every pointermove - the most visible symptom of finding H-4, and the one a
+	 * person notices without being told to look.
+	 *
+	 * ## The gate
+	 *
+	 * Topology only, and only on a real extent change. A drag is a `geometry`
+	 * change and does not reach `centerCamera()` at all. A topology change that
+	 * leaves the bounding box where it was - adding a corner inside the existing
+	 * plan, splitting a wall - does reach here and is declined, which is the one
+	 * intended behaviour change in this sprint. Opening a document moves the
+	 * extent (usually from nothing to something) and still frames it.
+	 *
+	 * @param {?import('../core/change_set.js').ChangeSet} changes
+	 */
+	onModelChanged(changes)
+	{
+		if (changes && !changes.has(CHANGE_TOPOLOGY))
+		{
+			this._cameraStats.declined += 1;
+			return;
+		}
+		var extent = this.planExtent();
+		if (this._lastFramedExtent && sameExtent(this._lastFramedExtent, extent))
+		{
+			this._cameraStats.declined += 1;
+			return;
+		}
+		this.centerCamera();
+	}
+
+	/**
+	 * The bounding box the camera frames: where the plan is and how big it is.
+	 * @returns {{center: Vector3, size: Vector3}}
+	 */
+	planExtent()
+	{
+		return {center: this.model.floorplan.getCenter(), size: this.model.floorplan.getSize()};
+	}
+
+	/**
+	 * How often the camera has reframed and how often it has declined to
+	 * (RM-003 A2). `recentred` is M-5's camera half: it must not move during a
+	 * drag.
+	 *
+	 * @returns {{recentred: number, declined: number}}
+	 */
+	cameraStats()
+	{
+		return Object.assign({}, this._cameraStats);
+	}
+
 	centerCamera()
 	{
 		var scope = this;
 		var yOffset = 150.0;
 		var pan = scope.model.floorplan.getCenter();
+		// Recorded before pan is mutated below - pan IS the centre, until the line
+		// after next writes the camera's height into it.
+		scope._lastFramedExtent = scope.planExtent();
+		scope._cameraStats.recentred += 1;
 		pan.y = yOffset;
 		scope.controls.target = pan;
 		var distance = scope.model.floorplan.getSize().z * 1.5;

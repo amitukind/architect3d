@@ -95,10 +95,18 @@ export default defineConfig({
 				// a validator is branches, and the corpus exercises each one. The
 				// other three gained fractions (77.48 lines, 77.51 statements, 75.32
 				// functions) and stay where they are.
-				lines: 77,
-				statements: 77,
-				branches: 64,
-				functions: 75,
+				//
+				// A2 moved all four over a whole number at once - 78.10 lines, 78.16
+				// statements, 65.42 branches, 76.14 functions - and the reason is
+				// worth recording, because it is not "we wrote more tests". The
+				// change-projection suite drives paths that no previous suite reached
+				// at all: the incremental projection compared against a full redraw on
+				// three designs and ten edit kinds, and a real `Main` mounted to check
+				// the camera rather than a stand-in that reimplemented its rule.
+				lines: 78,
+				statements: 78,
+				branches: 65,
+				functions: 76,
 			},
 		},
 	},

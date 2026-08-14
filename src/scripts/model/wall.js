@@ -193,10 +193,32 @@ export class Wall extends EventDispatcher
 		this._bezier.points[3].x = this.end.location.x;
 		this._bezier.points[3].y = this.end.location.y;
 		this._bezier.update();
-		if(this.getStart() || this.getEnd())
+		// Name the corners whose geometry this moved (RM-003 A2).
+		//
+		// It used to call `update(false)` with no payload at all - "something
+		// geometric changed, work out what" - which was survivable only because
+		// every consumer reacted to every change by rebuilding everything. A
+		// consumer that reacts per entity can do nothing with an unnamed change.
+		//
+		// The two corners are the right answer for both callers: a control point
+		// moved between them, or one of them moved and dragged the control vectors
+		// with it. In the second case they are already in the corner's own change
+		// and the union costs nothing - see Corner.move(), which batches the whole
+		// gesture so this echo does not become a third announcement.
+		//
+		// Worth stating what this does NOT currently fix, so nobody credits it with
+		// more than it does: bending a wall changes no mesh in the 3D view today.
+		// Only HalfEdge's centre and length read the bezier, and the wall planes
+		// are built from the corner offsets, so a curved wall is drawn as a
+		// straight quad. `tests/change-projection.test.js` pins that under "curving
+		// a wall - and the picture does not move". This is the payload being
+		// correct, not a bug being fixed.
+		var anchor = this.getStart() || this.getEnd();
+		if (anchor)
 		{
-			(this.getStart() != null) ? this.getStart().floorplan.update(false) : (this.getEnd() != null) ? this.getEnd().floorplan.update(false) : false;
-		}		
+			var moved = [this.getStart(), this.getEnd()].filter(function (corner) {return corner != null;});
+			anchor.floorplan.update(false, moved);
+		}
 	}
 
 	getUuid()

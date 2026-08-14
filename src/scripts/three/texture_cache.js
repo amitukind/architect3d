@@ -148,6 +148,33 @@ export function releaseTexture(texture)
 }
 
 /**
+ * Which URL a texture came from, or null if it did not come from here.
+ *
+ * The cache already keeps this - `releaseTexture` needs it - and reading it is
+ * the only way to ask "is this the same image?" about two textures. It cannot be
+ * answered from the Texture: every clone has its own `uuid`, and `source.uuid`
+ * is shared only while one cache entry stays alive, so it changes the moment a
+ * design releases a texture and reacquires it. Nor from `texture.image`, which
+ * is null until the decode lands and null forever in a headless environment.
+ *
+ * Added in RM-003 A2 for the scene-graph diff that proves the incremental
+ * projection draws what the full redraw drew. Useful for debugging for the same
+ * reason - a scene full of anonymous textures is hard to read.
+ *
+ * @param {?import('three').Texture} texture
+ * @returns {?string}
+ */
+export function textureUrlOf(texture)
+{
+	if (!texture)
+	{
+		return null;
+	}
+	var url = originOf.get(texture);
+	return (url === undefined) ? null : url;
+}
+
+/**
  * Drop every cached image.
  *
  * Called from Main.dispose(). Any clone still held by a caller keeps working -

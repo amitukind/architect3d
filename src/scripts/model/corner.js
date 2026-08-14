@@ -306,15 +306,30 @@ export class Corner extends EventDispatcher
 	removeAll()
 	{
 		var i = 0;
-		for (i = 0; i < this.wallStarts.length; i++)
+		// One re-derivation for the whole gesture (RM-003 A2).
+		//
+		// Every wall removed below runs Floorplan.update(), and since A2 so does
+		// the corner's own removal - so a corner with two walls re-derived the plan
+		// three times, for one thing the user did. The batch makes it once. The
+		// finally is not padding: a throw in here would otherwise leave the batch
+		// open and the plan permanently frozen.
+		this.floorplan.beginBatch();
+		try
 		{
-			this.wallStarts[i].remove();
+			for (i = 0; i < this.wallStarts.length; i++)
+			{
+				this.wallStarts[i].remove();
+			}
+			for (i = 0; i < this.wallEnds.length; i++)
+			{
+				this.wallEnds[i].remove();
+			}
+			this.remove();
 		}
-		for (i = 0; i < this.wallEnds.length; i++)
+		finally
 		{
-			this.wallEnds[i].remove();
+			this.floorplan.endBatch();
 		}
-		this.remove();
 	}
 
 	/** Moves corner to new position.
@@ -327,27 +342,49 @@ export class Corner extends EventDispatcher
 		this._y = newY;
 		this._co.x = newX;
 		this._co.y = newY;
-		
-		if(mergeWithIntersections)
+
+		// One announcement per drag step, not one per attached wall (RM-003 A2).
+		//
+		// Moving a corner used to dispatch EVENT_UPDATED three times on a corner
+		// with two walls: once from the listener on this corner's EVENT_MOVED, and
+		// once from each wall, because a wall listens to its corners and
+		// `Wall.updateControlVectors()` calls update() of its own. Every one of
+		// those drove a full 3D rebuild and a camera recentre, so a corner in the
+		// middle of a plan cost three of each per pointermove.
+		//
+		// The batch unions them: the corner's change names the corner and its
+		// neighbours, the walls' echoes name corners already in that set, and one
+		// geometry change comes out at the end carrying all of them. It also means
+		// the plan announces itself updated once it IS - after the walls have had
+		// their control vectors recomputed, rather than before.
+		this.floorplan.beginBatch();
+		try
 		{
-			//The below line is crashing after makign the changes for curved walls
-			//While release v1.0.0 is stable even with this line enabled
-			this.mergeWithIntersected();
-			if(this.floorplan.rooms.length < 10)
+			if(mergeWithIntersections)
 			{
-				this.updateAttachedRooms(true);
+				//The below line is crashing after makign the changes for curved walls
+				//While release v1.0.0 is stable even with this line enabled
+				this.mergeWithIntersected();
+				if(this.floorplan.rooms.length < 10)
+				{
+					this.updateAttachedRooms(true);
+				}
 			}
+
+			this.dispatchEvent({type:EVENT_MOVED, item: this, position: new Vector2(newX, newY)});
+
+			this.wallStarts.forEach((wall) => {
+				wall.fireMoved();
+			});
+
+			this.wallEnds.forEach((wall) => {
+				wall.fireMoved();
+			});
 		}
-		
-		this.dispatchEvent({type:EVENT_MOVED, item: this, position: new Vector2(newX, newY)});
-
-		this.wallStarts.forEach((wall) => {
-			wall.fireMoved();
-		});
-
-		this.wallEnds.forEach((wall) => {
-			wall.fireMoved();
-		});		
+		finally
+		{
+			this.floorplan.endBatch();
+		}
 	}
 	
 	//Angle is in degrees 0 - 360

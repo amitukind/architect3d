@@ -11,6 +11,20 @@ export const EVENT_SAVED = 'SAVED_EVENT';
 export const EVENT_CHANGED = 'CHANGED_EVENT';
 export const EVENT_GLTF_READY = 'GLTF_READY_EVENT';
 
+/**
+ * Something changed, and the payload says what (RM-003 A2).
+ *
+ * Carries `{item, changes}`, where `changes` is a `ChangeSet` naming the kinds
+ * that changed and the entities each kind affects. See core/change_set.js for
+ * the vocabulary and why it is a payload rather than six more constants.
+ *
+ * Dispatched by `Floorplan` immediately before the `EVENT_UPDATED` it derives,
+ * so the two are one announcement seen at two levels of detail. Subscribing to
+ * this one instead of EVENT_UPDATED is what lets a consumer stop doing its most
+ * expensive thing on every pointermove.
+ */
+export const EVENT_CHANGESET = 'CHANGESET_EVENT';
+
 export const EVENT_ITEM_LOADING = 'ITEM_LOADING_EVENT';
 export const EVENT_ITEM_LOADED = 'ITEM_LOADED_EVENT';
 export const EVENT_ITEM_REMOVED = 'ITEM_REMOVED_EVENT';
