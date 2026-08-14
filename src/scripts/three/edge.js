@@ -1,7 +1,8 @@
-import {EventDispatcher, TextureLoader, RepeatWrapping, BufferAttribute, Vector2, Vector3, MeshBasicMaterial, FrontSide, DoubleSide, BackSide, Shape, Path, ShapeGeometry, Mesh, SRGBColorSpace} from 'three';
+import {EventDispatcher, TextureLoader, RepeatWrapping, BufferAttribute, Vector2, Vector3, MeshBasicMaterial, MeshStandardMaterial, FrontSide, DoubleSide, BackSide, Shape, Path, ShapeGeometry, Mesh, SRGBColorSpace} from 'three';
 import {Utils} from '../core/utils.js';
 import {triangleFanGeometry} from '../core/geometry_builders.js';
 import {EVENT_REDRAW, EVENT_CAMERA_MOVED, EVENT_CAMERA_ACTIVE_STATUS} from '../core/events.js';
+import {renderProfile, isStudio} from './render_profile.js';
 
 export class Edge extends EventDispatcher
 {
@@ -206,9 +207,57 @@ export class Edge extends EventDispatcher
 		}
 	}
 
+	/**
+	 * The studio profile's wall surface.
+	 *
+	 * A painted wall under real light, rather than a photograph of one. Three
+	 * differences from the classic material matter:
+	 *
+	 * - It is lit at all. MeshBasicMaterial ignores every light in the scene, so
+	 *   in classic a room's corners, its ceiling join and the underside of a
+	 *   soffit are all exactly the same value. This is the single biggest reason
+	 *   the old viewer reads as flat.
+	 * - `transparent` is not passed. It would not survive if it were:
+	 *   `addToScene` calls `updateVisibility`, which assigns `transparent` and
+	 *   `opacity` on every plane immediately and again on every camera move -
+	 *   that is the wall-fade that lets you see into a room from outside. So the
+	 *   constructor argument only ever described the first instant of the
+	 *   material's life, and omitting it changes nothing.
+	 * - The lightmap is dialled back (see renderProfile.wallLightMapIntensity).
+	 *   At pi it exists to cancel a constant in the *basic* shader; here it is a
+	 *   hand-painted vignette layered over genuine shading, and at full strength
+	 *   it double-darkens every corner it already has a shadow in.
+	 *
+	 * @param {number} color
+	 * @param {number} side A three side constant.
+	 * @param {boolean} [lit=true] Whether to apply the vignette lightmap. The
+	 * exterior filler does not get one - it is the back of the wall, and the
+	 * vignette is painted for an interior.
+	 * @returns {MeshStandardMaterial}
+	 */
+	makeStudioWallMaterial(color, side, lit)
+	{
+		var material = new MeshStandardMaterial({
+			color: color,
+			side: side,
+			map: this.texture,
+			roughness: renderProfile.wallRoughness,
+			metalness: renderProfile.wallMetalness,
+			envMapIntensity: renderProfile.environmentIntensity,
+		});
+
+		if (lit !== false)
+		{
+			material.lightMap = this.lightMap;
+			material.lightMapIntensity = renderProfile.wallLightMapIntensity;
+		}
+
+		return material;
+	}
+
 	updatePlanes()
 	{
-		
+
 		var extStartCorner = this.edge.getStart();
 		var extEndCorner = this.edge.getEnd();
 
@@ -218,7 +267,7 @@ export class Edge extends EventDispatcher
 		}
 
 		var color = 0xFFFFFF;
-		var wallMaterial = new MeshBasicMaterial({
+		var wallMaterial = isStudio() ? this.makeStudioWallMaterial(color, FrontSide) : new MeshBasicMaterial({
 			color: color,
 			side: FrontSide,
 			map: this.texture,
@@ -253,7 +302,7 @@ export class Edge extends EventDispatcher
 			opacity: 1.0,
 			wireframe: false,
 		});
-		var fillerMaterial = new MeshBasicMaterial({
+		var fillerMaterial = isStudio() ? this.makeStudioWallMaterial(this.fillerColor, DoubleSide, false) : new MeshBasicMaterial({
 			color: this.fillerColor,
 			side: DoubleSide,
 			map: this.texture,
@@ -358,7 +407,46 @@ export class Edge extends EventDispatcher
 
 		var mesh = new Mesh(geometry, material);
 		mesh.name = 'wall';
+
+		// Shadows, under studio only. The classic scene has castShadow false on
+		// everything it builds, so the directional light has only ever shadowed
+		// the loaded furniture - a room whose walls cast nothing, lit from above,
+		// is why the old viewer has no sense of enclosure. Receiving matters as
+		// much as casting: a wall that does not receive cannot show the shadow of
+		// the sofa standing against it.
+		mesh.castShadow = isStudio();
+		mesh.receiveShadow = isStudio();
+
 		return mesh;
+	}
+
+	/**
+	 * The untextured surfaces: the top of a wall, the cut end where two walls
+	 * meet at different heights, and the underside.
+	 *
+	 * In classic these are flat MeshBasicMaterial and always have been. Leaving
+	 * them flat under the studio profile would be worse than leaving the whole
+	 * scene flat, because the lit interior face and the unlit top edge of the
+	 * same wall would sit side by side at visibly different values - the wall
+	 * would look like it had a strip of paper stuck along the top.
+	 *
+	 * @param {number} color
+	 * @param {number} side A three side constant.
+	 * @returns {(MeshBasicMaterial|MeshStandardMaterial)}
+	 */
+	makeFillerMaterial(color, side)
+	{
+		if (!isStudio())
+		{
+			return new MeshBasicMaterial({color: color, side: side});
+		}
+		return new MeshStandardMaterial({
+			color: color,
+			side: side,
+			roughness: renderProfile.wallRoughness,
+			metalness: renderProfile.wallMetalness,
+			envMapIntensity: renderProfile.environmentIntensity,
+		});
 	}
 
 	buildSideFillter(p1, p2, height, color)
@@ -367,7 +455,7 @@ export class Edge extends EventDispatcher
 
 		var geometry = triangleFanGeometry(points);
 
-		var fillerMaterial = new MeshBasicMaterial({color: color,side: DoubleSide});
+		var fillerMaterial = this.makeFillerMaterial(color, DoubleSide);
 		var filler = new Mesh(geometry, fillerMaterial);
 		return filler;
 	}
@@ -381,7 +469,7 @@ export class Edge extends EventDispatcher
 		
 		
 		
-		var fillerMaterial = new MeshBasicMaterial({color: color,side: side});
+		var fillerMaterial = this.makeFillerMaterial(color, side);
 
 		var geometry = triangleFanGeometry([a, b, c, d]);
 
@@ -393,7 +481,7 @@ export class Edge extends EventDispatcher
 	{
 		var points = [this.toVec2(edge.exteriorStart()), this.toVec2(edge.exteriorEnd()), this.toVec2(edge.interiorEnd()),this.toVec2(edge.interiorStart())];
 
-		var fillerMaterial = new MeshBasicMaterial({color: color,side: side});
+		var fillerMaterial = this.makeFillerMaterial(color, side);
 		var shape = new Shape(points);
 		var geometry = new ShapeGeometry(shape);
 		var filler = new Mesh(geometry, fillerMaterial);

@@ -5,6 +5,7 @@ export {EVENT_SAVED, EVENT_UPDATED, EVENT_LOADING, EVENT_LOADED, EVENT_NEW, EVEN
 export {EVENT_DELETED, EVENT_MOVED, EVENT_REDRAW, EVENT_CHANGED, EVENT_MODE_RESET} from './core/events.js';
 export {EVENT_ROOM_NAME_CHANGED} from './core/events.js';
 export {EVENT_ITEM_LOADING, EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED, EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED} from './core/events.js';
+export {EVENT_ITEM_MOVE_FINISH} from './core/events.js';
 export {EVENT_CAMERA_MOVED, EVENT_CAMERA_ACTIVE_STATUS, EVENT_FPS_EXIT, EVENT_CAMERA_VIEW_CHANGE} from './core/events.js';
 
 export {EVENT_CORNER_ATTRIBUTES_CHANGED, EVENT_WALL_ATTRIBUTES_CHANGED, EVENT_ROOM_ATTRIBUTES_CHANGED} from './core/events.js';
@@ -43,6 +44,7 @@ export {edgeColor, edgeColorHover, edgeWidth} from './floorplanner/floorplanner_
 export {cornerRadius, cornerRadiusHover, cornerRadiusSelected, cornerColor, cornerColorHover, cornerColorSelected} from './floorplanner/floorplanner_view.js';
 export {FloorplannerView2D} from './floorplanner/floorplanner_view.js';
 export {floorplannerPalette, setFloorplannerPalette} from './floorplanner/floorplanner_view.js';
+export {RENDER_CLASSIC, RENDER_STUDIO, renderProfile, setRenderProfile, isStudio} from './three/render_profile.js';
 
 
 export {Floorplanner2D} from './floorplanner/floorplanner.js';

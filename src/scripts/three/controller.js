@@ -1,5 +1,5 @@
 import {EventDispatcher, Vector2, Vector3, Mesh, PlaneGeometry, MeshBasicMaterial, Raycaster } from 'three';
-import {EVENT_ITEM_REMOVED, EVENT_ITEM_LOADED} from '../core/events.js';
+import {EVENT_ITEM_REMOVED, EVENT_ITEM_LOADED, EVENT_ITEM_MOVE_FINISH} from '../core/events.js';
 import { Utils } from '../core/utils.js';
 
 export const states = {UNSELECTED: 0, SELECTED: 1, DRAGGING: 2, ROTATING: 3,  ROTATING_FREE: 4, PANNING: 5};
@@ -348,6 +348,7 @@ export class Controller extends EventDispatcher
 			case states.DRAGGING:
 				this.selectedObject.clickReleased();
 				this.switchState(states.SELECTED);
+				this.itemMoveFinished();
 				break;
 			case states.ROTATING:
 				if (!this.mouseMoved) {
@@ -355,6 +356,7 @@ export class Controller extends EventDispatcher
 				}
 				else {
 					this.switchState(states.SELECTED);
+					this.itemMoveFinished();
 				}
 				break;
 			case states.UNSELECTED:
@@ -372,6 +374,26 @@ export class Controller extends EventDispatcher
 			case states.ROTATING_FREE:
 				break;
 			}
+		}
+	}
+
+	/**
+	 * Announce that a direct manipulation has settled.
+	 *
+	 * Dispatched on the *scene*, not on the Controller, because the scene is
+	 * where an application already listens for item lifecycle events - a
+	 * consumer that wants to know an item moved should not also have to reach
+	 * through Main into the Controller to find out.
+	 *
+	 * Only fired when the pointer actually moved. A click that selects an item
+	 * and releases without dragging passes through DRAGGING in some paths, and a
+	 * selection is not an edit.
+	 */
+	itemMoveFinished()
+	{
+		if (this.mouseMoved && this.selectedObject)
+		{
+			this.scene.dispatchEvent({type: EVENT_ITEM_MOVE_FINISH, item: this.selectedObject});
 		}
 	}
 

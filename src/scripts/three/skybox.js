@@ -1,5 +1,6 @@
 import {EventDispatcher, PlaneGeometry, SphereGeometry, MeshBasicMaterial, ShaderMaterial, Mesh, TextureLoader, Color, DoubleSide, SRGBColorSpace} from 'three';
-import {RepeatWrapping} from 'three';
+import {RepeatWrapping, Fog} from 'three';
+import {renderProfile, isStudio} from './render_profile.js';
 
 
 /**
@@ -37,8 +38,8 @@ export class Skybox extends EventDispatcher
 		
 		this.defaultEnvironment = 'rooms/textures/envs/Garden.png';
 		this.useEnvironment = false;
-		this.topColor = 0x92b2ce;//0xe9e9e9; //0xf9f9f9;//0x565e63
-		this.bottomColor = 0xffffff;//0xD8ECF9
+		this.topColor = renderProfile.skyTopColor;//0xe9e9e9; //0xf9f9f9;//0x565e63
+		this.bottomColor = renderProfile.skyBottomColor;//0xD8ECF9
 		this.verticalOffset = 400;
 		this.exponent = 0.5;
 		
@@ -104,19 +105,56 @@ export class Skybox extends EventDispatcher
 		// A photograph of gravel (S8).
 		groundT.colorSpace = SRGBColorSpace;
 		groundT.wrapS = groundT.wrapT = RepeatWrapping;
+		// Anisotropic filtering, in both profiles.
+		//
+		// A ground plane is the textbook case for it: the surface runs away from
+		// the camera, so the sampling footprint is enormously wider than it is
+		// tall, and isotropic mipmapping has to pick one level for both axes -
+		// which either aliases across the plane or blurs along it. Sixteen taps is
+		// the usual cap and costs nothing measurable for one draw.
+		//
+		// `renderer` can be a stub under test, and `capabilities` is a real WebGL
+		// query, so this is guarded rather than assumed.
+		if (renderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function')
+		{
+			groundT.anisotropy = Math.min(16, renderer.capabilities.getMaxAnisotropy());
+		}
 		// 40, not 10 - see GROUND_REFLECTOR_ENABLED. The reflector used to replace
 		// this material entirely and tiled its own copy of the same image at
 		// 40x40, so 10 was never what anyone actually saw. At 10 the ground reads
 		// as big flat squares with obvious seams; 40 restores the fine gravel the
 		// reflector produced, which is the whole of the difference the parity grid
 		// showed between r98 and r185.
-		groundT.repeat.set(40, 40);
+		groundT.repeat.set(renderProfile.groundRepeat, renderProfile.groundRepeat);
 		
 		this.groundGeo = new PlaneGeometry(10000, 10000, 10);
-		this.groundMat = new MeshBasicMaterial({color: 0xEAEAEA, side: DoubleSide, map:groundT });
+		this.groundMat = new MeshBasicMaterial({
+			color: renderProfile.groundColor,
+			side: DoubleSide,
+			map: renderProfile.groundTexture ? groundT : null,
+		});
 		this.ground = new Mesh(this.groundGeo, this.groundMat);
 		this.ground.rotateX(-Math.PI * 0.5);
 		this.ground.position.y = -1;
+
+		// Distance fog, studio only.
+		//
+		// The ground is a 10000-unit square and the sky is a 4000-radius sphere, so
+		// the ground runs out well before the sky does and the two meet at a hard
+		// horizontal line with gravel on one side of it. Every previous attempt at
+		// this problem in this file went at the ground - tiling frequency, a
+		// mirror, a tint - and none of them could fix it, because the line is not a
+		// property of the ground texture.
+		//
+		// Fog is. It is also the cheapest atmosphere in the engine: linear Fog is
+		// a two-uniform change to every material's fragment shader, applies to
+		// MeshBasicMaterial as readily as to a lit one, and needs no second pass.
+		// `fogColor` matches the sky's bottom stop so the ground dissolves into
+		// the horizon rather than into a band of a different hue.
+		//
+		// It lives on the Scene, which is why it is set here rather than in the
+		// renderer: three reads `scene.fog` when it compiles each material.
+		this.threeScene().fog = isStudio() ? new Fog(renderProfile.fogColor, renderProfile.fogNear, renderProfile.fogFar) : null;
 		
 		// See GROUND_REFLECTOR_ENABLED above. Null rather than absent so
 		// dispose() and any embedder reading it still find the property.
@@ -154,6 +192,7 @@ export class Skybox extends EventDispatcher
 
 		this.scene.remove(this.sky);
 		this.scene.remove(this.ground);
+		this.threeScene().fog = null;
 
 		// The reflector replaces ground.material, so dispose what is actually on
 		// the mesh as well as the MeshBasicMaterial it was built with.
@@ -174,6 +213,23 @@ export class Skybox extends EventDispatcher
 		}
 	}
 	
+	/**
+	 * The real THREE.Scene behind whatever was handed to the constructor.
+	 *
+	 * `scene` has always been duck-typed here as "something with add and remove",
+	 * and two different things are passed: `Main` passes the model's `Scene`
+	 * wrapper, and a caller holding a plain THREE.Scene passes that. Both satisfy
+	 * add/remove, which is why nothing has ever had to tell them apart - until
+	 * fog, which is a property on the real scene object and is silently ignored
+	 * if set on the wrapper.
+	 *
+	 * @returns {Object} a THREE.Scene
+	 */
+	threeScene()
+	{
+		return (typeof this.scene.getScene === 'function') ? this.scene.getScene() : this.scene;
+	}
+
 	setEnabled(flag)
 	{
 		if(!flag)

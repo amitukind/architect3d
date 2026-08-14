@@ -1,7 +1,8 @@
 import {EventDispatcher, Vector2, Vector3, WebGLRenderer, PerspectiveCamera, OrthographicCamera} from 'three';
 import {ColorManagement, SRGBColorSpace} from 'three';
 import {Plane} from 'three';
-import {PCFSoftShadowMap} from 'three';
+import {PCFSoftShadowMap, ACESFilmicToneMapping, NoToneMapping, PMREMGenerator} from 'three';
+import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {PointerLockControls} from './pointerlockcontrols.js';
 
 import {EVENT_UPDATED, EVENT_WALL_CLICKED, EVENT_NOTHING_CLICKED, EVENT_FLOOR_CLICKED, EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED, EVENT_GLTF_READY} from '../core/events.js';
@@ -16,6 +17,7 @@ import {HUD} from './hud.js';
 import {Floorplan3D} from './floorPlan.js';
 import {Lights} from './lights.js';
 import {Skybox} from './skybox.js';
+import {renderProfile, isStudio, setRenderProfile} from './render_profile.js';
 
 // --- S8: colour management, on ---------------------------------------------
 //
@@ -91,6 +93,9 @@ export class Main extends EventDispatcher
 		this.hasClicked = false;
 
 		this.hud = null;
+		this.lights = null;
+		this.skybox = null;
+		this.environmentTexture = null;
 
 		this.heightMargin = null;
 		this.widthMargin = null;
@@ -161,7 +166,133 @@ export class Main extends EventDispatcher
 		renderer.clippingPlanes = this.clippingEmpty;
 		renderer.localClippingEnabled = false;
 
+		this.applyToneMapping(renderer);
+
 		return renderer;
+	}
+
+	/**
+	 * Filmic tone mapping, under the studio profile.
+	 *
+	 * The scene has a hemisphere light at 1.1*pi and a key at 0.5*pi over
+	 * mostly-white surfaces, which means large areas of it land above 1.0 in
+	 * linear space. With NoToneMapping - three's default, and what this app has
+	 * always used - everything above 1.0 is clamped, so those areas become
+	 * exactly #ffffff and all the shading inside them is thrown away. It is why
+	 * a brightly lit white wall loses its corner.
+	 *
+	 * ACES rolls the highlights off instead of cutting them, so the same wall
+	 * keeps its gradient, and it slightly desaturates the extremes, which is what
+	 * stops a saturated fabric reading as a flat sticker.
+	 *
+	 * Tone mapping is applied *after* lighting and *before* the sRGB encode, so
+	 * it composes with the S8 colour pipeline rather than competing with it.
+	 * Explicitly setting NoToneMapping on the classic path matters: this method
+	 * also runs from applyRenderProfile on a live renderer, and leaving the
+	 * previous value in place would make classic-after-studio a third look.
+	 *
+	 * @param {Object} renderer
+	 */
+	applyToneMapping(renderer)
+	{
+		renderer.toneMapping = isStudio() ? ACESFilmicToneMapping : NoToneMapping;
+		renderer.toneMappingExposure = renderProfile.toneMappingExposure;
+	}
+
+	/**
+	 * Build the image-based environment and hang it on the scene.
+	 *
+	 * `RoomEnvironment` is a three addon: a handful of emissive boxes arranged as
+	 * a photographer's softbox room. Rendered once into a cube target and
+	 * prefiltered by PMREMGenerator, it becomes the irradiance every physically
+	 * based material samples for its ambient and specular response.
+	 *
+	 * This is the change that does the most for the least, because the catalog is
+	 * 168 glTF models and glTF materials are physically based by definition. In
+	 * the classic scene their only light is one hemisphere and one very dim red
+	 * directional, so a chrome tap and a matte cushion shade almost identically -
+	 * they have nothing to reflect. Here they reflect a room.
+	 *
+	 * Cost is one offscreen render at startup and one cube texture held for the
+	 * life of the viewer. The generator itself is disposed immediately; the
+	 * texture it produced is not, and is released in dispose().
+	 */
+	buildEnvironment()
+	{
+		this.environmentTexture = null;
+		if (!isStudio() || !renderProfile.environment)
+		{
+			this.scene.getScene().environment = null;
+			return;
+		}
+
+		// A stubbed renderer has no WebGL context to render the cube into. The
+		// viewer is fully functional without an environment - it is ambient light,
+		// not geometry - so this degrades rather than throws, which is what lets
+		// the mount/unmount suite run headless.
+		if (typeof this.renderer.compile !== 'function')
+		{
+			return;
+		}
+
+		var pmrem = new PMREMGenerator(this.renderer);
+		var room = new RoomEnvironment();
+		this.environmentTexture = pmrem.fromScene(room, 0.04).texture;
+		this.scene.getScene().environment = this.environmentTexture;
+		room.dispose();
+		pmrem.dispose();
+	}
+
+	/**
+	 * Switch render profile on a live viewer.
+	 *
+	 * Three things have to happen together and in this order: the profile is
+	 * swapped, the renderer and environment are reconfigured against it, and then
+	 * every Edge and Floor is thrown away and rebuilt - because a material's
+	 * class is fixed at construction and no amount of assignment turns a
+	 * MeshBasicMaterial into a MeshStandardMaterial.
+	 *
+	 * The Skybox is rebuilt too, for the fog and the sky gradient. Loaded items
+	 * are not: they are glTF, they were always physically based, and they pick up
+	 * the new environment and tone mapping without being touched.
+	 *
+	 * @param {string} mode RENDER_CLASSIC or RENDER_STUDIO.
+	 */
+	applyRenderProfile(mode)
+	{
+		setRenderProfile(mode);
+
+		this.applyToneMapping(this.renderer);
+
+		if (this.environmentTexture)
+		{
+			this.environmentTexture.dispose();
+			this.environmentTexture = null;
+		}
+		this.buildEnvironment();
+
+		if (this.skybox)
+		{
+			var wasEnvironment = this.skybox.useEnvironment;
+			this.skybox.dispose();
+			this.skybox = new Skybox(this.scene, this.renderer);
+			this.skybox.toggleEnvironment(wasEnvironment);
+		}
+
+		if (this.lights)
+		{
+			this.lights.dispose();
+			this.lights = new Lights(this.scene, this.model.floorplan);
+			this.lights.updateShadowCamera();
+		}
+
+		if (this.floorplan)
+		{
+			this.floorplan.redraw();
+		}
+
+		this.needsUpdate = true;
+		this.render(true);
 	}
 
 	init()
@@ -189,6 +320,12 @@ export class Main extends EventDispatcher
 
 		scope.renderer = scope.getARenderer();
 		scope.domElement.appendChild(scope.renderer.domElement);
+
+		// Before the Skybox, which reads scene.fog, and before Lights - both are
+		// cheap to build and neither depends on the environment, but keeping the
+		// order "renderer, environment, world" means there is never a frame where
+		// a physically based material exists with nothing to reflect.
+		scope.buildEnvironment();
 
 		scope.skybox = new Skybox(scope.scene, scope.renderer);
 
@@ -315,6 +452,16 @@ export class Main extends EventDispatcher
 		if (this.skybox)
 		{
 			this.skybox.dispose();
+		}
+		if (this.lights)
+		{
+			this.lights.dispose();
+		}
+		if (this.environmentTexture)
+		{
+			this.environmentTexture.dispose();
+			this.environmentTexture = null;
+			this.scene.getScene().environment = null;
 		}
 
 		if (this.renderer)
