@@ -936,7 +936,16 @@ footer{margin-top:70px; padding-top:18px; border-top:1px solid var(--line); colo
   </table></div>
   <p>So the null-item branch that already ships has never been exercised with a Controller attached. Second, a characterization test pins <code>addItem</code> to <em>propagate</em> a <code>ReferenceError</code> from <code>item.js:111</code>, which any <code>try/catch</code> swallows. Per §01's preserve-or-fix policy a characterization failure is a signal to re-check the change, so the attempt was reverted rather than the expectation edited.</p>
   <div class="gate">
-    <div class="g-head">PROPOSAL</div>
+    <div class="g-head">LANDED — P3</div>
+    <ul>
+      <li>Done as proposed. <code>addItem</code> dispatches exactly one LOADING and exactly one LOADED whatever happens, the failure carrying a null item; <code>Controller.itemLoaded</code> null-checks; the catch covers starting a load and nothing else, so the installed <code>itemLoader</code> stays outside it and the DOM-boundary characterization test still gets its <code>ReferenceError</code>, unchanged</li>
+      <li>The suite now passes with P1's app-shell stub removed — that stub was working around exactly this. Kept for determinism, with its reason rewritten to say so</li>
+      <li><code>SETTLE_BACKSTOP_MS</code> stays, but as a genuine backstop rather than a workaround wearing the word: the only path that can still leave a load unresolved is an embedder's own <code>setItemLoader</code>, which is arbitrary code under no obligation to call back</li>
+    </ul>
+  </div>
+
+  <div class="gate">
+    <div class="g-head">AS PROPOSED</div>
     <ul>
       <li>Guard <code>Controller.itemLoaded</code> against a null item</li>
       <li>Narrow the catch so it wraps only the loader dispatch, never <code>loaderCallback</code></li>
@@ -961,10 +970,12 @@ footer{margin-top:70px; padding-top:18px; border-top:1px solid var(--line); colo
   <p>Every other mutation in the library announces itself through <code>EventDispatcher</code>. <code>Configuration</code> is a class of static methods over a plain object, so a consumer that wants to react to a unit or scale change has to poll or be told out of band.</p>
   <p>That is what killed the settings-panel zoom slider — it read <code>Number(config.scale)</code> off a non-reactive object, rendered <code>1</code> once, then sat there reading <code>1</code> while the plan was at 300%. It was removed rather than fixed, because there was nothing to hook.</p>
   <div class="gate">
-    <div class="g-head">PROPOSAL</div>
+    <div class="g-head">LANDED — P3</div>
     <ul>
-      <li>Make <code>Configuration</code> an <code>EventDispatcher</code> and emit on <code>setValue</code> — roughly twenty lines, no call-site changes</li>
-      <li>The app gets a genuinely reactive settings panel for free. Pairs with R-02; do them together</li>
+      <li><code>EVENT_CONFIG_CHANGED</code>, carrying the key, the new value and the old — and only on an actual change. Callers write from watchers and computed setters that re-run for unrelated reasons, so announcing a no-op write turns one user action into a redraw storm and a two-way bound control into a loop</li>
+      <li>Not by extending <code>EventDispatcher</code>: <code>Configuration</code> is a namespace of statics that nobody instantiates, so extending it would mean nothing. One module-level dispatcher with the listener API forwarded as statics gives callers the same <code>addEventListener</code> they use everywhere else</li>
+      <li>This replaced a characterization test asserting the opposite. It described a real gap rather than a quirk worth keeping, so the expectation changed with the code — which is what the preserve-or-fix policy asks for. Wall snapshotting is unchanged: broadcasting a change is not reacting to one</li>
+      <li>The payoff was three stale controls, not the zoom slider. Snap-to-grid, snap distance and grid resolution are writable from the plan overlay too, and the panel read them once at mount. Two tests pin it, and both fail without the fix. The zoom slider stays deleted — it could be made to work now, but the plan has its own readout, stops, fit, wheel and shortcut</li>
     </ul>
   </div>
 
@@ -972,10 +983,11 @@ footer{margin-top:70px; padding-top:18px; border-top:1px solid var(--line); colo
   <p><code>Edge.updateTexture()</code> runs <code>new TextureLoader().load(url, callback)</code> — a fresh loader <em>and</em> a fresh <code>Texture</code> every call. It is wired to <code>redraw()</code>, which is wired to <code>EVENT_REDRAW</code>. Nothing disposes the old one, so every redraw of a room leaks one GPU texture per wall surface. <code>edge.js:29</code> loads the shared wall lightmap once per <code>Edge</code> rather than once per scene; <code>Floor</code> does the same for floors.</p>
   <p>The 3D view has otherwise-careful disposal — <code>Skybox</code>, <code>Lights</code>, <code>Controller</code> and <code>Main</code> all release properly. Textures are the gap.</p>
   <div class="gate">
-    <div class="g-head">PROPOSAL</div>
+    <div class="g-head">LANDED — P3</div>
     <ul>
-      <li>A refcounted <code>TextureCache</code> keyed by URL: <code>acquire(url)</code> / <code>release(url)</code>, disposing at zero</li>
-      <li>~80 lines; removes both the GPU leak and the repeated fetch. Already on §09's backlog</li>
+      <li>Refcounted per URL, as proposed — but handing out <code>Texture.clone()</code>s rather than one shared Texture. The obvious cache is wrong here: a wall sets <code>repeat</code> from its own width and height, so two walls sharing one Texture would both take whichever set it last. A clone keeps <code>repeat</code>, <code>wrap</code> and <code>colorSpace</code> per surface while <code>.source</code> — the decoded image and the GPU upload behind it — is shared. Verified against three rather than assumed, including that a clone taken before the image lands still receives it</li>
+      <li>Two further leaks surfaced. <code>Floor</code> never removed its <code>EVENT_CHANGED</code> listener, and <code>Floorplan3D.redraw()</code> discarded floors with <code>removeFromScene()</code>, which only takes them out of the scene graph — so every edit that rebuilt the plan left another subscribed floor holding another texture. <code>Floorplan3D</code> had no <code>dispose()</code> at all, so a torn-down viewer stayed subscribed to the model and redrew a scene it no longer belonged to</li>
+      <li>Six tests. The one that matters redraws every edge five times and asserts the handle count does not move; putting the missing release back makes it read 58 where it should read 18</li>
     </ul>
   </div>
 
@@ -1143,7 +1155,7 @@ footer{margin-top:70px; padding-top:18px; border-top:1px solid var(--line); colo
     <tbody>
       <tr><td>P1 <span class="chip ok">done</span></td><td>Tier 0 hooks + Tier 1 CI</td><td>2–3 days</td><td>Costs nothing to run and immediately stops the §10 class of failure. Everything after this is verified by it. <strong>Landed:</strong> pre-commit hook via <code>simple-git-hooks</code> + <code>lint-staged</code>; coverage floor recorded at the first measurement; all three builds and the size budgets in CI. Typecheck arrives with P2</td></tr>
       <tr><td>P2 <span class="chip ok">done</span></td><td>R-07 <code>checkJs</code> + <code>vue-tsc</code> on TS 6</td><td>4–6 days</td><td>No source rewrite. Opt in file by file, core first. Produces the <code>.d.ts</code> P4 needs. <strong>Landed:</strong> 40 files checked and clean — all of <code>core/</code>, all 16 composables, the public entry, 11 SFCs; <code>tsconfig.build.json</code> emits 44 declaration files; the remaining 426 errors are laid out per area in <code>tsconfig.json</code></td></tr>
-      <tr><td>P3</td><td>R-01, R-03, R-04 — the library correctness set</td><td>5–7 days</td><td>Three contained changes with real user-visible consequences. Do them under the type checker, not before it</td></tr>
+      <tr><td>P3 <span class="chip ok">done</span></td><td>R-01, R-03, R-04 — the library correctness set</td><td>5–7 days</td><td>Three contained changes with real user-visible consequences. Do them under the type checker, not before it. <strong>Landed:</strong> all three, plus three further leaks the work surfaced — <code>Floor</code>'s unremoved <code>EVENT_CHANGED</code> listener, <code>Floorplan3D</code> having no <code>dispose()</code> at all, and floors being discarded with <code>removeFromScene()</code>. 892 tests; coverage ratcheted to 75%</td></tr>
       <tr><td>P4</td><td>R-06 packaging + R-02 instance state</td><td>4–5 days</td><td>Both are public-API shaped, so they belong in one minor release with one changelog entry</td></tr>
       <tr><td>P5</td><td>Tier 2 browser + visual regression</td><td>3–4 days</td><td>Baseline against <code>studio</code> once P3 has settled the render path, not while it is still moving</td></tr>
       <tr><td>P6</td><td>R-05 rAF coalescing + asset compression</td><td>3–4 days</td><td>Performance last, because P5 is what proves it changed nothing visible</td></tr>

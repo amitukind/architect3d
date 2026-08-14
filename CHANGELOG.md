@@ -4,6 +4,18 @@
 
 ### Added
 
+* **`EVENT_CONFIG_CHANGED`.** `Configuration.setValue` now says what changed,
+  carrying the key, the new value and the old — and only when the value actually
+  changed. `Configuration.addEventListener` / `removeEventListener` are statics,
+  because `Configuration` is a namespace over module-level state rather than
+  something anybody instantiates. It was the one change vector in the library
+  that broadcast nothing.
+* **A shared texture cache** behind every wall and floor surface, exported as
+  `acquireTexture` / `releaseTexture` / `clearTextureCache` / `textureCacheStats`.
+  One decode per image however many surfaces draw with it, refcounted, released
+  when the last handle goes back. Handles are `Texture.clone()`s, so each wall
+  keeps its own `repeat` over one copy of the pixels.
+* **`Floorplan3D.dispose()`** and **`Floor.dispose()`**.
 * **Type checking, over the JSDoc that was already there.** `npm run typecheck`
   runs `vue-tsc`, which checks the annotations and the single-file-component
   templates against their own script blocks. No `.ts` files, no source rewrite —
@@ -37,7 +49,6 @@
   for the asset trees. The demo bundle reached 1.1 MB and the deployed tree
   21.6 MB without anybody deciding either number; a budget does not make them
   smaller, it makes growth something someone chooses.
-
 * **Undo and redo**, over every edit — walls, corners, rooms, furniture,
   textures, inspector fields. Entries are snapshots of the serialized design
   rather than an inverse-command stack, because the library's mutations are not
@@ -118,6 +129,31 @@
 
 ### Fixed
 
+* **A failed model load now resolves.** Both loaders were called with a null
+  `onError` and nothing around them, so a 404, a malformed `.glb`, or a URL the
+  environment cannot parse dispatched `EVENT_ITEM_LOADING` and then dispatched
+  nothing at all — leaving every listener counting loads in flight holding a
+  count that never came back down. `addItem` now dispatches exactly one
+  `LOADING` and exactly one `LOADED` whatever happens, the failure carrying a
+  null item.
+* **`Controller.itemLoaded` dereferenced the null item it was already being
+  sent.** The formatless branch has dispatched one since S4; nothing had
+  exercised it with a Controller attached.
+* **A GPU texture leaked per wall surface per redraw**, and another per floor
+  per rebuild. `Edge.updateTexture` allocated a new `Texture` on every call and
+  disposed nothing, and it is wired to `EVENT_REDRAW` — so the leak grew with
+  editing rather than with the size of the design. The wall lightmap, one image
+  shared by every wall, was loaded once per wall.
+* **`Floor` never removed its `EVENT_CHANGED` listener**, and
+  `Floorplan3D.redraw()` discarded floors with `removeFromScene()`, which only
+  takes them out of the scene graph. Every edit that rebuilt the plan left
+  another subscribed floor behind.
+* **`Floorplan3D` had no `dispose()`**, so a torn-down viewer stayed subscribed
+  to the model's `EVENT_UPDATED` and went on redrawing a scene it no longer
+  belonged to.
+* **The settings panel showed stale configuration.** Snap-to-grid, snap distance
+  and grid resolution are writable from the plan overlay as well as from the
+  panel, and the panel read them once at mount.
 * **`Main.getController()` was typed as always returning `null`**, because
   `init()` assigns the property through a `scope` alias rather than through
   `this`, so nothing ever declared it. Annotated — no runtime change, but every
