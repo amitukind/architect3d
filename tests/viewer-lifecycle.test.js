@@ -15,6 +15,8 @@
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 import * as THREE from 'three';
 import {Main} from '../src/scripts/three/main.js';
+import {acquireTexture, releaseTexture, clearTextureCache, textureCacheStats} from '../src/scripts/three/texture_cache.js';
+import {Floorplan3D} from '../src/scripts/three/floorPlan.js';
 import {Lights} from '../src/scripts/three/lights.js';
 import {PointerLockControls} from '../src/scripts/three/pointerlockcontrols.js';
 import {Model} from '../src/scripts/model/model.js';
@@ -464,6 +466,120 @@ describe('BlueprintJS mount and unmount', () =>
  * three are one-liners that a later refactor could silently drop. S8 removes
  * them deliberately, and these tests with them.
  */
+describe('the texture cache (RM-002 R-04)', () =>
+{
+	/** A viewer with a real design in it, so there are walls and floors to texture. */
+	function furnishedViewer()
+	{
+		buildViewerDom();
+		const blueprint = new BlueprintJS({
+			floorplannerElement: 'floorplanner-canvas',
+			threeElement: '#viewer',
+			threeCanvasElement: 'three-canvas',
+			textureDir: 'models/textures/',
+			widget: false,
+		});
+		// Fixtures are written in centimetres; BlueprintJS boots in metres.
+		Configuration.setValue(configDimUnit, dimCentiMeter);
+		blueprint.model.scene.setItemLoader(stubItemLoader(THREE));
+		blueprint.model.loadSerialized(readFixture('rich-design'));
+		return blueprint;
+	}
+
+	beforeEach(() => {clearTextureCache();});
+	afterEach(() => {clearTextureCache();});
+
+	it('decodes one image however many handles are taken', () =>
+	{
+		const a = acquireTexture('rooms/textures/wallmap.png');
+		const b = acquireTexture('rooms/textures/wallmap.png');
+		const c = acquireTexture('rooms/textures/light.png');
+
+		expect(textureCacheStats()).toEqual({urls: 2, handles: 3});
+		// One decoded image behind the two handles for the same URL...
+		expect(a.source).toBe(b.source);
+		expect(a.source).not.toBe(c.source);
+		// ...but separate Textures, which is what lets each wall keep its own
+		// repeat. Sharing one Texture would make every wall tile like the last
+		// one drawn.
+		expect(a).not.toBe(b);
+		a.repeat.set(4, 2);
+		b.repeat.set(1, 1);
+		expect(a.repeat.x).toBe(4);
+		expect(b.repeat.x).toBe(1);
+	});
+
+	it('drops the image only when the last handle goes back', () =>
+	{
+		const a = acquireTexture('rooms/textures/wallmap.png');
+		const b = acquireTexture('rooms/textures/wallmap.png');
+
+		releaseTexture(a);
+		expect(textureCacheStats()).toEqual({urls: 1, handles: 1});
+
+		releaseTexture(b);
+		expect(textureCacheStats()).toEqual({urls: 0, handles: 0});
+	});
+
+	it('tolerates a double release and a texture it never issued', () =>
+	{
+		const a = acquireTexture('rooms/textures/wallmap.png');
+		releaseTexture(a);
+		expect(() => releaseTexture(a)).not.toThrow();
+		expect(() => releaseTexture(null)).not.toThrow();
+		expect(() => releaseTexture(new THREE.Texture())).not.toThrow();
+		expect(textureCacheStats()).toEqual({urls: 0, handles: 0});
+	});
+
+	it('an Edge redraw does not accumulate handles - the leak itself', () =>
+	{
+		// This is the regression. updateTexture() used to run
+		// `new TextureLoader().load(url)` on every call and drop the previous
+		// Texture on the floor, and redraw() is wired to EVENT_REDRAW - so the
+		// leak grew with editing rather than with the size of the design.
+		const blueprint = furnishedViewer();
+
+		const edges = blueprint.three.floorplan.edges;
+		expect(edges.length).toBeGreaterThan(0);
+
+		const settled = textureCacheStats().handles;
+		for (let i = 0; i < 5; i++)
+		{
+			edges.forEach((edge) => edge.redraw());
+		}
+		expect(textureCacheStats().handles).toBe(settled);
+
+		blueprint.dispose();
+	});
+
+	it('a disposed viewer gives every handle back', () =>
+	{
+		const blueprint = furnishedViewer();
+
+		expect(textureCacheStats().handles).toBeGreaterThan(0);
+		blueprint.dispose();
+		expect(textureCacheStats()).toEqual({urls: 0, handles: 0});
+	});
+
+	it('Floorplan3D.dispose unsubscribes, so a dead viewer stops redrawing', () =>
+	{
+		const blueprint = furnishedViewer();
+
+		const plan3d = blueprint.three.floorplan;
+		expect(plan3d).toBeInstanceOf(Floorplan3D);
+
+		let redraws = 0;
+		const original = plan3d.redraw.bind(plan3d);
+		plan3d.redraw = () => {redraws += 1; original();};
+
+		plan3d.dispose();
+		blueprint.model.floorplan.update();
+		expect(redraws).toBe(0);
+
+		blueprint.dispose();
+	});
+});
+
 describe('the colour pipeline', () =>
 {
 	// S4 froze colour management off so the engine bump could be reviewed as a

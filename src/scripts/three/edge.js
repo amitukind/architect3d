@@ -1,8 +1,16 @@
-import {EventDispatcher, TextureLoader, RepeatWrapping, BufferAttribute, Vector2, Vector3, MeshBasicMaterial, MeshStandardMaterial, FrontSide, DoubleSide, BackSide, Shape, Path, ShapeGeometry, Mesh, SRGBColorSpace} from 'three';
+import {EventDispatcher, RepeatWrapping, BufferAttribute, Vector2, Vector3, MeshBasicMaterial, MeshStandardMaterial, FrontSide, DoubleSide, BackSide, Shape, Path, ShapeGeometry, Mesh, SRGBColorSpace} from 'three';
 import {Utils} from '../core/utils.js';
 import {triangleFanGeometry} from '../core/geometry_builders.js';
 import {EVENT_REDRAW, EVENT_CAMERA_MOVED, EVENT_CAMERA_ACTIVE_STATUS} from '../core/events.js';
 import {renderProfile, isStudio} from './render_profile.js';
+import {acquireTexture, releaseTexture} from './texture_cache.js';
+
+/**
+ * The hand-painted vignette every wall is lit with. One image, one decode -
+ * see the sRGB note in the constructor for what it is and why it is tagged the
+ * way it is.
+ */
+const LIGHT_MAP_URL = 'rooms/textures/walllightmap.png';
 
 export class Edge extends EventDispatcher
 {
@@ -24,9 +32,14 @@ export class Edge extends EventDispatcher
 		// Edge.plane is the plane used for wall intersection. Pushing it into
 		// phantomPlanes renders it, which is how to see what the picker sees.
 		
-		this.texture = new TextureLoader();
+		// Set by updateTexture() below, and released when it is replaced. The
+		// throwaway `new TextureLoader()` that used to sit here loaded nothing and
+		// was overwritten on the next line of init().
+		this.texture = null;
 
-		this.lightMap = new TextureLoader().load('rooms/textures/walllightmap.png');
+		// One decode for the whole scene, not one per wall (RM-002 R-04). Every
+		// Edge asks for the same URL, and every Edge used to get its own copy.
+		this.lightMap = acquireTexture(LIGHT_MAP_URL);
 		// sRGB, and written out rather than left to default (S8).
 		//
 		// three's own guidance is that a lightMap holds linear data, and for a
@@ -69,6 +82,12 @@ export class Edge extends EventDispatcher
 		this.controls.removeEventListener(EVENT_CAMERA_MOVED, this.visibilityevent);
 		this.controls.removeEventListener(EVENT_CAMERA_ACTIVE_STATUS, this.showallevent);
 		this.removeFromScene();
+
+		// Both handles go back, so the last wall using an image releases it.
+		releaseTexture(this.texture);
+		this.texture = null;
+		releaseTexture(this.lightMap);
+		this.lightMap = null;
 	}
 
 	init()
@@ -192,8 +211,16 @@ export class Edge extends EventDispatcher
 		var stretch = textureData.stretch;
 		var url = textureData.url;
 		var scale = textureData.scale;
-		this.texture = new TextureLoader().load(url, callback);
-		// A wall texture is a picture of a wall (S8).
+
+		// Release before replacing. Without this line every redraw of a room left
+		// one GPU texture per wall surface behind, and redraw is wired to
+		// EVENT_REDRAW - so the leak grew with editing, not with the design.
+		releaseTexture(this.texture);
+		this.texture = acquireTexture(url, callback);
+
+		// A wall texture is a picture of a wall (S8). Set per clone, which is the
+		// reason the cache hands out clones rather than one shared Texture: this
+		// and the repeat below are per-wall, the decoded image is not.
 		this.texture.colorSpace = SRGBColorSpace;
 
 		if (!stretch)

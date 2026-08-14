@@ -65,7 +65,10 @@ export default defineConfig({
 			],
 			reporter: ['text-summary', 'json-summary', 'html'],
 			thresholds: {
-				lines: 74,
+				// Ratcheted from 74 by RM-002 P3, which added tests alongside three
+				// library fixes and pushed lines to 75.50%. Round down to the whole
+				// number; the point is that the floor only ever rises.
+				lines: 75,
 				statements: 75,
 				branches: 61,
 				functions: 73,

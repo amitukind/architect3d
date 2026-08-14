@@ -1,6 +1,7 @@
-import {EventDispatcher, TextureLoader, RepeatWrapping, MeshBasicMaterial, MeshPhongMaterial, MeshStandardMaterial, FrontSide, DoubleSide, Vector2, Vector3, Shape, ShapeGeometry, Mesh, SRGBColorSpace} from 'three';
+import {EventDispatcher, RepeatWrapping, MeshBasicMaterial, MeshPhongMaterial, MeshStandardMaterial, FrontSide, DoubleSide, Vector2, Vector3, Shape, ShapeGeometry, Mesh, SRGBColorSpace} from 'three';
 import {triangleFanGeometry} from '../core/geometry_builders.js';
 import {EVENT_CHANGED} from '../core/events.js';
+import {acquireTexture, releaseTexture} from './texture_cache.js';
 import {Configuration, configWallHeight} from '../core/configuration.js';
 import {renderProfile, isStudio} from './render_profile.js';
 
@@ -13,6 +14,11 @@ export class Floor extends EventDispatcher
 		this.room = room;
 		this.floorPlane = null;
 		this.roofPlane = null;
+		// Held so redraw() can give it back. The floor is rebuilt on every
+		// EVENT_CHANGED, and before RM-002 R-04 each rebuild loaded another copy
+		// of the same image and dropped the previous one on the floor, so to speak.
+		/** @type {?import('three').Texture} */
+		this.floorTexture = null;
 		this.changedevent = () => {this.redraw();};
 		this.init();
 	}
@@ -61,7 +67,9 @@ export class Floor extends EventDispatcher
 	{
 		var textureSettings = this.room.getTexture();
 		// setup texture
-		var floorTexture = new TextureLoader().load(textureSettings.url);
+		releaseTexture(this.floorTexture);
+		var floorTexture = acquireTexture(textureSettings.url);
+		this.floorTexture = floorTexture;
 		// sRGB (S8). This one matters more than the others: the floor is
 		// MeshPhongMaterial and so the only lit surface in most views, which
 		// makes an untagged floor texture the obvious thing to mistake for the
@@ -163,6 +171,20 @@ export class Floor extends EventDispatcher
 		this.scene.remove(this.roofPlane);
 		this.scene.remove(this.room.floorPlane);
 		this.scene.remove(this.room.roofPlane);
+	}
+
+	/**
+	 * Detach from the room and give the texture back.
+	 *
+	 * Separate from removeFromScene(), which redraw() calls between rebuilds and
+	 * which must not release anything - the next line builds the replacement.
+	 */
+	dispose()
+	{
+		this.room.removeEventListener(EVENT_CHANGED, this.changedevent);
+		this.removeFromScene();
+		releaseTexture(this.floorTexture);
+		this.floorTexture = null;
 	}
 
 	showRoof(flag)

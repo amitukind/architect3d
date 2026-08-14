@@ -15,6 +15,7 @@ import {OrbitControls} from './orbitcontrols.js';
 import {Controller} from './controller.js';
 import {HUD} from './hud.js';
 import {Floorplan3D} from './floorPlan.js';
+import {clearTextureCache} from './texture_cache.js';
 import {Lights} from './lights.js';
 import {Skybox} from './skybox.js';
 import {renderProfile, isStudio, setRenderProfile} from './render_profile.js';
@@ -454,6 +455,11 @@ export class Main extends EventDispatcher
 		{
 			this.controls.dispose();
 		}
+		if (this.floorplan)
+		{
+			this.floorplan.dispose();
+			this.floorplan = null;
+		}
 		if (this.skybox)
 		{
 			this.skybox.dispose();
@@ -484,6 +490,17 @@ export class Main extends EventDispatcher
 				canvas.parentNode.removeChild(canvas);
 			}
 		}
+
+		// Last, and after every holder has released its handles, so this drops
+		// masters whose refcount is already zero rather than pulling images out
+		// from under a live viewer.
+		//
+		// The cache is module-level and therefore shared between viewers, which
+		// is deliberate - so is the GPU - but it means a second viewer on the page
+		// pays to decode again after the first one is disposed. Acceptable while
+		// two simultaneous viewers are not a supported configuration; it becomes
+		// R-02's problem when they are.
+		clearTextureCache();
 	}
 	exportForBlender()
 	{
