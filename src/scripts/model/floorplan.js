@@ -5,7 +5,7 @@ import {Utils} from '../core/utils.js';
 import {Dimensioning} from '../core/dimensioning.js';
 import {WallTypes} from '../core/constants.js';
 import {Version} from '../core/version.js';
-import {cornerTolerance} from '../core/configuration.js';
+import {cornerTolerance, defaultConfiguration} from '../core/configuration.js';
 
 
 import {HalfEdge} from './half_edge.js';
@@ -59,9 +59,40 @@ function cornerReader(units)
 export class Floorplan extends EventDispatcher
 {
 	/** Constructs a floorplan. */
-	constructor()
+	/**
+	 * @param {import('../core/configuration.js').Configuration} [configuration] Settings for this design alone. Omit
+	 * to share the page-wide default, which is what every caller did before P7
+	 * and what a page with one design should keep doing.
+	 */
+	constructor(configuration)
 	{
 		super();
+		/**
+		 * Where this design reads its units, scale, wall defaults and snapping
+		 * from (RM-002 R-02, P7).
+		 *
+		 * The model layer needs no other plumbing to reach it: `Corner` already
+		 * took a floorplan as its first constructor argument, `Floorplan` is the
+		 * only factory for Corners and Walls, and a Wall gets here through
+		 * `this.start.floorplan`. That is what made this stage three lines rather
+		 * than a rewrite.
+		 *
+		 * @property {Configuration} configuration
+		 * @type {import('../core/configuration.js').Configuration}
+		 */
+		this.configuration = configuration || defaultConfiguration;
+		/**
+		 * Unit and scale conversion bound to this design's configuration.
+		 *
+		 * Held here rather than constructed by each reader so the 2D view, the
+		 * inspectors and the model all measure with one object - and so that
+		 * `floorplan.dimensioning` is the obvious thing to reach for instead of
+		 * the `Dimensioning` statics, which measure with the shared default.
+		 *
+		 * @property {Dimensioning} dimensioning
+		 * @type {import('../core/dimensioning.js').Dimensioning}
+		 */
+		this.dimensioning = new Dimensioning(this.configuration);
 		/**
 		 * List of elements of Wall instance
 		 * 

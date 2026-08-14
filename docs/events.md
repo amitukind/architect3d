@@ -137,16 +137,35 @@ Dispatched on `blueprint.floorplanner` — which is `null` in widget mode.
 `EVENT_UPDATED` also comes off the carbon sheet when the underlay moves or
 scales.
 
-## What Configuration does not do
+## What Configuration does, and does not
 
 `Configuration` — the display unit, grid spacing, wall height and thickness,
-the snap settings, the wall-measurement flags — is a plain singleton and
-**dispatches nothing at all**.
+the snap settings, the wall-measurement flags — dispatches
+`EVENT_CONFIG_CHANGED` on every `setValue` that actually changes something,
+carrying `{key, value, previous}`. It fires only on a real change, because
+callers write from watchers that re-run for unrelated reasons and announcing a
+no-op would turn one user action into a redraw storm.
 
-Changing a value takes effect the next time something draws. The application
-calls `floorplanner.redraw()` explicitly after touching it, and there is no
-event you can subscribe to instead. If you build your own UI over the library,
-this is the one piece of state you have to push rather than observe.
+```js
+Configuration.addEventListener(EVENT_CONFIG_CHANGED, ({key, value}) => { … });
+```
+
+What it does *not* do is redraw. The 2D view does not listen, so changing a
+value takes effect the next time something draws, and the application calls
+`floorplanner.redraw()` explicitly after touching it. Subscribe to know; redraw
+to see.
+
+`Configuration` is both a class and a namespace. The statics above read and
+write one module-level default shared by the whole page. A design that wants
+its own settings gets a `Configuration` of its own:
+
+```js
+const blueprint = new BlueprintJS({…opts, configuration: new Configuration({dimUnit: dimMeter})});
+blueprint.configuration.addEventListener(EVENT_CONFIG_CHANGED, …);   // this design only
+```
+
+Each configuration dispatches only its own changes, so a panel bound to one
+design does not wake up for another's.
 
 ## Declared but never fired
 

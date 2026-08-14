@@ -15,13 +15,21 @@ import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js';
 export class Model extends EventDispatcher
 {
 	/** Constructs a new model.
-	 * @param textureDir The directory containing the textures.
+	 * @param {string} textureDir The directory containing the textures.
+	 * @param {import('../core/configuration.js').Configuration} [configuration] Settings for this design alone.
+	 * Omit to share the page-wide default. See Floorplan's constructor.
 	 */
-	constructor(textureDir)
+	constructor(textureDir, configuration)
 	{
 		super();
-		this.floorplan = new Floorplan();
+		this.floorplan = new Floorplan(configuration);
 		this.scene = new Scene(this, textureDir);
+	}
+
+	/** Where this design reads its settings from. @returns {import('../core/configuration.js').Configuration} */
+	get configuration()
+	{
+		return this.floorplan.configuration;
 	}
 
 	switchWireframe(flag)

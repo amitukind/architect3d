@@ -956,7 +956,7 @@ footer{margin-top:70px; padding-top:18px; border-top:1px solid var(--line); colo
   </div>
 
   <h3>R-02 · Global mutable singletons block a second instance <span class="chip crit">high</span></h3>
-  <p>Four pieces of state are module-level and mutable: <code>config</code>, <code>renderProfile</code>, <code>floorplannerPalette</code>, and the static <code>Scene.unloadableItemCount</code>. Two <code>BlueprintJS</code> instances on one page share units, scale, grid spacing, snap tolerance, the whole 2D palette and the render profile. Change one, both move.</p>
+  <p>Four pieces of state are module-level and mutable: <code>config</code>, <code>renderProfile</code>, <code>floorplannerPalette</code>, and the static <code>Scene.unloadableItemCount</code>. Two <code>BlueprintJS</code> instances on one page share units, scale, grid spacing, snap tolerance, the whole 2D palette and the render profile. Change one, both move. <em>(Five, in fact &mdash; P7 found <code>wallInformation</code> too. The count below is the survey as written, left as the diagnosis.)</em></p>
   <p>Not hypothetical — the test suite already pays for it. The theme suites snapshot a <code>PRISTINE_PALETTE</code> at import time to stop cross-test pollution corrupting the library-defaults assertions.</p>
   <div class="gate t2" style="border-left:3px solid var(--warn)">
     <div class="g-head" style="color:var(--warn)">RE-SCOPED — P4 MEASURED IT AND THE ESTIMATE WAS WRONG</div>
@@ -982,7 +982,28 @@ footer{margin-top:70px; padding-top:18px; border-top:1px solid var(--line); colo
       <li><strong>Stage 3</strong> — <code>floorplanner/</code> takes its config from the Floorplan it is drawing</li>
       <li><strong>Stage 4</strong> — <code>renderProfile</code> per <code>Main</code>, re-baselining the parity grid deliberately</li>
     </ul>
-    <p style="font-size:13.5px;margin:10px 0 0">Roughly a phase of its own, sequenced after P5 so the visual-regression tier exists to catch what Stage 4 moves. Not started.</p>
+  </div>
+
+  <div class="gate">
+    <div class="g-head">LANDED — P7, ALL FOUR STAGES</div>
+    <ul>
+      <li><strong>The estimate was right and the design was the whole job.</strong> Every stage rests on one move: the class gains an instance form and the existing statics become one-line forwards to a module-level default. Nothing had to be migrated for that to work, so the 169 <code>Dimensioning.</code> calls and 133 <code>Configuration.</code> calls still in the test suite are untouched and still pass — they read the shared default, which is what they always did. 59 <code>this.configuration</code>, 43 <code>this.dimensioning</code> and 45 <code>this.renderProfile</code> reads exist beside them</li>
+      <li><strong>Stage 1</strong> — <code>Floorplan</code> takes an optional <code>Configuration</code> and carries a <code>Dimensioning</code> bound to it; <code>Model</code> and <code>BlueprintJS</code> thread it. The model layer's three reads go through <code>configurationOf(floorplan)</code>, which falls back to the default so a Corner built by hand still behaves as it did. As predicted, three lines: <code>Corner</code> already took a floorplan, and a Wall reaches one through <code>start.floorplan</code></li>
+      <li><strong>Stage 2</strong> — <code>Dimensioning</code> gains the instance form, statics forward. The 224-call-site number that made this a phase of its own turned out not to need a single edit</li>
+      <li><strong>Stage 3</strong> — <code>floorplanner/</code> reads through the plan it draws: 46 <code>Configuration</code> reads, 45 <code>Dimensioning</code> calls, one getter pair per class. One of the 45 was inside an <code>Image.onload</code> where <code>this</code> is the image, not the sheet — a mechanical rewrite would have produced a silent <code>undefined</code> there, so the closures were found first and converted by hand</li>
+      <li><strong>Stage 4</strong> — <code>renderProfile</code> per <code>Main</code>, threaded to <code>Skybox</code>, <code>Lights</code>, <code>Floorplan3D</code> and through it to every <code>Edge</code> and <code>Floor</code>. <strong>The parity risk this table flagged did not materialise, and not by luck:</strong> the same delegate-to-a-default pattern means the default resolution path is <em>identical</em> rather than equivalent, and the parity harness imports nothing from the library — it drives a served page. A viewer only has its own look if it is handed one</li>
+      <li><strong>There were five singletons, not four.</strong> <code>wallInformation</code> — the wall-measurement flags and label prefixes the 2D view reads — was missed by the survey and found by Stage 3, because it was the only thing left in <code>floorplanner_view.js</code> still reaching for module scope. Same treatment; the export is now the default configuration's own object, by identity</li>
+      <li><strong>25 tests, and the shape of them is the point.</strong> Every assertion is a <em>pair that must not interfere</em> — not "this design reads 250" but "this one reads 250 while that one reads 300", which the singleton cannot pass. 11 of the 21 headless ones fail if <code>Floorplan</code> ignores its configuration argument. Four more run in chromium and ask the same question of the pixels, because a per-instance value computed correctly and then drawn through a shared one would satisfy every number above</li>
+      <li>Coverage moved on all four measures at once — 76.38 lines, 76.48 statements, 63.43 branches, 74.31 functions — which is what a change touching the model, the 2D view and the 3D view does when it arrives with a suite of its own. 931 headless tests, 27 in the browser</li>
+    </ul>
+  </div>
+
+  <div class="gate t2">
+    <div class="g-head" style="color:var(--warn)">WHAT IS STILL SHARED, DELIBERATELY</div>
+    <ul>
+      <li><strong><code>floorplannerPalette</code>.</strong> The one singleton left, and the re-scope table above already called it "tractable, low value". Nothing changed that: the application has one 2D view, <code>useTheme</code> sets the palette globally on purpose, and two plans on a page almost certainly want to look alike. It is a page-level theme rather than a per-design setting, and it is now the only thing in <code>floorplanner/</code> that is</li>
+      <li><strong>The application itself takes no configuration.</strong> <code>App.vue</code> builds one design and reads the statics in 26 places; passing it a configuration of its own would change nothing except which object those 26 reads resolve to. The point of P7 is that an embedder <em>can</em>, not that everybody must</li>
+    </ul>
   </div>
 
   <h3>R-03 · Configuration broadcasts nothing <span class="chip warn">med</span></h3>
@@ -1210,7 +1231,7 @@ footer{margin-top:70px; padding-top:18px; border-top:1px solid var(--line); colo
       <tr><td>P4 <span class="chip warn">part</span></td><td>R-06 packaging + R-02 instance state</td><td>4–5 days</td><td>Both are public-API shaped, so they belong in one minor release with one changelog entry. <strong>R-06 landed</strong> — peer dependencies, an ESM entry at 81 KB against the IIFE's 423 KB, 45 declaration files, verified by installing the tarball into a scratch project. <strong>R-02 was measured and re-scoped:</strong> one of its four singletons is done, and the other three are a phase of their own, not a few days beside packaging</td></tr>
       <tr><td>P5 <span class="chip ok">done</span></td><td>Tier 2 browser + visual regression</td><td>3–4 days</td><td>Baseline against <code>studio</code> once P3 has settled the render path, not while it is still moving. <strong>Landed:</strong> 17 browser tests over a real canvas, a real WebGL context and axe — which found four genuine accessibility defects. Screenshot diffing dropped, with reasons above</td></tr>
       <tr><td>P6 <span class="chip ok">done</span></td><td>R-05 rAF coalescing + asset compression</td><td>3–4 days</td><td>Performance last, because P5 is what proves it changed nothing visible — and it did more than that: it is what let the <code>ResizeObserver</code> workaround P5 itself had to ship be deleted. <strong>Landed:</strong> one repaint per frame instead of three per pointer event, both resize observers deferred, 15 new coalescing tests; and 29% off everything served, with a per-file budget so it stays off. 910 node tests, 23 browser; branch coverage ratcheted to 62%</td></tr>
-      <tr><td>P7</td><td>R-02 instance state, stages 1–4</td><td>1–2 weeks</td><td>Split out of P4 once measured. After P5, so the visual-regression tier exists to catch what stage 4 moves</td></tr>
+      <tr><td>P7 <span class="chip ok">done</span></td><td>R-02 instance state, stages 1–4</td><td>1–2 weeks</td><td>Split out of P4 once measured. After P5, so the visual-regression tier exists to catch what stage 4 moves. <strong>Landed:</strong> all four stages, on one move — an instance form with the statics forwarding to a module default, so not one of the 302 existing static call sites needed touching. A fifth singleton turned up on the way. 25 new tests, every one a pair that must not interfere; coverage up on all four measures</td></tr>
     </tbody>
   </table></div>
 

@@ -42,8 +42,33 @@ export const RENDER_CLASSIC = 'classic';
 export const RENDER_STUDIO = 'studio';
 
 /**
- * The live profile. Read directly by the modules that draw; written only
- * through `setRenderProfile`.
+ * Build a profile of one's own (RM-002 R-02, P7).
+ *
+ * Two `Main` instances on a page used to share this object, so a comparison
+ * view showing classic beside studio was not expressible: whichever profile
+ * was applied last was the one both viewers drew with. Pass the result of this
+ * to `new BlueprintJS({renderProfile})` - or to `new Main(..., {renderProfile})`
+ * - for a viewer with its own look.
+ *
+ * The module-level `renderProfile` below is still the default, still the same
+ * object it always was, and still what every drawing class falls back to. That
+ * matters more here than anywhere else in P7: `npm run parity` renders eleven
+ * scenes against frozen r98 goldens through the default resolution path, and
+ * this change leaves that path identical rather than merely equivalent.
+ *
+ * @param {string} [mode] RENDER_CLASSIC (the default) or RENDER_STUDIO.
+ * @param {Object} [overrides]
+ * @returns {Object} a new profile
+ */
+export function createRenderProfile(mode, overrides)
+{
+	var profile = Object.assign({mode: RENDER_CLASSIC}, CLASSIC_PROFILE);
+	return setRenderProfile(mode || RENDER_CLASSIC, overrides, profile);
+}
+
+/**
+ * The live profile. Read by any drawing class that was not given one of its
+ * own; written through `setRenderProfile`.
  */
 export const renderProfile = {
 	mode: RENDER_CLASSIC,
@@ -251,36 +276,40 @@ export const STUDIO_PROFILE = Object.freeze({
  *
  * @param {string} mode RENDER_CLASSIC or RENDER_STUDIO.
  * @param {Object} [overrides]
- * @returns {Object} the live profile
+ * @param {Object} [profile] Which profile to write. Defaults to the shared one,
+ * which is what every caller did before P7.
+ * @returns {Object} the profile that was written
  */
-export function setRenderProfile(mode, overrides)
+export function setRenderProfile(mode, overrides, profile)
 {
+	var target = profile || renderProfile;
 	var base = (mode === RENDER_STUDIO) ? STUDIO_PROFILE : CLASSIC_PROFILE;
-	renderProfile.mode = (mode === RENDER_STUDIO) ? RENDER_STUDIO : RENDER_CLASSIC;
+	target.mode = (mode === RENDER_STUDIO) ? RENDER_STUDIO : RENDER_CLASSIC;
 
 	Object.keys(base).forEach(function (key)
 	{
-		renderProfile[key] = base[key];
+		target[key] = base[key];
 	});
 
 	if (overrides)
 	{
 		Object.keys(overrides).forEach(function (key)
 		{
-			if (Object.prototype.hasOwnProperty.call(renderProfile, key) && key !== 'mode')
+			if (Object.prototype.hasOwnProperty.call(target, key) && key !== 'mode')
 			{
-				renderProfile[key] = overrides[key];
+				target[key] = overrides[key];
 			}
 		});
 	}
 
-	return renderProfile;
+	return target;
 }
 
 /**
+ * @param {Object} [profile] Defaults to the shared profile.
  * @returns {boolean} true when the studio profile is active.
  */
-export function isStudio()
+export function isStudio(profile)
 {
-	return renderProfile.mode === RENDER_STUDIO;
+	return (profile || renderProfile).mode === RENDER_STUDIO;
 }

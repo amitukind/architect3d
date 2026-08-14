@@ -3,8 +3,7 @@ import {WallTypes} from '../core/constants.js';
 import {Utils} from '../core/utils.js';
 import {EVENT_UPDATED} from '../core/events.js';
 
-import {Dimensioning} from '../core/dimensioning.js';
-import {Configuration, gridSpacing, configWallThickness, wallInformation} from '../core/configuration.js';
+import {gridSpacing, configWallThickness} from '../core/configuration.js';
 import {resolveElement, measureViewport, pixelRatio} from '../core/dom.js';
 import {CarbonSheet} from './carbonsheet.js';
 
@@ -12,7 +11,7 @@ import {CarbonSheet} from './carbonsheet.js';
 export const floorplannerModes = {MOVE: 0,DRAW: 1,DELETE: 2};
 
 // grid parameters
-//export const gridSpacing = Dimensioning.cmToPixel(25);//20; // pixels
+//export const gridSpacing = this.dimensioning.cmToPixel(25);//20; // pixels
 export const gridWidth = 1;
 export const gridColor = '#f1f1f1';
 
@@ -258,6 +257,31 @@ export class FloorplannerView2D
 		return this._carbonsheet;
 	}
 
+	/**
+	 * This design's settings, reached through the plan being drawn (RM-002 R-02, P7).
+	 *
+	 * The 2D view is per-Floorplan by construction - it is handed one and draws
+	 * it - so the plan is the natural place to ask, and no new plumbing was
+	 * needed to get here. Reading through a getter rather than caching the
+	 * reference keeps a view correct if the floorplan it draws is ever swapped.
+	 *
+	 * @returns {import('../core/configuration.js').Configuration}
+	 */
+	get configuration()
+	{
+		return this.floorplan.configuration;
+	}
+
+	/**
+	 * Unit and scale conversion for this design (P7).
+	 *
+	 * @returns {import('../core/dimensioning.js').Dimensioning}
+	 */
+	get dimensioning()
+	{
+		return this.floorplan.dimensioning;
+	}
+
 	orientationChange()
 	{
 		this.handleWindowResize();
@@ -461,7 +485,7 @@ export class FloorplannerView2D
 		// The inverse of what zoom() does: it reads
 		// `(unScaledOrigin + centre) * scale - centre`, so this is that solved for
 		// the unscaled value against the NEW centre.
-		var scale = Configuration.getNumericValue('scale') || 1;
+		var scale = this.configuration.getNumericValue('scale') || 1;
 		var centreX = cssWidth / 2.0;
 		var centreY = cssHeight / 2.0;
 		this.viewmodel.unScaledOriginX = ((this.viewmodel.originX + centreX) / scale) - centreX;
@@ -536,9 +560,9 @@ export class FloorplannerView2D
 	/** */
 	draw()
 	{
-		wallWidth = Dimensioning.cmToPixel(Configuration.getNumericValue(configWallThickness));
-		wallWidthHover = Dimensioning.cmToPixel(Configuration.getNumericValue(configWallThickness))*0.7;
-		wallWidthSelected = Dimensioning.cmToPixel(Configuration.getNumericValue(configWallThickness))*0.9;
+		wallWidth = this.dimensioning.cmToPixel(this.configuration.getNumericValue(configWallThickness));
+		wallWidthHover = this.dimensioning.cmToPixel(this.configuration.getNumericValue(configWallThickness))*0.7;
+		wallWidthSelected = this.dimensioning.cmToPixel(this.configuration.getNumericValue(configWallThickness))*0.9;
 		
 		// CSS pixels, not bitmap pixels - the context carries the DPR scale.
 		this.context.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
@@ -574,7 +598,7 @@ export class FloorplannerView2D
 				var b = new Vector2(this.viewmodel.targetX, this.viewmodel.targetY);
 				var abvector = b.clone().sub(a);
 				var midPoint = abvector.multiplyScalar(0.5).add(a);
-				this.drawTextLabel(Dimensioning.cmToMeasure(a.distanceTo(b)), this.viewmodel.convertX(midPoint.x), this.viewmodel.convertY(midPoint.y));
+				this.drawTextLabel(this.dimensioning.cmToMeasure(a.distanceTo(b)), this.viewmodel.convertX(midPoint.x), this.viewmodel.convertY(midPoint.y));
 				
 				//Show angle to the nearest wall
 				var vector = b.clone().sub(a);
@@ -623,10 +647,10 @@ export class FloorplannerView2D
 		// The DPR scale is the identity for everything drawn here, so a reset means
 		// "back to the DPR transform", never "back to 1:1".
 		this.context.setTransform(dpr, 0, 0, dpr, 0, 0);
-		if(Configuration.getNumericValue('scale') != 1)
+		if(this.configuration.getNumericValue('scale') != 1)
 		{
 			this.context.translate(originx, originy);
-			this.context.scale(Configuration.getNumericValue('scale'), Configuration.getNumericValue('scale'));
+			this.context.scale(this.configuration.getNumericValue('scale'), this.configuration.getNumericValue('scale'));
 			this.context.translate(-originx, -originy);
 		}
 		this.draw();
@@ -729,7 +753,7 @@ export class FloorplannerView2D
 
 	drawWallLabelsMiddle(wall)
 	{
-		if(! wallInformation.midline)
+		if(! this.configuration.wallInformation.midline)
 		{
 			return;
 		}
@@ -740,8 +764,8 @@ export class FloorplannerView2D
 			// dont draw labels on walls this short
 			return;
 		}
-		var label = (!wallInformation.labels)?'':wallInformation.midlinelabel;
-		this.drawTextLabel(`${label}${Dimensioning.cmToMeasure(length)}` ,this.viewmodel.convertX(pos.x),this.viewmodel.convertY(pos.y));
+		var label = (!this.configuration.wallInformation.labels)?'':this.configuration.wallInformation.midlinelabel;
+		this.drawTextLabel(`${label}${this.dimensioning.cmToMeasure(length)}` ,this.viewmodel.convertX(pos.x),this.viewmodel.convertY(pos.y));
 	}
 
 	/** */
@@ -754,10 +778,10 @@ export class FloorplannerView2D
 			// dont draw labels on walls this short
 			return;
 		}
-		if(wallInformation.exterior)
+		if(this.configuration.wallInformation.exterior)
 		{
-			var label = (!wallInformation.labels)?'':wallInformation.exteriorlabel;
-			this.drawTextLabel(`${label}${Dimensioning.cmToMeasure(length)}` ,this.viewmodel.convertX(pos.x),this.viewmodel.convertY(pos.y+40));
+			var label = (!this.configuration.wallInformation.labels)?'':this.configuration.wallInformation.exteriorlabel;
+			this.drawTextLabel(`${label}${this.dimensioning.cmToMeasure(length)}` ,this.viewmodel.convertX(pos.x),this.viewmodel.convertY(pos.y+40));
 		}
 	}
 
@@ -771,10 +795,10 @@ export class FloorplannerView2D
 			// dont draw labels on walls this short
 			return;
 		}
-		if(wallInformation.interior)
+		if(this.configuration.wallInformation.interior)
 		{
-			var label = (!wallInformation.labels)?'':wallInformation.interiorlabel;
-			this.drawTextLabel(`${label}${Dimensioning.cmToMeasure(length)}` ,this.viewmodel.convertX(pos.x),this.viewmodel.convertY(pos.y-40));
+			var label = (!this.configuration.wallInformation.labels)?'':this.configuration.wallInformation.interiorlabel;
+			this.drawTextLabel(`${label}${this.dimensioning.cmToMeasure(length)}` ,this.viewmodel.convertX(pos.x),this.viewmodel.convertY(pos.y-40));
 		}
 		
 	}
@@ -943,7 +967,7 @@ export class FloorplannerView2D
 		// '#00FF0000' is an eight-digit hex with a zero alpha: a transparent halo,
 		// i.e. no halo. Kept - the room label sits on the room's own fill, which
 		// is already a flat colour, and a halo there would read as a smudge.
-		this.drawTextLabel(Dimensioning.cmToMeasure(room.area, 2)+String.fromCharCode(178), this.viewmodel.convertX(room.areaCenter.x), this.viewmodel.convertY(room.areaCenter.y), floorplannerPalette.area, '#00FF0000', 'bold');
+		this.drawTextLabel(this.dimensioning.cmToMeasure(room.area, 2)+String.fromCharCode(178), this.viewmodel.convertX(room.areaCenter.x), this.viewmodel.convertY(room.areaCenter.y), floorplannerPalette.area, '#00FF0000', 'bold');
 		this.drawTextLabel(room.name, this.viewmodel.convertX(room.areaCenter.x), this.viewmodel.convertY(room.areaCenter.y+30), floorplannerPalette.roomName, '#00FF0000', 'bold italic');
 	}
 
@@ -1127,7 +1151,7 @@ export class FloorplannerView2D
 	/** returns n where -gridSize/2 < n <= gridSize/2  */
 	calculateGridOffset(n)
 	{
-		var gspacing = Dimensioning.cmToPixel(Configuration.getNumericValue(gridSpacing));
+		var gspacing = this.dimensioning.cmToPixel(this.configuration.getNumericValue(gridSpacing));
 		if (n >= 0)
 		{
 			return (n + (gspacing) / 2.0) % (gspacing) - (gspacing) / 2.0;
@@ -1158,12 +1182,12 @@ export class FloorplannerView2D
 	 */
 	drawGrid()
 	{
-		var gspacing = Dimensioning.cmToPixel(Configuration.getNumericValue(gridSpacing));
+		var gspacing = this.dimensioning.cmToPixel(this.configuration.getNumericValue(gridSpacing));
 		var offsetX = this.calculateGridOffset(-this.viewmodel.originX);
 		var offsetY = this.calculateGridOffset(-this.viewmodel.originY);
 		var width = this.canvasWidth;
 		var height = this.canvasHeight;
-		var scale = Configuration.getNumericValue('scale');
+		var scale = this.configuration.getNumericValue('scale');
 		if(scale < 1.0)
 		{
 			width = width / scale;

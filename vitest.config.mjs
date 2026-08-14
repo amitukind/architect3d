@@ -74,13 +74,18 @@ export default defineConfig({
 				// number; the point is that the floor only ever rises.
 				//
 				// P6 moved branches 61 -> 62. Lines and statements did not gain a
-				// whole point (75.50 -> 75.75, 75.66 -> 75.88) and are left alone:
+				// whole point (75.50 -> 75.75, 75.66 -> 75.88) and were left alone:
 				// rounding down is what makes these floors rather than targets, and
 				// nudging one on a fraction starts the habit of tuning them.
-				lines: 75,
-				statements: 75,
-				branches: 62,
-				functions: 73,
+				//
+				// P7 moved all four, which is what a change that touches the model,
+				// the 2D view and the 3D view at once does when it arrives with a
+				// suite of its own: 76.38 lines, 76.48 statements, 63.43 branches,
+				// 74.31 functions.
+				lines: 76,
+				statements: 76,
+				branches: 63,
+				functions: 74,
 			},
 		},
 	},

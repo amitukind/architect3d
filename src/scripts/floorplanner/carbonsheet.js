@@ -1,7 +1,6 @@
 import {EventDispatcher} from 'three';
 import {EVENT_UPDATED} from '../core/events.js';
-import {cmPerPixel, pixelsPerCm, Dimensioning} from '../core/dimensioning.js';
-import {Configuration} from '../core/configuration.js';
+import {cmPerPixel, pixelsPerCm} from '../core/dimensioning.js';
 import {resolveElement} from '../core/dom.js';
 
 /**
@@ -71,6 +70,31 @@ export class CarbonSheet extends EventDispatcher
 	 * otherwise: its onload closure captures `scope`, so a decode still in flight
 	 * would call back into a disposed view.
 	 */
+	/**
+	 * This design's settings, reached through the plan being drawn (RM-002 R-02, P7).
+	 *
+	 * The 2D view is per-Floorplan by construction - it is handed one and draws
+	 * it - so the plan is the natural place to ask, and no new plumbing was
+	 * needed to get here. Reading through a getter rather than caching the
+	 * reference keeps a view correct if the floorplan it draws is ever swapped.
+	 *
+	 * @returns {import('../core/configuration.js').Configuration}
+	 */
+	get configuration()
+	{
+		return this.floorplan.configuration;
+	}
+
+	/**
+	 * Unit and scale conversion for this design (P7).
+	 *
+	 * @returns {import('../core/dimensioning.js').Dimensioning}
+	 */
+	get dimensioning()
+	{
+		return this.floorplan.dimensioning;
+	}
+
 	dispose()
 	{
 		this._image.onload = null;
@@ -116,12 +140,12 @@ export class CarbonSheet extends EventDispatcher
 			if(scope._widthPixels < 2.0)
 			{
 				scope._widthPixels = scope._rawWidthPixels;
-				scope.width = Dimensioning.cmToMeasureRaw(scope._rawWidth);
+				scope.width = scope.dimensioning.cmToMeasureRaw(scope._rawWidth);
 			}	
 			if(scope._heightPixels < 2.0)
 			{
 				scope._heightPixels = scope._rawHeightPixels;				
-				scope.height = Dimensioning.cmToMeasureRaw(scope._rawHeight);
+				scope.height = scope.dimensioning.cmToMeasureRaw(scope._rawHeight);
 			}
 			scope._loaded = true;
 			scope._calibrate();
@@ -213,7 +237,7 @@ export class CarbonSheet extends EventDispatcher
 	
 	set width(val)
 	{
-		this._width = Dimensioning.cmFromMeasureRaw(val);
+		this._width = this.dimensioning.cmFromMeasureRaw(val);
 		this._widthPixels = this._width * pixelsPerCm;
 		
 		if(this._maintainProportion)
@@ -228,12 +252,12 @@ export class CarbonSheet extends EventDispatcher
 	
 	get width()
 	{
-		return Dimensioning.cmToMeasureRaw(this._width);
+		return this.dimensioning.cmToMeasureRaw(this._width);
 	}
 	
 	set height(val)
 	{
-		this._height = Dimensioning.cmFromMeasureRaw(val);
+		this._height = this.dimensioning.cmFromMeasureRaw(val);
 		this._heightPixels = this._height * pixelsPerCm;
 		
 		if(this._maintainProportion)
@@ -248,7 +272,7 @@ export class CarbonSheet extends EventDispatcher
 	
 	get height()
 	{
-		return Dimensioning.cmToMeasureRaw(this._height);
+		return this.dimensioning.cmToMeasureRaw(this._height);
 	}
 	
 	drawOriginCrossHair()
@@ -271,7 +295,7 @@ export class CarbonSheet extends EventDispatcher
 			this.context.translate(conX, conY);
 			
 			this.context.globalAlpha = this._transparency;			
-			this.context.drawImage(this._image, -this._anchorX*this._scaleX* Configuration.getNumericValue('scale'), -this._anchorY*this._scaleY* Configuration.getNumericValue('scale'), this._drawWidthPixels* Configuration.getNumericValue('scale'), this._drawHeightPixels* Configuration.getNumericValue('scale'));
+			this.context.drawImage(this._image, -this._anchorX*this._scaleX* this.configuration.getNumericValue('scale'), -this._anchorY*this._scaleY* this.configuration.getNumericValue('scale'), this._drawWidthPixels* this.configuration.getNumericValue('scale'), this._drawHeightPixels* this.configuration.getNumericValue('scale'));
 			this.context.globalAlpha = 1.0;
 			
 			this.context.beginPath();			

@@ -4,6 +4,37 @@
 
 ### Added
 
+* **Two designs on one page can now have different settings.** `Configuration`
+  and `Dimensioning` are ordinary classes you can instantiate, and a
+  `Floorplan` — and through it a `Model`, a `BlueprintJS` and the 2D view —
+  takes one of its own:
+
+  ```js
+  const metric   = new BlueprintJS({...opts, configuration: new Configuration({dimUnit: dimMeter})});
+  const imperial = new BlueprintJS({...opts, configuration: new Configuration({dimUnit: dimFeetAndInch})});
+  ```
+
+  Units, zoom scale, wall height and thickness, grid spacing, snap tolerance,
+  the wall-measurement labels and `EVENT_CONFIG_CHANGED` are all per
+  configuration. `renderProfile` is per viewer too — pass
+  `createRenderProfile(RENDER_STUDIO)` as `options.renderProfile` for a look of
+  its own — so classic beside studio is now expressible.
+
+  **Nothing has to change to keep working.** Every static — `Configuration.getNumericValue`,
+  `Dimensioning.cmToMeasure`, all of them — forwards to one module-level default,
+  which is the same shared state they read before. The exported `config` and
+  `wallInformation` objects are that default's own, by identity, so code that
+  mutates them directly still does. Omit `configuration` and you get exactly the
+  behaviour you had.
+
+  The one thing that changes without being asked: **constructing a second
+  `BlueprintJS` no longer re-unitises the first**. Its constructor has always
+  written the display unit, and against the shared configuration that silently
+  changed every design already on the page.
+* **`defaultConfiguration`, `defaultDimensioning`, `configurationOf()` and
+  `createRenderProfile()`** are exported. `floorplan.configuration` and
+  `floorplan.dimensioning` are the way to reach a design's own settings;
+  `Main.renderProfile` is the way to reach a viewer's look.
 * **`FloorplannerView2D.invalidate()` and `.flush()`**, and
   **`Main.applyPendingResize()`**. See *Changed* for what they are for.
 * **An asset-integrity gate.** `tests/asset-integrity.test.js` checks that every
@@ -22,15 +53,16 @@
   and can be re-run. macOS only — it shells out to `sips`, because there is no
   image library in the dependency tree and the output is committed, so the tool
   that made it does not need to run in CI. What runs in CI is the budget.
-* **A browser test tier.** `npm run test:browser` runs 23 tests through real
+* **A browser test tier.** `npm run test:browser` runs 27 tests through real
   chromium: the 2D plan rasterised into a real canvas with its pixels read back,
   the 3D view composited through a real WebGL2 context and read with
   `readPixels`, axe-core over the booted application, the environment map
-  fetched and decoded, and frame coalescing against the compositor's real clock.
-  Ten of the eighteen headless suites run under jsdom against a canvas stub and
+  fetched and decoded, frame coalescing against the compositor's real clock, and
+  two plans drawn side by side under different configurations.
+  Eleven of the nineteen headless suites run under jsdom against a canvas stub and
   a renderer stub, so until now nothing had ever rasterised a pixel or
   composited a frame — a render profile that came out black would have passed
-  all 910 of them.
+  all 931 of them.
 * **The package is publishable.** `three` and `bezier-js` are `peerDependencies`,
   and the new ESM entry externalises them — 81 KB gzipped against the IIFE's
   423 KB, which is the size of the second copy of three that used to ship to
@@ -42,10 +74,10 @@
   remains the process-wide total.
 * **`EVENT_CONFIG_CHANGED`.** `Configuration.setValue` now says what changed,
   carrying the key, the new value and the old — and only when the value actually
-  changed. `Configuration.addEventListener` / `removeEventListener` are statics,
-  because `Configuration` is a namespace over module-level state rather than
-  something anybody instantiates. It was the one change vector in the library
-  that broadcast nothing.
+  changed. It was the one change vector in the library that broadcast nothing.
+  `addEventListener` / `removeEventListener` exist as statics *and* on an
+  instance: the statics reach the shared default, and each configuration
+  dispatches only its own changes.
 * **A shared texture cache** behind every wall and floor surface, exported as
   `acquireTexture` / `releaseTexture` / `clearTextureCache` / `textureCacheStats`.
   One decode per image however many surfaces draw with it, refcounted, released
@@ -125,6 +157,12 @@
 
 ### Changed
 
+* **`Skybox`, `Lights`, `Floorplan3D`, `Edge` and `Floor` take an optional
+  render profile** as a trailing constructor argument, and `Floorplan`, `Model`
+  and `BlueprintJS` take an optional configuration. All additive: omit them and
+  each falls back to the shared default it used before. `setRenderProfile` and
+  `isStudio` take an optional profile as their last argument for the same
+  reason.
 * **The 2D plan repaints once per frame instead of three times per pointer
   event.** `FloorplannerView2D.invalidate()` marks the view dirty and schedules
   one `draw()` for the next animation frame; the interaction paths call it

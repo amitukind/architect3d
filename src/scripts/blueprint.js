@@ -22,10 +22,10 @@ export {Utils, Region} from './core/utils.js';
 // exported so an embedder can rewrite stored designs offline rather than
 // waiting for each one to be opened.
 export {LEGACY_MODEL_MAP, resolveModelUrl} from './core/legacy_models.js';
-export {dimInch, dimFeetAndInch, dimMeter, dimCentiMeter, dimMilliMeter, dimensioningOptions, decimals, Dimensioning} from './core/dimensioning.js';
+export {dimInch, dimFeetAndInch, dimMeter, dimCentiMeter, dimMilliMeter, dimensioningOptions, decimals, Dimensioning, defaultDimensioning} from './core/dimensioning.js';
 export {cmPerFoot, pixelsPerFoot, cmPerPixel, pixelsPerCm} from './core/dimensioning.js';
 
-export {cornerTolerance, configDimUnit, configWallHeight, configWallThickness, configSystemUI, wallInformation, scale, snapToGrid, snapTolerance, gridSpacing, config, Configuration} from './core/configuration.js';
+export {cornerTolerance, configDimUnit, configWallHeight, configWallThickness, configSystemUI, wallInformation, scale, snapToGrid, snapTolerance, gridSpacing, config, Configuration, defaultConfiguration, configurationOf} from './core/configuration.js';
 export {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY} from './core/constants.js';
 export {WallTypes} from './core/constants.js';
 
@@ -46,7 +46,7 @@ export {edgeColor, edgeColorHover, edgeWidth} from './floorplanner/floorplanner_
 export {cornerRadius, cornerRadiusHover, cornerRadiusSelected, cornerColor, cornerColorHover, cornerColorSelected} from './floorplanner/floorplanner_view.js';
 export {FloorplannerView2D} from './floorplanner/floorplanner_view.js';
 export {floorplannerPalette, setFloorplannerPalette} from './floorplanner/floorplanner_view.js';
-export {RENDER_CLASSIC, RENDER_STUDIO, renderProfile, setRenderProfile, isStudio} from './three/render_profile.js';
+export {RENDER_CLASSIC, RENDER_STUDIO, renderProfile, setRenderProfile, isStudio, createRenderProfile} from './three/render_profile.js';
 
 
 export {Floorplanner2D} from './floorplanner/floorplanner.js';
@@ -95,7 +95,7 @@ export {OBJExporter} from 'three/addons/exporters/OBJExporter.js';
 import {Model} from './model/model.js';
 import {Main} from './three/main.js';
 import {Floorplanner2D} from './floorplanner/floorplanner.js';
-import {Configuration, configDimUnit} from './core/configuration.js';
+import {configDimUnit, defaultConfiguration} from './core/configuration.js';
 import {dimMeter} from './core/dimensioning.js';
 //
 ///** VestaDesigner core application. */
@@ -110,6 +110,8 @@ export class BlueprintJS
 	 * @param {?string} options.threeCanvasElement - Unused; kept for signature compatibility.
 	 * @param {string} options.textureDir - path to texture directory. No effect
 	 * @param {boolean} options.widget - If widget mode then no 2D floorplanner is created and the 3D controller is disabled
+	 * @param {import('./core/configuration.js').Configuration} [options.configuration] - Settings for this design alone (P7). Omit to share the page-wide default.
+	 * @param {Object} [options.renderProfile] - A look for this viewer alone (P7), from `createRenderProfile`. Omit to share the page-wide default.
 	 * @example
 	 * let blueprint3d = new BP3DJS.BlueprintJS(opts);
 	 *
@@ -119,7 +121,25 @@ export class BlueprintJS
 	 */
 	constructor(options)
 	{
-		Configuration.setValue(configDimUnit, dimMeter);
+		/**
+		 * This design's settings (RM-002 R-02, P7).
+		 *
+		 * `options.configuration` is how an embedder asks for a viewer that does
+		 * not share units, scale, wall defaults and snapping with every other
+		 * viewer on the page. Omitting it keeps the shared default, which is what
+		 * every caller had before and what a page with one design wants.
+		 *
+		 * The line below is why this matters more than it sounds. It has always
+		 * been here, and against the shared default it means *constructing* a
+		 * second BlueprintJS silently re-unitises the first one - the purest form
+		 * of the singleton problem this finding is about. It now writes to
+		 * whichever configuration this instance owns.
+		 *
+		 * @property {Configuration} configuration
+		 * @type {import('./core/configuration.js').Configuration}
+		 */
+		this.configuration = options.configuration || defaultConfiguration;
+		this.configuration.setValue(configDimUnit, dimMeter);
 
 		/**
 			* @property {Object} options
@@ -130,11 +150,13 @@ export class BlueprintJS
 			* @property {Model} model
 			* @type {Model}
 		**/
-		this.model = new Model(options.textureDir);
+		this.model = new Model(options.textureDir, this.configuration);
 		// Held in a local as well as on `this`, because the property is nullable
 		// (dispose() clears it) and the checker will not narrow a nullable
 		// property across the branch below. The local is definitely a Main.
-		var three = new Main(this.model, options.threeElement, options.threeCanvasElement, {});
+		// `renderProfile` forwarded so a viewer can have a look of its own (P7);
+		// omitted, Main falls back to the shared profile exactly as before.
+		var three = new Main(this.model, options.threeElement, options.threeCanvasElement, {renderProfile: options.renderProfile || null});
 		/**
 		* @property {Main} three
 		* @type {?Main}

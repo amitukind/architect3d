@@ -6,7 +6,7 @@ import {EventDispatcher, Vector2} from 'three';
 import {Bezier} from 'bezier-js';
 import {WallTypes} from '../core/constants.js';
 import {EVENT_ACTION,EVENT_MOVED,EVENT_DELETED} from '../core/events.js';
-import {Configuration,configWallThickness,configWallHeight} from '../core/configuration.js';
+import {configurationOf,configWallThickness,configWallHeight} from '../core/configuration.js';
 import {Utils} from '../core/utils.js';
 
 
@@ -97,11 +97,16 @@ export class Wall extends EventDispatcher
 		/** The back-side texture. */
 		this.backTexture = defaultWallTexture;
 
+		// A Wall has no floorplan of its own; it reaches one through its start
+		// corner, which is what makes the model layer need no new plumbing for
+		// P7. `Floorplan.newWall` is the only construction site.
+		var configuration = configurationOf(start && start.floorplan);
+
 		/** Wall thickness. */
-		this.thickness = Configuration.getNumericValue(configWallThickness);
+		this.thickness = configuration.getNumericValue(configWallThickness);
 
 		/** Wall height. */
-		this.height = Configuration.getNumericValue(configWallHeight);
+		this.height = configuration.getNumericValue(configWallHeight);
 
 		/** Actions to be applied after movement. */
 

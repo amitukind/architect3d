@@ -4,9 +4,15 @@ import {renderProfile, isStudio} from './render_profile.js';
 
 export class Lights extends EventDispatcher
 {
-	constructor(scene, floorplan)
+	constructor(scene, floorplan, profile)
 	{
 		super();		
+	/**
+	 * The look this object draws with (RM-002 R-02, P7). Falls back to the shared
+	 * profile, which is what every construction site did before and what the
+	 * parity grid still measures.
+	 */
+		this.renderProfile = profile || renderProfile;
 		this.scene = scene;
 		this.floorplan = floorplan;		
 		this.tol = 1;
@@ -85,31 +91,31 @@ export class Lights extends EventDispatcher
 		// all: the walls, roof, sky and ground are all MeshBasicMaterial, so
 		// these two lights reach the Phong floors and the loaded items and
 		// nothing else.
-		var light = new HemisphereLight(renderProfile.hemisphereSky, renderProfile.hemisphereGround, renderProfile.hemisphereIntensity * Math.PI);
+		var light = new HemisphereLight(this.renderProfile.hemisphereSky, this.renderProfile.hemisphereGround, this.renderProfile.hemisphereIntensity * Math.PI);
 		light.position.set(0, this.height, 0);
 		this.hemiLight = light;
 		this.scene.add(light);
 
-		this.dirLight = new DirectionalLight(0xffffff, renderProfile.keyIntensity * Math.PI);
+		this.dirLight = new DirectionalLight(0xffffff, this.renderProfile.keyIntensity * Math.PI);
 		// setHSL(1, 1, 0.1) is a fully saturated red at 10% lightness - hue 1 wraps
 		// to 0. So the "white" directional light has never been white: it is
 		// #330000, and at 0.5*pi it contributes a dim red wash and essentially no
 		// shadow contrast. That is a bug old enough to be load-bearing for the
 		// parity grid, so classic keeps it exactly. Studio does not: a key light
 		// that emits no green or blue cannot model a room.
-		if (!isStudio())
+		if (!isStudio(this.renderProfile))
 		{
 			this.dirLight.color.setHSL(1, 1, 0.1);
 		}
 
 		this.dirLight.castShadow = true;
 
-		this.dirLight.shadow.mapSize.width = renderProfile.shadowMapSize;
-		this.dirLight.shadow.mapSize.height = renderProfile.shadowMapSize;
-		this.dirLight.shadow.radius = renderProfile.shadowRadius;
+		this.dirLight.shadow.mapSize.width = this.renderProfile.shadowMapSize;
+		this.dirLight.shadow.mapSize.height = this.renderProfile.shadowMapSize;
+		this.dirLight.shadow.radius = this.renderProfile.shadowRadius;
 
 		this.dirLight.shadow.bias = -0.0001;
-		this.dirLight.shadow.normalBias = isStudio() ? 1.5 : 0;
+		this.dirLight.shadow.normalBias = isStudio(this.renderProfile) ? 1.5 : 0;
 		this.dirLight.visible = true;
 		// Removed in S5: shadowDarkness and shadowCameraVisible. Both moved onto
 		// light.shadow around r73 and were deleted outright well before r98, so
@@ -133,7 +139,7 @@ export class Lights extends EventDispatcher
 		// It casts nothing: two shadow maps for a fill light is not a trade worth
 		// making, and a second set of shadows from below would be wrong anyway.
 		this.fillLight = null;
-		if (isStudio())
+		if (isStudio(this.renderProfile))
 		{
 			this.fillLight = new DirectionalLight(0xdce7f5, 0.2 * Math.PI);
 			this.fillLight.position.set(-0.6, 0.5, -0.8);
@@ -164,8 +170,8 @@ export class Lights extends EventDispatcher
 		// scales with the room rather than being a constant that happens to suit
 		// one. Two walls are then lit and two are not, which is what makes a
 		// rendered room look like a room.
-		var height = this.height * renderProfile.keyHeight;
-		var offset = d * renderProfile.keyOffset;
+		var height = this.height * this.renderProfile.keyHeight;
+		var offset = d * this.renderProfile.keyOffset;
 		var pos = new Vector3(center.x + offset, height, center.z + offset * 0.8);
 
 		this.dirLight.position.copy(pos);
@@ -182,7 +188,7 @@ export class Lights extends EventDispatcher
 		// light being overhead and slightly off-centre - falls outside the map and
 		// is clipped to a straight edge along the boundary. A quarter more room
 		// costs nothing but map resolution, and there is twice as much of that now.
-		var pad = isStudio() ? 1.25 : 1.0;
+		var pad = isStudio(this.renderProfile) ? 1.25 : 1.0;
 		this.dirLight.shadow.camera.left = -d * pad;
 		this.dirLight.shadow.camera.right = d * pad;
 		this.dirLight.shadow.camera.top = d * pad;

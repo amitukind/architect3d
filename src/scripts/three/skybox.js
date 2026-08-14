@@ -32,14 +32,20 @@ export const GROUND_REFLECTOR_ENABLED = false;
 
 export class Skybox extends EventDispatcher
 {
-	constructor(scene, renderer)
+	constructor(scene, renderer, profile)
 	{
 		super();
+	/**
+	 * The look this object draws with (RM-002 R-02, P7). Falls back to the shared
+	 * profile, which is what every construction site did before and what the
+	 * parity grid still measures.
+	 */
+		this.renderProfile = profile || renderProfile;
 		
 		this.defaultEnvironment = 'rooms/textures/envs/Garden.jpg';
 		this.useEnvironment = false;
-		this.topColor = renderProfile.skyTopColor;//0xe9e9e9; //0xf9f9f9;//0x565e63
-		this.bottomColor = renderProfile.skyBottomColor;//0xD8ECF9
+		this.topColor = this.renderProfile.skyTopColor;//0xe9e9e9; //0xf9f9f9;//0x565e63
+		this.bottomColor = this.renderProfile.skyBottomColor;//0xD8ECF9
 		this.verticalOffset = 400;
 		this.exponent = 0.5;
 		
@@ -125,13 +131,13 @@ export class Skybox extends EventDispatcher
 		// as big flat squares with obvious seams; 40 restores the fine gravel the
 		// reflector produced, which is the whole of the difference the parity grid
 		// showed between r98 and r185.
-		groundT.repeat.set(renderProfile.groundRepeat, renderProfile.groundRepeat);
+		groundT.repeat.set(this.renderProfile.groundRepeat, this.renderProfile.groundRepeat);
 		
 		this.groundGeo = new PlaneGeometry(10000, 10000, 10);
 		this.groundMat = new MeshBasicMaterial({
-			color: renderProfile.groundColor,
+			color: this.renderProfile.groundColor,
 			side: DoubleSide,
-			map: renderProfile.groundTexture ? groundT : null,
+			map: this.renderProfile.groundTexture ? groundT : null,
 		});
 		this.ground = new Mesh(this.groundGeo, this.groundMat);
 		this.ground.rotateX(-Math.PI * 0.5);
@@ -154,7 +160,7 @@ export class Skybox extends EventDispatcher
 		//
 		// It lives on the Scene, which is why it is set here rather than in the
 		// renderer: three reads `scene.fog` when it compiles each material.
-		this.threeScene().fog = isStudio() ? new Fog(renderProfile.fogColor, renderProfile.fogNear, renderProfile.fogFar) : null;
+		this.threeScene().fog = isStudio(this.renderProfile) ? new Fog(this.renderProfile.fogColor, this.renderProfile.fogNear, this.renderProfile.fogFar) : null;
 		
 		// See GROUND_REFLECTOR_ENABLED above. Null rather than absent so
 		// dispose() and any embedder reading it still find the property.

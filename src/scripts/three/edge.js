@@ -14,9 +14,15 @@ const LIGHT_MAP_URL = 'rooms/textures/walllightmap.png';
 
 export class Edge extends EventDispatcher
 {
-	constructor(scene, edge, controls)
+	constructor(scene, edge, controls, profile)
 	{
 		super();
+	/**
+	 * The look this object draws with (RM-002 R-02, P7). Falls back to the shared
+	 * profile, which is what every construction site did before and what the
+	 * parity grid still measures.
+	 */
+		this.renderProfile = profile || renderProfile;
 		this.name = 'edge';
 		this.scene = scene;
 		this.edge = edge;
@@ -250,7 +256,7 @@ export class Edge extends EventDispatcher
 	 *   that is the wall-fade that lets you see into a room from outside. So the
 	 *   constructor argument only ever described the first instant of the
 	 *   material's life, and omitting it changes nothing.
-	 * - The lightmap is dialled back (see renderProfile.wallLightMapIntensity).
+	 * - The lightmap is dialled back (see this.renderProfile.wallLightMapIntensity).
 	 *   At pi it exists to cancel a constant in the *basic* shader; here it is a
 	 *   hand-painted vignette layered over genuine shading, and at full strength
 	 *   it double-darkens every corner it already has a shadow in.
@@ -268,15 +274,15 @@ export class Edge extends EventDispatcher
 			color: color,
 			side: side,
 			map: this.texture,
-			roughness: renderProfile.wallRoughness,
-			metalness: renderProfile.wallMetalness,
-			envMapIntensity: renderProfile.environmentIntensity,
+			roughness: this.renderProfile.wallRoughness,
+			metalness: this.renderProfile.wallMetalness,
+			envMapIntensity: this.renderProfile.environmentIntensity,
 		});
 
 		if (lit !== false)
 		{
 			material.lightMap = this.lightMap;
-			material.lightMapIntensity = renderProfile.wallLightMapIntensity;
+			material.lightMapIntensity = this.renderProfile.wallLightMapIntensity;
 		}
 
 		return material;
@@ -294,7 +300,7 @@ export class Edge extends EventDispatcher
 		}
 
 		var color = 0xFFFFFF;
-		var wallMaterial = isStudio() ? this.makeStudioWallMaterial(color, FrontSide) : new MeshBasicMaterial({
+		var wallMaterial = isStudio(this.renderProfile) ? this.makeStudioWallMaterial(color, FrontSide) : new MeshBasicMaterial({
 			color: color,
 			side: FrontSide,
 			map: this.texture,
@@ -329,7 +335,7 @@ export class Edge extends EventDispatcher
 			opacity: 1.0,
 			wireframe: false,
 		});
-		var fillerMaterial = isStudio() ? this.makeStudioWallMaterial(this.fillerColor, DoubleSide, false) : new MeshBasicMaterial({
+		var fillerMaterial = isStudio(this.renderProfile) ? this.makeStudioWallMaterial(this.fillerColor, DoubleSide, false) : new MeshBasicMaterial({
 			color: this.fillerColor,
 			side: DoubleSide,
 			map: this.texture,
@@ -441,8 +447,8 @@ export class Edge extends EventDispatcher
 		// is why the old viewer has no sense of enclosure. Receiving matters as
 		// much as casting: a wall that does not receive cannot show the shadow of
 		// the sofa standing against it.
-		mesh.castShadow = isStudio();
-		mesh.receiveShadow = isStudio();
+		mesh.castShadow = isStudio(this.renderProfile);
+		mesh.receiveShadow = isStudio(this.renderProfile);
 
 		return mesh;
 	}
@@ -463,16 +469,16 @@ export class Edge extends EventDispatcher
 	 */
 	makeFillerMaterial(color, side)
 	{
-		if (!isStudio())
+		if (!isStudio(this.renderProfile))
 		{
 			return new MeshBasicMaterial({color: color, side: side});
 		}
 		return new MeshStandardMaterial({
 			color: color,
 			side: side,
-			roughness: renderProfile.wallRoughness,
-			metalness: renderProfile.wallMetalness,
-			envMapIntensity: renderProfile.environmentIntensity,
+			roughness: this.renderProfile.wallRoughness,
+			metalness: this.renderProfile.wallMetalness,
+			envMapIntensity: this.renderProfile.environmentIntensity,
 		});
 	}
 

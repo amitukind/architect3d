@@ -53,7 +53,7 @@ export class Main extends EventDispatcher
 	constructor(model, element, canvasElement, opts)
 	{
 		super();
-		var options = {resize: true,pushHref: false,spin: true,spinSpeed: .00002,clickPan: true,canMoveFixedItems: false};
+		var options = {resize: true,pushHref: false,spin: true,spinSpeed: .00002,clickPan: true,canMoveFixedItems: false,renderProfile: null};
 		for (var opt in options)
 		{
 			if (options.hasOwnProperty(opt) && opts.hasOwnProperty(opt))
@@ -63,6 +63,15 @@ export class Main extends EventDispatcher
 		}
 
 		this.pauseRender = true;
+		/**
+		 * The look this viewer draws with (RM-002 R-02, P7).
+		 *
+		 * `null` in the options - the default - means the shared module profile,
+		 * which is what every Main did before and what `npm run parity` measures.
+		 * Pass `createRenderProfile(RENDER_STUDIO)` for a viewer whose look is its
+		 * own, which is what makes a classic-beside-studio comparison expressible.
+		 */
+		this.renderProfile = options.renderProfile || renderProfile;
 		this.model = model;
 		this.scene = model.scene;
 		this.element = resolveElement(element, '3D viewer container');
@@ -201,8 +210,8 @@ export class Main extends EventDispatcher
 	 */
 	applyToneMapping(renderer)
 	{
-		renderer.toneMapping = isStudio() ? ACESFilmicToneMapping : NoToneMapping;
-		renderer.toneMappingExposure = renderProfile.toneMappingExposure;
+		renderer.toneMapping = isStudio(this.renderProfile) ? ACESFilmicToneMapping : NoToneMapping;
+		renderer.toneMappingExposure = this.renderProfile.toneMappingExposure;
 	}
 
 	/**
@@ -226,7 +235,7 @@ export class Main extends EventDispatcher
 	buildEnvironment()
 	{
 		this.environmentTexture = null;
-		if (!isStudio() || !renderProfile.environment)
+		if (!isStudio(this.renderProfile) || !this.renderProfile.environment)
 		{
 			this.scene.getScene().environment = null;
 			return;
@@ -266,7 +275,7 @@ export class Main extends EventDispatcher
 	 */
 	applyRenderProfile(mode)
 	{
-		setRenderProfile(mode);
+		setRenderProfile(mode, undefined, this.renderProfile);
 
 		this.applyToneMapping(this.renderer);
 
@@ -281,14 +290,14 @@ export class Main extends EventDispatcher
 		{
 			var wasEnvironment = this.skybox.useEnvironment;
 			this.skybox.dispose();
-			this.skybox = new Skybox(this.scene, this.renderer);
+			this.skybox = new Skybox(this.scene, this.renderer, this.renderProfile);
 			this.skybox.toggleEnvironment(wasEnvironment);
 		}
 
 		if (this.lights)
 		{
 			this.lights.dispose();
-			this.lights = new Lights(this.scene, this.model.floorplan);
+			this.lights = new Lights(this.scene, this.model.floorplan, this.renderProfile);
 			this.lights.updateShadowCamera();
 		}
 
@@ -333,7 +342,7 @@ export class Main extends EventDispatcher
 		// a physically based material exists with nothing to reflect.
 		scope.buildEnvironment();
 
-		scope.skybox = new Skybox(scope.scene, scope.renderer);
+		scope.skybox = new Skybox(scope.scene, scope.renderer, scope.renderProfile);
 
 		scope.controls = new OrbitControls(scope.camera, scope.domElement);
 		scope.controls.autoRotate = this.options['spin'];
@@ -394,8 +403,8 @@ export class Main extends EventDispatcher
 		scope.model.floorplan.addEventListener(EVENT_UPDATED, this.updatedevent);
 		scope.model.addEventListener(EVENT_GLTF_READY, this.gltfreadyevent);
 
-		scope.lights = new Lights(scope.scene, scope.model.floorplan);
-		scope.floorplan = new Floorplan3D(scope.scene, scope.model.floorplan, scope.controls);
+		scope.lights = new Lights(scope.scene, scope.model.floorplan, scope.renderProfile);
+		scope.floorplan = new Floorplan3D(scope.scene, scope.model.floorplan, scope.controls, scope.renderProfile);
 
 		function animate()
 		{

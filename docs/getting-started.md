@@ -106,6 +106,31 @@ controller, for a read-only embed. `dispose()` tears down both views, releasing
 every DOM listener and the WebGL context; it is safe to call twice, and it
 deliberately leaves `model` alone so you can still serialize after teardown.
 
+### More than one design on a page
+
+Units, zoom, wall defaults and snapping are shared by every viewer unless you
+say otherwise, which is right for one design and wrong for two. Pass a
+`configuration` — and a `renderProfile` if the two should also look different:
+
+```js
+import {BlueprintJS, Configuration, createRenderProfile, RENDER_STUDIO, dimMeter} from 'architect3d';
+
+const metric = new BlueprintJS({
+    ...options,
+    configuration: new Configuration({dimUnit: dimMeter, wallHeight: 300}),
+    renderProfile: createRenderProfile(RENDER_STUDIO),
+});
+```
+
+Reach a design's settings through `blueprint.configuration`, or
+`floorplan.configuration` and `floorplan.dimensioning` from lower down. Omit
+both options and you share the page-wide defaults, which is what the
+`Configuration` and `Dimensioning` statics read.
+
+One thing worth knowing if you build two viewers without configurations of
+their own: `BlueprintJS`'s constructor sets the display unit, so the second one
+will change the first's. Give each a `Configuration` and they cannot.
+
 ### Assets are relative URLs
 
 Every asset path the library composes is a **bare relative string**, resolved

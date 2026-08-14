@@ -7,9 +7,15 @@ import {renderProfile, isStudio} from './render_profile.js';
 
 export class Floor extends EventDispatcher
 {
-	constructor(scene, room)
+	constructor(scene, room, profile)
 	{
 		super();
+	/**
+	 * The look this object draws with (RM-002 R-02, P7). Falls back to the shared
+	 * profile, which is what every construction site did before and what the
+	 * parity grid still measures.
+	 */
+		this.renderProfile = profile || renderProfile;
 		this.scene = scene;
 		this.room = room;
 		this.floorPlane = null;
@@ -60,7 +66,7 @@ export class Floor extends EventDispatcher
 	 */
 	makeRoofMaterial()
 	{
-		return new MeshBasicMaterial({side: FrontSide, color: renderProfile.roofColor});
+		return new MeshBasicMaterial({side: FrontSide, color: this.renderProfile.roofColor});
 	}
 
 	buildFloor()
@@ -93,14 +99,14 @@ export class Floor extends EventDispatcher
 		// leaves it white and lets exposure and tone mapping set the level: with
 		// the classic tint the floor arrives pre-darkened and then gets darkened
 		// again by real shading.
-		var floorMaterialTop = isStudio()
+		var floorMaterialTop = isStudio(this.renderProfile)
 			? new MeshStandardMaterial({
 				map: floorTexture,
 				side: DoubleSide,
 				color: 0xffffff,
-				roughness: renderProfile.floorRoughness,
-				metalness: renderProfile.floorMetalness,
-				envMapIntensity: renderProfile.environmentIntensity,
+				roughness: this.renderProfile.floorRoughness,
+				metalness: this.renderProfile.floorMetalness,
+				envMapIntensity: this.renderProfile.environmentIntensity,
 			})
 			: new MeshPhongMaterial({
 				map: floorTexture,

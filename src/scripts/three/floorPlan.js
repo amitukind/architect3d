@@ -2,13 +2,20 @@ import {EventDispatcher} from 'three';
 import {EVENT_UPDATED} from '../core/events.js';
 import {Floor} from './floor.js';
 import {Edge} from './edge.js';
+import {renderProfile} from './render_profile.js';
 
 
 export class Floorplan3D extends EventDispatcher
 {
-	constructor(scene, floorPlan, controls)
+	constructor(scene, floorPlan, controls, profile)
 	{
 		super();
+	/**
+	 * The look this object draws with (RM-002 R-02, P7). Falls back to the shared
+	 * profile, which is what every construction site did before and what the
+	 * parity grid still measures.
+	 */
+		this.renderProfile = profile || renderProfile;
 		this.scene = scene;
 		this.floorplan = floorPlan;
 		this.controls = controls;
@@ -51,7 +58,7 @@ export class Floorplan3D extends EventDispatcher
 
 		// draw floors
 		this.floorplan.getRooms().forEach((room) => {
-			var threeFloor = new Floor(this.scene, room);
+			var threeFloor = new Floor(this.scene, room, this.renderProfile);
 			this.floors.push(threeFloor);
 			threeFloor.addToScene();
 		});
@@ -59,7 +66,7 @@ export class Floorplan3D extends EventDispatcher
 		var eindex = 0;
 		// draw edges
 		this.floorplan.wallEdges().forEach((edge) => {
-			var threeEdge = new Edge(scope.scene, edge, scope.controls);
+			var threeEdge = new Edge(scope.scene, edge, scope.controls, scope.renderProfile);
 			threeEdge.name = 'edge_'+eindex;
 			this.edges.push(threeEdge);
 			eindex+=1;

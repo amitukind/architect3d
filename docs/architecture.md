@@ -49,9 +49,12 @@ can never be reached. `dist/bp3djs.js` contains no CSS at all.
 
 ### `core` — the shared vocabulary
 
-`configuration.js` is a global singleton holding the display unit, wall height
-and thickness, grid spacing and the snap settings. It is read all over the
-library and it **dispatches nothing** — a change to it takes effect the next
+`configuration.js` holds the display unit, wall height and thickness, grid
+spacing and the snap settings. `Configuration` is both a class and a namespace:
+the statics read one page-wide default, and a `Floorplan` given a
+`Configuration` of its own reads that instead — which is what lets two designs
+sit on one page without sharing units. It dispatches `EVENT_CONFIG_CHANGED`,
+but nothing in the library listens, so a change still takes effect the next
 time something draws. That is why the application calls `floorplanner.redraw()`
 after touching it.
 
@@ -196,17 +199,29 @@ elements with `defineExpose`.
 Three seams are worth knowing, because each one is a place where a change in
 one layer does *not* automatically reach the other:
 
-1. **`Configuration` dispatches nothing.** Changing the display unit, grid
-   spacing or a wall-measurement flag needs an explicit redraw.
-2. **`Floorplan3D.redraw()` rebuilds every `Edge` and `Floor`.** Anything
+1. **`Configuration` announces a change but redraws nothing.** It dispatches
+   `EVENT_CONFIG_CHANGED` with the key, the new value and the old — but only
+   the application listens; the 2D view does not, so changing the display unit,
+   grid spacing or a wall-measurement flag still needs an explicit
+   `floorplanner.redraw()`.
+2. **A design's settings are per-`Floorplan`, and default to shared.**
+   `floorplan.configuration` and `floorplan.dimensioning` are what the model
+   and the 2D view read. Construct a `Floorplan` (or a `BlueprintJS`) without
+   one and it shares the page-wide default, which is what the `Configuration`
+   and `Dimensioning` statics also read.
+3. **`Floorplan3D.redraw()` rebuilds every `Edge` and `Floor`.** Anything
    configured on a wall material must be reapplied in the rebuild path, not
    just in a constructor.
-3. **Textures are reloaded, never cached.** `TextureLoader` runs per wall per
-   redraw and nothing is disposed. Known, and on the post-migration backlog.
-4. **The render profile is read at construction.** Setting `renderProfile.mode`
+4. **Textures are shared and refcounted.** `acquireTexture` hands out a
+   `Texture.clone()` over one decoded image, and the last `releaseTexture`
+   disposes it. Each surface keeps its own `repeat` and `wrap`; the pixels are
+   loaded once.
+5. **The render profile is read at construction.** Setting `renderProfile.mode`
    by hand changes nothing already built; go through `setRenderProfile` before
-   construction, or `Main.applyRenderProfile()` after it.
-5. **Undo captures what the save format captures.** `saveFloorplan` writes only
+   construction, or `Main.applyRenderProfile()` after it. A viewer given its own
+   profile — `new BlueprintJS({renderProfile: createRenderProfile(RENDER_STUDIO)})`
+   — does not touch the shared one.
+6. **Undo captures what the save format captures.** `saveFloorplan` writes only
    the corners its walls reach, so a corner with nothing attached is not in a
    snapshot and cannot be restored by one. Unreachable through the UI, which
    creates corners and walls together; reachable by an embedder driving the
