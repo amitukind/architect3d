@@ -11,15 +11,17 @@
 # workflow consumes no repository storage; the coverage and budget numbers go to
 # the run summary instead of an uploaded report, which is free.
 #
-# WHAT THIS COSTS, AND WHY IT IS STILL ONE JOB
+# WHAT THIS COSTS, AND WHY TIER 1 IS STILL ONE JOB
 #
 # Tier 1 of the RM-002 gate ladder. It grew from three steps to seven and still
 # runs in about ninety seconds, because the expensive part is `npm ci` and this
 # pays for it once. Splitting the builds into parallel jobs would duplicate that
 # install three times to save perhaps thirty seconds of wall clock - the wrong
-# trade when minutes are the constrained resource. Tier 2 (real-browser and
-# visual regression, RM-002 P5) is the one that earns a second job, because
-# installing a browser is a genuinely different setup.
+# trade when minutes are the constrained resource.
+#
+# Tier 2 (RM-002 P5) IS a second job, because it needs a browser: a chromium
+# download that tier 1 should not wait for and should not pay for when only the
+# data layer changed. The two run in parallel.
 #
 # THE GAP THIS DOES NOT CLOSE
 #
@@ -142,3 +144,43 @@ jobs:
             npm run --silent budget || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  browser:
+    name: Browser tier (real canvas, real WebGL, axe)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Deliberately NOT `needs: test`. The two jobs check different things and
+    # neither result makes the other uninteresting - if the data layer breaks
+    # and the renderer also breaks, both are worth knowing in one run.
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        env:
+          SKIP_INSTALL_SIMPLE_GIT_HOOKS: '1'
+        run: npm ci --no-audit --no-fund
+
+      - name: Install chromium
+        # Chromium only, and no `--with-deps`: the ubuntu-latest image already
+        # carries the shared libraries it needs. Roughly a 170 MB download every
+        # run, because this workflow deliberately populates no Actions cache -
+        # see the note at the top. That is the price of the storage promise, and
+        # it is about twenty seconds.
+        run: npx playwright install chromium
+
+      - name: Run the browser suite
+        # Three things jsdom cannot check, and the reason this tier exists:
+        # the 2D plan rasterised and its palette read back off the canvas, the
+        # 3D view composited through SwiftShader and read back with readPixels,
+        # and axe-core over the booted application.
+        #
+        # There is no screenshot comparison here on purpose - see RM-002 §13.
+        run: npm run test:browser

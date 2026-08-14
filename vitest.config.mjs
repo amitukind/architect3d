@@ -25,9 +25,13 @@ export default defineConfig({
 	test: {
 		environment: 'node',
 		include: ['tests/**/*.test.js'],
+		// tests/browser/ needs a real browser and is a separate project - see
+		// vitest.browser.config.mjs. Left out here so `npm test` stays headless
+		// and fast, and so a machine with no chromium can still run everything
+		// that does not need one.
+		exclude: ['tests/browser/**', 'node_modules/**', 'public/**', 'asset-pipeline/**', 'docs/**'],
 		globals: false,
 		reporters: ['default'],
-		exclude: ['node_modules/**', 'public/**', 'asset-pipeline/**', 'docs/**'],
 
 		/**
 		 * Coverage, and the floor underneath it (RM-002 P1, tier 1).

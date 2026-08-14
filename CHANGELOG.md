@@ -4,6 +4,13 @@
 
 ### Added
 
+* **A browser test tier.** `npm run test:browser` runs 17 tests through real
+  chromium: the 2D plan rasterised into a real canvas with its pixels read back,
+  the 3D view composited through a real WebGL2 context and read with
+  `readPixels`, and axe-core over the booted application. Ten of the seventeen
+  headless suites run under jsdom against a canvas stub and a renderer stub, so
+  until now nothing had ever rasterised a pixel or composited a frame — a render
+  profile that came out black would have passed all 886 of them.
 * **The package is publishable.** `three` and `bezier-js` are `peerDependencies`,
   and the new ESM entry externalises them — 81 KB gzipped against the IIFE's
   423 KB, which is the size of the second copy of three that used to ship to
@@ -138,6 +145,13 @@
 
 ### Fixed
 
+* **Four accessibility defects**, found by adding the check rather than by
+  someone reporting them. There was no `<main>` landmark at all, so everything
+  between the banner and the status bar sat outside one and a screen-reader user
+  had no way to skip to the plan. The catalog drawer and the shortcuts sheet used
+  `<header>`/`<footer>`, which duplicated the page's banner and contentinfo
+  landmarks whenever either was open. And all 122 catalog thumbnails carried
+  `alt` text repeating the name their own button already announced.
 * **The published types rejected the most common call in the API.**
   `Floorplan.newCorner`'s third parameter is described as optional in prose but
   was not bracketed, so the generated `.d.ts` declared it required — and every

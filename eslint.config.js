@@ -162,8 +162,46 @@ export default [
 	},
 
 	{
+		// The browser tier (RM-002 P5). These run inside chromium, not Node, so
+		// they get the DOM rather than `process` - a test here reaching for a Node
+		// global is a mistake the linter should catch, which is why this is a
+		// separate block rather than the Node one widened.
+		files: ['tests/browser/**/*.js'],
+		languageOptions: {
+			ecmaVersion: 2022,
+			sourceType: 'module',
+			globals: {
+				window: 'readonly',
+				document: 'readonly',
+				navigator: 'readonly',
+				console: 'readonly',
+				location: 'readonly',
+				fetch: 'readonly',
+				setTimeout: 'readonly',
+				clearTimeout: 'readonly',
+				requestAnimationFrame: 'readonly',
+				cancelAnimationFrame: 'readonly',
+				Image: 'readonly',
+				Uint8Array: 'readonly',
+			},
+		},
+		rules: {
+			'no-console': 'off',
+			quotes: ['error', 'single'],
+			semi: ['error', 'always'],
+			'no-mixed-spaces-and-tabs': ['error', 'smart-tabs'],
+		},
+	},
+
+	{
 		// Tests and tooling: Node environment.
 		files: ['tests/**/*.js', 'tools/**/*.mjs', '*.config.js', '*.config.mjs', 'docs/.vitepress/*.mjs'],
+		// tests/browser/ is excluded so that the block above is the ONLY one that
+		// applies to it. Flat config merges `globals` from every matching entry
+		// rather than letting the last one win, so without this the browser tests
+		// would quietly also get `process` and `Buffer` - and the whole point of
+		// giving them their own block is that reaching for one is a mistake.
+		ignores: ['tests/browser/**'],
 		languageOptions: {
 			ecmaVersion: 2022,
 			sourceType: 'module',

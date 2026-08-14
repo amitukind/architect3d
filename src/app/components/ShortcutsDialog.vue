@@ -55,7 +55,7 @@ const groups = computed(function ()
 			<DialogOverlay class="a3d-fade fixed inset-0 z-[550] bg-black/50 backdrop-blur-[2px]" />
 			<DialogContent
 				class="a3d-pop fixed left-1/2 top-1/2 z-[560] flex max-h-[80vh] w-[620px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-panel border border-line bg-surface shadow-float focus:outline-none">
-				<header class="flex flex-none items-start gap-2 border-b border-line px-4 py-3">
+				<div class="flex flex-none items-start gap-2 border-b border-line px-4 py-3">
 					<div>
 						<DialogTitle class="text-[14px] font-semibold">Keyboard shortcuts</DialogTitle>
 						<DialogDescription class="text-ink-faint">
@@ -67,7 +67,7 @@ const groups = computed(function ()
 							<X :size="15" />
 						</button>
 					</DialogClose>
-				</header>
+				</div>
 
 				<div class="grid flex-1 grid-cols-1 gap-x-8 gap-y-5 overflow-y-auto p-4 sm:grid-cols-2">
 					<section v-for="group in groups" :key="group.name">
@@ -83,10 +83,10 @@ const groups = computed(function ()
 					</section>
 				</div>
 
-				<footer class="flex-none border-t border-line px-4 py-2.5 text-[11px] text-ink-faint">
+				<div class="flex-none border-t border-line px-4 py-2.5 text-[11px] text-ink-faint">
 					Hold <kbd>Shift</kbd> while drawing to snap to the axis and the grid.
 					Double-click a corner to set its elevation.
-				</footer>
+				</div>
 			</DialogContent>
 		</DialogPortal>
 	</DialogRoot>

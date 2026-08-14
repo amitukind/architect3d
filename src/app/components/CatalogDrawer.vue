@@ -105,7 +105,7 @@ watch(() => props.open, async function (open)
 				class="a3d-slide fixed inset-y-0 right-0 z-[500] flex w-[380px] max-w-full flex-col border-l border-line bg-surface shadow-float focus:outline-none"
 				@escape-key-down="close"
 				@interact-outside.prevent>
-				<header class="flex flex-none items-center gap-2 border-b border-line px-3 py-2.5">
+				<div class="flex flex-none items-center gap-2 border-b border-line px-3 py-2.5">
 					<div>
 						<DialogTitle class="text-[13px] font-semibold">Furniture</DialogTitle>
 						<DialogDescription class="num text-ink-faint">
@@ -117,7 +117,7 @@ watch(() => props.open, async function (open)
 							<X :size="15" />
 						</button>
 					</DialogClose>
-				</header>
+				</div>
 
 				<div class="flex-none border-b border-line p-3">
 					<div class="relative">
@@ -156,8 +156,12 @@ watch(() => props.open, async function (open)
 								class="group relative w-full overflow-hidden rounded-lg border border-line-soft bg-sunk p-2 text-left transition-colors hover:border-accent"
 								:title="`Add ${row.item.name}`"
 								@click="pick(row.item)">
+								<!-- alt="" on purpose: the button is already named "Add {name}"
+								     and the label below repeats it, so a described thumbnail makes
+								     a screen reader say the item three times. axe calls this
+								     image-redundant-alt, and it fired on all 122 of them. -->
 								<img
-									:src="row.item.image" :alt="row.item.name" loading="lazy"
+									:src="row.item.image" alt="" loading="lazy"
 									class="mx-auto h-[86px] w-full object-contain mix-blend-normal">
 								<span class="mt-1 block truncate text-[11px] leading-tight">{{ row.item.name }}</span>
 								<span v-if="needsWall(row.item)" class="block truncate text-[10px] text-ink-faint">
@@ -172,10 +176,10 @@ watch(() => props.open, async function (open)
 					</ul>
 				</div>
 
-				<footer class="flex-none border-t border-line px-3 py-2 text-[11px] text-ink-faint">
+				<div class="flex-none border-t border-line px-3 py-2 text-[11px] text-ink-faint">
 					Items land on the last floor or wall you clicked in 3D. The panel stays open —
 					<kbd>Esc</kbd> to close.
-				</footer>
+				</div>
 			</DialogContent>
 		</DialogPortal>
 	</DialogRoot>

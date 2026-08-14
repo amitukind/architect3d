@@ -46,6 +46,7 @@ are checked in under `public/`, which Vite serves at the site root.
 | `npm run build:demo` | Application build &rarr; `dist-demo/` |
 | `npm test` | The vitest suite (886 tests, headless) |
 | `npm run test:coverage` | The same suite, with coverage and its thresholds |
+| `npm run test:browser` | The browser tier: real canvas, real WebGL, axe (needs chromium) |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | Type-check the JSDoc and the SFC templates (`vue-tsc`) |
 | `npm run budget` | Check the built output against `tools/budget.json` |
@@ -69,8 +70,13 @@ takes a couple of seconds.
 skips the hook wherever it is set. To avoid *installing* it at all — which is
 what CI does — set `SKIP_INSTALL_SIMPLE_GIT_HOOKS=1` before `npm ci`.
 
-CI then runs the type check, the suite with coverage thresholds, ESLint, all
-three builds, and the size budgets. The coverage floor, the budget limits and
+CI then runs two jobs in parallel. The first is the type check, the suite with
+coverage thresholds, ESLint, all three builds and the size budgets. The second
+is the browser tier — `npm run test:browser`, which needs chromium
+(`npx playwright install chromium`) and is the only thing here that checks the
+renderers produce anything: the plan is rasterised into a real canvas and its
+pixels read back, the 3D view is composited through a real WebGL2 context, and
+axe-core runs over the booted application. The coverage floor, the budget limits and
 the set of type-checked files are all committed and all ratchets — extend them
 when a change earns it, and never relax one to make a build pass. The full gate
 ladder, including the browser-based tier that is not built yet, is

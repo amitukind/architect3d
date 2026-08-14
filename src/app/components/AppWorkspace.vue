@@ -160,7 +160,11 @@ onBeforeUnmount(() => {dragging.value = false;});
 </script>
 
 <template>
-	<div id="workspace" ref="container" class="relative flex-1 overflow-hidden bg-ground">
+	<!-- <main>, not <div>: this is the page's main content, and without a landmark
+	     here everything between the banner and the status bar sat outside one.
+	     axe's `region` rule caught it, and it is a real gap - a screen-reader
+	     user had no way to skip to the plan. -->
+	<main id="workspace" ref="container" class="relative flex-1 overflow-hidden bg-ground">
 		<div
 			class="absolute inset-y-0 left-0 overflow-hidden"
 			:class="dragging ? '' : 'transition-[width,opacity] duration-[180ms] ease-out'"
@@ -198,5 +202,5 @@ onBeforeUnmount(() => {dragging.value = false;});
 			     honest about where the boundary is and impossible to grab. -->
 			<span class="absolute inset-y-0 -inset-x-1.5" />
 		</div>
-	</div>
+	</main>
 </template>
