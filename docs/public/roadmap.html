@@ -211,6 +211,12 @@ footer{margin-top:70px; padding-top:18px; border-top:1px solid var(--line); colo
   <a href="#oracle">07 · Parity oracle</a>
   <a href="#risks">08 · Risk register</a>
   <a href="#backlog">09 · Post-migration backlog</a>
+
+  <div class="toc-head mono" style="margin-top:22px">REDLINE RM-002</div>
+  <a href="#standing">10 · Where we stand</a>
+  <a href="#findings">11 · Architecture findings</a>
+  <a href="#tech">12 · Technology decisions</a>
+  <a href="#gates">13 · Build gates &amp; sequence</a>
 </nav>
 
 <main>
@@ -833,8 +839,8 @@ footer{margin-top:70px; padding-top:18px; border-top:1px solid var(--line); colo
     <li><strong>Quirk fixes with tests:</strong> the preserved <code>Utils.pointInPolygon</code>/<code>isClockwise</code> bugs, listener-accumulation edge cases, skybox/ground exclusion for OBJ export (see P9) — each as an isolated, testable change.</li>
     <li><strong>Features from the index2 reference:</strong> environment-map picker, camera nudge/pan buttons, item context menu, item-loading indicator (its <code>EVENT_ITEM_LOADING/LOADED</code> events already exist in the library) — their API surface is already catalogued.</li>
     <li><strong>Undo/redo:</strong> the event backbone + serialized snapshots make a command stack tractable now.</li>
-    <li><strong>Performance:</strong> texture cache + disposal (today <code>TextureLoader</code> re-loads per wall redraw and never disposes), instanced furniture, and 2D rAF coalescing &mdash; still open, and S9 measured it: no <code>requestAnimationFrame</code> anywhere in the 2D path, <code>view.draw()</code> called synchronously from 14 sites, three of them inside the pointermove handler.</li>
-    <li><strong>TypeScript</strong> (optional): the lib is now clean ESM with JSDoc; incremental <code>checkJs</code> adoption is low-friction if ever wanted — the user's chosen target for this migration is JavaScript, so this stays parked.</li>
+    <li><strong>Performance:</strong> texture cache + disposal (today <code>TextureLoader</code> re-loads per wall redraw and never disposes), instanced furniture, and 2D rAF coalescing &mdash; still open, and S9 measured it: no <code>requestAnimationFrame</code> anywhere in the 2D path, <code>view.draw()</code> called synchronously from 14 sites, three of them inside the pointermove handler. <em>Picked up as <a href="#findings">RM-002 R-04 and R-05</a>, with the leak quantified.</em></li>
+    <li><strong>TypeScript</strong> (optional): the lib is now clean ESM with JSDoc; incremental <code>checkJs</code> adoption is low-friction if ever wanted — the user's chosen target for this migration is JavaScript, so this stays parked. <em>Un-parked by <a href="#findings">RM-002 R-07</a>, at the JSDoc level only: <code>checkJs</code> with no <code>.ts</code> files, so the JavaScript decision stands.</em></li>
     <li><strong>WebXR:</strong> <code>setAnimationLoop</code> is already the render driver; the old A-Frame vrtest can be replaced by a native XR mode.</li>
   </ul>
 </section>
@@ -843,6 +849,305 @@ footer{margin-top:70px; padding-top:18px; border-top:1px solid var(--line); colo
   <p><strong>Method.</strong> This plan is grounded in a full multi-pass audit of the codebase at commit <code>ca4796b</code> (2026-08-13): every file in <code>src/scripts/</code> read and inventoried; both demo apps traced feature-by-feature into the API contract in §01/§07; every <code>THREE.*</code> symbol verified against a live three@0.185.1 install (and the vendored controls diffed against pristine r98 copies); the ESM circular-import crash reproduced empirically; asset formats verified by reading file headers; dependency verdicts grep-verified. File:line references throughout point at the audited commit.</p>
   <p>architect3d · Migration Roadmap RM-001 rev A · 10 sprints ≈ 20 weeks · single-developer cadence — S3's conversion tooling and S8's visual pass carry the natural slack for spillover from the S4 and S6 heavies. Plan reviewed by three independent adversarial passes (factual accuracy, sequencing, completeness) before delivery; 21 findings folded back in.</p>
 </footer>
+
+<!-- ===================================================================
+     REDLINE RM-002 — the second drawing in this set.
+     RM-001 above is the migration plan and is closed. Everything from
+     here down is the post-migration architecture review. Future plans
+     and proposals append to this file as further sections; nothing
+     about this project is published anywhere outside the repository.
+     =================================================================== -->
+
+<header class="sheet" id="redline" style="margin-top:56px">
+  <div class="sheet-body">
+    <div class="eyebrow">ARCHITECTURE REVIEW · DRAWING Nº RM-002</div>
+    <h1>Architect3D Redline</h1>
+    <p class="lede">A pass over the toolchain, the library architecture and the build gates, made against the working tree at <code>edf0c59</code>. Every dependency is already at its latest published version — so this is not an upgrade list. It is a list of <strong>what the upgrades cannot fix</strong>.</p>
+  </div>
+  <div class="titleblock">
+    <div><div class="tb-k">PROJECT</div><div class="tb-v">architect3d</div></div>
+    <div><div class="tb-k">SUPERSEDES</div><div class="tb-v">nothing — extends RM-001</div></div>
+    <div><div class="tb-k">BRANCH</div><div class="tb-v">amit @ edf0c59</div></div>
+    <div><div class="tb-k">SCOPE</div><div class="tb-v">18.2k LOC · 29 SFCs</div></div>
+    <div><div class="tb-k">DATE</div><div class="tb-v">2026-08-14</div></div>
+    <div><div class="tb-k">REV</div><div class="tb-v">A</div></div>
+  </div>
+</header>
+
+<!-- ======================= 10 STANDING ======================= -->
+<section id="standing">
+  <div class="sec-eyebrow">§ 10 · REDLINE</div>
+  <h2>Where the project actually stands</h2>
+  <p class="sec-sub">The honest headline first, because it changes what this document is for. Dependency currency verified with <code>npm outdated</code> and <code>npm view</code> per package, not from memory.</p>
+
+  <div class="stats">
+    <div class="stat"><div class="v">0</div><div class="k"><code>npm outdated</code> is empty. Vue, Vite 8, Vitest 4, three r185, Tailwind 4, ESLint 10, Reka UI — all at latest published</div></div>
+    <div class="stat"><div class="v">870</div><div class="k">tests across 17 files, all passing · 0 lint errors, 28 deliberate warnings</div></div>
+    <div class="stat"><div class="v">3</div><div class="k">CI steps — test, lint, library build — on <code>dev</code> and <code>master</code> only</div></div>
+    <div class="stat"><div class="v">0</div><div class="k">type checks, coverage floors, browser tests, size budgets or dependency policy</div></div>
+  </div>
+
+  <p><strong>So there is no technology upgrade to do.</strong> The stack is current and the code is well tested for a library of its age. What is thin is everything <em>between the tests passing and the site being live</em> — and the load-bearing global state that a second instance, a second embedder, or a reactive settings panel would each run straight into.</p>
+
+  <h3>One defect, found and fixed during the review</h3>
+  <p><code>npm test</code> was <strong>exiting 1</strong>. All 870 assertions passed; the run failed anyway. Clicking a catalog item calls the real <code>GLTFLoader</code>, and under Node a relative URL throws synchronously out of <code>new Request</code> — past <code>addItem</code>, past the Vue event handler, out of the test — which Vitest reports as an unhandled exception and fails the run on.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Frame</th><th>Location</th></tr></thead>
+    <tbody>
+      <tr><td><code>TypeError</code>: Failed to parse URL from <code>models/js-glb/cb-rochelle-gray_baked.glb</code></td><td>—</td></tr>
+      <tr><td><code>FileLoader.load</code></td><td><code>three/build/three.core.js:44617</code></td></tr>
+      <tr><td><code>GLTFLoader.load</code></td><td><code>three/examples/jsm/loaders/GLTFLoader.js:319</code></td></tr>
+      <tr><td><strong><code>Scene.addItem</code></strong></td><td><code>src/scripts/model/scene.js:230</code></td></tr>
+      <tr><td><code>onAddItem</code></td><td><code>src/app/App.vue:295</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <p>CI does not run on <code>amit</code>, by policy — so this would have gone red on the merge to <code>dev</code>, not here. Fixed in <code>edf0c59</code> by stubbing <code>Scene.setItemLoader</code>, the seam the library already provides, alongside the renderer stub the suite already installs.</p>
+  <p class="risk-note"><b>The interesting part</b> is what turned up when the fix was attempted <em>properly</em>, in the library, by giving <code>addItem</code> the failure path it lacks. Two things pushed back, and both are findings in their own right — see R-01.</p>
+</section>
+
+<!-- ======================= 11 FINDINGS ======================= -->
+<section id="findings">
+  <div class="sec-eyebrow">§ 11 · ARCHITECTURE FINDINGS</div>
+  <h2>Seven findings, ranked by what they cost today</h2>
+  <p class="sec-sub">Not by how interesting they are. Every one is grep-verified against the working tree; the three empirical ones were reproduced, not inferred.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Nº</th><th>Finding</th><th>Sev</th><th>Location</th></tr></thead>
+    <tbody>
+      <tr><td>R-01</td><td>Item loader has no failure path, and the convention standing in for one is unsafe</td><td><span class="chip crit">high</span></td><td><code>model/scene.js:222–247</code></td></tr>
+      <tr><td>R-02</td><td>Global mutable singletons make a second instance impossible</td><td><span class="chip crit">high</span></td><td><code>core/configuration.js:21</code></td></tr>
+      <tr><td>R-03</td><td><code>Configuration</code> is the one change vector that broadcasts nothing</td><td><span class="chip warn">med</span></td><td><code>core/configuration.js:30–70</code></td></tr>
+      <tr><td>R-04</td><td>A texture is allocated per wall per redraw, and none are ever released</td><td><span class="chip crit">high</span></td><td><code>three/edge.js:29, 195</code></td></tr>
+      <tr><td>R-05</td><td>The 2D canvas repaints synchronously inside <code>pointermove</code></td><td><span class="chip warn">med</span></td><td><code>floorplanner.js</code> ×14</td></tr>
+      <tr><td>R-06</td><td>The package ships raw source, with three as a hard dependency</td><td><span class="chip warn">med</span></td><td><code>package.json:6–15, 52–56</code></td></tr>
+      <tr><td>R-07</td><td>The JSDoc is decorative — nothing checks it</td><td><span class="chip warn">med</span></td><td>no <code>tsconfig.json</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>R-01 · The item loader has no failure path <span class="chip crit">high</span></h3>
+  <p>Both loaders are called with a null <code>onError</code> and nothing around them. A 404, a malformed <code>.glb</code>, or a URL the environment cannot parse dispatches <code>EVENT_ITEM_LOADING</code> and then dispatches <strong>nothing at all</strong>.</p>
+  <p>Three things depend on a balance that cannot be relied on: an embedder's loading indicator, <code>Scene.unloadableItemCount</code>, and the app's undo gate — which counts loads in flight and needs an eight-second timer purely to survive a count that never comes back down. <code>SETTLE_BACKSTOP_MS</code> is documented as a backstop; it is really a workaround.</p>
+  <p>The formatless branch already models the intended fix: dispatch <code>EVENT_ITEM_LOADED</code> with <code>item: null</code>, so every listener counting loads stays balanced whether or not it knows the failure mode exists. <strong>That convention does not survive contact with the Controller.</strong> Generalising it made <code>Controller.itemLoaded</code> dereference the null immediately:</p>
+  <div class="tw"><table>
+    <thead><tr><th>Reproduced</th><th>Location</th></tr></thead>
+    <tbody><tr><td><code>TypeError</code>: Cannot read properties of null (reading <code>position_set</code>)</td><td><code>three/controller.js:139</code></td></tr></tbody>
+  </table></div>
+  <p>So the null-item branch that already ships has never been exercised with a Controller attached. Second, a characterization test pins <code>addItem</code> to <em>propagate</em> a <code>ReferenceError</code> from <code>item.js:111</code>, which any <code>try/catch</code> swallows. Per §01's preserve-or-fix policy a characterization failure is a signal to re-check the change, so the attempt was reverted rather than the expectation edited.</p>
+  <div class="gate">
+    <div class="g-head">PROPOSAL</div>
+    <ul>
+      <li>Guard <code>Controller.itemLoaded</code> against a null item</li>
+      <li>Narrow the catch so it wraps only the loader dispatch, never <code>loaderCallback</code></li>
+      <li>Add a real <code>onError</code> to both loaders</li>
+      <li>Re-point the characterization test at the behaviour actually wanted, as a deliberate change with its own changelog line</li>
+      <li>Once the count is trustworthy, <code>SETTLE_BACKSTOP_MS</code> becomes a true backstop and the UI can finally say "couldn't load that chair"</li>
+    </ul>
+  </div>
+
+  <h3>R-02 · Global mutable singletons block a second instance <span class="chip crit">high</span></h3>
+  <p>Four pieces of state are module-level and mutable: <code>config</code>, <code>renderProfile</code>, <code>floorplannerPalette</code>, and the static <code>Scene.unloadableItemCount</code>. Two <code>BlueprintJS</code> instances on one page share units, scale, grid spacing, snap tolerance, the whole 2D palette and the render profile. Change one, both move.</p>
+  <p>Not hypothetical — the test suite already pays for it. The theme suites snapshot a <code>PRISTINE_PALETTE</code> at import time to stop cross-test pollution corrupting the library-defaults assertions.</p>
+  <div class="gate">
+    <div class="g-head">PROPOSAL</div>
+    <ul>
+      <li>Instance-scoped state, module singleton kept as the default so nothing breaks: <code>new BlueprintJS({config})</code> gets its own; <code>Configuration.setValue</code> keeps writing to the shared one when no instance is named</li>
+      <li>A comparison view — two plans side by side — is otherwise unbuildable</li>
+    </ul>
+  </div>
+
+  <h3>R-03 · Configuration broadcasts nothing <span class="chip warn">med</span></h3>
+  <p>Every other mutation in the library announces itself through <code>EventDispatcher</code>. <code>Configuration</code> is a class of static methods over a plain object, so a consumer that wants to react to a unit or scale change has to poll or be told out of band.</p>
+  <p>That is what killed the settings-panel zoom slider — it read <code>Number(config.scale)</code> off a non-reactive object, rendered <code>1</code> once, then sat there reading <code>1</code> while the plan was at 300%. It was removed rather than fixed, because there was nothing to hook.</p>
+  <div class="gate">
+    <div class="g-head">PROPOSAL</div>
+    <ul>
+      <li>Make <code>Configuration</code> an <code>EventDispatcher</code> and emit on <code>setValue</code> — roughly twenty lines, no call-site changes</li>
+      <li>The app gets a genuinely reactive settings panel for free. Pairs with R-02; do them together</li>
+    </ul>
+  </div>
+
+  <h3>R-04 · A texture per wall per redraw, never released <span class="chip crit">high</span></h3>
+  <p><code>Edge.updateTexture()</code> runs <code>new TextureLoader().load(url, callback)</code> — a fresh loader <em>and</em> a fresh <code>Texture</code> every call. It is wired to <code>redraw()</code>, which is wired to <code>EVENT_REDRAW</code>. Nothing disposes the old one, so every redraw of a room leaks one GPU texture per wall surface. <code>edge.js:29</code> loads the shared wall lightmap once per <code>Edge</code> rather than once per scene; <code>Floor</code> does the same for floors.</p>
+  <p>The 3D view has otherwise-careful disposal — <code>Skybox</code>, <code>Lights</code>, <code>Controller</code> and <code>Main</code> all release properly. Textures are the gap.</p>
+  <div class="gate">
+    <div class="g-head">PROPOSAL</div>
+    <ul>
+      <li>A refcounted <code>TextureCache</code> keyed by URL: <code>acquire(url)</code> / <code>release(url)</code>, disposing at zero</li>
+      <li>~80 lines; removes both the GPU leak and the repeated fetch. Already on §09's backlog</li>
+    </ul>
+  </div>
+
+  <h3>R-05 · The 2D canvas repaints inside pointermove <span class="chip warn">med</span></h3>
+  <p>There is no <code>requestAnimationFrame</code> anywhere in the 2D path — the only one in the library is <code>Main</code>'s render loop. <code>view.draw()</code> is called synchronously from fourteen sites, three reached from the <code>pointermove</code> handler. Every mouse movement is a full canvas repaint on the input thread, and on a large plan that is where dragging starts to feel heavy.</p>
+  <div class="gate">
+    <div class="g-head">PROPOSAL</div>
+    <ul>
+      <li>Replace the direct calls with <code>invalidate()</code>: set a dirty flag, schedule one <code>draw()</code> per frame, coalesce</li>
+      <li>Mechanical, well covered by the existing 2D suite, measured and logged by S9</li>
+    </ul>
+  </div>
+
+  <h3>R-06 · The package ships raw source, three as a hard dependency <span class="chip warn">med</span></h3>
+  <p><code>main</code> points at <code>src/scripts/blueprint.js</code> and <code>files</code> publishes <code>src/scripts</code> — 47 files, 110 kB packed, unbundled and untyped. No <code>sideEffects</code> hint (so a bundler cannot tree-shake confidently), no subpath exports, and no <code>engines</code>, <code>.nvmrc</code> or <code>packageManager</code> pinning the toolchain that CI pins to Node 22 while the dev machine runs 24.</p>
+  <p>The sharper problem: <code>three</code> is a <code>dependency</code>. An embedder who already uses three gets a second copy — two class identities, <code>instanceof</code> silently false across the boundary, several hundred kB duplicated. This is the exact failure the S4 notes describe from the old bundled loader repacks, reintroduced one level up.</p>
+  <div class="gate">
+    <div class="g-head">PROPOSAL</div>
+    <ul>
+      <li><code>three</code> and <code>bezier-js</code> → <code>peerDependencies</code> with <code>peerDependenciesMeta</code></li>
+      <li>Publish a built <code>dist/</code> ESM entry beside the IIFE; emit <code>.d.ts</code> from the JSDoc (R-07)</li>
+      <li>Add <code>sideEffects: false</code> and <code>engines</code></li>
+    </ul>
+  </div>
+
+  <h3>R-07 · The JSDoc is decorative <span class="chip warn">med</span></h3>
+  <p>The library is thoroughly annotated — <code>@param</code>, <code>@returns</code>, <code>@property</code>, even <code>@type {import('./useBlueprint.js').BlueprintStore}</code>. None of it is verified. A wrong type costs nothing and drifts silently, and the annotations are load-bearing for anyone reading the code.</p>
+  <div class="gate">
+    <div class="g-head">PROPOSAL — read T-01 before acting on it</div>
+    <ul>
+      <li><code>checkJs</code> against the existing JSDoc. <strong>No <code>.ts</code> files, no source rewrite</strong> — a <code>tsconfig.json</code> with <code>allowJs</code>, <code>checkJs</code>, <code>noEmit</code>, opted in file by file with <code>// @ts-check</code></li>
+      <li>Plus <code>declaration</code> + <code>emitDeclarationOnly</code> to produce the <code>.d.ts</code> R-06 wants</li>
+      <li>§09 parked this as "low-friction if ever wanted". Worth un-parking: it is the cheapest gate on the list by a wide margin, and the JavaScript-not-TypeScript decision stays intact</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ======================= 12 TECHNOLOGY ======================= -->
+<section id="tech">
+  <div class="sec-eyebrow">§ 12 · TECHNOLOGY DECISIONS</div>
+  <h2>Four questions worth asking in August 2026</h2>
+  <p class="sec-sub">Three of the answers are "not yet", and the reasons matter more than the verdicts. Sources listed in the footer; all claims dated.</p>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="eyebrow">T-01 · <span class="badge-s">ADOPT, CAREFULLY</span></div>
+      <h3 style="margin-top:6px">TypeScript — <code>checkJs</code>, but pin to 6.x, not 7</h3>
+      <p>TypeScript 7.0 went stable on 8 July 2026 — the Go-native compiler, measured at 8–12× faster, VS Code's own full check dropping 126s → 10.6s. <code>npm view typescript version</code> gives 7.0.2 today.</p>
+      <p><strong>It is the wrong version for this project.</strong> 7.0 ships no stable programmatic API — that lands in 7.1, several months out — so <code>typescript-eslint</code> and the template type-checkers behind Vue, Svelte and Astro cannot run on it. With 29 single-file components, losing <code>vue-tsc</code> is disqualifying.</p>
+      <p class="risk-note">Use <code>typescript@6</code> + <code>vue-tsc</code>. Revisit 7.x when 7.1 restores the API — the <code>tsconfig.json</code> written now carries over unchanged.</p>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">T-02 · <span class="badge-m">WATCH</span></div>
+      <h3 style="margin-top:6px">Vue 3.6 &amp; Vapor — take the bump, skip the hype</h3>
+      <p>3.6 hit RC on 18 July 2026 with Vapor feature-complete and a reactivity core rewritten on alien-signals; stable expected Q4. Vapor drops the virtual DOM for opted-in components and reports 2–4× on render-heavy trees.</p>
+      <p>This app will barely notice. Its cost is canvas rasterisation and WebGL, not vDOM diffing — the shell is a rail, a dock and a status bar.</p>
+      <p class="risk-note">Take 3.6 when stable, for the reactivity and memory improvements, which are free. Vapor is not the lever here; <strong>R-05 is</strong>.</p>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">T-03 · <span class="badge-s">HOLD</span></div>
+      <h3 style="margin-top:6px">three.js WebGPU — do not migrate yet</h3>
+      <p><code>WebGPURenderer</code> is still marked experimental in r185. <code>WebGLRenderer</code> remains the recommendation for WebGL2 applications, though it is now in maintenance — no larger features planned, and the nodes/TSL material system is WebGPU-only going forward. A slow-moving cliff, not a present risk.</p>
+      <p class="risk-note">Worth recording: <code>render_profile.js</code>, written for the classic/studio split, is precisely the abstraction a backend swap would use, and the renderer is constructed in one place behind a factory the tests already stub. When WebGPU stabilises this is a contained change — an argument the profile abstraction earned its keep.</p>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">T-04 · <span class="badge-l">ADOPT — THE REAL GAP</span></div>
+      <h3 style="margin-top:6px">Vitest 4 browser mode</h3>
+      <p>Browser mode went fully stable in Vitest 4, with visual regression via <code>toMatchScreenshot</code> and Playwright trace support built in. <strong>It is already installed</strong> — <code>vitest@4.1.10</code> is in the tree.</p>
+      <p>Ten of the seventeen suites run under jsdom, where <code>canvas.getContext('2d')</code> is a stub that records call names and WebGL is a renderer stub. <strong>The 2D view's actual pixels have never been rendered in a test, and the studio profile has never been composited in one.</strong> The <code>npm run parity</code> harness does drive real Chrome — manually, and calibrated against the <code>classic</code> profile the app no longer uses.</p>
+      <p class="risk-note">Caveat from the docs, worth designing around: screenshots are environment-sensitive (fonts, GPU, browser build), so baselines must be captured in the same container CI runs and stored per platform.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 13 GATES ======================= -->
+<section id="gates">
+  <div class="sec-eyebrow">§ 13 · BUILD GATES &amp; SEQUENCE</div>
+  <h2>What the gates do not catch</h2>
+  <p class="sec-sub">CI runs test, lint and the library build, on <code>dev</code> and <code>master</code>. Here is the full surface, and what each gap has already cost or would cost.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Gap</th><th>Sev</th><th>What it means today</th></tr></thead>
+    <tbody>
+      <tr><td>Exit code unwatched</td><td><span class="chip crit">high</span></td><td>Demonstrated in §10. 870 green assertions, exit 1, nobody the wiser — because CI never runs on the branch the work happens on</td></tr>
+      <tr><td>No demo build in CI</td><td><span class="chip crit">high</span></td><td><code>build:demo</code> runs only in the deploy job, on <code>master</code>. A broken Vue template or Tailwind token reaches <code>master</code> before anything notices</td></tr>
+      <tr><td>No docs build in CI</td><td><span class="chip warn">med</span></td><td>Same shape. VitePress failures surface at deploy time</td></tr>
+      <tr><td>No type check</td><td><span class="chip warn">med</span></td><td>See R-07. Extensive JSDoc, zero verification</td></tr>
+      <tr><td>No coverage floor</td><td><span class="chip warn">med</span></td><td>870 tests and no idea which lines they reach. No <code>@vitest/coverage-v8</code> installed, so the number is currently unknown — measuring it is step one, not setting a threshold</td></tr>
+      <tr><td>No real-browser test</td><td><span class="chip crit">high</span></td><td>Canvas 2D is a call recorder; WebGL is a stub. Neither renderer's output is ever checked. See T-04</td></tr>
+      <tr><td>No visual regression</td><td><span class="chip crit">high</span></td><td>The 3D view was just substantially rebuilt. The parity grid that would catch a regression is manual and calibrated against the profile no longer shipped</td></tr>
+      <tr><td>No bundle budget</td><td><span class="chip warn">med</span></td><td>The demo is a single 1,129 kB chunk (305 kB gzip) with no <code>manualChunks</code>, and three is eagerly imported even in plan-only</td></tr>
+      <tr><td>No asset budget</td><td><span class="chip warn">med</span></td><td><code>public/</code> is 16 MB, <code>dist-demo/</code> 25 MB. <code>Garden.png</code> alone is 3.4 MB — a PNG environment map. The <code>.glb</code> models carry no Draco or meshopt compression</td></tr>
+      <tr><td>No accessibility check</td><td><span class="chip warn">med</span></td><td>29 components, 16 <code>aria-label</code>s, 12 <code>role</code>s, one <code>tabindex</code>, two <code>focus-visible</code> rules. Reka UI supplies much of this for free — which is exactly why an automated check is worth having: it tells you where it did not</td></tr>
+      <tr><td>No PR trigger</td><td><span class="chip warn">med</span></td><td>Deliberate, to conserve minutes. The consequence is that nothing runs before a merge, which is how the exit-1 would have reached <code>dev</code></td></tr>
+      <tr><td>No dependency policy</td><td><span class="chip ok">low</span></td><td>No Dependabot, no Renovate, no <code>SECURITY.md</code>. <code>npm audit</code> is clean for production; 3 dev-only advisories (VitePress, no fix available)</td></tr>
+      <tr><td>No provenance</td><td><span class="chip ok">low</span></td><td>Not published yet. If it is: npm trusted publishing over GitHub OIDC is GA, needs no long-lived token, and attaches SLSA Build L3 attestation automatically</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>The proposed gate ladder</h3>
+  <p>Built around the standing constraint that Actions minutes are worth conserving. The design principle: push the cheap, high-yield checks to the developer's machine where they cost nothing, and spend runner minutes only on what genuinely needs a runner.</p>
+
+  <div class="gate">
+    <div class="g-head">TIER 0 · LOCAL PRE-COMMIT — 0 ACTIONS MINUTES, ~2s ON STAGED FILES</div>
+    <ul>
+      <li>ESLint on staged <code>.js</code> / <code>.vue</code></li>
+      <li><code>tsc --noEmit</code> once <code>checkJs</code> lands</li>
+      <li><code>vitest related --run</code> on the staged files' suites</li>
+      <li><em>Via <code>simple-git-hooks</code> (lighter than Husky, one dev dependency) plus <code>lint-staged</code>.</em></li>
+    </ul>
+  </div>
+  <p class="risk-note"><b>This is the single highest-value item in this document.</b> It catches the §10 class of failure on the machine that caused it, and it makes the no-PR-trigger policy safe rather than merely cheap.</p>
+
+  <div class="gate">
+    <div class="g-head">TIER 1 · EVERY CI RUN — ~90s, REPLACES THE CURRENT 3 STEPS</div>
+    <ul>
+      <li><strong>Typecheck</strong> — <code>tsc --noEmit</code> + <code>vue-tsc</code></li>
+      <li><strong>Test with coverage</strong> — <code>@vitest/coverage-v8</code>, threshold set from the first measured run and ratcheted, never lowered</li>
+      <li><strong>Lint</strong> — as today, plus <code>eslint-plugin-vuejs-accessibility</code></li>
+      <li><strong>All three builds</strong> — library, demo <em>and</em> docs. The two missing ones are the biggest holes and cost about twenty seconds</li>
+      <li><strong>Size budget</strong> — fail if the gzipped demo chunk grows &gt;5% over the committed baseline</li>
+      <li><strong>Asset budget</strong> — fail if <code>dist-demo/</code> exceeds a committed ceiling</li>
+    </ul>
+  </div>
+
+  <div class="gate">
+    <div class="g-head">TIER 2 · REAL BROWSER — ~3 MIN, SEPARATE JOB, RUNS IN PARALLEL</div>
+    <ul>
+      <li><strong>Vitest browser mode</strong> with the Playwright chromium provider</li>
+      <li><strong>2D visual regression</strong> — the plan drawn for real, <code>toMatchScreenshot</code> in both themes and all three layouts; baselines captured in the CI container, committed per platform</li>
+      <li><strong>3D smoke</strong> — the studio profile composites a non-blank frame with a real WebGL context; a readback assertion rather than a screenshot diff, so it does not depend on the runner's GPU</li>
+      <li><strong>axe-core</strong> over the booted shell</li>
+      <li><em>This is what converts the manual <code>npm run parity</code> harness into something that runs itself — and re-baselines it against <code>studio</code>, which it has never been calibrated against.</em></li>
+    </ul>
+  </div>
+
+  <div class="gate">
+    <div class="g-head">TIER 3 · SCHEDULED &amp; ON DEMAND — WEEKLY / workflow_dispatch</div>
+    <ul>
+      <li>Full parity grid against the frozen goldens</li>
+      <li>Lighthouse against the deployed Pages site</li>
+      <li><code>npm audit</code> and Dependabot, grouped weekly so it does not become noise</li>
+    </ul>
+  </div>
+
+  <h3>Sequence</h3>
+  <p>Ordered so each phase is independently shippable and each one makes the next safer. Estimates are for a single developer at the cadence RM-001 ran at.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Phase</th><th>Work</th><th>Effort</th><th>Why here</th></tr></thead>
+    <tbody>
+      <tr><td>P1</td><td>Tier 0 hooks + Tier 1 CI</td><td>2–3 days</td><td>Costs nothing to run and immediately stops the §10 class of failure. Everything after this is verified by it</td></tr>
+      <tr><td>P2</td><td>R-07 <code>checkJs</code> + <code>vue-tsc</code> on TS 6</td><td>4–6 days</td><td>No source rewrite. Opt in file by file, core first. Produces the <code>.d.ts</code> P4 needs</td></tr>
+      <tr><td>P3</td><td>R-01, R-03, R-04 — the library correctness set</td><td>5–7 days</td><td>Three contained changes with real user-visible consequences. Do them under the type checker, not before it</td></tr>
+      <tr><td>P4</td><td>R-06 packaging + R-02 instance state</td><td>4–5 days</td><td>Both are public-API shaped, so they belong in one minor release with one changelog entry</td></tr>
+      <tr><td>P5</td><td>Tier 2 browser + visual regression</td><td>3–4 days</td><td>Baseline against <code>studio</code> once P3 has settled the render path, not while it is still moving</td></tr>
+      <tr><td>P6</td><td>R-05 rAF coalescing + asset compression</td><td>3–4 days</td><td>Performance last, because P5 is what proves it changed nothing visible</td></tr>
+    </tbody>
+  </table></div>
+
+  <p style="margin-top:16px">Roughly four to five weeks end to end, and the first phase is the one that matters most. <strong>If only one thing gets done: P1.</strong> A pre-commit hook and three extra CI steps would have caught the only live defect in this review, for zero recurring cost.</p>
+</section>
+
+<footer>
+  <p><strong>Method — RM-002.</strong> Full read of <code>package.json</code>, both workflows and all three configs, plus the library's global-state, loader and render paths, against the working tree at <code>edf0c59</code> on branch <code>amit</code>. Dependency currency verified with <code>npm outdated</code> and <code>npm view</code> per package rather than from memory. Bundle and asset figures measured from the built <code>dist/</code> and <code>dist-demo/</code>. The exit-1 defect, the null-item dereference in <code>Controller.itemLoaded</code>, and the characterization conflict in <code>addItem</code> were each reproduced empirically, not inferred.</p>
+  <p><strong>Sources — RM-002.</strong> <a href="https://voidzero.dev/posts/announcing-vitest-4">Announcing Vitest 4</a> · <a href="https://vitest.dev/guide/browser/visual-regression-testing">Vitest visual regression testing</a> · <a href="https://www.techtimes.com/articles/320049/20260710/typescript-7-now-stable-10-faster-builds-not-vue-svelte-yet.htm">TypeScript 7 stable, not for Vue yet</a> · <a href="https://ecorpit.com/typescript-7-migration-readiness-eslint-astro-blockers-2026/">TypeScript 7 migration readiness</a> · <a href="https://github.com/mrdoob/three.js/releases/tag/r185">three.js r185 release</a> · <a href="https://threejs.org/manual/en/webgpurenderer.html">three.js WebGPURenderer manual</a> · <a href="https://github.com/vuejs/core/releases">Vue core releases</a> · <a href="https://docs.npmjs.com/trusted-publishers/">npm trusted publishing</a> · <a href="https://github.blog/changelog/2025-07-31-npm-trusted-publishing-with-oidc-is-generally-available/">npm OIDC trusted publishing GA</a></p>
+  <p>architect3d · Architecture redline RM-002 rev A · successor to migration roadmap RM-001</p>
+</footer>
+
 
 </main>
 </div>
