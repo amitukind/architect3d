@@ -6,7 +6,7 @@ import {EventDispatcher, Color} from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';
 import {Scene as ThreeScene, LoadingManager} from 'three';
-import {LoadSession} from './load_session.js';
+import {runtimeOf} from '../core/design_runtime.js';
 import {disposeMaterial} from '../core/resource_registry.js';
 import {Utils} from '../core/utils.js';
 import {mergeMeshes} from '../core/geometry_merge.js';
@@ -37,15 +37,29 @@ export class Scene extends EventDispatcher
 		this.needsUpdate = false;
 
 		/**
+		 * This design's services (RM-003 A4). Read off the model's floorplan,
+		 * which resolved it - a `Scene` is always constructed by a `Model` that
+		 * has already built its `Floorplan`.
+		 *
+		 * @type {import('../core/design_runtime.js').DesignRuntime}
+		 */
+		this.runtime = runtimeOf(model && model.floorplan);
+
+		/**
 		 * Which document the loads in flight belong to (RM-003 A1).
 		 *
-		 * Held here rather than on `Model` because this is where loads start and
-		 * finish; `Model` drives it, calling `begin()` as part of applying a
-		 * validated document.
+		 * The runtime's session since A4, rather than one of this scene's own.
+		 * Loads still start and finish here and `Model` still drives it, calling
+		 * `begin()` as part of applying a validated document; what changed is that
+		 * disposing the document can now invalidate the session, which it could
+		 * not do while the only reference was on an object it did not hold.
 		 *
-		 * @type {LoadSession}
+		 * Still exposed as `scene.loadSession`, which is where `useHistory` and
+		 * the suite look for it.
+		 *
+		 * @type {import('../core/load_session.js').LoadSession}
 		 */
-		this.loadSession = new LoadSession();
+		this.loadSession = this.runtime.loadSession;
 
 		/**
 		 * This scene's own LoadingManager, so a superseded load can be aborted.

@@ -4,7 +4,7 @@ import {EVENT_CHANGED} from '../core/events.js';
 import {acquireTexture, releaseTexture} from './texture_cache.js';
 import {disposeObject} from '../core/resource_registry.js';
 import {Configuration, configWallHeight} from '../core/configuration.js';
-import {renderProfile, isStudio} from './render_profile.js';
+import {renderProfile, isStudio} from '../core/render_profile.js';
 
 export class Floor extends EventDispatcher
 {

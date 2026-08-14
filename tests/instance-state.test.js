@@ -37,7 +37,7 @@ import {
 import {Dimensioning, defaultDimensioning} from '../src/scripts/core/dimensioning.js';
 import {dimCentiMeter, dimMeter, dimFeetAndInch} from '../src/scripts/core/units.js';
 import {EVENT_CONFIG_CHANGED} from '../src/scripts/core/events.js';
-import {createRenderProfile, renderProfile, RENDER_CLASSIC, RENDER_STUDIO, isStudio} from '../src/scripts/three/render_profile.js';
+import {createRenderProfile, renderProfile, RENDER_CLASSIC, RENDER_STUDIO, isStudio} from '../src/scripts/core/render_profile.js';
 import {resetAll} from './helpers/harness.js';
 import {installCanvas2D, installListenerCounter, installPointerApis, installResizeObserver, setLayout} from './helpers/dom.js';
 import {createRendererStub} from './helpers/renderer.js';

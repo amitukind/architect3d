@@ -165,6 +165,17 @@ tests/
 │                           byte-identical. It found three real defects on its
 │                           first two runs
 │
+│  document isolation (RM-003 A4, contract) — environment: jsdom
+├─ runtime-isolation.test.js  one document's services as one object: that the
+│                           default runtime's configuration, dimensioning and
+│                           render profile ARE the module-level ones by identity,
+│                           so every static still reads what it read; that
+│                           `configurationOf` and `runtimeOf` cannot disagree,
+│                           checked over a table of owners; and that two
+│                           documents share settings and never a lifetime -
+│                           which is the bug this suite caught while it was
+│                           being written
+│
 │  the Vue application (S6-S7, contract) — environment: jsdom
 ├─ app-composables.test.js  the blueprint's lifetime, the single selection, the
 │                           camera modes, catalog placement, file IO
@@ -191,7 +202,10 @@ tests/browser/
 │                           back as pixels and compared byte for byte (A2)
 ├─ plan-canvas.test.js      the 2D canvas under a real 2D context
 ├─ plan-coalescing.test.js  one repaint per frame, not one per event
-├─ two-designs.test.js      two independent viewers on one page
+├─ two-designs.test.js      two independent viewers on one page, and (A4) the
+│                           full matrix: two runtimes, two configurations, two
+│                           profiles, one disposed in either order, the survivor
+│                           checked pixel-for-pixel
 └─ accessibility.test.js    the application's keyboard and ARIA surface
 ```
 

@@ -1,5 +1,20 @@
+// @ts-check
 /**
  * How the 3D view is shaded, as data.
+ *
+ * ## Why this is in `core` and not in `three` (RM-003 A4)
+ *
+ * It lived in `three/` until A4, which is where it is read - `Edge`, `Floor`,
+ * `Lights`, `Skybox` and `Main` are its only consumers. It moved because
+ * `DesignRuntime` holds a profile, and `core` importing from `three` would have
+ * been the first time anything in `core` reached out of its own layer.
+ *
+ * The move is honest rather than expedient: this file has **no imports at all**
+ * and never did. It is a table of numbers, and the layer it belongs to is the
+ * one anybody can read from - which is the same argument that put `units.js`
+ * under `core` so `configuration.js` could read `dimCentiMeter` without
+ * importing `dimensioning.js`, and the same one that already keeps the
+ * camera-view constants in `core/constants.js`.
  *
  * ## Why there are two profiles and not one
  *

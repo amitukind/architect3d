@@ -2,9 +2,9 @@ import {EventDispatcher, RepeatWrapping, BufferAttribute, Vector2, Vector3, Mesh
 import {Utils} from '../core/utils.js';
 import {triangleFanGeometry} from '../core/geometry_builders.js';
 import {EVENT_REDRAW, EVENT_CAMERA_MOVED, EVENT_CAMERA_ACTIVE_STATUS} from '../core/events.js';
-import {renderProfile, isStudio} from './render_profile.js';
+import {isStudio} from '../core/render_profile.js';
 import {acquireTexture, releaseTexture} from './texture_cache.js';
-import {ResourceRegistry} from '../core/resource_registry.js';
+import {runtimeOf} from '../core/design_runtime.js';
 
 /**
  * The hand-painted vignette every wall is lit with. One image, one decode -
@@ -15,15 +15,31 @@ const LIGHT_MAP_URL = 'rooms/textures/walllightmap.png';
 
 export class Edge extends EventDispatcher
 {
-	constructor(scene, edge, controls, profile)
+	/**
+	 * @param {Object} scene
+	 * @param {Object} edge The model HalfEdge this draws.
+	 * @param {Object} controls
+	 * @param {Object} [profile] A look of this object's own (P7).
+	 * @param {import('../core/design_runtime.js').DesignRuntime} [runtime] Which
+	 * document this belongs to (A4). Omitted, it is derived from the half edge -
+	 * `Edge` is public API and the four-argument form has to keep working, and
+	 * the derivation reaches the same runtime `Floorplan3D` would have passed.
+	 */
+	constructor(scene, edge, controls, profile, runtime)
 	{
 		super();
+		/**
+		 * Which document this edge belongs to (RM-003 A4).
+		 * @type {import('../core/design_runtime.js').DesignRuntime}
+		 */
+		this.runtime = runtime || runtimeOf(edge && edge.wall && edge.wall.start && edge.wall.start.floorplan);
 	/**
-	 * The look this object draws with (RM-002 R-02, P7). Falls back to the shared
-	 * profile, which is what every construction site did before and what the
-	 * parity grid still measures.
+	 * The look this object draws with (RM-002 R-02, P7). Falls back to this
+	 * document's profile, which for a document that asked for no profile of its
+	 * own is the shared one - what every construction site did before and what
+	 * the parity grid still measures.
 	 */
-		this.renderProfile = profile || renderProfile;
+		this.renderProfile = profile || this.runtime.renderProfile;
 		this.name = 'edge';
 		this.scene = scene;
 		this.edge = edge;
@@ -49,9 +65,17 @@ export class Edge extends EventDispatcher
 		 * than one mesh here - releasing the first must not leave the second
 		 * drawing with a dead handle.
 		 *
-		 * @type {ResourceRegistry}
+		 * Asked of the runtime rather than constructed, since A4, so the document
+		 * knows this edge is holding GPU memory. It is still this edge's own
+		 * registry with this edge's own release point - `removeFromScene()` calls
+		 * `releaseAll()` on every rebuild, which a shared registry could not
+		 * survive. What the document gains is the ability to answer "how much am I
+		 * holding" and to give it all back if the viewer is dropped without being
+		 * disposed. `remove()` hands it back.
+		 *
+		 * @type {import('../core/resource_registry.js').ResourceRegistry}
 		 */
-		this.resources = new ResourceRegistry();
+		this.resources = this.runtime.registry();
 
 		// Edge.plane is the plane used for wall intersection. Pushing it into
 		// phantomPlanes renders it, which is how to see what the picker sees.
@@ -116,6 +140,12 @@ export class Edge extends EventDispatcher
 		this.texture = null;
 		releaseTexture(this.lightMap);
 		this.lightMap = null;
+
+		// This edge is finished for good, so the document stops tracking its
+		// registry. `removeFromScene()` above already emptied it; without this the
+		// runtime would accumulate one spent registry per wall face per rebuild -
+		// a smaller leak than the one A0 fixed, and still one.
+		this.runtime.forget(this.resources);
 	}
 
 	init()

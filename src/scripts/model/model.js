@@ -63,20 +63,30 @@ export class Model extends EventDispatcher
 {
 	/** Constructs a new model.
 	 * @param {string} textureDir The directory containing the textures.
-	 * @param {import('../core/configuration.js').Configuration} [configuration] Settings for this design alone.
-	 * Omit to share the page-wide default. See Floorplan's constructor.
+	 * @param {?(import('../core/configuration.js').Configuration|import('../core/design_runtime.js').DesignRuntime)} [runtime]
+	 * This design's services, or just its settings. Omit to share the page-wide
+	 * defaults. See Floorplan's constructor.
 	 */
-	constructor(textureDir, configuration)
+	constructor(textureDir, runtime)
 	{
 		super();
-		this.floorplan = new Floorplan(configuration);
+		// Resolved once, by the Floorplan, and read back off it below. Resolving
+		// here as well would be idempotent, but it would put a second call site in
+		// the way of the answer to "which runtime is this document on".
+		this.floorplan = new Floorplan(runtime);
 		this.scene = new Scene(this, textureDir);
+	}
+
+	/** This design's services (RM-003 A4). @returns {import('../core/design_runtime.js').DesignRuntime} */
+	get runtime()
+	{
+		return this.floorplan.runtime;
 	}
 
 	/** Where this design reads its settings from. @returns {import('../core/configuration.js').Configuration} */
 	get configuration()
 	{
-		return this.floorplan.configuration;
+		return this.runtime.configuration;
 	}
 
 	switchWireframe(flag)

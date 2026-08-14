@@ -7,7 +7,8 @@ import {Utils} from '../core/utils.js';
 import {Dimensioning} from '../core/dimensioning.js';
 import {WallTypes} from '../core/constants.js';
 import {Version} from '../core/version.js';
-import {cornerTolerance, defaultConfiguration} from '../core/configuration.js';
+import {cornerTolerance} from '../core/configuration.js';
+import {resolveRuntime} from '../core/design_runtime.js';
 
 
 import {HalfEdge} from './half_edge.js';
@@ -62,39 +63,30 @@ export class Floorplan extends EventDispatcher
 {
 	/** Constructs a floorplan. */
 	/**
-	 * @param {import('../core/configuration.js').Configuration} [configuration] Settings for this design alone. Omit
-	 * to share the page-wide default, which is what every caller did before P7
-	 * and what a page with one design should keep doing.
+	 * @param {?(import('../core/configuration.js').Configuration|import('../core/design_runtime.js').DesignRuntime)} [runtime]
+	 * This design's services, or just its settings. Omit to share the page-wide
+	 * defaults, which is what every caller did before P7 and what a page with one
+	 * design should keep doing. A bare `Configuration` is still accepted and is
+	 * what P7 documented; a runtime is built around it.
 	 */
-	constructor(configuration)
+	constructor(runtime)
 	{
 		super();
 		/**
-		 * Where this design reads its units, scale, wall defaults and snapping
-		 * from (RM-002 R-02, P7).
+		 * This design's services (RM-003 A4): its configuration, the dimensioning
+		 * bound to that, the render profile, the load session and the resource
+		 * registries.
 		 *
 		 * The model layer needs no other plumbing to reach it: `Corner` already
 		 * took a floorplan as its first constructor argument, `Floorplan` is the
 		 * only factory for Corners and Walls, and a Wall gets here through
-		 * `this.start.floorplan`. That is what made this stage three lines rather
-		 * than a rewrite.
+		 * `this.start.floorplan`. That is what made P7's stage three lines rather
+		 * than a rewrite, and it is what makes A4's the same shape.
 		 *
-		 * @property {Configuration} configuration
-		 * @type {import('../core/configuration.js').Configuration}
+		 * @property {DesignRuntime} runtime
+		 * @type {import('../core/design_runtime.js').DesignRuntime}
 		 */
-		this.configuration = configuration || defaultConfiguration;
-		/**
-		 * Unit and scale conversion bound to this design's configuration.
-		 *
-		 * Held here rather than constructed by each reader so the 2D view, the
-		 * inspectors and the model all measure with one object - and so that
-		 * `floorplan.dimensioning` is the obvious thing to reach for instead of
-		 * the `Dimensioning` statics, which measure with the shared default.
-		 *
-		 * @property {Dimensioning} dimensioning
-		 * @type {import('../core/dimensioning.js').Dimensioning}
-		 */
-		this.dimensioning = new Dimensioning(this.configuration);
+		this.runtime = resolveRuntime(runtime || null);
 		/**
 		 * List of elements of Wall instance
 		 * 
@@ -183,6 +175,39 @@ export class Floorplan extends EventDispatcher
 		 * @type {Object}
 		 */
 		this._carbonSheet = null;
+	}
+
+	/**
+	 * Where this design reads its units, scale, wall defaults and snapping from
+	 * (RM-002 R-02, P7).
+	 *
+	 * A getter over the runtime rather than a field of its own, since A4. The
+	 * two would otherwise be storage in two places that have to agree, and
+	 * `configurationOf(floorplan)` and `runtimeOf(floorplan).configuration`
+	 * would be able to answer differently - which is the shape of bug the
+	 * previous three sprints have been closing. There is one answer because
+	 * there is one place it is kept.
+	 *
+	 * @returns {import('../core/configuration.js').Configuration}
+	 */
+	get configuration()
+	{
+		return this.runtime.configuration;
+	}
+
+	/**
+	 * Unit and scale conversion bound to this design's configuration.
+	 *
+	 * Reached through the runtime so the 2D view, the inspectors and the model
+	 * all measure with one object - and so that `floorplan.dimensioning` is the
+	 * obvious thing to reach for instead of the `Dimensioning` statics, which
+	 * measure with the shared default.
+	 *
+	 * @returns {import('../core/dimensioning.js').Dimensioning}
+	 */
+	get dimensioning()
+	{
+		return this.runtime.dimensioning;
 	}
 
 	/**

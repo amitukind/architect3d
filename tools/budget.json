@@ -72,26 +72,41 @@
     "lib-iife-gzip is now at 0.3% HEADROOM and was again not raised: A4 will trip",
     "it on the next docblock, which is what a budget is for.",
     "",
-    "THE DECISION IS NOW BLOCKING, so it is written as a recommendation rather",
-    "than a question. The two entries want different answers:",
+    "A4 ANSWERED IT, and the answer is split because the two artifacts have",
+    "different consumers.",
     "",
-    "  - lib-iife-gzip: MINIFY IT. A browser downloads this bundle as written, so",
-    "    its 37.6% of comments is a cost paid by every end user of a drop-in",
-    "    <script> tag, for documentation none of them will read. Nothing about the",
-    "    source changes; `minify: true` in the iife build config is the whole of",
-    "    it. Expect the limit to come DOWN afterwards, the way P6's did.",
-    "  - lib-esm-gzip: LEAVE IT. A bundler strips comments on the consumer's way",
-    "    to production, so its 52.2% is a build-time cost only - and those",
-    "    comments are the JSDoc that gives a typed consumer its hover text.",
+    "  - lib-iife-gzip is now MINIFIED, and its limit came DOWN from 459 KB to",
+    "    233 KB - the direction P6 moved limits and the direction this one should",
+    "    have moved years ago. A browser downloads this bundle as written, so its",
+    "    37.6% of comments was a cost paid by every end user of a drop-in <script>",
+    "    tag for documentation none of them would read. Measured by this checker:",
+    "    463.7 KB to 220.8 KB, a 52.4% cut, with the source untouched and the",
+    "    sourcemap still emitted. Verified rather than assumed - the minified",
+    "    bundle parses, exposes all 170 exports, and its DesignRuntime still holds",
+    "    the module-level configuration, dimensioning and render profile by identity.",
+    "  - lib-esm-gzip stays UNMINIFIED, on purpose. A bundler strips comments on",
+    "    the consumer's way to production, so its 52.2% is a build-time cost only,",
+    "    and those comments are the JSDoc a typed consumer reads on hover.",
     "",
-    "Do not raise either again. Either take the recommendation, reject it and set",
-    "limits that reflect that choice, or accept that the budget has stopped",
-    "measuring anything for these two entries."
+    "The consequence of leaving the ESM unminified is that its limit tracks the",
+    "code that exists, and A4 took it 2.8 KB over. Raised to 125 KB - the fourth",
+    "consecutive sprint to move it, and now for a recorded reason rather than a",
+    "deferred one. Note what that entry actually guards, per the paragraph near",
+    "the top of this note: it is a PROPERTY check, not a size one. The ESM entry",
+    "externalises three and bezier-js, and losing that config takes it from ~118",
+    "KB to ~423 KB. Any ceiling well under 423 KB still catches that, which is the",
+    "failure it exists to catch.",
+    "",
+    "What to watch now: lib-iife-gzip has stopped measuring comments and started",
+    "measuring code again. If IT starts climbing, that is a real finding about the",
+    "library's size rather than about its documentation - which is exactly what a",
+    "budget on a minified artifact is for, and what this one could not tell you",
+    "before."
   ],
   "budgets": {
     "demo-js-gzip": {
       "limit": 330000,
-      "measured": 320395
+      "measured": 320821
     },
     "demo-css-gzip": {
       "limit": 10000,
@@ -99,19 +114,19 @@
     },
     "demo-total": {
       "limit": 19000000,
-      "measured": 18247386
+      "measured": 18274637
     },
     "lib-iife-gzip": {
-      "limit": 470000,
-      "measured": 468771
+      "limit": 239000,
+      "measured": 226130
     },
     "public-total": {
       "limit": 11700000,
       "measured": 11138159
     },
     "lib-esm-gzip": {
-      "limit": 121000,
-      "measured": 114927
+      "limit": 128000,
+      "measured": 120818
     },
     "public-largest": {
       "limit": 1450000,

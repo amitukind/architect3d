@@ -29,7 +29,7 @@
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 
 import {BlueprintJS} from '../../src/scripts/blueprint.js';
-import {RENDER_CLASSIC, RENDER_STUDIO} from '../../src/scripts/three/render_profile.js';
+import {RENDER_CLASSIC, RENDER_STUDIO} from '../../src/scripts/core/render_profile.js';
 import {Configuration, configDimUnit} from '../../src/scripts/core/configuration.js';
 import {dimCentiMeter} from '../../src/scripts/core/units.js';
 

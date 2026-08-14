@@ -241,6 +241,18 @@ export const defaultConfiguration = new Configuration();
  * configuration. Falling back to the default is what makes those keep behaving
  * exactly as they did, rather than throwing on a null.
  *
+ * ## Unchanged by A4, and it could not have been otherwise
+ *
+ * `runtimeOf(owner)` in design_runtime.js is the generalisation of this, and
+ * the two cannot disagree - not because anybody keeps them in step, but because
+ * every class A4 gave a runtime to exposes `configuration` as a **getter** over
+ * `runtime.configuration`. There is one place the answer is kept, so
+ * `configurationOf(x)` is `runtimeOf(x).configuration` by construction.
+ *
+ * This is still the right function to call from the model layer: `Corner` and
+ * `Wall` want a configuration, not a runtime, and asking for the smaller thing
+ * keeps them from acquiring a dependency they have no use for.
+ *
  * @param {?Object} owner Anything that may carry a `.configuration`.
  * @returns {Configuration}
  */

@@ -36,6 +36,17 @@
  * count never comes back down. A count that belongs to a session cannot be
  * confused by a second document, and `settled` is the question the history gate
  * actually wants to ask.
+ *
+ * ## Why this is in `core` and not in `model` (RM-003 A4)
+ *
+ * A1 put it beside `Scene`, which is where loads start and finish. A4 moved it
+ * one layer down because a document's session belongs to its `DesignRuntime`,
+ * and `core` importing from `model` would have been a new edge in the import
+ * graph. `Scene` still owns the loading and still exposes `loadSession` - it
+ * now reads it off the runtime rather than constructing one.
+ *
+ * Like `render_profile.js`, this file has no imports of its own, so the move
+ * costs nothing structurally.
  */
 
 /**

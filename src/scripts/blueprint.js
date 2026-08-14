@@ -34,6 +34,14 @@ export {dimInch, dimFeetAndInch, dimMeter, dimCentiMeter, dimMilliMeter, dimensi
 export {cmPerFoot, pixelsPerFoot, cmPerPixel, pixelsPerCm} from './core/dimensioning.js';
 
 export {cornerTolerance, configDimUnit, configWallHeight, configWallThickness, configSystemUI, wallInformation, scale, snapToGrid, snapTolerance, gridSpacing, config, Configuration, defaultConfiguration, configurationOf} from './core/configuration.js';
+// One document's services, with an identity (RM-003 A4): its configuration, the
+// dimensioning bound to that, the render profile, the load session and the
+// resource registries. `defaultRuntime.configuration`, `.dimensioning` and
+// `.renderProfile` ARE the module defaults above - the same objects, so every
+// static keeps reading the state it always did. A document built without a
+// runtime gets one of its own carrying those same defaults: shared settings,
+// its own lifetime.
+export {DesignRuntime, defaultRuntime, runtimeOf, resolveRuntime} from './core/design_runtime.js';
 export {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY} from './core/constants.js';
 export {WallTypes} from './core/constants.js';
 
@@ -47,7 +55,7 @@ export {Model} from './model/model.js';
 // makes `Model.loadDocument` atomic; `LoadSession` is how a load knows which
 // document asked for it.
 export {DesignDocument} from './model/document.js';
-export {LoadSession} from './model/load_session.js';
+export {LoadSession} from './core/load_session.js';
 export {defaultRoomTexture, Room} from './model/room.js';
 export {Scene} from './model/scene.js';
 export {defaultWallTexture, Wall} from './model/wall.js';
@@ -60,7 +68,7 @@ export {edgeColor, edgeColorHover, edgeWidth} from './floorplanner/floorplanner_
 export {cornerRadius, cornerRadiusHover, cornerRadiusSelected, cornerColor, cornerColorHover, cornerColorSelected} from './floorplanner/floorplanner_view.js';
 export {FloorplannerView2D} from './floorplanner/floorplanner_view.js';
 export {floorplannerPalette, setFloorplannerPalette} from './floorplanner/floorplanner_view.js';
-export {RENDER_CLASSIC, RENDER_STUDIO, renderProfile, setRenderProfile, isStudio, createRenderProfile} from './three/render_profile.js';
+export {RENDER_CLASSIC, RENDER_STUDIO, renderProfile, setRenderProfile, isStudio, createRenderProfile} from './core/render_profile.js';
 
 
 export {Floorplanner2D} from './floorplanner/floorplanner.js';
@@ -109,7 +117,8 @@ export {OBJExporter} from 'three/addons/exporters/OBJExporter.js';
 import {Model} from './model/model.js';
 import {Main} from './three/main.js';
 import {Floorplanner2D} from './floorplanner/floorplanner.js';
-import {configDimUnit, defaultConfiguration} from './core/configuration.js';
+import {configDimUnit} from './core/configuration.js';
+import {DesignRuntime} from './core/design_runtime.js';
 import {dimMeter} from './core/dimensioning.js';
 //
 ///** VestaDesigner core application. */
@@ -126,6 +135,7 @@ export class BlueprintJS
 	 * @param {boolean} options.widget - If widget mode then no 2D floorplanner is created and the 3D controller is disabled
 	 * @param {import('./core/configuration.js').Configuration} [options.configuration] - Settings for this design alone (P7). Omit to share the page-wide default.
 	 * @param {Object} [options.renderProfile] - A look for this viewer alone (P7), from `createRenderProfile`. Omit to share the page-wide default.
+	 * @param {import('./core/design_runtime.js').DesignRuntime} [options.runtime] - This document's services as one object (A4): its configuration, dimensioning, render profile, load session and resource registries. Omit and one is built here from `configuration`/`renderProfile`. A runtime passed in belongs to the caller and is never disposed by `dispose()`.
 	 * @example
 	 * let blueprint3d = new BP3DJS.BlueprintJS(opts);
 	 *
@@ -136,23 +146,40 @@ export class BlueprintJS
 	constructor(options)
 	{
 		/**
-		 * This design's settings (RM-002 R-02, P7).
+		 * This document's services (RM-003 A4).
 		 *
-		 * `options.configuration` is how an embedder asks for a viewer that does
-		 * not share units, scale, wall defaults and snapping with every other
-		 * viewer on the page. Omitting it keeps the shared default, which is what
-		 * every caller had before and what a page with one design wants.
+		 * Two ways in:
 		 *
-		 * The line below is why this matters more than it sounds. It has always
-		 * been here, and against the shared default it means *constructing* a
-		 * second BlueprintJS silently re-unitises the first one - the purest form
-		 * of the singleton problem this finding is about. It now writes to
-		 * whichever configuration this instance owns.
+		 * - `options.runtime` - an embedder that wants to hold the document's
+		 *   lifetime itself, put two viewers on one document, or read
+		 *   `runtime.stats()`. It is theirs; `dispose()` will not touch it.
+		 * - otherwise one is built here, around `options.configuration` and
+		 *   `options.renderProfile` if they were given. Omit both and it carries
+		 *   the page-wide defaults, which is what every caller had before P7.
 		 *
-		 * @property {Configuration} configuration
-		 * @type {import('./core/configuration.js').Configuration}
+		 * Note what the second case does NOT do: reuse `defaultRuntime`. Settings
+		 * are shared by default and lifetimes never are - see the note on that
+		 * constant for what went wrong when they were.
+		 *
+		 * @property {DesignRuntime} runtime
+		 * @type {import('./core/design_runtime.js').DesignRuntime}
 		 */
-		this.configuration = options.configuration || defaultConfiguration;
+		this.runtime = options.runtime
+			|| new DesignRuntime({configuration: options.configuration, renderProfile: options.renderProfile});
+
+		/**
+		 * Whether `dispose()` should dispose the runtime as well. Only when this
+		 * instance built it: a runtime handed in belongs to whoever handed it in,
+		 * and disposing it would be one viewer reaching into another document's
+		 * lifetime, which is the whole finding A4 closes.
+		 */
+		this._ownsRuntime = !options.runtime;
+
+		// Has always been here, and against the shared configuration it means
+		// *constructing* a second BlueprintJS silently re-unitises the first one -
+		// the purest form of the singleton problem R-02 is about. It writes to
+		// whichever configuration this document reads, which is the shared one
+		// only when the caller asked for nothing else.
 		this.configuration.setValue(configDimUnit, dimMeter);
 
 		/**
@@ -164,13 +191,16 @@ export class BlueprintJS
 			* @property {Model} model
 			* @type {Model}
 		**/
-		this.model = new Model(options.textureDir, this.configuration);
+		this.model = new Model(options.textureDir, this.runtime);
 		// Held in a local as well as on `this`, because the property is nullable
 		// (dispose() clears it) and the checker will not narrow a nullable
 		// property across the branch below. The local is definitely a Main.
-		// `renderProfile` forwarded so a viewer can have a look of its own (P7);
-		// omitted, Main falls back to the shared profile exactly as before.
-		var three = new Main(this.model, options.threeElement, options.threeCanvasElement, {renderProfile: options.renderProfile || null});
+		//
+		// `renderProfile` is NOT forwarded here as of A4, and that is the point of
+		// the sprint: it is on the runtime, and Main reads it from the model's
+		// floorplan. Forwarding it as well would be a second route to the same
+		// answer, and two routes are how they come to disagree.
+		var three = new Main(this.model, options.threeElement, options.threeCanvasElement, {});
 		/**
 		* @property {Main} three
 		* @type {?Main}
@@ -209,11 +239,28 @@ export class BlueprintJS
 	}
 
 	/**
+	 * This design's settings (RM-002 R-02, P7).
+	 *
+	 * A getter over the runtime since A4, for the same reason `Floorplan`'s is:
+	 * one place the answer is kept, so `blueprint.configuration` and
+	 * `blueprint.runtime.configuration` cannot come apart.
+	 *
+	 * @returns {import('./core/configuration.js').Configuration}
+	 */
+	get configuration()
+	{
+		return this.runtime.configuration;
+	}
+
+	/**
 	 * Unmount: dispose the 2D floorplanner (if any) and the 3D view, releasing
 	 * every DOM listener and the WebGL context. Safe to call more than once.
 	 *
 	 * The model is left alone on purpose - it is plain data, it holds no DOM or
 	 * GPU resources, and callers often want to serialize it after teardown.
+	 *
+	 * The runtime is disposed only if this instance built it - see
+	 * `_ownsRuntime`. A viewer handed one leaves it exactly as it found it.
 	 */
 	dispose()
 	{
@@ -226,6 +273,19 @@ export class BlueprintJS
 		{
 			this.three.dispose();
 			this.three = null;
+		}
+
+		// The bandwidth half of abandoning a load (see DesignRuntime.dispose).
+		// Unconditional, because these are the fetches THIS document started
+		// through its own LoadingManager, whoever owns the runtime.
+		if (this.model && this.model.scene)
+		{
+			this.model.scene.abortPendingLoads();
+		}
+
+		if (this._ownsRuntime)
+		{
+			this.runtime.dispose();
 		}
 	}
 }

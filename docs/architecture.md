@@ -58,8 +58,20 @@ but nothing in the library listens, so a change still takes effect the next
 time something draws. That is why the application calls `floorplanner.redraw()`
 after touching it.
 
+`design_runtime.js` is the object those services are collected on. A
+`DesignRuntime` holds one document's configuration, its dimensioning, its render
+profile, its load session, its resource registries and an id — and no design
+data at all. `Floorplan`, `Model`, `Main` and every `Edge` reach it by the hop
+they already had, so nothing took a new constructor argument to find it.
+`runtimeOf(owner)` is the accessor, and `configuration` is a *getter* over
+`runtime.configuration` everywhere it appears, so `configurationOf(x)` and
+`runtimeOf(x).configuration` cannot come apart.
+
 `dimensioning.js` converts between centimetres (what the model stores) and
-whatever unit the user picked. `events.js` is the string constants every
+whatever unit the user picked. `render_profile.js` is the table of shading
+constants the 3D view reads — it lives here rather than in `three/` because the
+runtime holds one and `core` imports from nothing above it. `load_session.js`
+is here for the same reason. `events.js` is the string constants every
 `EventDispatcher` in the project fires; see [Events](/events).
 
 `geometry_merge.js` and `geometry_builders.js` are the loader path: they flatten
@@ -273,7 +285,7 @@ elements with `defineExpose`.
 
 ## Where the layers meet
 
-Nine seams are worth knowing, because each one is a place where a change in
+Ten seams are worth knowing, because each one is a place where a change in
 one layer does *not* automatically reach the other:
 
 1. **`Configuration` announces a change but redraws nothing.** It dispatches
@@ -281,11 +293,17 @@ one layer does *not* automatically reach the other:
    the application listens; the 2D view does not, so changing the display unit,
    grid spacing or a wall-measurement flag still needs an explicit
    `floorplanner.redraw()`.
-2. **A design's settings are per-`Floorplan`, and default to shared.**
-   `floorplan.configuration` and `floorplan.dimensioning` are what the model
-   and the 2D view read. Construct a `Floorplan` (or a `BlueprintJS`) without
-   one and it shares the page-wide default, which is what the `Configuration`
-   and `Dimensioning` statics also read.
+2. **A document's services are one object, and settings default to shared
+   while lifetimes never are.** `floorplan.runtime` is a `DesignRuntime`;
+   `floorplan.configuration` and `floorplan.dimensioning` are getters over it,
+   and are what the model and the 2D view read. Construct a `Floorplan` (or a
+   `Model`, or a `BlueprintJS`) without one and it gets a runtime of its own
+   whose configuration, dimensioning and render profile **are** the page-wide
+   defaults, by identity — the same objects the `Configuration` and
+   `Dimensioning` statics read. What it does *not* get is the default runtime
+   itself, and the difference is load-bearing: two documents sharing one
+   `LoadSession` means opening a design in one abandons the furniture still
+   arriving in the other.
 3. **`Floorplan3D` projects incrementally, and `redraw()` is the reference.**
    It reacts to a topology change by *reconciling* — building a view for every
    model entity that has none, disposing every view whose entity is gone — and
@@ -343,10 +361,20 @@ one layer does *not* automatically reach the other:
    `Item.applyScale` and a direct position write, **not** `moveToPosition`,
    which is the interactive drag path and carries placement rules that would
    make a restore lossy.
+10. **Disposal is scoped to a document, and a viewer disposes only what it
+    owns.** `BlueprintJS.dispose()` tears down its views and then disposes its
+    runtime — but only if it built that runtime. A runtime passed in through
+    `new BlueprintJS({runtime})` belongs to the caller and is left open, which
+    is what makes two viewers over one document expressible. `runtime.dispose()`
+    releases every registry the document handed out and invalidates its load
+    session; it does **not** touch the shared texture cache, which is refcounted
+    across the page and is nobody's to clear from the teardown of one viewer.
+    `runtime.stats()` is how the accounting is read: `{id, disposed, registries,
+    resources, handles, session}`.
 
 ## Testing
 
-`tests/` is 1,112 headless tests in 24 files, plus 37 in a real browser. jsdom
+`tests/` is 1,147 headless tests in 25 files, plus 41 in a real browser. jsdom
 supplies the DOM, a stub renderer stands in for WebGL, and `tests/helpers/`
 holds the shared harness.
 

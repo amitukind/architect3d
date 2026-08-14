@@ -18,7 +18,8 @@ import {HUD} from './hud.js';
 import {Floorplan3D} from './floorPlan.js';
 import {Lights} from './lights.js';
 import {Skybox} from './skybox.js';
-import {renderProfile, isStudio, setRenderProfile} from './render_profile.js';
+import {isStudio, setRenderProfile} from '../core/render_profile.js';
+import {runtimeOf} from '../core/design_runtime.js';
 
 // --- S8: colour management, on ---------------------------------------------
 //
@@ -86,14 +87,26 @@ export class Main extends EventDispatcher
 
 		this.pauseRender = true;
 		/**
+		 * Which document this viewer is showing (RM-003 A4).
+		 *
+		 * Reached through the model's floorplan, which is a hop that already
+		 * existed - `Main` has held a `Model` since the beginning. Nothing about
+		 * the constructor had to change to get it.
+		 *
+		 * @type {import('../core/design_runtime.js').DesignRuntime}
+		 */
+		this.runtime = runtimeOf(model && model.floorplan);
+		/**
 		 * The look this viewer draws with (RM-002 R-02, P7).
 		 *
-		 * `null` in the options - the default - means the shared module profile,
-		 * which is what every Main did before and what `npm run parity` measures.
-		 * Pass `createRenderProfile(RENDER_STUDIO)` for a viewer whose look is its
-		 * own, which is what makes a classic-beside-studio comparison expressible.
+		 * `null` in the options - the default - means this document's profile,
+		 * which for a document that asked for no profile of its own is the shared
+		 * module one: what every Main did before and what `npm run parity`
+		 * measures. Pass `createRenderProfile(RENDER_STUDIO)` here or on the
+		 * runtime for a viewer whose look is its own, which is what makes a
+		 * classic-beside-studio comparison expressible.
 		 */
-		this.renderProfile = options.renderProfile || renderProfile;
+		this.renderProfile = options.renderProfile || this.runtime.renderProfile;
 		this.model = model;
 		this.scene = model.scene;
 		this.element = resolveElement(element, '3D viewer container');

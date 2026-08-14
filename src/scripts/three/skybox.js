@@ -1,6 +1,6 @@
 import {EventDispatcher, PlaneGeometry, SphereGeometry, MeshBasicMaterial, ShaderMaterial, Mesh, TextureLoader, Color, DoubleSide, SRGBColorSpace} from 'three';
 import {RepeatWrapping, Fog} from 'three';
-import {renderProfile, isStudio} from './render_profile.js';
+import {renderProfile, isStudio} from '../core/render_profile.js';
 
 
 /**

@@ -109,9 +109,18 @@ export default defineConfig({
 				// number (78.10 -> 78.85, 78.16 -> 78.91) and stay where they are:
 				// rounding down is what makes these floors rather than targets, and
 				// nudging one on a fraction starts the habit of tuning them.
-				lines: 78,
-				statements: 78,
-				branches: 66,
+				//
+				// A4 moved lines 78.85 -> 79.06, statements 78.91 -> 79.13 and
+				// branches 66.78 -> 67.15, and all three are raised. Worth noting
+				// where it came from, because it was not mostly the new file: a
+				// runtime is a container and there is not much of it to cover. It is
+				// the isolation suite mounting two whole viewers and disposing them
+				// in each order, which walks teardown paths a single-viewer test
+				// never reaches. Functions gained a fraction (77.26 -> 77.62) and
+				// stays at 77.
+				lines: 79,
+				statements: 79,
+				branches: 67,
 				functions: 77,
 			},
 		},

@@ -171,6 +171,54 @@
 
 ### Added
 
+* **A document's services are one object, `DesignRuntime`.** P7 made five
+  module-level singletons per-instance, one at a time, and each stage was right.
+  What none of them could deliver is a single thing to dispose — there was
+  nothing to hang a document's resource registry or its load session on, and
+  `Main.dispose()` carried a comment saying so.
+
+  A `DesignRuntime` holds one document's configuration, the dimensioning bound
+  to it, its render profile, its load session, its GPU resource registries and
+  an id. It holds **no design data**: no floorplan, no scene, no items. It is
+  reached the way a `Configuration` already was — `Floorplan`, `Model`, `Main`,
+  `Floorplan3D` and every `Edge` get there by a hop that already existed, so not
+  one of them took a new constructor argument to find it.
+
+  `new BlueprintJS({runtime})` is additive; `configuration` and `renderProfile`
+  still work and now build one for you. `runtimeOf(owner)` is the accessor, and
+  `configurationOf(owner)` is unchanged — it cannot disagree with it, because
+  `configuration` is a *getter* over `runtime.configuration` on every class that
+  has one, so there is one place the answer is kept.
+
+  **Every static still reads exactly what it read.** `defaultRuntime.configuration`
+  IS `defaultConfiguration`, `defaultRuntime.dimensioning` IS
+  `defaultDimensioning`, and `defaultRuntime.renderProfile` IS the shared live
+  profile — the same objects, not copies. `config` and `wallInformation` are
+  still that configuration's live data, still mutable in place.
+
+  What a document built with no options gets is a runtime of *its own* carrying
+  those shared services. Settings default to shared; lifetimes never are. The
+  difference is not academic — the first version of this shared the default
+  runtime outright, and the suite caught it within the hour: `Model.loadDocument`
+  calls `loadSession.begin()`, so on a shared session opening a design in one
+  viewer abandons the furniture still arriving in the other. A fresh instance of
+  the very finding the sprint was closing.
+* **`runtime.stats()` reports what one document is holding** — `{id, disposed,
+  registries, resources, handles, session}`. A number nobody could get before:
+  every GPU resource this document owns, summed across every registry it handed
+  out, plus what its loader is waiting on.
+
+  Two things are deliberately not in it. Images from the shared texture cache,
+  because they belong to the page and describing them as one document's property
+  is exactly the mistake A0 removed from `Main.dispose()`; `textureCacheStats()`
+  is page-wide and says so. And an asset resolver, which the A4 scope named and
+  A5 builds — a property initialised to null that nothing reads is a promise,
+  not a seam.
+* **Disposal is scoped to a document.** `runtime.dispose()` releases every
+  registry the document handed out and invalidates its load session.
+  `BlueprintJS.dispose()` calls it only for a runtime it built itself: one
+  passed in belongs to the caller, so two viewers can share a document and the
+  first to close does not take the second down with it.
 * **Every entity in the model has an identity.** `Corner.id` was the only one;
   now `Wall.id`, `Room.id` and `HalfEdge.id` are assigned too, and `Item` has
   `designId`.
@@ -433,6 +481,38 @@
 
 ### Changed
 
+* **`dist/bp3djs.js` is minified. `dist/architect3d.js` is not, on purpose.**
+  A question A0 raised, A1, A2 and A3 each deferred, and A4 tripped: the
+  library builds were `minify: false`, so **37% of what a `<script src>`
+  consumer downloaded was this project's docblocks**.
+
+  The two artifacts have different consumers and wanted different answers. The
+  IIFE is downloaded by a browser as written, so its comments are a cost paid
+  by every end user for documentation none of them will read — **463.7 KB
+  gzipped to 220.8 KB, a 52.4% cut**, and `lib-iife-gzip` came *down* from
+  459 KB to 233 KB. The ESM entry goes through a bundler, which strips comments
+  on the way to production, and those comments are the JSDoc a typed consumer
+  reads on hover — so it stays as it is.
+
+  No source changed and the sourcemap is still emitted. Verified rather than
+  assumed: the minified bundle parses, exposes all 170 exports, and its
+  `DesignRuntime` still holds the module-level configuration, dimensioning and
+  render profile by identity.
+* **`render_profile.js` and `load_session.js` moved into `core/`**, from
+  `three/` and `model/` respectively. `DesignRuntime` holds both, and `core`
+  importing from either of those layers would have been the first time anything
+  in `core` reached outside itself.
+
+  Both files have **no imports at all** and never did, so the move costs nothing
+  structurally — it is the same argument that put `units.js` in `core` so
+  `configuration.js` could read `dimCentiMeter` without importing
+  `dimensioning.js`. Every export is re-exported from `blueprint.js` at the same
+  name, so an embedder using the public entry point sees no change; only a deep
+  import of the old path breaks.
+
+  `render_profile.js` gained `// @ts-check` on the way in, because the type
+  ledger claims all of `core` is checked and a file moving in has to make that
+  claim true.
 * **`Item.getMetaData()` emits an `id`, and items are serialized in id order.**
   Both additive, and the second is a fix rather than a preference — see above.
   An embedder that pins the exact key list or the item order needs to know.

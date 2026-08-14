@@ -21,7 +21,7 @@ root.
 | `npm run dev` | Dev server on port 10001, with hot reload |
 | `npm run build` | Library build → `dist/bp3djs.js`, an IIFE exposing the `BP3DJS` global |
 | `npm run build:demo` | Application build → `dist-demo/`, what the Pages deploy publishes |
-| `npm test` | The vitest suite (870 tests, headless, no GPU) |
+| `npm test` | The vitest suite (1,147 tests, headless, no GPU) |
 | `npm run lint` | ESLint |
 | `npm run docs` | This site, with hot reload |
 | `npm run docs:build` | This site → `docs/.vitepress/dist` |
@@ -131,6 +131,56 @@ One thing worth knowing if you build two viewers without configurations of
 their own: `BlueprintJS`'s constructor sets the display unit, so the second one
 will change the first's. Give each a `Configuration` and they cannot.
 
+### Two designs, side by side
+
+Everything a document needs — its configuration, the dimensioning bound to it,
+its render profile, its load session and its GPU resource registries — is one
+object, a `DesignRuntime`. Every viewer has one; the options above are a
+shorthand for building it. Construct it yourself when you want to hold the
+document's lifetime, put two viewers on one document, or ask what it is using:
+
+```js
+import {BlueprintJS, DesignRuntime, Configuration, createRenderProfile,
+        RENDER_CLASSIC, RENDER_STUDIO, dimMeter, dimCentiMeter} from 'architect3d';
+
+const left = new DesignRuntime({
+    id: 'before',
+    configuration: new Configuration({dimUnit: dimCentiMeter}),
+    renderProfile: createRenderProfile(RENDER_CLASSIC),
+});
+const right = new DesignRuntime({
+    id: 'after',
+    configuration: new Configuration({dimUnit: dimMeter, wallHeight: 300}),
+    renderProfile: createRenderProfile(RENDER_STUDIO),
+});
+
+const before = new BlueprintJS({...leftElements, runtime: left});
+const after  = new BlueprintJS({...rightElements, runtime: right});
+
+before.model.loadSerialized(originalDesign);
+after.model.loadSerialized(revisedDesign);
+```
+
+The two share nothing but the page and the decoded images behind their
+textures, which is the one thing that *should* be shared — one download and one
+GPU upload however many viewers draw with it.
+
+`runtime.stats()` reports `{id, disposed, registries, resources, handles,
+session}` for that document alone: how many GPU resources it is holding, across
+how many registries, and what its loader is waiting on. It is the number to
+watch if you suspect a leak, and it is what the acceptance tests read.
+
+**Who disposes what.** `blueprint.dispose()` tears down that viewer's two views
+and releases its GPU resources. It disposes the runtime *only if it built it* —
+a runtime you passed in is yours, so two viewers can share one document and the
+first to close does not take the second down with it. Call `runtime.dispose()`
+when you are finished with the document: it releases every registry and
+abandons any model still in flight.
+
+Omit `runtime` entirely and you get one built for you, carrying the page-wide
+settings. Note what that is *not*: a shared runtime. Settings default to shared;
+lifetimes never are.
+
 ### Assets are relative URLs
 
 Every asset path the library composes is a **bare relative string**, resolved
@@ -155,8 +205,8 @@ npm test           # once
 npm run test:watch # on change
 ```
 
-828 tests across 16 files, all headless — jsdom for the DOM, a stub renderer
-for WebGL. They run in about two seconds and need no display. Most of them are
+1,147 tests across 25 files, all headless — jsdom for the DOM, a stub renderer
+for WebGL. They run in a few seconds and need no display. Most of them are
 *characterization* tests written before the code moved, and they encode
 behaviour the migration deliberately preserved, quirks included.
 `tests/README.md` explains which quirks and why.

@@ -3,7 +3,7 @@ import {EVENT_CHANGESET} from '../core/events.js';
 import {CHANGE_TOPOLOGY, CHANGE_GEOMETRY} from '../core/change_set.js';
 import {Floor} from './floor.js';
 import {Edge} from './edge.js';
-import {renderProfile} from './render_profile.js';
+import {runtimeOf} from '../core/design_runtime.js';
 
 
 /**
@@ -55,12 +55,20 @@ export class Floorplan3D extends EventDispatcher
 	constructor(scene, floorPlan, controls, profile)
 	{
 		super();
+		/**
+		 * Which document this is projecting (RM-003 A4). Every `Edge` built below
+		 * is handed it, so the wall meshes a document is holding are countable from
+		 * `runtime.stats()`.
+		 * @type {import('../core/design_runtime.js').DesignRuntime}
+		 */
+		this.runtime = runtimeOf(floorPlan);
 	/**
-	 * The look this object draws with (RM-002 R-02, P7). Falls back to the shared
-	 * profile, which is what every construction site did before and what the
-	 * parity grid still measures.
+	 * The look this object draws with (RM-002 R-02, P7). Falls back to this
+	 * document's profile, which for a document that asked for no profile of its
+	 * own is the shared one - what every construction site did before and what
+	 * the parity grid still measures.
 	 */
-		this.renderProfile = profile || renderProfile;
+		this.renderProfile = profile || this.runtime.renderProfile;
 		this.scene = scene;
 		this.floorplan = floorPlan;
 		this.controls = controls;
@@ -208,7 +216,7 @@ export class Floorplan3D extends EventDispatcher
 			var edge = scope.edgesByHalfEdge.get(halfEdge);
 			if (!edge)
 			{
-				edge = new Edge(scope.scene, halfEdge, scope.controls, scope.renderProfile);
+				edge = new Edge(scope.scene, halfEdge, scope.controls, scope.renderProfile, scope.runtime);
 				scope.edgesByHalfEdge.set(halfEdge, edge);
 				scope._stats.edgesAdded += 1;
 			}
@@ -330,7 +338,7 @@ export class Floorplan3D extends EventDispatcher
 		var eindex = 0;
 		// draw edges
 		this.floorplan.wallEdges().forEach((edge) => {
-			var threeEdge = new Edge(scope.scene, edge, scope.controls, scope.renderProfile);
+			var threeEdge = new Edge(scope.scene, edge, scope.controls, scope.renderProfile, scope.runtime);
 			threeEdge.name = 'edge_'+eindex;
 			this.edges.push(threeEdge);
 			this.edgesByHalfEdge.set(edge, threeEdge);

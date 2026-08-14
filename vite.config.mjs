@@ -65,7 +65,29 @@ export default defineConfig(({mode}) => {
 				sourcemap: true,
 				// three r98 is large and not tree-shakeable; the warning is noise.
 				chunkSizeWarningLimit: 5000,
-				minify: false,
+				/**
+				 * Minified as of RM-003 A4, and the ESM build below deliberately is
+				 * not. See the long note in tools/budget.json for how the question
+				 * arose; this is the answer.
+				 *
+				 * The two artifacts have different consumers and want different
+				 * treatment. **This one a browser downloads as written** - it is the
+				 * drop-in for a plain `<script>` tag, so every byte of it is a byte
+				 * an end user waits for. It was 463.7 KB gzipped, of which about 37%
+				 * was this project's docblocks: documentation nobody reading it from
+				 * a CDN will ever see. Minified it is **220.8 KB**, a 52.4% cut, and
+				 * `lib-iife-gzip` came DOWN from 459 KB to 233 KB to match.
+				 *
+				 * Nothing about the source changes, and `sourcemap: true` above is
+				 * what keeps it debuggable. Verified rather than assumed: the
+				 * minified bundle parses, exposes all 170 exports, and its
+				 * `DesignRuntime` still holds the module-level configuration,
+				 * dimensioning and render profile by identity.
+				 *
+				 * `true` rather than a named minifier: this Vite is on rolldown,
+				 * which has its own and does not ship esbuild.
+				 */
+				minify: true,
 			},
 		};
 	}
@@ -84,6 +106,19 @@ export default defineConfig(({mode}) => {
 				},
 				sourcemap: true,
 				chunkSizeWarningLimit: 5000,
+				/**
+				 * NOT minified, and that is the other half of A4's answer.
+				 *
+				 * This entry is consumed through a bundler, which strips comments on
+				 * the consumer's way to production - so the 52.2% of this file that
+				 * is comments costs transfer and parse time at install and build,
+				 * and nothing at runtime. What those comments buy is the JSDoc a
+				 * typed consumer sees on hover, which is the documentation for a
+				 * library that ships no .d.ts hand-written by anybody.
+				 *
+				 * So: minify the artifact a browser downloads, leave the one a
+				 * toolchain reads.
+				 */
 				minify: false,
 				rollupOptions: {
 					/**

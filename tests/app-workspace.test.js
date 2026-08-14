@@ -31,7 +31,7 @@ import {
 import {
 	renderProfile, setRenderProfile, isStudio,
 	RENDER_CLASSIC, RENDER_STUDIO, CLASSIC_PROFILE,
-} from '../src/scripts/three/render_profile.js';
+} from '../src/scripts/core/render_profile.js';
 import {EVENT_ITEM_MOVE_FINISH} from '../src/scripts/core/events.js';
 
 import {createBlueprintStore} from '../src/app/composables/useBlueprint.js';
