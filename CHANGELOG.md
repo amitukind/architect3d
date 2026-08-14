@@ -29,6 +29,28 @@
   control points. The gate now reads the wall record.
 * Saving an item with an empty material array threw a `TypeError`.
 
+### Removed
+
+* **`core/log.js` and its five exports** (`log`, `isLogging`, `logContext`,
+  `ELogContext`, `ELogLevel`). A complete logging subsystem that nothing ever
+  called, and that could not be switched on — `logContext` was initialised to
+  `None` with no setter. The library's export surface goes from 137 to 132.
+* **The `isgltf` construction path in `Item`**, and the parameter it was
+  threaded through in all eight item subclasses. It predated the S3 merge
+  pipeline and had been unreachable since: `Scene`'s loader callback declares
+  `(geometry, materials)` and both call sites pass the merged pair. If anything
+  had reached it, it left `this.material` as an invisible wireframe box's
+  material — which `setMaterialColor` would then have painted.
+* **Ten orphaned assets from `public/`**, including two environment maps and
+  three thumbnails for the env-map picker that does not exist yet, and a
+  texture orphaned when the ground reflector was dropped in S4.
+* **565 files from `asset-pipeline/`** — 284 byte-identical duplicates of files
+  already in `public/`, and 280 `.obj`/`.mtl` files holding the same 140 models
+  in a second format that nothing reads.
+* **252 lines of commented-out code** across 21 source files.
+
+Tracked files fall from 59.9 MB across 1297 files to 51.9 MB across 721.
+
 ### Compatibility
 
 Files written before 2.0.0 load unchanged, under the same rule they were
