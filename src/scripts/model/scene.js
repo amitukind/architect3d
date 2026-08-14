@@ -219,19 +219,72 @@ export class Scene extends EventDispatcher
 			loaderCallback(merged.geometry, merged.materials);
 		};
 
+		/**
+		 * The one exit every failed load takes.
+		 *
+		 * Until this existed the loaders were called with a null onError and
+		 * nothing around them, so a 404, a malformed .glb, or a URL the
+		 * environment cannot even parse dispatched EVENT_ITEM_LOADING and then
+		 * dispatched nothing at all. Three things depended on a balance that could
+		 * not be relied on: an embedder's loading indicator, the count below, and
+		 * the application's undo gate, which counts loads in flight and needed an
+		 * eight-second timer purely to survive a count that never came back down.
+		 *
+		 * It resolves as EVENT_ITEM_LOADED with a null item rather than as an
+		 * event of its own. That is the convention the formatless branch has used
+		 * since S4, and it is the one that matters: every listener counting loads
+		 * is balanced by it whether or not it knows this failure mode exists.
+		 * Listeners that use the payload must null-check - Controller.itemLoaded
+		 * is the only one in this repository, and it did not until now.
+		 *
+		 * @param {string} why Appended to the message, so the console says what
+		 *        went wrong rather than only that something did.
+		 */
+		var failed = function (why)
+		{
+			Scene.unloadableItemCount++;
+			console.error(`Cannot load "${fileName}": ${why}`);
+			scope.dispatchEvent({type:EVENT_ITEM_LOADED, item: null});
+		};
+
+		/** three's loaders hand onError an ErrorEvent, an Error, or nothing. */
+		var describeError = function (error)
+		{
+			if (error && error.message)
+			{
+				return error.message;
+			}
+			return 'the model could not be loaded.';
+		};
+
 		this.dispatchEvent({type:EVENT_ITEM_LOADING});
 		if(this.itemLoader)
 		{
 			// Test/embedding seam - see this.itemLoader in the constructor.
+			//
+			// Deliberately outside the try below. The seam's job is to supply
+			// geometry, and it calls loaderCallback synchronously; wrapping it would
+			// catch failures thrown by item construction rather than by loading,
+			// which is a different thing and is pinned as such by the DOM-boundary
+			// test in tests/items-and-scene.test.js.
 			this.itemLoader(fileName, metadata, loaderCallback);
 		}
-		else if(metadata.format == 'gltf')
+		else if(metadata.format == 'gltf' || metadata.format == 'obj')
 		{
-			this.gltfloader.load(fileName, gltfCallback, null, null);
-		}
-		else if(metadata.format == 'obj')
-		{
-			this.objloader.load(fileName, objCallback, null, null);
+			var loader = (metadata.format == 'gltf') ? this.gltfloader : this.objloader;
+			var onLoad = (metadata.format == 'gltf') ? gltfCallback : objCallback;
+			try
+			{
+				// The try covers starting the load and nothing else. three's
+				// FileLoader builds a Request up front, and a URL the environment
+				// cannot parse throws there - synchronously, past the onError
+				// callback that exists for exactly this and never sees it.
+				loader.load(fileName, onLoad, undefined, function (error) {failed(describeError(error));});
+			}
+			catch (error)
+			{
+				failed(describeError(error));
+			}
 		}
 		else
 		{
@@ -239,13 +292,7 @@ export class Scene extends EventDispatcher
 			// removed along with r98. resolveModelUrl rewrites every name the
 			// shipped library ever used, so reaching this means a design references
 			// a model that was never part of it.
-			//
-			// Counted and reported rather than ignored: the alternative is an item
-			// that dispatched EVENT_ITEM_LOADING and then never resolves, which
-			// leaves an embedder's spinner up forever with nothing in the console.
-			Scene.unloadableItemCount++;
-			console.error(`Cannot load "${fileName}": the retired three.js JSON model format has no loader as of three r185. Convert the model with tools/convert-legacy-json.mjs and add it to LEGACY_MODEL_MAP, or give the item metadata a "gltf" or "obj" format.`);
-			this.dispatchEvent({type:EVENT_ITEM_LOADED, item: null});
+			failed('the retired three.js JSON model format has no loader as of three r185. Convert the model with tools/convert-legacy-json.mjs and add it to LEGACY_MODEL_MAP, or give the item metadata a "gltf" or "obj" format.');
 		}
 	}
 }

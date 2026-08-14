@@ -23,6 +23,7 @@ import {describe, it, expect, beforeEach} from 'vitest';
 import * as three from 'three';
 
 import {Model} from '../src/scripts/model/model.js';
+import {Scene} from '../src/scripts/model/scene.js';
 import {Factory, item_types} from '../src/scripts/items/factory.js';
 import {Item} from '../src/scripts/items/item.js';
 import {FloorItem} from '../src/scripts/items/floor_item.js';
@@ -322,6 +323,80 @@ describe('Scene construction', () => {
 	it('installs no item loader by default, so production uses the built-in dispatch', () => {
 		const model = new Model('/textures/');
 		expect(model.scene.itemLoader).toBeNull();
+	});
+});
+
+describe('Scene.addItem failure path (RM-002 R-01)', () => {
+	/**
+	 * Before this existed, both loaders were called with a null onError and
+	 * nothing around them. A load that could not start dispatched
+	 * EVENT_ITEM_LOADING and then dispatched nothing at all, forever - which is
+	 * why the application's undo gate needed an eight-second timer to survive a
+	 * count that never came back down.
+	 *
+	 * The contract these pin: every addItem dispatches exactly one LOADING and
+	 * exactly one LOADED, whatever happens. On failure the LOADED carries a null
+	 * item and Scene.unloadableItemCount goes up by one.
+	 */
+	function countEvents(scene) {
+		const seen = {loading: 0, loaded: 0, items: []};
+		scene.addEventListener(EVENT_ITEM_LOADING, () => {seen.loading += 1;});
+		scene.addEventListener(EVENT_ITEM_LOADED, (event) => {
+			seen.loaded += 1;
+			seen.items.push(event.item);
+		});
+		return seen;
+	}
+
+	it('balances LOADING with LOADED when the URL cannot even be parsed', () => {
+		// Under Node a relative URL throws synchronously out of three's FileLoader,
+		// from `new Request` - past the onError callback that exists for this and
+		// never sees it. That synchronous throw used to escape addItem entirely.
+		const model = new Model('/textures/');
+		const seen = countEvents(model.scene);
+		const before = Scene.unloadableItemCount;
+
+		expect(() => model.scene.addItem(
+			1, 'models/js-glb/nope.glb',
+			{itemName: 'Nope', itemType: 1, format: 'gltf', modelUrl: 'models/js-glb/nope.glb'},
+			null, 0, null, false,
+		)).not.toThrow();
+
+		expect(seen.loading).toBe(1);
+		expect(seen.loaded).toBe(1);
+		expect(seen.items).toEqual([null]);
+		expect(Scene.unloadableItemCount).toBe(before + 1);
+		expect(model.scene.itemCount()).toBe(0);
+	});
+
+	it('does the same for a formatless item, the branch that set the convention', () => {
+		const model = new Model('/textures/');
+		const seen = countEvents(model.scene);
+		const before = Scene.unloadableItemCount;
+
+		model.scene.addItem(1, 'models/js/retired.js', {itemName: 'Retired', itemType: 1}, null, 0, null, false);
+
+		expect(seen.loading).toBe(1);
+		expect(seen.loaded).toBe(1);
+		expect(seen.items).toEqual([null]);
+		expect(Scene.unloadableItemCount).toBe(before + 1);
+	});
+
+	it('leaves the installed loader outside the catch, so item construction still throws', () => {
+		// The try covers starting a load, not running the callback. A loader that
+		// supplies geometry successfully and then fails to build an Item is a
+		// different failure, and the DOM-boundary test above pins it as one - if
+		// the catch were any wider it would swallow that and report a null item.
+		const model = new Model('/textures/');
+		model.scene.setItemLoader((fileName, metadata, onLoad) => {
+			onLoad(new three.BufferGeometry(), [new three.MeshBasicMaterial()]);
+		});
+
+		expect(() => model.scene.addItem(
+			1, 'models/anything.glb',
+			{itemName: 'Boom', itemType: 1, format: 'gltf'},
+			null, 0, null, false,
+		)).toThrow(ReferenceError);
 	});
 });
 

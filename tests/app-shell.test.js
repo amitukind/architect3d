@@ -361,20 +361,16 @@ describe('the catalog drawer', () =>
 		const wrapper = await mountApp();
 
 		// Picking an item is the one action in the shell that reaches the network.
-		// Under Node the real GLTFLoader does not merely fail on a relative URL, it
-		// throws synchronously out of `new Request` - past addItem, past the Vue
-		// event handler, out of the test - and Vitest fails the whole run on the
-		// unhandled exception while every assertion still passes.
+		// Stubbed through the seam the library provides for it, so this test stays
+		// about the drawer: no fetch attempt, no console noise, no timing.
 		//
-		// So this stubs the seam the library provides for exactly this
-		// (Scene.setItemLoader), the same way the suite already stubs the WebGL
-		// renderer. It is a real limitation being worked around rather than a test
-		// detail: `addItem` has no failure path at all - null onError, no try/catch
-		// - so in a browser a 404 leaves EVENT_ITEM_LOADING unbalanced forever.
-		// That is why useHistory needs SETTLE_BACKSTOP_MS. Giving it one is not a
-		// test fix; see the note in items-and-scene.test.js about the ReferenceError
-		// this method is pinned to propagate, and Controller.itemLoaded, which
-		// dereferences the null item the formatless branch already dispatches.
+		// It used to be load-bearing rather than tidy. Before addItem had a failure
+		// path, the real GLTFLoader threw synchronously out of `new Request` on a
+		// relative URL under Node - past the Vue handler, out of the test - and
+		// Vitest failed the whole run on the unhandled exception while every
+		// assertion passed. RM-002 R-01 fixed that at the source; the suite now
+		// passes with this line removed. Scene.addItem's own failure path is
+		// covered directly in tests/items-and-scene.test.js.
 		wrapper.vm.$.setupState.store.model.value.scene.setItemLoader(() => {});
 
 		await openCatalog(wrapper);

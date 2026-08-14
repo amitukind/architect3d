@@ -136,6 +136,17 @@ export class Controller extends EventDispatcher
 	itemLoaded(item)
 	{
 		var scope = this;
+		// A null item means the load failed. EVENT_ITEM_LOADED carries it so that
+		// everything counting loads in flight stays balanced - see Scene.addItem -
+		// and there is nothing here to select or drag.
+		//
+		// The formatless branch in Scene.addItem has dispatched a null item since
+		// S4, so this could always have been reached; nothing had exercised it
+		// with a Controller attached, and it threw on `item.position_set`.
+		if (!item)
+		{
+			return;
+		}
 		if (!item.position_set)
 		{
 			scope.setSelectedObject(item);

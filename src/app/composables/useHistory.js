@@ -63,11 +63,23 @@ const COALESCE_MS = 350;
  *
  * Restoring a snapshot is guarded by counting in-flight item loads rather than
  * by waiting a fixed time - see `holdOff` - which is exact, and exactness is
- * only safe if the count is guaranteed to come back down. It is not:
- * `Scene.addItem` dispatches EVENT_ITEM_LOADING and then hands off to a loader
- * that, on a 404 or a malformed model, resolves nothing and dispatches nothing
- * (there is a note about exactly this in scene.js). A load that never lands
- * would otherwise wedge the history stack shut for the rest of the session.
+ * only safe if the count is guaranteed to come back down.
+ *
+ * ## It is now, and this is no longer load-bearing
+ *
+ * It was not when this was written: `Scene.addItem` called its loaders with a
+ * null onError and nothing around them, so a 404, a malformed model or an
+ * unparseable URL dispatched EVENT_ITEM_LOADING and then dispatched nothing at
+ * all. The count never came back down and the history stack stayed shut for the
+ * rest of the session. This timer existed to survive that, which made it a
+ * workaround wearing the word "backstop".
+ *
+ * RM-002 R-01 gave addItem a real failure path: every call now dispatches
+ * exactly one LOADING and exactly one LOADED, the failure carrying a null item.
+ * Kept anyway, because one path still escapes that guarantee - an embedder's
+ * own `Scene.setItemLoader`, which is arbitrary code under no obligation to
+ * call back. That is a genuine backstop: it should never fire for anything this
+ * repository ships, and if it does, something outside it is misbehaving.
  */
 const SETTLE_BACKSTOP_MS = 8000;
 
