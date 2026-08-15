@@ -116,5 +116,10 @@
 	},
 	"simple-git-hooks": {
 		"pre-commit": "npx lint-staged"
+	},
+	"overrides": {
+		"vitepress": {
+			"vite": "^6.4.3"
+		}
 	}
 }

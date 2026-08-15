@@ -121,6 +121,22 @@ jobs:
         # tools/budget.json; raising one is a commit with a reason.
         run: npm run budget
 
+      - name: Advisories
+        # RM-006 took this tree to zero, and it is a ratchet from here.
+        #
+        # The three that were open were all reachable only through VitePress,
+        # which asks for `vite ^5.4.14` while the application itself is on 8.
+        # Every one of them is fixed in vite 6.4.3, so package.json overrides
+        # VitePress's vite to ^6.4.3 rather than moving the docs toolchain onto
+        # a 2.0.0 alpha. `npm run docs:build` above proves that override works;
+        # this proves it is still needed and still enough.
+        #
+        # Without this step the override is a line somebody deletes during a
+        # dependency bump and nothing says so - which is the same shape as the
+        # type ledger and the transcode oracle, both of which drifted for
+        # exactly that reason.
+        run: npm audit --audit-level=low
+
       - name: Report to the run summary
         # Always, so a failed run still shows the numbers that explain it.
         if: always()
