@@ -252,7 +252,7 @@ export class Floorplan extends EventDispatcher
 	 * Returns the roof planes in the floorplan for intersection testing
 	 * 
 	 * @return {Mesh[]} planes
-	 * @see <https://threejs.org/docs/#api/en/objects/Mesh>
+	 * @see https://threejs.org/docs/#api/en/objects/Mesh
 	 */
 	roofPlanes()
 	{
@@ -267,7 +267,7 @@ export class Floorplan extends EventDispatcher
 	 * Returns all the planes for intersection for the walls
 	 * 
 	 * @return {Mesh[]} planes
-	 * @see <https://threejs.org/docs/#api/en/objects/Mesh>
+	 * @see https://threejs.org/docs/#api/en/objects/Mesh
 	 */
 	wallEdgePlanes()
 	{
@@ -289,7 +289,7 @@ export class Floorplan extends EventDispatcher
 	 * Returns all the planes for intersection of the floors in all room
 	 * 
 	 * @return {Mesh[]} planes
-	 * @see <https://threejs.org/docs/#api/en/objects/Mesh>
+	 * @see https://threejs.org/docs/#api/en/objects/Mesh
 	 */
 	floorPlanes()
 	{

@@ -37,6 +37,32 @@
 
 ### Changed
 
+* **The Vue application is type-checked, all of it.** 60 errors to zero, and
+  every single-file component now carries `// @ts-check` — which matters more
+  than the count: `checkJs` is off, so a file that is clean but not opted in is
+  not protected, and `npm run typecheck` would say nothing about it. The
+  whole-tree total falls **427 → 356**.
+
+  Most of it was one omission repeated. A prop declared `{type: Array}` types
+  every element `unknown`, which makes the entire template uncheckable — eight
+  of `CatalogDrawer.vue`'s nine errors were that single missing annotation, and
+  four more components had the same. The types were written next to the data
+  that produces them rather than next to the component that renders it, because
+  a typedef beside the consumer drifts the first time the data changes.
+
+  **Zero suppressions were added.** The seven `@ts-expect-error`s in the tree
+  are all RM-002 P2's, each pinning a preserved-bug arity. Seven JSDoc type
+  assertions were added, each with a docblock saying why the narrowing is sound;
+  six are the same shape — `event.target` narrowed to the input the component
+  itself renders, replacing an inline `$event.target.value` that the DOM types
+  correctly reject.
+
+* **11 of those 71 were not type errors and were deleted rather than
+  annotated.** Eight `/// <reference path="....ts" />` directives in `items/`
+  pointed at pre-migration TypeScript files that have never existed in this
+  repository, and three `@see <url>` comments had angle brackets that made the
+  JSDoc unparseable outright.
+
 * **The model catalog is Draco-compressed, and no file changed its name.**
   `public/models/` falls from 5.08 MB to 1.92 MB and the whole runtime tree
   from 10.62 MB to 7.45 MB. A design saved before this names exactly the same
@@ -105,6 +131,15 @@
   images weighing 5.23 MB on disk occupy **164 MB** of GPU memory once uploaded
   with mip chains, and `rooms/textures/Ground_4K.jpg` is 73 KB on disk against
   16.9 MB in VRAM — a 230× ratio that no disk-based measurement can see.
+
+* **`tests/type-coverage.test.js`** — the opt-in made mechanical. A pragma is
+  one line anybody can delete, and deleting one silently stops the gate
+  protecting that file. Found by a break that was supposed to fail and did not:
+  removing a component's pragma *and* reintroducing the error it used to have
+  produced a completely clean typecheck. The test asserts that every area which
+  reached zero stays opted in, that nothing carries `@ts-nocheck`, and that the
+  suppression count can only go down. It deliberately does not pin the 356 —
+  a ratchet that punishes progress is worse than none.
 
 * **`dropBundledDraco()` in `vite.config.mjs`.** three's `DRACOLoader` points at
   its own bundled decoders with `new URL(..., import.meta.url)`, which a bundler

@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {computed, onBeforeUnmount, ref} from 'vue';
 import {LAYOUT_PLAN, LAYOUT_SPLIT, LAYOUT_VIEW} from '../composables/useLayout.js';
 
@@ -41,6 +42,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:splitRatio']);
 
+/** @type {import('vue').Ref<?HTMLElement>} The split container, null until mount. */
 const container = ref(null);
 const dragging = ref(false);
 
@@ -68,6 +70,10 @@ const planFraction = computed(function ()
  */
 const DIVIDER = 5;
 
+// `pointerEvents: 'none'` is a `string` to the checker and `PointerEvents` to
+// Vue's style binding, and the two branches produce different object shapes on
+// top of that. Declaring the return type is what reconciles them (RM-004 B3).
+/** @type {import('vue').ComputedRef<import('vue').CSSProperties>} */
 const planStyle = computed(function ()
 {
 	if (props.layout === LAYOUT_PLAN)
@@ -81,6 +87,7 @@ const planStyle = computed(function ()
 	return {width: `calc(${planFraction.value * 100}% - ${DIVIDER / 2}px)`, opacity: 1};
 });
 
+/** @type {import('vue').ComputedRef<import('vue').CSSProperties>} */
 const viewStyle = computed(function ()
 {
 	if (props.layout === LAYOUT_VIEW)

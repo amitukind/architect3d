@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 /**
  * A thumbnail grid of surfaces (sprint S7).
  *
@@ -26,9 +27,28 @@
 
 const props = defineProps({
 	label: {type: String, required: true},
-	textures: {type: Array, required: true},
+	textures: {
+		/**
+		 * An entry of `src/catalog/textures.json`. A bare `Array` types each one
+		 * `unknown` and took the whole template with it (RM-004 B3).
+		 *
+		 * @type {import('vue').PropType<Array<{name: string, url: string, thumbnail: string, stretch: boolean, scale: number}>>}
+		 */
+		type: Array,
+		required: true,
+	},
 	/** The `{url, stretch, scale}` the surface currently carries, if any. */
-	current: {type: Object, default: null},
+	current: {
+		/**
+		 * `type: Object` with `default: null` still infers `Record<string, any> |
+		 * undefined`, so passing an explicit null - which is what "no texture
+		 * chosen" means here - is an error (RM-004 B3).
+		 *
+		 * @type {import('vue').PropType<?Object>}
+		 */
+		type: Object,
+		default: null,
+	},
 	disabled: {type: Boolean, default: false},
 });
 

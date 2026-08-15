@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue';
 import {TooltipProvider} from 'reka-ui';
 
@@ -80,7 +81,12 @@ const autosave = useAutosave(store);
 const assets = useAssets();
 const toasts = useToasts();
 
+// Null until the components mount. `onMounted` is the one place they are known
+// to be set, and the non-null assertions there say so rather than guessing
+// (RM-004 B3).
+/** @type {import('vue').Ref<?{canvas: HTMLCanvasElement}>} */
 const floorplanRef = ref(null);
+/** @type {import('vue').Ref<?{container: HTMLElement}>} */
 const viewportRef = ref(null);
 const catalogOpen = ref(false);
 const shortcutsOpen = ref(false);
@@ -91,9 +97,19 @@ const walkthrough = computed(() => camera.mode.value === MODE_WALKTHROUGH);
 
 onMounted(() =>
 {
+	// Both are set: `onMounted` runs after the template has rendered, and both
+	// refs are on elements with no `v-if`. Read once into locals so the narrowing
+	// is a fact the checker can see rather than an assertion repeated twice.
+	const floorplan = floorplanRef.value;
+	const viewport = viewportRef.value;
+	if (!floorplan || !viewport)
+	{
+		throw new Error('App mounted without its canvas or viewport');
+	}
+
 	store.mount({
-		floorplannerElement: floorplanRef.value.canvas,
-		threeElement: viewportRef.value.container,
+		floorplannerElement: floorplan.canvas,
+		threeElement: viewport.container,
 	});
 
 	// The library asks for corner elevations and room names through
@@ -397,7 +413,11 @@ function redo()
  * can depend on live state; useShortcuts calls it on every keystroke and the
  * shortcuts dialog renders from the same array.
  */
-const bindings = computed(() => [
+// Annotated because the literal's inferred type is a union of four differently
+// shaped objects - some carrying `alias`, some `whileTyping`, some neither -
+// and that union is not `Binding[]` even though every member satisfies it
+// (RM-004 B3).
+const bindings = computed(() => /** @type {Array<import('./composables/useShortcuts.js').Binding>} */ ([
 	// --- document ---
 	{group: 'Document', keys: 'mod+n', label: 'New layout', run: onNewDesign},
 	{group: 'Document', keys: 'mod+s', label: 'Save layout', run: io.saveDesign},
@@ -460,13 +480,18 @@ const bindings = computed(() => [
 			// is deliberately nothing: preventing the default here would take that
 			// away, and the mode reset is the behaviour people expect from Esc on a
 			// canvas.
-			if (document.activeElement && document.activeElement.blur)
+			// `document.activeElement` is an `Element`, which declares no `blur` -
+			// only `HTMLElement` does. The guard was already checking for it; this
+			// narrows to the type that has it rather than testing for a property
+			// TypeScript says cannot be there.
+			const focused = document.activeElement;
+			if (focused instanceof HTMLElement)
 			{
-				document.activeElement.blur();
+				focused.blur();
 			}
 		},
 	},
-]);
+]));
 
 useShortcuts(() => bindings.value);
 </script>

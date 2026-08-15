@@ -2193,7 +2193,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
     <div><div class="tb-k">BRANCH</div><div class="tb-v">amit @ 3cf1c24 · v2.0.0</div></div>
     <div><div class="tb-k">SCOPE</div><div class="tb-v">370 assets · 13.4k LOC lib · 29 SFCs</div></div>
     <div><div class="tb-k">DATE</div><div class="tb-v">2026-08-15</div></div>
-    <div><div class="tb-k">REV</div><div class="tb-v">A · proposal</div></div>
+    <div><div class="tb-k">REV</div><div class="tb-v">A · delivered</div></div>
   </div>
 </header>
 
@@ -2224,7 +2224,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
       <tr><td>M-11</td><td>Index buffers wider than their primitive requires</td><td class="num">410</td><td class="num">0</td><td>Per primitive, compare the index <code>componentType</code> against the <code>POSITION</code> accessor's <code>count</code></td><td>B1</td></tr>
       <tr><td>M-12</td><td>Runtime asset payload</td><td class="num">10.62 MB</td><td class="num">7.45 MB</td><td><code>npm run budget</code>'s <em>Runtime assets</em> row. The target is the ratchet the B1 trial earns, not a number chosen now &mdash; see G-1</td><td>B1</td></tr>
       <tr><td>M-13</td><td>Wall ids surviving a document load</td><td class="num">0 of 15</td><td class="num">15 of 15 <span class="chip ok">met</span></td><td>Census <code>wall.id</code> over the three fixtures, save, reload, intersect</td><td>B2</td></tr>
-      <tr><td>M-14</td><td><code>vue-tsc --checkJs</code> errors in <code>src/app</code></td><td class="num">60</td><td class="num">0</td><td><code>npx vue-tsc --noEmit --checkJs</code>, counting lines matching <code>.vue(</code>. Whole-tree total falls 427 &rarr; 356, since B3 also deletes 11 library errors that are dead directives rather than types</td><td>B3</td></tr>
+      <tr><td>M-14</td><td><code>vue-tsc --checkJs</code> errors in <code>src/app</code></td><td class="num">60</td><td class="num">0 <span class="chip ok">met</span></td><td><code>npx vue-tsc --noEmit --checkJs</code>, counting lines matching <code>.vue(</code>. Whole-tree total falls 427 &rarr; 356, since B3 also deletes 11 library errors that are dead directives rather than types</td><td>B3</td></tr>
     </tbody>
   </table></div>
 </section>
@@ -2531,7 +2531,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
     <div class="sprint-head">
       <span class="sprint-no">B3</span>
       <h3>Type coverage: the application tier</h3>
-      <div class="meta"><span class="chip">G-3</span><span class="chip">1 week</span><span class="chip acc">no dependencies</span></div>
+      <div class="meta"><span class="chip ok">done</span><span class="chip">G-3</span><span class="chip">1 week</span><span class="chip acc">no dependencies</span></div>
     </div>
     <p class="goal"><strong>Objective.</strong> Take the 60 errors in <code>src/app</code> to zero and delete the 11 that are not type errors at all, then fix the ledger that has now been wrong twice.</p>
 
@@ -2573,6 +2573,31 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
         <li><strong>DoD.</strong> Three tiers green · <code>tsconfig.json</code> ledger recounted with its rule · CHANGELOG</li>
       </ul>
     </div>
+
+    <div class="gate">
+      <div class="g-head">LANDED &mdash; B3</div>
+      <ul>
+        <li><strong>M-14 = 0, and the whole-tree total is 356</strong> &mdash; the number §21 G-3 predicted after the correction, arrived at the same way it was predicted: 427 minus 11 deletions minus 60 fixes. Every one of the 29 single-file components carries the pragma now, which matters more than the count</li>
+
+        <li><strong>Most of the 60 was one omission repeated five times.</strong> A prop declared <code>{type: Array}</code> types every element <code>unknown</code> and takes the whole template with it: <strong>eight of CatalogDrawer's nine errors were that single missing annotation</strong>, and four other components had the same. §21 named the pattern from the outside and it held &mdash; typing the prop is what turns a cluster into zero rather than into one</li>
+
+        <li><strong>The types went next to the data, not next to the component.</strong> <code>CatalogSection</code> and <code>CatalogItem</code> are declared in <code>useCatalog.js</code> where they are built, <code>UnitChoice</code> in <code>useDisplayUnit.js</code>, <code>GridSpacing</code> in <code>useZoom2D.js</code>. A typedef beside the consumer drifts from the producer the first time the data changes, which is the same failure the ledger itself keeps having</li>
+
+        <li><strong>Zero suppressions added, and it is asserted rather than claimed.</strong> The 7 <code>@ts-expect-error</code>s in the tree are all P2's, each pinning a preserved-bug arity in <code>utils.js</code>. B3 added 7 type ASSERTIONS instead, each carrying a docblock for why the narrowing is sound &mdash; six of them the same shape, <code>event.target</code> narrowed to the input the component itself renders</li>
+
+        <li><strong>A break that was supposed to fail did not, and it found the real hole.</strong> Removing a component's pragma <em>and</em> reintroducing the error it used to have gave a completely clean <code>npm run typecheck</code>: 0 errors, in a file containing a type error. <code>checkJs</code> is off, so the pragma IS the protection, and a pragma is one line anybody can delete with nothing anywhere noticing</li>
+
+        <li><strong>So the opt-in stopped being documentary.</strong> <code>tests/type-coverage.test.js</code> asserts that every area which reached zero stays opted in, that no file carries <code>@ts-nocheck</code>, and that the suppression count can only fall. It deliberately does <em>not</em> pin the remaining 356: a ratchet that punishes somebody for improving something is worse than no ratchet</li>
+
+        <li><strong>The ledger was wrong for the third time and now carries the command that produces each number.</strong> A2 found it had drifted since before A1; B3 found it claiming 53 SFC errors against a tree with 60 and an itemisation summing to 61. Both times the cause was editing rather than re-deriving, so every figure in <code>tsconfig.json</code> now sits next to the shell that regenerates it, under a rule that says recount, do not increment</li>
+
+        <li><strong>11 of the 71 were deletions, not annotations.</strong> Eight <code>/// &lt;reference path="....ts" /&gt;</code> directives pointing at pre-migration TypeScript files that have never existed here, and three <code>@see &lt;url&gt;</code> comments whose angle brackets made the JSDoc unparseable. They had survived because nothing resolved them until <code>--checkJs</code> did</li>
+
+        <li><strong>One real defect, found by the checker as P2 said it would be.</strong> Typing <code>InspectorPanel</code>'s <code>selection</code> prop as nullable &mdash; which its own <code>default: null</code> already said it was &mdash; surfaced a template reading <code>props.selection.object</code> with no guard. Reachable whenever the panel renders with nothing selected</li>
+
+        <li><strong>1,232 headless tests (7 new) and 54 in the browser, all green; 356 library errors remain and <code>three/main.js</code> is 108 of them.</strong> Coverage 79.62 / 68.34 / 78.34 / 79.60 &mdash; statements and branches each moved a fraction and no threshold crossed a whole number, so none moved. Nothing here changes behaviour, which was the point: the suite passing unchanged is the evidence</li>
+      </ul>
+    </div>
   </div>
 
   <h3>Sequence and effort</h3>
@@ -2581,7 +2606,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
     <tbody>
       <tr><td><strong>B1</strong> <span class="chip ok">done</span></td><td>Asset precision and delivery</td><td>1–2 weeks</td><td>—</td><td>M-10, M-11, M-12 — all met. KTX2 measured, not shipped — see LANDED</td></tr>
       <tr><td><strong>B2</strong> <span class="chip ok">done</span></td><td>Wall identity across a load</td><td>3–5 days</td><td>—</td><td>M-13 — met, 15 of 15. A3's carve-out lifted and a listener leak with it</td></tr>
-      <tr><td><strong>B3</strong></td><td>Type coverage, application tier</td><td>1 week</td><td>—</td><td>M-14</td></tr>
+      <tr><td><strong>B3</strong> <span class="chip ok">done</span></td><td>Type coverage, application tier</td><td>1 week</td><td>—</td><td>M-14 — met, 0. Tree 427 → 356; the opt-in is a test now — see LANDED</td></tr>
     </tbody>
   </table></div>
 
@@ -2591,7 +2616,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
 <footer>
   <p><strong>Method &mdash; RM-004.</strong> Three measurements against the working tree at <code>3cf1c24</code> on branch <code>amit</code>, all of them produced by running something rather than by reading code. <em>The payload</em> &mdash; every one of the 370 manifest entries read and gzipped at level 9, and every <code>.glb</code> walked chunk by chunk, splitting the BIN into buffer views an accessor points at, views an image points at, and the remainder, then a census of accessor <code>componentType</code> per attribute semantic and of index width against each primitive's <code>POSITION</code> count. <em>Wall identity</em> &mdash; three fixtures loaded, censused, round-tripped through <code>saveFloorplan()</code> and <code>loadFloorplan()</code> and intersected, plus a constructed two-walls-one-pair case run through the same round trip. <em>The type ledger</em> &mdash; <code>npx vue-tsc --noEmit --checkJs</code>, bucketed by area, by error code and by file. <strong>What was not run:</strong> no codec. Draco, meshopt and KTX2 are named throughout and none has been executed against this catalog, which is why M-12 carries no target and why B1's first task is the trial rather than its conclusion. Two repository inaccuracies were found and are recorded in §21 G-3 rather than fixed, since this is a planning pass: <code>tsconfig.json</code>'s SFC subtotal disagrees with the tree <em>and</em> with its own itemisation.</p>
   <p><strong>Sources &mdash; RM-004.</strong> <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_mesh_quantization/README.md">KHR_mesh_quantization</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_draco_mesh_compression/README.md">KHR_draco_mesh_compression</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_meshopt_compression/README.md">EXT_meshopt_compression</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_texture_basisu/README.md">KHR_texture_basisu</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/specification/2.0/README.md#binary-gltf-layout">glTF 2.0 &mdash; Binary glTF layout</a> &middot; <a href="https://threejs.org/docs/#examples/en/loaders/DRACOLoader">three.js &mdash; DRACOLoader</a> &middot; <a href="https://threejs.org/docs/#examples/en/loaders/KTX2Loader">three.js &mdash; KTX2Loader</a> &middot; <a href="https://www.typescriptlang.org/tsconfig/#checkJs">TypeScript &mdash; checkJs</a></p>
-  <p>architect3d &middot; Delivery &amp; precision program RM-004 rev A &middot; proposal, pending approval &middot; successor to hardening program RM-003</p>
+  <p>architect3d &middot; Delivery &amp; precision program RM-004 rev A &middot; <strong>delivered</strong>, all three sprints &middot; successor to hardening program RM-003</p>
   <p class="credit">Created by <a href="https://amitukind.com" target="_blank" rel="noopener noreferrer">Amit Verma</a></p>
 </footer>
 

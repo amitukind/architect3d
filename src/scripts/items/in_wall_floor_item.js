@@ -1,7 +1,3 @@
-/// <reference path="../../lib/three.d.ts" />
-/// <reference path="../model/model.ts" />
-/// <reference path="in_wall_item.ts" />
-/// <reference path="metadata.ts" />
 import {InWallItem} from './in_wall_item.js';
 
 /** */

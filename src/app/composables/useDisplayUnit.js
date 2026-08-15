@@ -23,7 +23,16 @@ import {dimFeetAndInch, dimInch, dimCentiMeter, dimMilliMeter, dimMeter} from '.
  * because its captions were baked into folder names.
  */
 
+/**
+ * A unit as the picker offers it.
+ *
+ * @typedef {Object} UnitChoice
+ * @property {string} value One of the `dim*` constants.
+ * @property {string} label
+ */
+
 /** The five units, in the demo's order, with its labels. */
+/** @type {Array<UnitChoice>} */
 export const UNITS = [
 	{value: dimFeetAndInch, label: 'Feet & inches'},
 	{value: dimInch, label: 'Inches'},
@@ -47,7 +56,11 @@ export function syncDisplayUnit()
 }
 
 /**
- * @param {import('./useBlueprint.js').BlueprintStore} store
+ * @param {import('./useBlueprint.js').BlueprintStore} [store] Optional, and the
+ *        body has always treated it that way - `if (store && ...)` guards every
+ *        use. Three inspectors call this with no argument to read the unit
+ *        without wanting a redraw, so declaring it required described a contract
+ *        that neither the callers nor the function itself kept (RM-004 B3).
  */
 export function useDisplayUnit(store)
 {

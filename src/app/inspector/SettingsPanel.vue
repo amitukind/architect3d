@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {computed, reactive, watch} from 'vue';
 import CollapsibleGroup from './CollapsibleGroup.vue';
 import CarbonSheetPanel from './CarbonSheetPanel.vue';
@@ -42,7 +43,17 @@ import {onConfigChange, useBooleanConfig} from '../composables/useConfiguration.
  */
 
 const props = defineProps({
-	store: {type: Object, required: true},
+	store: {
+		/**
+		 * `type: Object` alone is `Record<string, any>`, which is not the store -
+		 * so passing it to a composable that wants one is an error, and every
+		 * property read off it is unchecked (RM-004 B3).
+		 *
+		 * @type {import('vue').PropType<import('../composables/useBlueprint.js').BlueprintStore>}
+		 */
+		type: Object,
+		required: true,
+	},
 	camera: {type: Object, required: true},
 });
 

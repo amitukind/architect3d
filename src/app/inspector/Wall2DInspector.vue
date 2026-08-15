@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {computed, onBeforeUnmount, ref, watch} from 'vue';
 import NumberField from './fields/NumberField.vue';
 import {Dimensioning, WallTypes, EVENT_MOVED} from '../../scripts/blueprint.js';

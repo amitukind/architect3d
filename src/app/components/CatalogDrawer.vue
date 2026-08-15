@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {computed, nextTick, ref, watch} from 'vue';
 import {DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose} from 'reka-ui';
 import {Search, X, Plus} from '@lucide/vue';
@@ -30,7 +31,18 @@ import {Search, X, Plus} from '@lucide/vue';
 
 const props = defineProps({
 	open: {type: Boolean, default: false},
-	sections: {type: Array, required: true},
+	sections: {
+		/**
+		 * A bare `Array` types every element `unknown`, which made this whole
+		 * template uncheckable - eight of this file's nine errors were the one
+		 * missing annotation. Typing the prop is what turns a cluster into zero
+		 * rather than into one (RM-004 B3).
+		 *
+		 * @type {import('vue').PropType<Array<import('../composables/useCatalog.js').CatalogSection>>}
+		 */
+		type: Array,
+		required: true,
+	},
 	/** Where a wall-bound item would land, so the drawer can say. */
 	placement: {type: Object, default: null},
 });
@@ -38,7 +50,13 @@ const props = defineProps({
 const emit = defineEmits(['update:open', 'add-item', 'prefetch-item']);
 
 const query = ref('');
+// `ref(null)` infers `Ref<null>`, so assigning anything else is an error and
+// reading a property off it is an error on `never`. Both of these hold null
+// most of the time and something else the rest, which is what the annotation
+// has to say (RM-004 B3).
+/** @type {import('vue').Ref<?number>} The section filter, or null for all. */
 const activeSection = ref(null);
+/** @type {import('vue').Ref<?HTMLInputElement>} */
 const searchField = ref(null);
 
 /** Wall-bound item types, matching the list in useCatalog. */

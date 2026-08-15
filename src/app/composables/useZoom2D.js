@@ -31,7 +31,16 @@ import {Configuration, gridSpacing, snapToGrid, pixelsPerCm} from '../../scripts
 /** Zoom stops, as multiples of 1:1. */
 const STOPS = [0.1, 0.15, 0.25, 0.35, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8];
 
+/**
+ * A grid spacing as the picker offers it.
+ *
+ * @typedef {Object} GridSpacing
+ * @property {number} value Centimetres.
+ * @property {string} label
+ */
+
 /** Grid spacings offered, in centimetres. */
+/** @type {Array<GridSpacing>} */
 export const GRID_SPACINGS = [
 	{value: 10, label: '10 cm'},
 	{value: 25, label: '25 cm'},

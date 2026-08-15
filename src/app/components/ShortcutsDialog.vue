@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {computed} from 'vue';
 import {DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose} from 'reka-ui';
 import {X} from '@lucide/vue';
@@ -25,7 +26,15 @@ import {keyChips} from '../composables/useShortcuts.js';
 const props = defineProps({
 	open: {type: Boolean, default: false},
 	/** The same array useShortcuts is driven by. */
-	bindings: {type: Array, required: true},
+	bindings: {
+		/**
+		 * The typedef already existed in useShortcuts.js; this is what connects it.
+		 *
+		 * @type {import('vue').PropType<Array<import('../composables/useShortcuts.js').Binding>>}
+		 */
+		type: Array,
+		required: true,
+	},
 });
 
 const emit = defineEmits(['update:open']);

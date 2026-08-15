@@ -126,6 +126,7 @@ export default [
 				document: 'readonly',
 				console: 'readonly',
 				navigator: 'readonly',
+				HTMLElement: 'readonly',
 				requestAnimationFrame: 'readonly',
 				cancelAnimationFrame: 'readonly',
 				setTimeout: 'readonly',

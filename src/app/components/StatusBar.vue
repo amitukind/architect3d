@@ -29,7 +29,17 @@ const props = defineProps({
 	walls: {type: Number, default: 0},
 	items: {type: Number, default: 0},
 	areaLabel: {type: String, default: ''},
-	cursor: {type: Object, default: null},
+	cursor: {
+		/**
+		 * `type: X` with `default: null` still infers `X | undefined` - the default
+		 * does not widen the declared type, so passing an explicit null is an
+		 * error even though null is exactly what the default is (RM-004 B3).
+		 *
+		 * @type {import('vue').PropType<?{x: number, y: number}>}
+		 */
+		type: Object,
+		default: null,
+	},
 	zoom: {type: Number, default: 100},
 	mode: {type: Number, required: true},
 	layout: {type: String, required: true},
