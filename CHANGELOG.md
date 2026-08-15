@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-08-16
+
+**A major, for one line.** `Item.remove(child)` now detaches the child instead
+of removing the item from the scene. `Item` is a public export and it is in the
+shipped bundle, so a consumer who passed an argument to `remove()` gets a
+silently different outcome — and a silent behaviour change on a public method is
+a major whatever its size. The form everything actually calls, `remove()` with
+no arguments, is unchanged, and the new behaviour is the one `Object3D.remove`
+has always promised; the old one quietly ignored its argument.
+
+Nothing else here breaks. **The save format is untouched at 2.0.0** — no
+document written by 2.x reads differently, and no asset name a design can
+contain has moved. The eight textures returned to JPEG live inside `.glb`
+containers, which no document names.
+
+Three programmes are in this release: RM-005's two sprints, RM-006, and the
+clean-up after it. Advisories are at zero for the first time.
+
 ### RM-006 — the encode that was never looked at
 
 RM-005 C1 ended by raising one thing and not settling it: B5 had encoded 18
