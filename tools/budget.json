@@ -223,48 +223,84 @@
     "public-largest has now changed target twice in two passes - Garden.jpg, then",
     "hardwood.png, now oak_wood.jpg at 307 KB - which is the per-file ceiling doing",
     "the job P6 added it for. Each time it moved it named a different kind of",
-    "problem, and no tree total would have surfaced any of them."
+    "problem, and no tree total would have surfaced any of them.",
+    "",
+    "RM-004 B5 moved six limits: three UP for KTX2, three DOWN because the textures",
+    "got smaller. The three raises are the interesting ones and none is slack.",
+    "",
+    "  decoder-total     264,000 -> 881,000   the Basis transcoder, 580 KB",
+    "  lib-iife-gzip     239,000 -> 268,000   KTX2Loader, +15.4 KB gzipped",
+    "  demo-js-gzip      330,000 -> 371,000   the same loader, +22.0 KB",
+    "",
+    "decoder-total also changed MEANING and is now 'Codec machinery' - both",
+    "vendored decoders on one line rather than Draco's alone. They move for exactly",
+    "one reason, a three upgrade, which is what made the original line worth having;",
+    "a second line measuring the same event twice would not add anything.",
+    "",
+    "The Basis transcoder is 580 KB against Draco's 250, and that is the honest",
+    "price of the format: 22.84 MB of GPU memory for a one-time 580 KB fetch that",
+    "only happens when a compressed texture is actually loaded. It is not in the",
+    "bundle - vite.config.mjs's dropBundledCodecs() covers KTX2Loader now as well as",
+    "DRACOLoader, and without it the IIFE would have gained half a megabyte rather",
+    "than 15 KB.",
+    "",
+    "public-largest ALSO CHANGED WHAT IT MEASURES, and this needs saying plainly",
+    "because it is the second time this line has been reinterpreted. It now excludes",
+    "public/draco and public/basis. The transcoder is 515 KB - four times the largest",
+    "texture in the tree - so it would own this line permanently while saying nothing",
+    "about the thing P6 added the line to catch, which was a 3.4 MB photograph hiding",
+    "inside a tree that was under its total. Draco's 250 KB never tripped it only",
+    "because it happened to be smaller than a JPEG. Machinery is watched by",
+    "decoder-total; this line watches content, and it now points at a .glb again.",
+    "",
+    "texture-vram is at 72% headroom and is deliberately NOT lowered to 5%. The",
+    "number it reports, 12.54 MB, assumes every KTX2 transcodes to a 1 bpp GPU",
+    "format - true on any GPU with BC1, ETC1 or ASTC, which is all of them in",
+    "practice. A device with none still loads these textures correctly: Basis falls",
+    "back to RGBA8, and the figure would climb back toward 43 MB. The headroom is",
+    "that fallback, and tightening it would make the budget fail on the hardware it",
+    "is least able to help."
   ],
   "budgets": {
     "demo-js-gzip": {
-      "limit": 330000,
-      "measured": 327731
+      "limit": 371000,
+      "measured": 352545
     },
     "demo-css-gzip": {
       "limit": 10000,
       "measured": 7306
     },
     "demo-total": {
-      "limit": 13860000,
-      "measured": 13196879
+      "limit": 13740000,
+      "measured": 13080875
     },
     "lib-iife-gzip": {
-      "limit": 239000,
-      "measured": 230054
+      "limit": 268000,
+      "measured": 254742
     },
     "public-total": {
-      "limit": 6200000,
-      "measured": 5898532
+      "limit": 5870000,
+      "measured": 5581142
     },
     "lib-esm-gzip": {
       "limit": 134000,
-      "measured": 130521
+      "measured": 133421
     },
     "public-largest": {
-      "limit": 330000,
-      "measured": 314335
+      "limit": 271000,
+      "measured": 257820
     },
     "catalog-item-largest": {
       "limit": 384000,
-      "measured": 364868
+      "measured": 313799
     },
     "decoder-total": {
-      "limit": 264000,
-      "measured": 252673
+      "limit": 881000,
+      "measured": 838923
     },
     "texture-vram": {
       "limit": 47340000,
-      "measured": 45084875
+      "measured": 13145771
     }
   }
 }

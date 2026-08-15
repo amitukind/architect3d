@@ -1,0 +1,209 @@
+{
+	"encoder": {
+		"isUASTC": false,
+		"qualityLevel": 128,
+		"needSupercompression": true,
+		"generateMipmap": true
+	},
+	"vramFloor": 1048576,
+	"textures": [
+		{
+			"from": "models/js-glb/textures/b_cb-blue-block60x96.jpg",
+			"to": "models/js-glb/textures/b_cb-blue-block60x96.ktx2",
+			"pixels": "512x512",
+			"bytesBefore": 49474,
+			"bytesAfter": 34818,
+			"vramBefore": 1398101,
+			"vramAfter": 349525,
+			"sha256": "53bbdb692869a5c0"
+		},
+		{
+			"from": "models/js-glb/textures/bd-shalebedside-smoke_baked.jpg",
+			"to": "models/js-glb/textures/bd-shalebedside-smoke_baked.ktx2",
+			"pixels": "512x512",
+			"bytesBefore": 80600,
+			"bytesAfter": 44688,
+			"vramBefore": 1398101,
+			"vramAfter": 349525,
+			"sha256": "ca6e7d72ef6c65bc"
+		},
+		{
+			"from": "models/js-glb/textures/cb-archnight-white_baked.png",
+			"to": "models/js-glb/textures/cb-archnight-white_baked.ktx2",
+			"pixels": "512x512",
+			"bytesBefore": 191187,
+			"bytesAfter": 41381,
+			"vramBefore": 1398101,
+			"vramAfter": 349525,
+			"sha256": "fee08c58b49f62e5"
+		},
+		{
+			"from": "models/js-glb/textures/cb-clapboard_baked.jpg",
+			"to": "models/js-glb/textures/cb-clapboard_baked.ktx2",
+			"pixels": "512x512",
+			"bytesBefore": 56325,
+			"bytesAfter": 32555,
+			"vramBefore": 1398101,
+			"vramAfter": 349525,
+			"sha256": "94a9a70f47dbfc14"
+		},
+		{
+			"from": "models/js-glb/textures/cb-kendallbookcasewalnut_baked.jpg",
+			"to": "models/js-glb/textures/cb-kendallbookcasewalnut_baked.ktx2",
+			"pixels": "512x512",
+			"bytesBefore": 54394,
+			"bytesAfter": 37886,
+			"vramBefore": 1398101,
+			"vramAfter": 349525,
+			"sha256": "e31c1df136de3f49"
+		},
+		{
+			"from": "models/js-glb/textures/cb-rochelle-gray_baked.jpg",
+			"to": "models/js-glb/textures/cb-rochelle-gray_baked.ktx2",
+			"pixels": "512x512",
+			"bytesBefore": 67178,
+			"bytesAfter": 41929,
+			"vramBefore": 1398101,
+			"vramAfter": 349525,
+			"sha256": "5f10822498422982"
+		},
+		{
+			"from": "models/js-glb/textures/cb-scholartable_baked.jpg",
+			"to": "models/js-glb/textures/cb-scholartable_baked.ktx2",
+			"pixels": "512x512",
+			"bytesBefore": 57416,
+			"bytesAfter": 38877,
+			"vramBefore": 1398101,
+			"vramAfter": 349525,
+			"sha256": "0d0e7b7bdd3a3da4"
+		},
+		{
+			"from": "models/js-glb/textures/cb-tecs_baked.jpg",
+			"to": "models/js-glb/textures/cb-tecs_baked.ktx2",
+			"pixels": "512x512",
+			"bytesBefore": 49918,
+			"bytesAfter": 36792,
+			"vramBefore": 1398101,
+			"vramAfter": 349525,
+			"sha256": "a0637be0dc41effd"
+		},
+		{
+			"from": "models/js-glb/textures/closed-door28x80_baked.jpg",
+			"to": "models/js-glb/textures/closed-door28x80_baked.ktx2",
+			"pixels": "512x512",
+			"bytesBefore": 35441,
+			"bytesAfter": 18650,
+			"vramBefore": 1398101,
+			"vramAfter": 349525,
+			"sha256": "27461b87260fe002"
+		},
+		{
+			"from": "models/js-glb/textures/grey-brown_wood.jpg",
+			"to": "models/js-glb/textures/grey-brown_wood.ktx2",
+			"pixels": "669x1024",
+			"bytesBefore": 300250,
+			"bytesAfter": 103206,
+			"vramBefore": 3653632,
+			"vramAfter": 913408,
+			"sha256": "9e2f7975492d42c8"
+		},
+		{
+			"from": "models/js-glb/textures/ik-ekero-blue_baked.jpg",
+			"to": "models/js-glb/textures/ik-ekero-blue_baked.ktx2",
+			"pixels": "512x512",
+			"bytesBefore": 31010,
+			"bytesAfter": 22783,
+			"vramBefore": 1398101,
+			"vramAfter": 349525,
+			"sha256": "23cfc173dc789b07"
+		},
+		{
+			"from": "models/js-glb/textures/ik-ekero-orange_baked.jpg",
+			"to": "models/js-glb/textures/ik-ekero-orange_baked.ktx2",
+			"pixels": "512x512",
+			"bytesBefore": 58917,
+			"bytesAfter": 36447,
+			"vramBefore": 1398101,
+			"vramAfter": 349525,
+			"sha256": "b60d4dce404a0e84"
+		},
+		{
+			"from": "models/js-glb/textures/nyc2.jpg",
+			"to": "models/js-glb/textures/nyc2.ktx2",
+			"pixels": "420x600",
+			"bytesBefore": 40783,
+			"bytesAfter": 16358,
+			"vramBefore": 1344000,
+			"vramAfter": 336000,
+			"sha256": "f1d7ff4975066dcc"
+		},
+		{
+			"from": "models/js-glb/textures/oak_wood.jpg",
+			"to": "models/js-glb/textures/oak_wood.ktx2",
+			"pixels": "669x1024",
+			"bytesBefore": 314335,
+			"bytesAfter": 107292,
+			"vramBefore": 3653632,
+			"vramAfter": 913408,
+			"sha256": "40f1dd7ed87d3d97"
+		},
+		{
+			"from": "models/js-glb/textures/ore-3legged-white_baked.jpg",
+			"to": "models/js-glb/textures/ore-3legged-white_baked.ktx2",
+			"pixels": "512x512",
+			"bytesBefore": 44458,
+			"bytesAfter": 27209,
+			"vramBefore": 1398101,
+			"vramAfter": 349525,
+			"sha256": "cff280262223631a"
+		},
+		{
+			"from": "models/js-glb/textures/walnut-marin.jpg",
+			"to": "models/js-glb/textures/walnut-marin.ktx2",
+			"pixels": "587x466",
+			"bytesBefore": 80672,
+			"bytesAfter": 45830,
+			"vramBefore": 1458891,
+			"vramAfter": 364723,
+			"sha256": "d823ea0da404a76e"
+		},
+		{
+			"from": "models/js-glb/textures/we-narrow6white_baked.jpg",
+			"to": "models/js-glb/textures/we-narrow6white_baked.ktx2",
+			"pixels": "512x512",
+			"bytesBefore": 63239,
+			"bytesAfter": 33912,
+			"vramBefore": 1398101,
+			"vramAfter": 349525,
+			"sha256": "0cb81cd59e2682c3"
+		},
+		{
+			"from": "models/js-glb/textures/white_wood.jpg",
+			"to": "models/js-glb/textures/white_wood.ktx2",
+			"pixels": "669x1024",
+			"bytesBefore": 98071,
+			"bytesAfter": 46922,
+			"vramBefore": 3653632,
+			"vramAfter": 913408,
+			"sha256": "5f0b77a255f03e6d"
+		}
+	],
+	"skipped": [
+		{
+			"name": "models/js-glb/textures/ps_7.jpg",
+			"reason": "grows disk by 1793 bytes and saves only 0.15 MB of VRAM"
+		}
+	],
+	"totals": {
+		"considered": 19,
+		"encoded": 18,
+		"disk": {
+			"before": 1675141,
+			"after": 769008
+		},
+		"vram": {
+			"before": 32152433,
+			"after": 8198105
+		}
+	}
+}

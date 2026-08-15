@@ -237,3 +237,101 @@ describe('a Draco-compressed catalog model, in chromium (RM-004 B1)', () =>
 		expect(vertexCount(item)).toBeGreaterThan(10);
 	});
 });
+
+describe('a KTX2-textured catalog model, in chromium (RM-004 B5)', () =>
+{
+	/**
+	 * ## Why this describe block exists
+	 *
+	 * A deliberate break that was supposed to fail did not. Removing
+	 * `setKTX2Loader` from `Scene` left all 54 browser tests green, which meant
+	 * nothing in the suite had ever loaded a model with a compressed texture -
+	 * and the conclusion drawn from those green tests, that KTX2 rendering was
+	 * verified, was simply wrong.
+	 *
+	 * The reason is specific and worth recording: the Draco tests above use
+	 * `ik-kivine_baked.glb`, which is one of the four models whose texture is
+	 * MISSING from the source library. It renders with its base colour and has
+	 * no image to decode, so it exercises the geometry path and nothing else.
+	 *
+	 * These tests use a model that does have one, and assert the transcoded
+	 * texture actually arrives - which is the only claim that distinguishes a
+	 * working KTX2 pipeline from a broken one.
+	 */
+	const TEXTURED = 'models/js-glb/ik_nordli_full.glb';
+
+	/** Every texture hanging off an item's materials. */
+	function texturesOf(item)
+	{
+		const found = [];
+		item.traverse((node) =>
+		{
+			const materials = Array.isArray(node.material) ? node.material : [node.material];
+			for (const material of materials)
+			{
+				if (material && material.map) { found.push(material.map); }
+			}
+		});
+		return found;
+	}
+
+	it('declares KHR_texture_basisu as required, so a loader cannot ignore it', async () =>
+	{
+		const response = await fetch(new URL(TEXTURED, location.href).toString());
+		expect(response.status).toBe(200);
+		const bytes = new Uint8Array(await response.arrayBuffer());
+
+		// Read the JSON chunk out of the container: 12-byte header, then a
+		// length-prefixed chunk that is the glTF JSON.
+		const view = new DataView(bytes.buffer);
+		const length = view.getUint32(12, true);
+		const json = JSON.parse(new TextDecoder().decode(bytes.subarray(20, 20 + length)));
+
+		expect(json.extensionsRequired).toContain('KHR_texture_basisu');
+		expect(json.images[0].uri).toMatch(/\.ktx2$/);
+		expect(json.images[0].mimeType).toBe('image/ktx2');
+		// The plain `source` is gone, which is what makes the extension load-bearing
+		// rather than an alternative route to the same image.
+		expect(json.textures[0].source).toBeUndefined();
+		expect(json.textures[0].extensions.KHR_texture_basisu.source).toBe(0);
+	});
+
+	it('transcodes and arrives as a compressed texture with real dimensions', async () =>
+	{
+		const blueprint = mount();
+		const item = await place(blueprint, TEXTURED, 'Nordli');
+
+		// The transcode is asynchronous and finishes after the item does, so the
+		// material's map appears a frame or two later than the geometry.
+		let maps = [];
+		for (let attempt = 0; attempt < 100 && maps.length === 0; attempt++)
+		{
+			await settle(blueprint);
+			maps = texturesOf(item).filter((map) => map && map.image);
+		}
+
+		expect(maps.length, 'no texture ever reached the material').toBeGreaterThan(0);
+		const map = maps[0];
+		expect(map.isCompressedTexture, 'the texture is not compressed - it was not transcoded').toBe(true);
+		expect(map.image.width).toBe(669);
+		expect(map.image.height).toBe(1024);
+		expect(map.mipmaps.length, 'no mip chain, so the transcode produced a single level').toBeGreaterThan(1);
+	});
+
+	it('draws — the frame changes once the transcoded texture lands', async () =>
+	{
+		const blueprint = mount();
+		await settle(blueprint);
+		const before = frame(blueprint);
+
+		const item = await place(blueprint, TEXTURED, 'Nordli');
+		for (let attempt = 0; attempt < 100; attempt++)
+		{
+			await settle(blueprint);
+			if (texturesOf(item).some((map) => map && map.image)) { break; }
+		}
+		await settle(blueprint);
+
+		expect(frame(blueprint)).not.toBe(before);
+	});
+});

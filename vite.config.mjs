@@ -41,7 +41,7 @@ const ROOT = import.meta.dirname;
  */
 
 /**
- * Stop the bundler shipping three's own copy of the Draco decoder (RM-004 B1).
+ * Stop the bundler shipping three's own copies of the codecs (RM-004 B1, B5).
  *
  * `three/examples/jsm/loaders/DRACOLoader.js` opens with five
  * `new URL('../libs/draco/...', import.meta.url)` constants. Vite reads those as
@@ -66,20 +66,38 @@ const ROOT = import.meta.dirname;
  * renames these constants must fail the build loudly, not silently restore half
  * a megabyte to every consumer.
  */
-function dropBundledDraco()
+function dropBundledCodecs()
 {
-	const PATTERN = /new URL\(\s*'\.\.\/libs\/draco\/(?:gltf\/)?([\w.]+)'\s*,\s*import\.meta\.url\s*\)\.toString\(\)/g;
+	// B5 added the second entry. `KTX2Loader` has the same two constants for the
+	// Basis transcoder - 527 KB of WebAssembly and 57 KB of JavaScript - and
+	// `public/basis/` already holds the copies we serve, so without this the
+	// build ships both and the IIFE inlines them.
+	const CODECS = [
+		{
+			file: 'three/examples/jsm/loaders/DRACOLoader.js',
+			pattern: /new URL\(\s*'\.\.\/libs\/draco\/(?:gltf\/)?([\w.]+)'\s*,\s*import\.meta\.url\s*\)\.toString\(\)/g,
+			served: 'draco/',
+		},
+		{
+			file: 'three/examples/jsm/loaders/KTX2Loader.js',
+			pattern: /new URL\(\s*'\.\.\/libs\/basis\/([\w.]+)'\s*,\s*import\.meta\.url\s*\)\.toString\(\)/g,
+			served: 'basis/',
+		},
+	];
+
 	return {
-		name: 'architect3d:drop-bundled-draco',
+		name: 'architect3d:drop-bundled-codecs',
 		enforce: 'pre',
 		transform(code, id)
 		{
-			if (!id.includes('three/examples/jsm/loaders/DRACOLoader.js')) { return null; }
-			const rewritten = code.replace(PATTERN, (_, file) => JSON.stringify('draco/' + file));
+			const codec = CODECS.find((entry) => id.includes(entry.file));
+			if (!codec) { return null; }
+
+			const rewritten = code.replace(codec.pattern, (_, file) => JSON.stringify(codec.served + file));
 			if (rewritten === code)
 			{
 				throw new Error(
-					'architect3d:drop-bundled-draco matched nothing in DRACOLoader.js. three has ' +
+					`architect3d:drop-bundled-codecs matched nothing in ${codec.file}. three has ` +
 					'changed how it references its bundled decoder; re-check the pattern before ' +
 					'shipping, or half a megabyte comes back.',
 				);
@@ -96,7 +114,7 @@ export default defineConfig(({mode}) => {
 	if (isLib)
 	{
 		return {
-			plugins: [dropBundledDraco()],
+			plugins: [dropBundledCodecs()],
 			build: {
 				outDir: 'dist',
 				emptyOutDir: true,
@@ -149,7 +167,7 @@ export default defineConfig(({mode}) => {
 			// Harmless here - the ESM build externalises three entirely, so
 			// DRACOLoader never enters this bundle. Present so the three branches
 			// cannot drift, and so the upgrade tripwire fires wherever three moves.
-			plugins: [dropBundledDraco()],
+			plugins: [dropBundledCodecs()],
 			build: {
 				outDir: 'dist',
 				// The IIFE build ran first and this must not delete it.
@@ -214,7 +232,7 @@ export default defineConfig(({mode}) => {
 		// of ours. The whole UI stack (Tailwind, Reka UI, lucide, VueUse) is a
 		// devDependency for the same reason: `files` in package.json publishes
 		// src/scripts alone, so nothing a consumer installs could import them.
-		plugins: [vue(), tailwind(), dropBundledDraco()],
+		plugins: [vue(), tailwind(), dropBundledCodecs()],
 		server: {
 			port: 10001,
 			open: false,

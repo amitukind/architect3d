@@ -16,6 +16,7 @@
  */
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {Texture} from 'three';
 import {NodeIO} from '@gltf-transform/core';
 import {KHRONOS_EXTENSIONS, KHRDracoMeshCompression} from '@gltf-transform/extensions';
 import draco3d from 'draco3dgltf';
@@ -129,6 +130,37 @@ async function decompressor()
 	return decompressIO;
 }
 
+/**
+ * A KTX2 loader that hands back an empty texture (RM-004 B5).
+ *
+ * The same argument as `installImageStub`, for the other image format. B5
+ * transcoded 18 model textures to KTX2, and the containers declare
+ * `KHR_texture_basisu` as REQUIRED - correctly, since with `textures[].source`
+ * gone there is no image to fall back to. So GLTFLoader now REFUSES a file
+ * outright unless a KTX2 loader is attached, where before an undecodable
+ * texture merely left the material untextured.
+ *
+ * A real `KTX2Loader` is not usable here for the reason the real `DRACOLoader`
+ * is not: it fetches a transcoder over HTTP and runs it in a worker against a
+ * GPU, and this suite has none of those. It is also not the subject - what
+ * these tests measure is geometry, and the texture is transport underneath it.
+ *
+ * The stub satisfies the one call GLTFLoader makes, `load(url, onLoad)`, and
+ * hands back a `Texture` with no image. Materials come out valid and
+ * untextured, which is exactly what the image stub already produces for JPEG.
+ */
+function ktx2Stub()
+{
+	return {
+		load(url, onLoad)
+		{
+			const texture = new Texture();
+			if (onLoad) { onLoad(texture); }
+			return texture;
+		},
+	};
+}
+
 /** True if the container declares it needs a Draco decoder. */
 function needsDraco(buffer)
 {
@@ -177,7 +209,9 @@ export async function loadGltf(path, resourcePath)
 	const data = path.endsWith('.gltf') ? buffer.toString('utf8') : sameRealmArrayBuffer(buffer);
 	return new Promise((resolve, reject) =>
 	{
-		new GLTFLoader().parse(data, resourcePath, resolve, reject);
+		const loader = new GLTFLoader();
+		loader.setKTX2Loader(ktx2Stub());
+		loader.parse(data, resourcePath, resolve, reject);
 	});
 }
 

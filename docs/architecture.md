@@ -138,11 +138,34 @@ true rather than merely stated. Retirements are declared in
 that is not there. Rename a room texture only with a retirement; do not delete a
 name.
 
-KTX2/Basis would have taken 78.50 MB instead of 61.67, and was declined —
-mostly because of the `.glb` indirection above, and because `KTX2Loader`
-requires a renderer that `texture_cache` deliberately does not hold. The
-CHANGELOG's *Deferred* section has the full case. The two compose: encoding the
-already-resized textures is still available and now starts 59% smaller.
+The 18 textures that live inside `.glb` containers are then **KTX2/ETC1S**,
+which takes VRAM from 43.00 MB to 12.54 MB. A JPEG becomes RGBA8 on the way to
+the GPU whatever it cost on disk; a KTX2 is transcoded to a format the GPU reads
+directly and stays compressed at about 1 bit per pixel. `tools/encode-textures.mjs`
+transcodes, `tools/repoint-textures.mjs` rewrites the containers, and the second
+of those edits the JSON chunk and copies the BIN chunk through byte for byte —
+so the Draco geometry above is untouched by construction rather than
+re-verified.
+
+Two things about the runtime are worth knowing. **Nothing holds a renderer.**
+`KTX2Loader` needs `workerConfig`, a record of which compressed formats the GPU
+supports, and `detectSupport(renderer)` exists only to produce it;
+`core/texture_formats.js` produces the same record from the device — from
+`Main`'s renderer when there is one, otherwise from a one-pixel throwaway
+context — so the texture cache and the model layer stay renderer-free. And the
+containers declare `KHR_texture_basisu` as **required**, so a `GLTFLoader`
+without a KTX2 loader attached refuses these files outright rather than
+rendering them untextured. `Scene` attaches one; a consumer supplying their own
+loader through `setItemLoader` must too.
+
+**The room textures are still JPEG**, and the reason is a real limitation rather
+than an oversight. `texture_cache` hands out a `Texture` synchronously and fills
+in the pixels when the load lands, which works because `TextureLoader.load()`
+returns one immediately and clones share a `source`. `KTX2Loader.load()` returns
+`undefined` and delivers a `CompressedTexture` whose data lives in `mipmaps`, so
+there is nothing to hand back at call time. Supporting it means making
+`acquireTexture` asynchronous and changing `Floor`, `Edge` and `Skybox` with it.
+That is 8.75 MB more, costed and not taken.
 
 `dimensioning.js` converts between centimetres (what the model stores) and
 whatever unit the user picked. `render_profile.js` is the table of shading

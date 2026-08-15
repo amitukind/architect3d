@@ -142,7 +142,13 @@ describe('the shipped catalog is the authored catalog (RM-004 B1)', () =>
 		{
 			expect(REPORT.models[name], name).toBeUndefined();
 			const json = glbJson(name);
-			expect(json.extensionsRequired || [], name).toEqual([]);
+			// Draco specifically, not "no extensions at all". B5 added
+			// KHR_texture_basisu to every container that references a
+			// transcoded texture, including these thirteen - it is about their
+			// IMAGES, and this test is about their GEOMETRY. Asserting an empty
+			// list conflated the two and would refuse any future texture work
+			// on a model the encoder had declined.
+			expect(json.extensionsRequired || [], name).not.toContain('KHR_draco_mesh_compression');
 		}
 	});
 

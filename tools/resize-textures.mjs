@@ -655,6 +655,28 @@ function main()
 		// nothing, which made the second failure hide the first.
 		const committed = JSON.parse(readFileSync(REPORT_PATH, 'utf8'));
 		const live = new Set(targets);
+
+		// A later pass may legitimately have replaced a file this one produced.
+		//
+		// This is the THIRD place the same shape has appeared: a pipeline pass
+		// records the tree it left, and the next pass makes that record look
+		// like a lie. `tests/asset-integrity.test.js` hit it when B4 resized
+		// files P6 had converted, and again when hardwood was re-encoded. Here
+		// B5 transcoded five of the textures B4 resized, so their .jpg is gone
+		// and a .ktx2 stands in its place.
+		//
+		// The rule that resolves all three: a file is accounted for if the pass
+		// that owns it says so, or if a LATER pass records having replaced it.
+		// Only an unexplained disappearance is staleness.
+		const transcoded = new Map();
+		const transcodePath = join(ROOT, 'asset-pipeline', 'texture-transcode.json');
+		if (existsSync(transcodePath))
+		{
+			for (const entry of JSON.parse(readFileSync(transcodePath, 'utf8')).textures)
+			{
+				transcoded.set(entry.from, entry.to);
+			}
+		}
 		/** @type {string[]} */
 		const drifted = [];
 		/** @type {string[]} */
@@ -667,6 +689,16 @@ function main()
 			// stack trace - a crash where the tool has a perfectly good thing
 			// to say, which is that the report is describing a tree that is
 			// no longer there.
+			const successor = transcoded.get(entry.name);
+			if (successor)
+			{
+				// Superseded, not missing. The successor still has to be there.
+				if (!existsSync(join(PUBLIC, successor)))
+				{
+					orphaned.push(`${entry.name} was transcoded to ${successor}, which is not there`);
+				}
+				continue;
+			}
 			if (!live.has(entry.name) || !existsSync(join(PUBLIC, entry.name)))
 			{
 				orphaned.push(`${entry.name} is in the report but is no longer a GPU texture in the tree`);

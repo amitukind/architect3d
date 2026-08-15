@@ -35,7 +35,7 @@
  */
 import {gzipSync} from 'node:zlib';
 import {readFileSync, writeFileSync, existsSync, readdirSync, statSync} from 'node:fs';
-import {join, extname, dirname} from 'node:path';
+import {join, extname, dirname, sep} from 'node:path';
 
 const BUDGET_FILE = 'tools/budget.json';
 const update = process.argv.includes('--update');
@@ -92,12 +92,13 @@ function gzipFile(path)
  * still matters for the other failure mode - a hundred small files nobody
  * noticed.
  */
-function largestFile(dir)
+function largestFile(dir, exclude = [])
 {
 	if (!existsSync(dir))
 	{
 		return null;
 	}
+	const skipped = exclude.map((path) => path.split('/').join(sep));
 	let worst = {bytes: 0, note: '(empty)'};
 	const visit = (path) =>
 	{
@@ -106,7 +107,7 @@ function largestFile(dir)
 			const child = join(path, entry.name);
 			if (entry.isDirectory())
 			{
-				visit(child);
+				if (!skipped.some((one) => child === one || child.startsWith(one + sep))) { visit(child); }
 				continue;
 			}
 			const bytes = statSync(child).size;
@@ -331,8 +332,16 @@ const MEASUREMENTS = [
 		measure: () => gzipFile('dist/architect3d.js')},
 	{key: 'public-total', label: 'Runtime assets', needs: null,
 		measure: () => treeBytes('public')},
+	// Content only. B5 vendored a 515 KB Basis transcoder, which is four times
+	// the largest texture in the tree and would own this line forever - while
+	// saying nothing about the thing the line exists to catch. `public-largest`
+	// was added in P6 because a 3.4 MB photograph was hiding inside a tree that
+	// was comfortably under its total; a WebAssembly binary that changes only
+	// when three is upgraded is not that, and `decoder-total` is the line that
+	// does watch it. Draco's 250 KB never tripped this only because it happened
+	// to be smaller than a JPEG.
 	{key: 'public-largest', label: 'Largest single asset', needs: null,
-		measure: () => largestFile('public')},
+		measure: () => largestFile('public', ['public/draco', 'public/basis'])},
 	// The per-asset ceiling A5 added beside the per-file and per-tree ones. See
 	// largestCatalogItem for why "what does placing this chair cost" is a
 	// question neither of the others can answer.
@@ -344,8 +353,12 @@ const MEASUREMENTS = [
 	// and it is the one file in the tree whose cost is charged to a session that
 	// opens any compressed model at all. A number that moves for exactly one
 	// reason belongs on its own line.
-	{key: 'decoder-total', label: 'Draco decoder', needs: null,
-		measure: () => treeBytes('public/draco')},
+	// Both codecs' machinery on one line. It moves when three is upgraded and at
+	// no other time, which is what makes a single number useful here: a refresh
+	// that copied the wrong directory - three ships a 719 KB pure-JS Draco
+	// decoder beside the WASM one - shows up immediately.
+	{key: 'decoder-total', label: 'Codec machinery', needs: null,
+		measure: () => treeBytes('public/draco') + treeBytes('public/basis')},
 	{key: 'texture-vram', label: 'Texture VRAM', needs: null,
 		measure: () => textureVram()},
 ];

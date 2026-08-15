@@ -65,7 +65,11 @@ const EXCLUDED = new Set(['asset-manifest.json']);
  */
 function kindOf(name)
 {
-	if (name.startsWith('draco/')) { return 'decoder'; }
+	// Both codecs' machinery, not just Draco's. B5 vendored the Basis
+	// transcoder beside it, and a consumer deciding what to prefetch needs the
+	// same answer for both - `basis/` falling through to `texture` would have
+	// put 580 KB of WebAssembly into the texture-vram measurement.
+	if (name.startsWith('draco/') || name.startsWith('basis/')) { return 'decoder'; }
 	if (/\.(glb|gltf)$/i.test(name)) { return 'model'; }
 	// Any thumbnails directory, not just models/thumbnails/. RM-004 B4 found the
 	// narrower test mislabelling 148 files: `models/thumbnails_new/` (142, every
@@ -79,6 +83,8 @@ function kindOf(name)
 	if (name.startsWith('models/')) { return 'model-texture'; }
 	return 'texture';
 }
+
+const KTX2_MAGIC = Buffer.from([0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 /**
  * What decoder a file needs, read from the file rather than declared.
@@ -96,6 +102,11 @@ function kindOf(name)
  */
 function codecOf(name, bytes)
 {
+	// A KTX2 image declares itself in its first twelve bytes, which is a
+	// stronger claim than the extension and costs nothing to check. Recorded so
+	// `resolver.codecMix()` can answer "what is this build shipping" for
+	// textures the way it already does for geometry.
+	if (bytes.length >= 12 && bytes.subarray(0, 12).equals(KTX2_MAGIC)) { return 'ktx2'; }
 	if (!/\.glb$/i.test(name) || bytes.length < 20) { return null; }
 	if (bytes.readUInt32LE(0) !== 0x46546c67) { return null; }
 
@@ -167,6 +178,15 @@ function sriHash(bytes)
  * the file it now points at, so nothing downstream has to special-case it.
  */
 const RETIRED = {
+	// The only one. `rooms/textures/hardwood.png` was re-encoded as JPEG, and it
+	// is the DEFAULT room texture, so its name is in every design that kept the
+	// default floor.
+	//
+	// B5 transcoded the MODEL textures to KTX2 and deliberately added nothing
+	// here for them: they are reached through `images[].uri` inside a `.glb`,
+	// which `repoint-textures.mjs` rewrites, and no document names them. The
+	// room textures were left as JPEG - see tools/encode-textures.mjs for why
+	// the texture cache cannot load a KTX2 today.
 	'rooms/textures/hardwood.png': 'rooms/textures/hardwood.jpg',
 };
 

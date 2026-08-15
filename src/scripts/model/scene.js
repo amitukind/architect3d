@@ -6,6 +6,8 @@ import {EventDispatcher, Color} from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';
 import {DRACOLoader} from 'three/addons/loaders/DRACOLoader.js';
+import {KTX2Loader} from 'three/addons/loaders/KTX2Loader.js';
+import {formatSupport} from '../core/texture_formats.js';
 import {Scene as ThreeScene, LoadingManager} from 'three';
 import {runtimeOf} from '../core/design_runtime.js';
 import {disposeMaterial} from '../core/resource_registry.js';
@@ -109,6 +111,31 @@ export class Scene extends EventDispatcher
 		this.dracoLoader = new DRACOLoader(this.loadingManager);
 		this.dracoLoader.setDecoderPath(this.runtime.assets.decoderPath());
 		this.gltfloader.setDRACOLoader(this.dracoLoader);
+
+		/**
+		 * The KTX2 transcoder for model textures (RM-004 B5).
+		 *
+		 * 18 of the catalog's textures are KTX2 inside their `.glb`, and the
+		 * containers declare `KHR_texture_basisu` as REQUIRED - so a GLTFLoader
+		 * without this attached does not render them untextured, it refuses the
+		 * file outright. Attached beside the Draco loader and for the same
+		 * reason: it must be in place before the first parse, and it costs
+		 * nothing until something needs it, because three fetches the
+		 * transcoder on the first compressed texture rather than at
+		 * construction.
+		 *
+		 * `workerConfig` is set from the device rather than by calling
+		 * `detectSupport(renderer)`, because a `Scene` has no renderer - it is
+		 * the model layer. `core/texture_formats.js` explains why that is the
+		 * right dependency rather than a workaround.
+		 *
+		 * @type {KTX2Loader}
+		 */
+		this.ktx2Loader = new KTX2Loader(this.loadingManager);
+		this.ktx2Loader.setTranscoderPath(this.runtime.assets.transcoderPath());
+		var support = formatSupport();
+		if (support) { this.ktx2Loader.workerConfig = support; }
+		this.gltfloader.setKTX2Loader(this.ktx2Loader);
 
 		/**
 		 * Optional loader override, used by tests to run the model layer without

@@ -4,6 +4,7 @@ import {Plane} from 'three';
 import {PCFSoftShadowMap, ACESFilmicToneMapping, NoToneMapping, PMREMGenerator} from 'three';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {PointerLockControls} from './pointerlockcontrols.js';
+import {describeFrom} from '../core/texture_formats.js';
 
 import {EVENT_CHANGESET, EVENT_WALL_CLICKED, EVENT_NOTHING_CLICKED, EVENT_FLOOR_CLICKED, EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED, EVENT_GLTF_READY} from '../core/events.js';
 import {CHANGE_TOPOLOGY} from '../core/change_set.js';
@@ -380,6 +381,13 @@ export class Main extends EventDispatcher
 
 		scope.renderer = scope.getARenderer();
 		scope.domElement.appendChild(scope.renderer.domElement);
+
+		// The first real renderer on the page describes the device, so a `Scene`
+		// building its KTX2 loader does not have to open a second WebGL context
+		// just to ask what formats this GPU supports (RM-004 B5). Idempotent and
+		// first-caller-wins: a second viewport must not change the answer, since
+		// a texture already transcoded for one format cannot be re-transcoded.
+		describeFrom(scope.renderer);
 
 		// Before the Skybox, which reads scene.fog, and before Lights - both are
 		// cheap to build and neither depends on the environment, but keeping the

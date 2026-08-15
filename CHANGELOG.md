@@ -4,6 +4,43 @@
 
 ### Changed
 
+* **The catalog's model textures are KTX2/ETC1S, and GPU memory fell another
+  74%.** Texture VRAM goes **43.00 MB → 12.54 MB** and the deployed tree loses
+  another 0.9 MB. A JPEG is decoded to RGBA8 before it reaches the GPU, so a
+  145 KB file becomes 1.33 MB of video memory whatever it cost on disk; a KTX2
+  is transcoded to a format the GPU reads directly and stays compressed there at
+  about 1 bit per pixel against RGBA8's 32.
+
+  18 textures inside 20 `.glb` containers, which now declare
+  `KHR_texture_basisu` as **required** — correctly, since `textures[].source` is
+  gone and there is no image to fall back to. The containers were rewritten by
+  surgery on the JSON chunk rather than a glTF-Transform round trip, so the BIN
+  chunk holding the Draco geometry is copied through byte for byte and the
+  earlier fidelity guarantee holds by construction. `texture-repoint.json`
+  records the BIN hash of every container so that is checkable, not asserted.
+
+* **The architectural objection that stopped this last time was wrong.** It was
+  that `KTX2Loader.load()` throws without `detectSupport(renderer)`, and the
+  texture cache is deliberately renderer-free. Reading `detectSupport` rather
+  than its signature shows it does not retain the renderer at all: it makes
+  seven `extensions.has(...)` calls and assigns a plain object of booleans to a
+  public field. The real dependency is on **what formats this GPU supports** —
+  a property of the device, as page-wide as the cache itself.
+  `core/texture_formats.js` produces that record, from a real renderer when
+  `Main` offers one and otherwise from a one-pixel throwaway context, and
+  nothing gained a renderer reference.
+
+* **The room textures were left as JPEG, and that is the sprint's real
+  boundary.** A different blocker turned out to be genuine: `TextureLoader.load()`
+  returns a `Texture` synchronously, which is what lets the cache hand out
+  clones and fill in pixels later. `KTX2Loader.load()` returns `undefined` and
+  delivers a `CompressedTexture` by callback, whose data lives in `mipmaps`
+  rather than the shared `source` the clone trick depends on. Supporting it
+  means changing what `acquireTexture` promises, and with it `Floor`, `Edge` and
+  `Skybox` — a redesign of a module two earlier sprints hardened, not a side
+  effect of a format change. **That leaves 8.75 MB on the table against the
+  22.84 MB taken**, and the measurement is recorded rather than the intention.
+
 * **The last opaque PNG on the GPU path is a JPEG, and the first retired asset
   name went with it.** `rooms/textures/hardwood.png` was 476 KB for a 512×512
   texture — 1.861 bytes per texel, nine times the density of any JPEG in the
@@ -43,6 +80,30 @@
   has now changed target twice in two passes — Garden.jpg, then hardwood.png, now
   `oak_wood.jpg` at 307 KB — and each time it named a different kind of problem
   that no tree total would have surfaced.
+
+### Added
+
+* **`npm run encode:textures` and `npm run repoint`**, with `:check` variants, on
+  the same committed-output terms as the encoder and the resizer. The Basis
+  transcoder is vendored to `public/basis/` beside `public/draco/`, and
+  `resolver.transcoderPath()` derives its URL from the resolver base so
+  `?assetBase=` relocates it too.
+
+* **`vite.config.mjs`'s `dropBundledDraco()` is now `dropBundledCodecs()`** and
+  covers `KTX2Loader`, which references its transcoder through the same
+  `new URL(..., import.meta.url)` pattern. Without it the build would ship the
+  580 KB transcoder twice and inline it into the IIFE; with it the loader costs
+  15.4 KB gzipped. It still throws if a pattern matches nothing.
+
+* **Three browser tests that actually load a compressed texture** — added
+  because a deliberate break failed to fail. Removing `setKTX2Loader` from
+  `Scene` left all 54 browser tests green, and the conclusion drawn from that,
+  that KTX2 rendering was verified, was wrong. The Draco tests use
+  `ik-kivine_baked.glb`, one of four models whose texture is missing from the
+  source library, so they had never decoded an image at all. The new ones assert
+  the container declares the extension, that the texture arrives as a
+  `CompressedTexture` at 669×1024 with a mip chain, and that the frame changes
+  when it lands.
 
 ## [2.1.0] - 2026-08-15
 

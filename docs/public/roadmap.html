@@ -2627,6 +2627,29 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
         <li><strong>1,250 headless tests (18 new) and 54 in the browser, all green.</strong> Eight deliberate breaks &mdash; sRGB-space resampling, no premultiply, edge-sampled kernel centres, unnormalised weights, a blinded gate, an oversized texture, a drifted byte, a tightened budget &mdash; each reverted individually and each failed. The evidence is committed: <code>asset-pipeline/resize-report.json</code> for the transform, <code>resize-oracle.json</code> for the frames. The 4.13 MB of pre-resize originals are not, since they live in git history and the permanent protection is the cap test</li>
       </ul>
     </div>
+
+    <div class="gate">
+      <div class="g-head">LANDED &mdash; B5</div>
+      <ul>
+        <li><strong>Texture VRAM 43.00 MB &rarr; 12.54 MB.</strong> The 18 textures inside <code>.glb</code> containers are KTX2/ETC1S. A JPEG becomes RGBA8 on the way to the GPU whatever it cost on disk; a KTX2 transcodes to a format the GPU reads directly and stays compressed at about 1 bit per pixel. Across B4 and B5 together the figure is <strong>104.67 MB &rarr; 12.54 MB</strong>, and the deployed tree fell from 7.45 MB to 5.32</li>
+
+        <li><strong>The objection that stopped this in B4 was wrong, and reading the source is what showed it.</strong> B4 recorded that <code>KTX2Loader.load()</code> throws without <code>detectSupport(renderer)</code> and that wiring it would put back a renderer coupling A4 removed. <code>detectSupport</code> does not retain the renderer: it makes seven <code>extensions.has(...)</code> calls and assigns a plain object of booleans to <code>workerConfig</code>, a public field. The dependency is on <em>what formats this GPU supports</em> &mdash; a property of the device, exactly as page-wide as the texture cache. <code>core/texture_formats.js</code> produces that record and nothing gained a renderer reference</li>
+
+        <li><strong>A different blocker was real, and it set the sprint's boundary.</strong> <code>TextureLoader.load()</code> returns a <code>Texture</code> synchronously, which is what lets <code>texture_cache</code> hand out clones and fill in pixels later. <code>KTX2Loader.load()</code> returns <strong><code>undefined</code></strong> and delivers a <code>CompressedTexture</code> whose data lives in <code>mipmaps</code> rather than in the shared <code>source</code> the clone trick depends on. Supporting it means changing what <code>acquireTexture</code> promises and rewriting <code>Floor</code>, <code>Edge</code> and <code>Skybox</code> with it &mdash; a redesign of a module A0 and A4 hardened. <strong>8.75 MB left on the table against 22.84 MB taken</strong>, costed rather than hand-waved</li>
+
+        <li><strong>The containers were edited, not re-encoded.</strong> The obvious implementation reads each <code>.glb</code> with glTF-Transform and writes it back, which re-runs Draco over geometry B1 spent a sprint proving. <code>repoint-textures.mjs</code> parses the container, rewrites the JSON chunk and copies the BIN chunk through byte for byte, so B1's guarantee holds <em>by construction</em>; the BIN hash of all 20 is in <code>texture-repoint.json</code> so it is checkable rather than claimed</li>
+
+        <li><strong>One encode per file, not one per document.</strong> <code>@gltf-transform/functions</code> ships a <code>ktx2()</code> transform and it is deliberately unused: 21 containers reference these textures and two are shared, so a per-document transform encodes the shared ones twice, cannot guarantee the two agree, and writes two copies of pixels that were one file</li>
+
+        <li><strong>A break that was supposed to fail did not &mdash; for the fourth time in this programme, and it invalidated a conclusion I had already drawn.</strong> Removing <code>setKTX2Loader</code> from <code>Scene</code> left all 54 browser tests green, and I had just cited those green tests as proof that KTX2 rendering worked. It proved nothing: the Draco browser tests use <code>ik-kivine_baked.glb</code>, one of the four models whose texture is <em>missing from the source library</em>, so the suite had never decoded an image at all. Three new tests assert the container declares the extension, that the texture arrives as a <code>CompressedTexture</code> at 669&times;1024 with a mip chain, and that the frame changes when it lands. Both breaks fail now</li>
+
+        <li><strong>Three limits up, three down, and two changed what they measure.</strong> <code>decoder-total</code> became "Codec machinery" and covers both vendored decoders, 264 KB &rarr; 881 KB for the 580 KB Basis transcoder. <code>public-largest</code> now <em>excludes</em> them: a 515 KB WebAssembly binary would own that line forever while saying nothing about what P6 added it to catch, and it points at a <code>.glb</code> again. <code>texture-vram</code> is deliberately left at 72% headroom &mdash; the 12.54 MB assumes every KTX2 reaches a 1 bpp GPU format, and a device with none falls back to RGBA8 and climbs back toward 43 MB. Tightening it would fail on the hardware it helps least</li>
+
+        <li><strong>The pipeline reports are a chain, and B5 was the third pass to prove it.</strong> P6 recorded a tree, B4 replaced some of it, B5 replaced more &mdash; and each time a characterization test read the earlier record as a lie. No report was ever rewritten: they are records of what their own pass did. Six assertions across four files now resolve through the chain, and <code>shippedName</code> composes all three passes rather than listing one's outputs, so a fourth pass will not need it rewritten again</li>
+
+        <li><strong>1,251 headless tests and 57 in the browser (3 new), all green.</strong> Five pipeline <code>--check</code>s pass from a clean tree. Two deliberate breaks &mdash; the loader unwired, the capability record blanked &mdash; each failed once the coverage hole above was closed</li>
+      </ul>
+    </div>
   </div>
 
   <h3>Sequence and effort</h3>
@@ -2637,6 +2660,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
       <tr><td><strong>B2</strong> <span class="chip ok">done</span></td><td>Wall identity across a load</td><td>3–5 days</td><td>—</td><td>M-13 — met, 15 of 15. A3's carve-out lifted and a listener leak with it</td></tr>
       <tr><td><strong>B3</strong> <span class="chip ok">done</span></td><td>Type coverage, application tier</td><td>1 week</td><td>—</td><td>M-14 — met, 0. Tree 427 → 356; the opt-in is a test now — see LANDED</td></tr>
       <tr><td><strong>B4</strong> <span class="chip ok">done</span></td><td>Texture VRAM</td><td>3–5 days</td><td>B1 (measurement)</td><td>VRAM 104.67 → 43.00 MB. Five limits lowered, none raised. KTX2 declined on evidence — see LANDED</td></tr>
+      <tr><td><strong>B5</strong> <span class="chip ok">done</span></td><td>KTX2 for container textures</td><td>2–3 days</td><td>B4</td><td>VRAM 43.00 → 12.54 MB. B4's architectural objection disproved; a real one found and scoped around — see LANDED</td></tr>
     </tbody>
   </table></div>
 

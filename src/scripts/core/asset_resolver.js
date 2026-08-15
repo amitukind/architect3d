@@ -294,6 +294,21 @@ export class AssetResolver
 	}
 
 	/**
+	 * Where the Basis transcoder lives, for KTX2 textures (RM-004 B5).
+	 *
+	 * The same argument as `decoderPath()`, for the other codec: derived from
+	 * the resolver's base so `?assetBase=` relocates the transcoder along with
+	 * everything else, rather than leaving it pinned to the origin while the
+	 * textures it decodes come from a CDN.
+	 *
+	 * @returns {string}
+	 */
+	transcoderPath()
+	{
+		return this._base + 'basis/';
+	}
+
+	/**
 	 * How many manifest entries declare each codec (RM-004 B1).
 	 *
 	 * "What is this build actually shipping" was a question only the tree could

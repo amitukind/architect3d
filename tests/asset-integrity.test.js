@@ -253,7 +253,12 @@ describe('the model files point at real files', () =>
 			for (const image of glbJson(path).images || [])
 			{
 				if (!image.uri || !image.mimeType) { continue; }
-				const expected = /\.png$/i.test(image.uri) ? 'image/png' : 'image/jpeg';
+				// Three containers now, not two. B5 transcoded 18 of these images
+				// to KTX2, and `image/ktx2` is what `KHR_texture_basisu` requires
+				// - a .ktx2 declared image/jpeg is exactly the silent failure this
+				// test exists to catch, just with the newest format.
+				const expected = /\.ktx2$/i.test(image.uri) ? 'image/ktx2'
+					: (/\.png$/i.test(image.uri) ? 'image/png' : 'image/jpeg');
 				if (image.mimeType !== expected)
 				{
 					wrong.push(`${path.slice(ROOT.length + 1)}: ${image.uri} declared ${image.mimeType}`);
@@ -268,7 +273,15 @@ describe('the compression pass left nothing behind', () =>
 {
 	it('every file it produced exists and every original is gone', () =>
 	{
-		const missing = COMPRESSION.converted.filter((entry) => !existsSync(join(PUBLIC, entry.to)));
+		// A file P6 produced may since have been replaced under a new name - B5
+		// transcoded twelve of them to KTX2. Present means "present under the
+		// name the LAST pass gave it", which is the same rule `reports honest
+		// numbers` applies below and the same one that keeps the chain honest.
+		const TRANSCODED = new Map(JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/texture-transcode.json'), 'utf8'))
+			.textures.map((entry) => [entry.from, entry.to]));
+		const nowAt = (name) => TRANSCODED.get(name) || name;
+
+		const missing = COMPRESSION.converted.filter((entry) => !existsSync(join(PUBLIC, nowAt(entry.to))));
 		expect(missing.map((entry) => entry.to), 'converted files that are not there').toEqual([]);
 
 		// Both halves matter. If an original survives, a stale reference to it keeps
@@ -301,14 +314,22 @@ describe('the compression pass left nothing behind', () =>
 			{
 				report: JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/resize-report.json'), 'utf8')),
 				name: 'RM-004 B4 resize',
-				entries: (report) => report.textures.map((entry) => [entry.name, entry.to.bytes]),
+				entries: (report) => report.textures.map((entry) => [entry.name, {bytes: entry.to.bytes, at: entry.name}]),
+			},
+			{
+				report: JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/texture-transcode.json'), 'utf8')),
+				// B5 both replaces the bytes AND moves them to a new name, which
+				// the resize pass never did - so a superseded entry has to carry
+				// where to look as well as what to expect.
+				name: 'RM-004 B5 KTX2 transcode',
+				entries: (report) => report.textures.map((entry) => [entry.from, {bytes: entry.bytesAfter, at: entry.to}]),
 			},
 		];
-		/** @type {Map<string, {bytes: number, pass: string}>} */
+		/** @type {Map<string, {bytes: number, at: string, pass: string}>} */
 		const superseded = new Map();
 		for (const pass of LATER_PASSES)
 		{
-			for (const [name, bytes] of pass.entries(pass.report)) { superseded.set(name, {bytes, pass: pass.name}); }
+			for (const [name, where] of pass.entries(pass.report)) { superseded.set(name, {...where, pass: pass.name}); }
 		}
 
 		let before = 0;
@@ -317,8 +338,9 @@ describe('the compression pass left nothing behind', () =>
 		{
 			expect(entry.bytesAfter).toBeLessThan(entry.bytesBefore);
 			const later = superseded.get(entry.to);
+			const at = later ? later.at : entry.to;
 			const expected = later ? later.bytes : entry.bytesAfter;
-			expect(statSync(join(PUBLIC, entry.to)).size, later ? `${entry.to}, per ${later.pass}` : entry.to).toBe(expected);
+			expect(statSync(join(PUBLIC, at)).size, later ? `${entry.to} -> ${at}, per ${later.pass}` : entry.to).toBe(expected);
 			before += entry.bytesBefore;
 			after += entry.bytesAfter;
 		}

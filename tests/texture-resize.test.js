@@ -34,9 +34,23 @@ const manifest = JSON.parse(readFileSync(join(PUBLIC, 'asset-manifest.json'), 'u
 const report = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline', 'resize-report.json'), 'utf8'));
 const GPU_KINDS = new Set(['model-texture', 'texture', 'environment']);
 
+/** B5's transcode, which renames some of what B4's report describes. */
+const TRANSCODED = new Map(JSON.parse(readFileSync(join(ROOT, 'asset-pipeline', 'texture-transcode.json'), 'utf8'))
+	.textures.map((entry) => [entry.from, entry.to]));
+
+const KTX2_MAGIC = Buffer.from([0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a]);
+
 /** Header-only dimensions, so the tree can be checked without a decoder. */
 function dimensions(bytes)
 {
+	// KTX2 first, because B5 transcoded 18 of these and a KTX2 is not a PNG or
+	// a JPEG by any header test. The cap applies to it exactly as it did to the
+	// source image - a transcode preserves the pixel dimensions, so an
+	// oversized texture is still oversized after it.
+	if (bytes.length >= 32 && bytes.subarray(0, 12).equals(KTX2_MAGIC))
+	{
+		return {width: bytes.readUInt32LE(20), height: bytes.readUInt32LE(24)};
+	}
 	if (bytes.length >= 24 && bytes.readUInt32BE(0) === 0x89504e47)
 	{
 		return {width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20)};
@@ -118,6 +132,18 @@ describe('the committed tree is under the cap (RM-004 B4)', () =>
 		expect(report.textures.length).toBeGreaterThan(0);
 		for (const entry of report.textures)
 		{
+			// Superseded is not missing. B5 transcoded five of the textures B4
+			// resized, so their .jpg is gone and a .ktx2 stands in its place -
+			// the third time this chain has had to be followed, and the rule is
+			// the same every time: a file is accounted for by the LAST pass that
+			// recorded touching it.
+			const successor = TRANSCODED.get(entry.name);
+			if (successor)
+			{
+				expect(existsSync(join(PUBLIC, successor)),
+					`${entry.name} was transcoded to ${successor}, which is not there`).toBe(true);
+				continue;
+			}
 			const path = join(PUBLIC, entry.name);
 			expect(existsSync(path), `${entry.name} is in the report but not on disk`).toBe(true);
 			const digest = createHash('sha256').update(readFileSync(path)).digest('hex').slice(0, 16);

@@ -57,7 +57,22 @@ const REPORT = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/conversion-rep
  */
 const RECOMPRESSED = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/texture-compression.json'), 'utf8'));
 const SHIPPED_AS = new Map(RECOMPRESSED.converted.map((entry) => [entry.from.split('/').pop(), entry.to.split('/').pop()]));
-const shippedName = (texture) => SHIPPED_AS.get(texture) || texture;
+
+/**
+ * B5's transcode, on top of P6's re-encode, on top of S3's conversion.
+ *
+ * Three passes now, and `shippedName` is their composition applied in order.
+ * The rule the file already stated for two holds for three: no report is
+ * rewritten to match a later tree, because each is a record of what its own
+ * pass did, and composing them is how the current name is derived.
+ */
+const TRANSCODED = new Map(JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/texture-transcode.json'), 'utf8'))
+	.textures.map((entry) => [entry.from.split('/').pop(), entry.to.split('/').pop()]));
+const shippedName = (texture) =>
+{
+	const afterP6 = SHIPPED_AS.get(texture) || texture;
+	return TRANSCODED.get(afterP6) || afterP6;
+};
 
 let restoreImages;
 beforeAll(() => {restoreImages = installImageStub();});
@@ -157,20 +172,38 @@ describe('every legacy model converted', () =>
 		{
 			const legacy = join(LEGACY_DIR, name);
 			expect(existsSync(legacy), `legacy source for the resized ${name}`).toBe(true);
-			expect(statSync(join(CONVERTED_DIR, 'textures', name)).size,
-				`${name} should be smaller than the source it was resized from`)
+			// B5 then transcoded most of these to KTX2, so the resized JPEG is
+			// gone and the comparison has to be against whatever stands in its
+			// place. Still the same claim - the shipped file is smaller than the
+			// legacy source - just followed one pass further along.
+			const shipped = TRANSCODED.get(name) || name;
+			expect(statSync(join(CONVERTED_DIR, 'textures', shipped)).size,
+				`${shipped} should be smaller than the source it came from`)
 				.toBeLessThan(statSync(legacy).size);
 		}
 
 		// Every texture that is no longer byte-identical to its source is one P6
 		// converted, and its source is still there under the name it had.
-		const recorded = new Set(RECOMPRESSED.converted
-			.filter((entry) => entry.to.startsWith('models/js-glb/textures/'))
-			.map((entry) => entry.to.split('/').pop()));
+		// Derived from the legacy sources forward, rather than from one pass's
+		// output list. `shippedName` is the composition of all three passes, so
+		// a legacy texture whose shipped name differs from its own is exactly a
+		// texture some recorded pass renamed - and the set of those is what
+		// should be in the converted directory without a same-named source.
+		//
+		// Written this way because the previous version listed P6's outputs
+		// directly and therefore had to be rewritten the moment a fourth pass
+		// touched any of them. This version does not: add a pass to
+		// `shippedName` and this assertion follows.
+		const recorded = new Set(readdirSync(LEGACY_DIR)
+			.filter((name) => /\.(png|jpe?g)$/i.test(name))
+			.map((name) => [name, shippedName(name)])
+			.filter(([name, shipped]) => shipped !== name)
+			.map(([, shipped]) => shipped));
 		expect(reencoded.sort()).toEqual([...recorded].sort());
 		for (const name of reencoded)
 		{
-			const source = [...SHIPPED_AS.entries()].find(([, to]) => to === name)[0];
+			const source = readdirSync(LEGACY_DIR).find((candidate) => shippedName(candidate) === name);
+			expect(source, `no legacy source maps to ${name}`).toBeTruthy();
 			expect(existsSync(join(LEGACY_DIR, source)), `source for ${name}`).toBe(true);
 		}
 	});
@@ -336,8 +369,13 @@ describe('material translation', () =>
 	it('points textures at the shared sidecar directory, not at models/js', () =>
 	{
 		const gltf = readGltfJson('cb-blue-block-60x96');
-		// .jpg since P6 re-encoded the opaque maps; the directory is what this pins.
-		expect(gltf.images[0].uri).toBe('textures/b_cb-blue-block60x96.jpg');
+		// The directory is what this pins, as the assertion it replaces already
+		// said in a comment while pinning the extension anyway. P6 made it .jpg,
+		// B5 made it .ktx2, and neither changed the thing being claimed: the
+		// converter writes textures to a shared sidecar directory instead of
+		// leaving them beside the legacy models/js sources.
+		expect(gltf.images[0].uri).toMatch(/^textures\/b_cb-blue-block60x96\.[a-z0-9]+$/);
+		expect(gltf.images[0].uri).not.toContain('models/js');
 	});
 });
 
