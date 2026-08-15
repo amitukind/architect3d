@@ -43,14 +43,28 @@
 		"gradient. transcodedTo is three's format constant for what SwiftShader",
 		"actually transcoded to - 37492 is COMPRESSED_RGB8_ETC2."
 	],
-	"encoder": {"isUASTC": false, "qualityLevel": 128, "needSupercompression": true, "generateMipmap": true},
-	"gate": {"codecRms": 3.0, "source": "tools/resize-textures.mjs GATES"},
+	"encoder": {
+		"isUASTC": false,
+		"qualityLevel": 128,
+		"needSupercompression": true,
+		"generateMipmap": true
+	},
+	"gate": {
+		"codecRms": 3.0,
+		"source": "tools/resize-textures.mjs GATES"
+	},
 	"measurements": [
 		{
 			"name": "rooms/textures/Ground_4K.jpg",
 			"pixels": "1024x1024",
-			"bytes": {"before": 59111, "after": 10401},
-			"vram": {"before": 5592405, "after": 1398101},
+			"bytes": {
+				"before": 59111,
+				"after": 10401
+			},
+			"vram": {
+				"before": 5592405,
+				"after": 1398101
+			},
 			"rms": 1.098,
 			"p95": 2,
 			"p99": 5,
@@ -63,8 +77,14 @@
 		{
 			"name": "rooms/textures/envs/Garden.jpg",
 			"pixels": "1024x512",
-			"bytes": {"before": 255744, "after": 84627},
-			"vram": {"before": 2796202, "after": 699050},
+			"bytes": {
+				"before": 255744,
+				"after": 84627
+			},
+			"vram": {
+				"before": 2796202,
+				"after": 699050
+			},
 			"rms": 4.483,
 			"p95": 8,
 			"p99": 16,
@@ -72,7 +92,51 @@
 			"pctOver8": 4.078,
 			"transcodedTo": 37492,
 			"mipmaps": 11,
-			"verdict": "refused — banding in the sky gradient"
+			"verdict": "refused \u2014 banding in the sky gradient"
 		}
-	]
+	],
+	"correctedByRM006": {
+		"note": [
+			"The measurements above were differenced in a LINEAR-sRGB frame, so they",
+			"describe a picture the application never renders - three/main.js:262 sets",
+			"outputColorSpace to sRGB. The bias runs BOTH WAYS, and this file is the pair",
+			"that shows it: Ground_4K is mostly mid-tone and was over-stated, Garden is a",
+			"photograph of sky and was under-stated by nearly half.",
+			"",
+			"Neither verdict changes, and Garden's is now much better supported than the",
+			"one C1 recorded - 6.552 against a 3.0 gate with 13.33% of channels off by",
+			"more than 8, not 4.483 and 4.08%. `npm run oracle` regenerates these; the two",
+			"rows live in asset-pipeline/model-transcode-oracle.json because that run",
+			"covers every texture the encoder considered, shipped or refused."
+		],
+		"gate": 3,
+		"measurements": [
+			{
+				"name": "rooms/textures/Ground_4K.jpg",
+				"shipped": "compressed",
+				"pixels": "1024x1024",
+				"residual": 0,
+				"rms": 0.761,
+				"p95": 1,
+				"p99": 4,
+				"max": 25,
+				"pctOver8": 0.071,
+				"ownRange": 108,
+				"rmsAsShareOfOwnRange": 0.0071
+			},
+			{
+				"name": "rooms/textures/envs/Garden.jpg",
+				"shipped": "uncompressed",
+				"pixels": "1024x512",
+				"residual": 0,
+				"rms": 6.552,
+				"p95": 13,
+				"p99": 23,
+				"max": 101,
+				"pctOver8": 13.33,
+				"ownRange": 255,
+				"rmsAsShareOfOwnRange": 0.0257
+			}
+		]
+	}
 }

@@ -51,53 +51,229 @@
 		"the share of channels differing by more than 8, which is roughly where a",
 		"difference stops being arithmetic and starts being visible."
 	],
-	"encoder": {"isUASTC": false, "qualityLevel": 128, "needSupercompression": true, "generateMipmap": true},
-	"gate": {"codecRms": 3.0, "source": "tools/resize-textures.mjs GATES"},
+	"encoder": {
+		"isUASTC": false,
+		"qualityLevel": 128,
+		"needSupercompression": true,
+		"generateMipmap": true
+	},
+	"gate": {
+		"codecRms": 3,
+		"source": "tools/resize-textures.mjs GATES"
+	},
 	"measurements": [
 		{
 			"name": "rooms/textures/hardwood.jpg",
 			"pixels": "512x512",
 			"role": "the default room floor",
-			"rms": 7.441, "p95": 16, "p99": 24, "max": 66, "pctOver8": 19.881,
+			"rms": 7.441,
+			"p95": 16,
+			"p99": 24,
+			"max": 66,
+			"pctOver8": 19.881,
 			"verdict": "refused — 2.5x the gate"
 		},
 		{
 			"name": "rooms/textures/marbletiles.jpg",
 			"pixels": "512x512",
 			"role": "floor and wall, from the texture picker",
-			"rms": 5.532, "p95": 11, "p99": 15, "max": 35, "pctOver8": 11.776,
+			"rms": 5.532,
+			"p95": 11,
+			"p99": 15,
+			"max": 35,
+			"pctOver8": 11.776,
 			"verdict": "refused — 1.8x the gate"
 		},
 		{
 			"name": "rooms/textures/light_brick.jpg",
 			"pixels": "256x256",
 			"role": "wall, from the texture picker",
-			"rms": 10.171, "p95": 23, "p99": 35, "max": 90, "pctOver8": 25.754,
+			"rms": 10.171,
+			"p95": 23,
+			"p99": 35,
+			"max": 90,
+			"pctOver8": 25.754,
 			"verdict": "refused — 3.4x the gate, the worst in the tree"
 		},
 		{
 			"name": "rooms/textures/light_fine_wood.jpg",
 			"pixels": "256x256",
 			"role": "wall, from the texture picker",
-			"rms": 4.145, "p95": 8, "p99": 12, "max": 31, "pctOver8": 4.831,
+			"rms": 4.145,
+			"p95": 8,
+			"p99": 12,
+			"max": 31,
+			"pctOver8": 4.831,
 			"verdict": "refused — 1.4x the gate"
 		},
 		{
 			"name": "rooms/textures/walllightmap.png",
 			"pixels": "256x256",
 			"role": "the shared wall lightmap, spanning bytes 232-253",
-			"rms": 1.269, "p95": 2, "p99": 3, "max": 5, "pctOver8": 0,
+			"rms": 1.269,
+			"p95": 2,
+			"p99": 3,
+			"max": 5,
+			"pctOver8": 0,
 			"rmsAsShareOfOwnRange": 0.06,
 			"maxAsShareOfOwnRange": 0.238,
 			"verdict": "refused — passes on absolute error, 6.0% of its own 21-byte range"
 		}
 	],
 	"qualitySweep": [
-		{"name": "rooms/textures/hardwood.jpg", "qualityLevel": 128, "rms": 7.441, "max": 66, "pctOver8": 19.88, "bytes": 50176},
-		{"name": "rooms/textures/hardwood.jpg", "qualityLevel": 192, "rms": 6.169, "max": 66, "pctOver8": 14.38, "bytes": 69939},
-		{"name": "rooms/textures/hardwood.jpg", "qualityLevel": 255, "rms": 5.388, "max": 49, "pctOver8": 10.31, "bytes": 91341},
-		{"name": "rooms/textures/light_brick.jpg", "qualityLevel": 128, "rms": 10.171, "max": 90, "pctOver8": 25.75, "bytes": 14336},
-		{"name": "rooms/textures/light_brick.jpg", "qualityLevel": 192, "rms": 8.695, "max": 78, "pctOver8": 21.49, "bytes": 21094},
-		{"name": "rooms/textures/light_brick.jpg", "qualityLevel": 255, "rms": 8.484, "max": 78, "pctOver8": 20.33, "bytes": 26214}
-	]
+		{
+			"name": "rooms/textures/hardwood.jpg",
+			"qualityLevel": 128,
+			"rms": 7.441,
+			"max": 66,
+			"pctOver8": 19.88,
+			"bytes": 50176
+		},
+		{
+			"name": "rooms/textures/hardwood.jpg",
+			"qualityLevel": 192,
+			"rms": 6.169,
+			"max": 66,
+			"pctOver8": 14.38,
+			"bytes": 69939
+		},
+		{
+			"name": "rooms/textures/hardwood.jpg",
+			"qualityLevel": 255,
+			"rms": 5.388,
+			"max": 49,
+			"pctOver8": 10.31,
+			"bytes": 91341
+		},
+		{
+			"name": "rooms/textures/light_brick.jpg",
+			"qualityLevel": 128,
+			"rms": 10.171,
+			"max": 90,
+			"pctOver8": 25.75,
+			"bytes": 14336
+		},
+		{
+			"name": "rooms/textures/light_brick.jpg",
+			"qualityLevel": 192,
+			"rms": 8.695,
+			"max": 78,
+			"pctOver8": 21.49,
+			"bytes": 21094
+		},
+		{
+			"name": "rooms/textures/light_brick.jpg",
+			"qualityLevel": 255,
+			"rms": 8.484,
+			"max": 78,
+			"pctOver8": 20.33,
+			"bytes": 26214
+		}
+	],
+	"correctedByRM006": {
+		"note": [
+			"The measurements above were differenced in a LINEAR-sRGB frame. The",
+			"application renders in sRGB (three/main.js:262), so they describe an",
+			"image nobody sees, and the bias is not one-directional: it overstates",
+			"error in mid-tones and understates it in highlights.",
+			"",
+			"Reproduced exactly before being corrected - setting outputColorSpace back",
+			"to Linear-sRGB returns hardwood at 7.441, max 66, 19.88% over 8, which is",
+			"the published row to three decimals. `npm run oracle -- --calibrate`",
+			"regenerates the corrected column, and every run now fails unless a",
+			"rendered source matches its own decoded pixels.",
+			"",
+			"FOUR OF THE FIVE VERDICTS ARE UNCHANGED. light_fine_wood.jpg now passes",
+			"the absolute gate at 2.639, so the pixel reason to refuse it has gone -",
+			"it stays uncompressed because texture_cache still cannot hold a",
+			"CompressedTexture, which is the architectural reason C1 recorded",
+			"separately. walllightmap.png passed on absolute error before and passes",
+			"more comfortably now, and its share of its own 21-byte range falls from",
+			"6.0% to 2.8% - which is the same 2-4% every one of the five lands at,",
+			"and is the argument against own-range as a discriminator here."
+		],
+		"gate": 3,
+		"measurements": [
+			{
+				"name": "rooms/textures/hardwood.jpg",
+				"from": "the tree",
+				"pixels": "512x512",
+				"residual": 0,
+				"rms": 6.147,
+				"p95": 12,
+				"p99": 18,
+				"max": 42,
+				"pctOver8": 15.23,
+				"ownRange": 210,
+				"rmsAsShareOfOwnRange": 0.0293,
+				"maxAsShareOfOwnRange": 0.2,
+				"orientation": "mirrored",
+				"mirrorTells": 4.34
+			},
+			{
+				"name": "rooms/textures/marbletiles.jpg",
+				"from": "the tree",
+				"pixels": "512x512",
+				"residual": 0,
+				"rms": 4.12,
+				"p95": 8,
+				"p99": 11,
+				"max": 35,
+				"pctOver8": 4.142,
+				"ownRange": 102,
+				"rmsAsShareOfOwnRange": 0.0404,
+				"maxAsShareOfOwnRange": 0.3431,
+				"orientation": "mirrored",
+				"mirrorTells": 3.12
+			},
+			{
+				"name": "rooms/textures/light_brick.jpg",
+				"from": "the tree",
+				"pixels": "256x256",
+				"residual": 0,
+				"rms": 7.379,
+				"p95": 16,
+				"p99": 23,
+				"max": 55,
+				"pctOver8": 20.109,
+				"ownRange": 240,
+				"rmsAsShareOfOwnRange": 0.0307,
+				"maxAsShareOfOwnRange": 0.2292,
+				"orientation": "mirrored",
+				"mirrorTells": 6
+			},
+			{
+				"name": "rooms/textures/light_fine_wood.jpg",
+				"from": "the tree",
+				"pixels": "256x256",
+				"residual": 0,
+				"rms": 2.639,
+				"p95": 5,
+				"p99": 8,
+				"max": 20,
+				"pctOver8": 0.528,
+				"ownRange": 84,
+				"rmsAsShareOfOwnRange": 0.0314,
+				"maxAsShareOfOwnRange": 0.2381,
+				"orientation": "mirrored",
+				"mirrorTells": 4.89
+			},
+			{
+				"name": "rooms/textures/walllightmap.png",
+				"from": "the tree",
+				"pixels": "256x256",
+				"residual": 0,
+				"rms": 0.592,
+				"p95": 1,
+				"p99": 1,
+				"max": 2,
+				"pctOver8": 0,
+				"ownRange": 21,
+				"rmsAsShareOfOwnRange": 0.0282,
+				"maxAsShareOfOwnRange": 0.0952,
+				"orientation": "mirrored",
+				"mirrorTells": 16.24
+			}
+		]
+	}
 }

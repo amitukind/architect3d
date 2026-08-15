@@ -10,11 +10,22 @@
  * A JPEG is decoded to RGBA8 before it reaches the GPU, so a 145 KB file
  * becomes 1.33 MB of video memory whatever it cost on disk. A KTX2/ETC1S file
  * is transcoded to a format the GPU reads directly - BC1, ETC1, ASTC - and
- * stays compressed in memory at roughly 1 bit per pixel against RGBA8's 32.
- * Measured over the 18 textures this covers: **30.46 MB of VRAM to 7.61 MB**,
- * and disk from 1.63 MB to 0.62 MB as a side effect. See `SCOPE` for the seven
- * room textures deliberately left alone and the 8.75 MB that leaves on the
- * table.
+ * stays compressed in memory.
+ *
+ * At **one byte per pixel** against RGBA8's four, which is what `vramBytes`
+ * below computes and what `tools/check-budget.mjs` charges. The prose here used
+ * to say "roughly 1 bit per pixel", which is wrong by a factor of eight and
+ * never matched the arithmetic beside it (RM-006). One byte per pixel is the
+ * cost of ASTC 4x4 and BC7; BC1 and ETC2 RGB8, which is what this catalog
+ * actually transcodes to, are half that again. So the figure is exact for the
+ * worst target and twice the true cost for the common one - conservative in the
+ * direction a budget should be.
+ *
+ * B5 measured this over 18 model textures and claimed 30.46 MB of VRAM down to
+ * 7.61, disk 1.63 MB down to 0.62. **Both figures assumed all 18 could be
+ * encoded, and nine of them cannot** - see `REFUSED`. What the tree actually
+ * carries is 11 transcoded textures, and `asset-pipeline/texture-transcode.json`
+ * holds the current totals rather than this paragraph.
  *
  * B4 measured all of this and chose against it, for three reasons. Two of them
  * were about cost and are simply paid here. The third was an architectural
@@ -78,7 +89,7 @@ const REPORT_PATH = join(ROOT, 'asset-pipeline', 'texture-transcode.json');
  * data where banding is structural; nothing here is that. ETC1S at quality 128
  * is the mode that makes the trade this project wants.
  */
-const ENCODE = {isUASTC: false, qualityLevel: 128, needSupercompression: true, generateMipmap: true};
+export const ENCODE = {isUASTC: false, qualityLevel: 128, needSupercompression: true, generateMipmap: true};
 
 /** A texture must win disk, or win at least this much VRAM, or it is left alone. */
 const VRAM_FLOOR = 1024 * 1024;
@@ -93,17 +104,26 @@ const VRAM_FLOOR = 1024 * 1024;
  *
  * Both were rendered through the same geometry, camera and sampler state at 1:1
  * and differenced in the framebuffer - B4's oracle, pointed at a codec instead
- * of a resampler. The numbers are in `asset-pipeline/skybox-transcode-oracle.json`:
+ * of a resampler.
  *
- *                  RMS    p95   p99   max   channels off by >8
- *     Ground_4K   1.098     2     5    45   0.178%
- *     Garden      4.483     8    16   128   4.078%
+ * RM-006 RE-MEASURED BOTH with `npm run oracle`, and the figures C1 published
+ * here were wrong in both directions:
  *
- * `Ground_4K` is comfortably inside the 3.0 RMS that B4's `codecRms` gate uses,
- * and its worst pixels are isolated - 0.178% is speckle. `Garden` is not: a 95th
- * percentile AT the visibility threshold and 4% of the image past it is not
- * outliers, it is banding, and it is banding in a photograph of sky, which is
- * the content ETC1S handles worst and the surface a user looks at longest.
+ *                  C1 said   actually   p95   p99   max   channels off by >8
+ *     Ground_4K      1.098      0.761     1     4    25   0.07%
+ *     Garden         4.483      6.552    13    23   101   13.33%
+ *
+ * C1's harness differenced a Linear-sRGB frame rather than the sRGB one the
+ * application renders, which over-states error in mid-tones and under-states it
+ * in highlights - so a ground texture came out too harsh and a photograph of
+ * SKY, which is nearly all highlight, came out too kind. See the docblock of
+ * `tools/transcode-oracle.mjs` for how that was found and what now prevents it.
+ *
+ * The verdicts are unchanged. `Ground_4K` is comfortably inside the 3.0 RMS that
+ * B4's `codecRms` gate uses and its worst pixels are isolated speckle. `Garden`
+ * is not: a 95th percentile well past the visibility threshold and 13% of the
+ * image beyond it is not outliers, it is banding, and it is banding in the
+ * surface a user looks at longest.
  *
  * So it ships as a JPEG. This is B1's per-asset rule rather than a new one: a
  * model that could not match the pixel tier shipped unquantised, and the
@@ -112,11 +132,60 @@ const VRAM_FLOOR = 1024 * 1024;
  *
  * UASTC was the obvious alternative and is ruled out by a different budget. It
  * would fix the banding and cost roughly 1.4 MB on disk against Garden's 250 KB,
- * and `public-total` has 280 KB of headroom.
+ * and `public-total` is at 1.3% headroom.
  */
 const REFUSED = {
+	// Measured at 6.552 by `npm run oracle`, not the 4.483 recorded here before.
+	// The old figure came out of a harness that differenced a Linear-sRGB frame;
+	// this one is worse, not better, because that harness under-reported bright
+	// content. Refused either way, and now refused on the right number.
 	'rooms/textures/envs/Garden.jpg':
-		'ETC1S bands the sky - RMS 4.48 against a 3.0 gate, 4.08% of channels off by more than 8',
+		'ETC1S bands the sky - RMS 6.55 against a 3.0 gate, 13.33% of channels off by more than 8',
+
+	/**
+	 * The eight of B5's eighteen that ETC1S cannot carry (RM-006).
+	 *
+	 * B5 encoded all eighteen against a gate that weighs disk against video
+	 * memory, and wrote in this file that doing so was defensible because the
+	 * scope was "18 furniture textures seen at a few hundred pixels". That was a
+	 * claim about the picture made without looking at one, and `npm run oracle`
+	 * now looks: NINE of the eighteen are past the 3.0 codec gate, four of them
+	 * past 4.5, and `nyc2.jpg` at more than twice it.
+	 *
+	 * Every setting the encoder has was tried before any of this was reverted -
+	 * `npm run oracle -- --sweep`, recorded in the oracle JSON. ETC1S at maximum
+	 * quality rescues exactly one, which is why `cb-archnight-white_baked.png` is
+	 * in `QUALITY` below rather than here. UASTC clears the gate for all nine and
+	 * costs 123% to 456% of the source on disk, so for every one of them shipping
+	 * the source is both better looking and smaller.
+	 *
+	 * The numbers are RMS over RGB in 0-255, from a rendered frame at 1:1.
+	 */
+	'models/js-glb/textures/nyc2.jpg': 'ETC1S wrecks it - RMS 7.00, worst pixel 174 of 255',
+	'models/js-glb/textures/walnut-marin.jpg': 'wood grain - RMS 4.88 against a 3.0 gate',
+	'models/js-glb/textures/oak_wood.jpg': 'wood grain - RMS 4.88 against a 3.0 gate',
+	'models/js-glb/textures/grey-brown_wood.jpg': 'wood grain - RMS 4.52 against a 3.0 gate',
+	'models/js-glb/textures/ik-ekero-orange_baked.jpg': 'RMS 3.65 against a 3.0 gate, and 3.46 at maximum quality',
+	'models/js-glb/textures/we-narrow6white_baked.jpg': 'RMS 3.49 against a 3.0 gate, and 3.23 at maximum quality',
+	'models/js-glb/textures/bd-shalebedside-smoke_baked.jpg': 'RMS 3.46 against a 3.0 gate, and 3.02 at maximum quality',
+	'models/js-glb/textures/cb-clapboard_baked.jpg': 'RMS 3.21 against a 3.0 gate, and 3.09 at maximum quality',
+};
+
+/**
+ * Per-file encoder quality, for a texture a setting change rescues (RM-006).
+ *
+ * One entry, and it is here rather than in `REFUSED` because the sweep found a
+ * setting that works: `cb-archnight-white_baked.png` measures 3.392 at the
+ * shipped quality of 128 and 2.728 at 192, which is inside the gate. The file
+ * grows from 40 KB to 55 KB and the source it replaces is a 187 KB PNG, so this
+ * is the rare case where the better-looking option is also the smaller one.
+ *
+ * A global quality of 192 was the obvious alternative and is not taken: it costs
+ * every other texture 30-50% more disk to fix one, and the seventeen others are
+ * either already inside the gate or beyond rescuing at any setting.
+ */
+const QUALITY = {
+	'models/js-glb/textures/cb-archnight-white_baked.png': 192,
 };
 
 /** Kinds that are uploaded to the GPU. Thumbnails are `<img>` and out of scope. */
@@ -381,7 +450,8 @@ async function main()
 		let encoded;
 		try
 		{
-			encoded = Buffer.from(await quietly(() => encodeToKTX2(new Uint8Array(source), {...ENCODE, imageDecoder: decodeImage})));
+			encoded = Buffer.from(await quietly(() => encodeToKTX2(new Uint8Array(source),
+				{...ENCODE, qualityLevel: QUALITY[name] || ENCODE.qualityLevel, imageDecoder: decodeImage})));
 		}
 		catch (error)
 		{
@@ -420,6 +490,7 @@ async function main()
 			bytesAfter: encoded.length,
 			vramBefore: vramBytes(size.width, size.height, 4),
 			vramAfter: vramBytes(size.width, size.height, 1),
+			qualityLevel: QUALITY[name] || ENCODE.qualityLevel,
 			sha256: sha(encoded),
 		});
 		diskAfter += encoded.length;
