@@ -1,3 +1,4 @@
+// @ts-check
 import {EVENT_UPDATED, EVENT_LOADED, EVENT_NEW, EVENT_DELETED, EVENT_ROOM_NAME_CHANGED, EVENT_CHANGESET} from '../core/events.js';
 import {EVENT_CORNER_ATTRIBUTES_CHANGED, EVENT_WALL_ATTRIBUTES_CHANGED, EVENT_ROOM_ATTRIBUTES_CHANGED, EVENT_MOVED} from '../core/events.js';
 import {ChangeSet, CHANGE_TOPOLOGY, CHANGE_GEOMETRY, REASON_EDIT, REASON_LOAD, newChangeCounts} from '../core/change_set.js';
@@ -170,7 +171,7 @@ export class Floorplan extends EventDispatcher
 		 * instead of twenty-five" is a claim, and a claim nobody can compute is a
 		 * slogan. Read it with {@link Floorplan#changeStats}.
 		 *
-		 * @type {Object<string, number>}
+		 * @type {import('../core/change_set.js').ChangeCounts}
 		 */
 		this._changeCounts = newChangeCounts();
 		/** How many ChangeSets have been dispatched at all, of any kind. */
@@ -557,7 +558,7 @@ export class Floorplan extends EventDispatcher
 	 *            mx
 	 * @param {Number}
 	 *            my
-	 * @return {Room}
+	 * @return {?Room} The room under the point, or null.
 	 */
 	overlappedRoom(mx, my)
 	{
@@ -584,7 +585,7 @@ export class Floorplan extends EventDispatcher
 	 *            y
 	 * @param {Number}
 	 *            tolerance
-	 * @return {Corner}
+	 * @return {?Corner} The control point under x,y, or null.
 	 */
 	overlappedControlPoint(wall, x, y, tolerance)
 	{
@@ -611,7 +612,7 @@ export class Floorplan extends EventDispatcher
 	 *            y
 	 * @param {Number}
 	 *            tolerance
-	 * @return {Corner}
+	 * @return {?Corner} The corner under x,y, or null.
 	 */
 	overlappedCorner(x, y, tolerance)
 	{
@@ -635,7 +636,7 @@ export class Floorplan extends EventDispatcher
 	 *            y
 	 * @param {Number}
 	 *            tolerance
-	 * @return {Wall}
+	 * @return {?Wall} The wall under x,y, or null.
 	 */
 	overlappedWall(x, y, tolerance)
 	{
@@ -693,6 +694,11 @@ export class Floorplan extends EventDispatcher
 	 */
 	saveFloorplan()
 	{
+		// Typed loosely, because an object literal takes each field's type from its
+		// initialiser - so `walls: []` is `never[]` and every push into it is an
+		// error, as are the three `{}` maps (RM-005 C2). This is the save format's
+		// wire shape; `model/document.js` is where it is actually described.
+		/** @type {Record<string, any>} */
 		var floorplans = {version:Version.getTechnicalVersion(), units: SAVE_UNITS, corners: {}, walls: [], rooms: {}, wallTextures: [], floorTextures: {}, newFloorTextures: {}, carbonSheet:{}};
 		var cornerIds = [];
 // writing all the corners based on the corners array
@@ -744,8 +750,10 @@ export class Floorplan extends EventDispatcher
 
 	// Load the floorplan from a previously saved json object file
 	/**
-	 * @param {JSON}
-	 *            floorplan
+	 * @param {Record<string, any>} floorplan A saved design, already parsed. The
+	 *        tag said `{JSON}` with the name on the next line, which typed the
+	 *        parameter as the global JSON namespace object and left every field
+	 *        read off it `unknown` (RM-005 C2).
 	 * @param {string} [reason] Why this load is happening - one of
 	 *            `CHANGE_REASONS`. Defaults to `REASON_LOAD`; history passes
 	 *            `REASON_UNDO` so consumers can tell a restoration from an open.
@@ -997,8 +1005,9 @@ export class Floorplan extends EventDispatcher
 	}
 
 	/**
-	 * @param {Object}
-	 *            event
+	 * @param {{item: Room, newname: string}} e The rename, as Room dispatches it.
+	 *        The tag said `event` and the parameter is `e`, which is a TS8024 -
+	 *        the name was on its own line, so nothing had ever read them together.
 	 * @listens {EVENT_ROOM_NAME_CHANGED} When a room name is changed and
 	 *          updates to metaroomdata
 	 */
@@ -1081,7 +1090,9 @@ export class Floorplan extends EventDispatcher
 			// still perform the full one.
 			if (this._pendingUpdate === null)
 			{
-				this._pendingUpdate = {rooms: false, corners: []};
+				/** @type {{rooms: boolean, corners: Corner[]}} */
+				var started = {rooms: false, corners: []};
+				this._pendingUpdate = started;
 			}
 			this._pendingUpdate.rooms = this._pendingUpdate.rooms || updateroomconfiguration;
 			if (updatecorners != null)
@@ -1332,11 +1343,14 @@ export class Floorplan extends EventDispatcher
 	 * many of those carried each kind, so they sum to more than `dispatches` when
 	 * a single change was both topological and geometric.
 	 *
-	 * @returns {{dispatches: number, topology: number, geometry: number, surface: number, items: number, selection: number, view: number}}
+	 * @returns {{dispatches: number} & import('../core/change_set.js').ChangeCounts}
 	 */
 	changeStats()
 	{
-		return Object.assign({dispatches: this._changeDispatches}, this._changeCounts);
+		// Spread rather than Object.assign (RM-005 C2). Assign's return type is an
+		// intersection with an index signature, which TypeScript will not accept as
+		// the concrete record this method documents; a spread produces the record.
+		return {dispatches: this._changeDispatches, ...this._changeCounts};
 	}
 
 	/**
@@ -1466,17 +1480,23 @@ export class Floorplan extends EventDispatcher
 				// rooms are cycles, shift it around to check uniqueness
 				var add = true;
 				var room = roomArray[i];
+				// Hoisted out of the loop that assigns it (RM-005 C2). `var` is
+				// function-scoped, so reading it below always worked - except for a
+				// room with no corners, where the loop never runs and the write
+				// below would have keyed `lookup` under the string "undefined".
+				/** @type {?string} */
+				var str = null;
 				for (var j = 0; j < room.length; j++)
 				{
 					var roomShift = Utils.cycle(room, j);
-					var str = Utils.map(roomShift, hashFunc).join(sep);
+					str = Utils.map(roomShift, hashFunc).join(sep);
 					// Object.prototype.hasOwnProperty.call, not obj.hasOwnProperty. Identical for a plain object and correct for one that is not - a key literally named "hasOwnProperty" shadows the method and turns the guard into a TypeError.
 					if (Object.prototype.hasOwnProperty.call(lookup, str))
 					{
 						add = false;
 					}
 				}
-				if (add)
+				if (add && str !== null)
 				{
 					results.push(roomArray[i]);
 					lookup[str] = true;

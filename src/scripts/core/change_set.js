@@ -261,17 +261,33 @@ export class ChangeSet
 }
 
 /**
+ * One counter per change kind, all six always present.
+ *
+ * @typedef {Object} ChangeCounts
+ * @property {number} topology
+ * @property {number} geometry
+ * @property {number} surface
+ * @property {number} items
+ * @property {number} selection
+ * @property {number} view
+ */
+
+/**
  * A zeroed counter for every kind, for the `changeStats()` methods.
  *
  * Seeded with all six rather than grown on demand so the shape of the object a
  * test asserts on does not depend on which kinds happened to fire.
  *
- * @returns {Object<string, number>}
+ * @returns {ChangeCounts}
  */
 export function newChangeCounts()
 {
+	// Built from CHANGE_KINDS rather than written out, so the two cannot drift -
+	// which is the whole reason the seeding comment above exists. The cast is
+	// what lets the loop-built object be described by a record type; the loop is
+	// the source of truth for its keys (RM-005 C2).
 	/** @type {Object<string, number>} */
 	var counts = {};
 	CHANGE_KINDS.forEach(function (kind) {counts[kind] = 0;});
-	return counts;
+	return /** @type {ChangeCounts} */ (counts);
 }

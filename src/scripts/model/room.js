@@ -1,3 +1,4 @@
+// @ts-check
 import {EVENT_CHANGED, EVENT_ROOM_ATTRIBUTES_CHANGED} from '../core/events.js';
 import {Region} from '../core/utils.js';
 import {EventDispatcher, Vector2, Vector3, Shape, ShapeGeometry, Mesh, MeshBasicMaterial, DoubleSide, Box3} from 'three';
@@ -8,6 +9,18 @@ import {WallTypes} from '../core/constants.js';
 
 import {Utils} from '../core/utils.js';
 import {HalfEdge} from './half_edge.js';
+
+
+/**
+ * A picking plane with a back-reference to the room that owns it.
+ *
+ * The `room` property is a monkey patch - the comment in `generatePlane()` has
+ * said so since before the migration - and the raycaster reads it to answer
+ * "which room did I just click". A typedef is what lets the patch be written
+ * down rather than merely done (RM-005 C2).
+ *
+ * @typedef {import('three').Mesh & {room?: Room}} RoomPlane
+ */
 
 /** Default texture to be used if nothing is provided. */
 export const defaultRoomTexture = {url: 'rooms/textures/hardwood.jpg', scale: 400};
@@ -126,12 +139,25 @@ export class Room extends EventDispatcher
 
 	setRoomWallsTexture(textureUrl, textureStretch, textureScale)
 	{
+		// `edgePointer` is null only for a room with no corners, which
+		// `Floorplan.update()` does not build - it comes from a cycle in the graph,
+		// and a cycle has corners. The guard says that rather than assuming it, and
+		// costs one comparison on a path a user drives (RM-005 C2).
 		var edge = this.edgePointer;
+		if (!edge)
+		{
+			return;
+		}
 		var iterateWhile = true;
 		edge.setTexture(textureUrl, textureStretch, textureScale);
 		while (iterateWhile)
 		{
-			if (edge.next === this.edgePointer)
+			// `!edge.next` is new (RM-005 C2). `next` is null on an unlinked edge,
+			// and the walk would then assign null and throw on the next line - so
+			// the guard turns a broken DCEL from a TypeError into a short walk.
+			// It cannot fire on a plan `Floorplan.update()` built, where every
+			// edge in a cycle has a successor.
+			if (!edge.next || edge.next === this.edgePointer)
 			{
 				break;
 			}
@@ -162,7 +188,7 @@ export class Room extends EventDispatcher
 		// setup texture
 		var points = this.corners.map((corner) => new Vector3(corner.x, corner.elevation, corner.y));
 		var geometry = triangleFanGeometry(points);
-		this.roofPlane = new Mesh(geometry, new MeshBasicMaterial({side: DoubleSide, visible:false}));
+		this.roofPlane = /** @type {RoomPlane} */ (new Mesh(geometry, new MeshBasicMaterial({side: DoubleSide, visible:false})));
 		this.roofPlane.room = this;
 	}
 
@@ -175,13 +201,13 @@ export class Room extends EventDispatcher
 		});
 		var shape = new Shape(points);
 		var geometry = new ShapeGeometry(shape);
-		this.floorPlane = new Mesh(geometry, new MeshBasicMaterial({side: DoubleSide, visible:false}));
+		this.floorPlane = /** @type {RoomPlane} */ (new Mesh(geometry, new MeshBasicMaterial({side: DoubleSide, visible:false})));
 		//The below line was originally setting the plane visibility to false
 		//Now its setting visibility to true. This is necessary to be detected
 		//with the raycaster objects to click walls and floors.
 		this.floorPlane.visible = true;
 		this.floorPlane.rotation.set(Math.PI / 2, 0, 0);
-		this.floorPlane.room = this; // js monkey patch
+		this.floorPlane.room = this; // js monkey patch, and RoomPlane is what declares it
 
 		var b3 = new Box3();
 		// precise: since r140 setFromObject expands the object's own bounding box
@@ -253,13 +279,19 @@ export class Room extends EventDispatcher
 
 	updateInteriorCorners()
 	{
+		// See setRoomWallsTexture: null only for a cornerless room.
 		var edge = this.edgePointer;
+		if (!edge)
+		{
+			return;
+		}
 		var iterateWhile = true;
 		while (iterateWhile)
 		{
 			this.interiorCorners.push(edge.interiorStart());
 			edge.generatePlane();
-			if (edge.next === this.edgePointer)
+			// See setRoomWallsTexture for why `!edge.next` is here.
+			if (!edge.next || edge.next === this.edgePointer)
 			{
 				break;
 			}
@@ -365,7 +397,9 @@ export class Room extends EventDispatcher
 	updateWalls()
 	{
 
+		/** @type {?HalfEdge} */
 		var prevEdge = null;
+		/** @type {?HalfEdge} */
 		var firstEdge = null;
 
 		for (var i = 0; i < this.corners.length; i++)
@@ -392,11 +426,15 @@ export class Room extends EventDispatcher
 				console.log('corners arent connected by a wall, uh oh');
 			}
 
+			// The `else` branch only runs for i > 0, by which point both are set -
+			// and `edge` is null only on the "corners arent connected by a wall"
+			// path above, which logs and carries on. Stated rather than assumed
+			// (RM-005 C2); the alternative here is a TypeError while dragging.
 			if (i == 0)
 			{
 				firstEdge = edge;
 			}
-			else
+			else if (edge && prevEdge && firstEdge)
 			{
 				edge.prev = prevEdge;
 				prevEdge.next = edge;

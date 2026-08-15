@@ -1,3 +1,4 @@
+// @ts-check
 import {EventDispatcher, Vector2} from 'three';
 // bezier-js v3+ is ESM and exports Bezier as a NAMED export; v2 was a default
 // export. Upgraded in S1 (2.4.0 -> 6.x); the APIs this file uses - the 8-scalar
