@@ -2610,6 +2610,17 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
       </ul>
     </div>
 
+  </div>
+
+  <!-- ---------------- B4 ---------------- -->
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">B4</span>
+      <h3>Texture memory</h3>
+      <div class="meta"><span class="chip ok">done</span><span class="chip">L-4</span><span class="chip">3&ndash;5 days</span><span class="chip acc">after B1's measurement</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Take the texture VRAM that B1's census exposed, starting with the files that are larger than anything draws them at. Decide KTX2 on evidence rather than on a published ratio.</p>
+
     <div class="gate">
       <div class="g-head">LANDED &mdash; B4</div>
       <ul>
@@ -2638,6 +2649,18 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
         <li><strong>1,250 headless tests (18 new) and 54 in the browser, all green.</strong> Eight deliberate breaks &mdash; sRGB-space resampling, no premultiply, edge-sampled kernel centres, unnormalised weights, a blinded gate, an oversized texture, a drifted byte, a tightened budget &mdash; each reverted individually and each failed. The evidence is committed: <code>asset-pipeline/resize-report.json</code> for the transform, <code>resize-oracle.json</code> for the frames. The 4.13 MB of pre-resize originals are not, since they live in git history and the permanent protection is the cap test</li>
       </ul>
     </div>
+
+  </div>
+
+  <!-- ---------------- B5 ---------------- -->
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">B5</span>
+      <h3>KTX2 for the textures inside containers</h3>
+      <div class="meta"><span class="chip ok">done</span><span class="chip">L-4</span><span class="chip">2&ndash;3 days</span><span class="chip acc">after B4</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Transcode the model textures a <code>.glb</code> reaches through <code>images[].uri</code>, which no saved design names, and repoint every container at the result without re-encoding the geometry B1 proved.</p>
+    <p class="risk-note"><b>Read RM-006 &sect;30 beside this.</b> The gate this sprint used weighs disk against video memory and never renders the texture. Nine of the eighteen encoded here turned out to be past the project's own codec gate, and eight of them were reverted to JPEG two programmes later. What LANDED below says is what was true when it was written; what it measured is not what it thought.</p>
 
     <div class="gate">
       <div class="g-head">LANDED &mdash; B5</div>
@@ -3234,7 +3257,11 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
 
         <li><strong>1,271 headless tests in 30 files (6 new) and 62 in the browser, five pipeline <code>--check</code>s green, ten budgets green, lint and typecheck clean, the type ledger at 0 of 0.</strong> No public signature, saved design or asset name changed &mdash; the eighteen live inside <code>.glb</code> containers and are never named by a document.</li>
 
-        <li><strong>What this leaves.</strong> <code>light_fine_wood.jpg</code> is now inside the gate and could be compressed if <code>texture_cache</code> could hold a <code>CompressedTexture</code>; C1 built that change, proved it works, and reverted it for want of a consumer. There is now exactly one consumer, worth about 0.7 MB of VRAM. That is a real deferral rather than a rediscovered one, and it is the first thing this program hands forward.</li>
+        <li><strong>What this leaves, priced and then closed.</strong> Two room textures are now inside the gate rather than one &mdash; <code>light_fine_wood.jpg</code> at 2.639 and <code>walllightmap.png</code> at 0.592 &mdash; so the cache redesign C1 reverted &ldquo;for want of a consumer&rdquo; has two. Both were encoded to measure the prize rather than estimated: <strong>43.7 KB of disk and 0.500 MB of VRAM</strong>. An earlier draft of this line said &ldquo;exactly one consumer, worth about 0.7 MB&rdquo;; it was wrong on the count and on the number, and the correction is the reason for encoding rather than arithmetic.</li>
+
+        <li><strong>Against that, the cost of taking it, which C1 never had to price.</strong> <code>acquireTexture</code> would need a page-wide <code>KTX2Loader</code>, and <code>formatSupport()</code> returns null wherever the device cannot report its formats &mdash; Node and jsdom, which is every headless test that builds a <code>Floor</code> or an <code>Edge</code>. That is a failure mode the module does not have today. And unlike the eighteen, <strong>a room texture is named in saved designs</strong>: <code>light_fine_wood.jpg</code> is in <code>src/catalog/textures.json</code>, so compressing it is a retirement, and un-retiring one is harder than reverting a model texture. This program has just spent a sprint undoing an over-eager encode; committing a second one to a save-format surface for 43.7 KB would be the same mistake with the same shape.</li>
+
+        <li><strong>So the answer is 0.500 MB against 17.77 MB of VRAM headroom, and no.</strong> Written down with both sides measured so it stops being rediscovered: the blocker is no longer the codec and no longer the absence of a consumer, it is that the consumer is worth 2.8% of headroom already sitting unused. If a room texture is ever added that is large and inside the gate, that number changes and this is the note to re-read.</li>
       </ul>
     </div>
   </div>

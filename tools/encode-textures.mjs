@@ -321,6 +321,31 @@ const REFUSED_ROOM_TEXTURES = [
  * texture" instead of off `grep -n acquireTexture`, and it is recorded here
  * rather than quietly fixed because the same shape - a costing named after its
  * blocker - is what RM-005 exists to correct in two places.
+ *
+ * ## RM-006 PRICED THE CACHE REDESIGN AND DECLINED IT
+ *
+ * The "3.67 MB -> 0.92 MB" above is the arithmetic for all five, and four of the
+ * five refuse the codec - so the redesign never had 2.75 MB behind it. What it
+ * actually has, both files encoded and rendered rather than estimated:
+ *
+ *     light_fine_wood.jpg   RMS 2.639   disk 40.6 -> 10.7 KB   VRAM 0.333 -> 0.083 MB
+ *     walllightmap.png      RMS 0.592   disk 16.8 ->  2.9 KB   VRAM 0.333 -> 0.083 MB
+ *
+ * **43.7 KB of disk and 0.500 MB of VRAM**, against 17.77 MB of VRAM headroom
+ * already unused. C1 reverted the redesign because it had no consumer; it has
+ * two now, and they are worth 2.8% of the headroom that exists.
+ *
+ * The cost side, which C1 never had to state: `acquireTexture` would need a
+ * page-wide `KTX2Loader`, and `formatSupport()` is null in Node and jsdom - so
+ * every headless test that builds a `Floor` or an `Edge` meets a failure mode
+ * the module does not have today. And a room texture, unlike the eighteen, is
+ * NAMED IN SAVED DESIGNS: `light_fine_wood.jpg` is in `src/catalog/textures.json`,
+ * so this is a retirement, and RM-006 exists because the last eager encode had
+ * to be undone.
+ *
+ * Declined on the numbers rather than on the blocker, which is the distinction
+ * this whole docblock is about. If a room texture is added that is large and
+ * inside the gate, re-read this.
  */
 const SCOPE = (name) => /^models\//.test(name) || SKYBOX_TEXTURES.has(name);
 
