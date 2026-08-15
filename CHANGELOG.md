@@ -2,6 +2,32 @@
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-08-15
+
+Small debts, and two of them turned out to be real bugs.
+
+Nothing here was planned work — it is the list of things that had been carried
+for several sprints because each was individually too small to schedule: a
+budget nobody wanted to decide about, a ledger that kept drifting, 32 lint
+warnings, seven TODOs. Clearing them found a user-visible defect (the error
+highlight drawn at a quarter strength), a robustness hole in the public API's
+options merge, and a block of code in `Utils` that had never once executed.
+
+The theme, if there is one: **every one of these had a rule and the rule was not
+enough.** The ledger had *RECOUNT, DO NOT INCREMENT* written above it and
+drifted in the very next sprint. The lint warnings were visible on every run and
+nobody read them. Both are now checked by something that fails, which is the
+same move B3 made when it turned the type-check opt-in from a convention into a
+test.
+
+**Minor, not patch.** The ESM bundle a consumer installs is 63% smaller and
+minified, and an error highlight changes colour strength. No API changed.
+
+Verified at `b596fd8` from a clean detached worktree, `npm ci` from the
+lockfile, before anything was dated: typecheck clean, lint clean at **zero
+warnings**, five pipeline `--check`s green, **1,252 headless tests in 30 files
+and 57 browser tests in 10**, ten budgets green.
+
 ### Fixed
 
 * **The error highlight on an item was drawn at a quarter of its intended

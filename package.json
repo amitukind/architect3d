@@ -1,6 +1,6 @@
 {
   "name": "architect3d",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "This is the core framework of architect3d for creating floorplans in 2d and 3d",
   "type": "module",
   "main": "./dist/architect3d.js",
