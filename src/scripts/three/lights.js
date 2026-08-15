@@ -33,8 +33,11 @@ export class Lights extends EventDispatcher
 		 * relationship rather than repeating a number.
 		 */
 		this.height = 300;
+		/** @type {?import('three').HemisphereLight} */
 		this.hemiLight = null;
+		/** @type {?import('three').DirectionalLight} */
 		this.dirLight = null;
+		/** @type {?import('three').DirectionalLight} */
 		this.fillLight = null;
 		this._disposed = false;
 		this.updatedroomsevent = () => {this.updateShadowCamera();};
@@ -167,8 +170,17 @@ export class Lights extends EventDispatcher
 
 	}
 
-	updateShadowCamera() 
+	updateShadowCamera()
 	{
+		// `dirLight` is null before init() and again after dispose(), and this is
+		// an event listener - so the guard states an invariant rather than
+		// papering over one (RM-005 C2). Nine TS2531s below it, all the same
+		// field, and all invisible until @types/three made `DirectionalLight` a
+		// type instead of `any`.
+		if (!this.dirLight)
+		{
+			return;
+		}
 		var size = this.floorplan.getSize();
 		var d = (Math.max(size.z, size.x) + this.tol) / 2.0;
 		var center = this.floorplan.getCenter();

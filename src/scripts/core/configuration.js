@@ -111,6 +111,11 @@ export class Configuration
 		 * a plain object rather than something behind setValue.
 		 */
 		this.wallInformation = Object.assign(defaultWallInformation(), wallInfo || {});
+		// The type parameter matters here (RM-005 C2). An `EventDispatcher` with no
+		// event map infers `{}`, which makes every `type` argument `never` - so
+		// addEventListener, removeEventListener and dispatchEvent all refused their
+		// own arguments the moment @types/three gave the class a real signature.
+		/** @type {EventDispatcher<Record<string, {type: string, key?: string, value?: any, previous?: any}>>} */
 		this._emitter = new EventDispatcher();
 	}
 

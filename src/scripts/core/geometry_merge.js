@@ -131,8 +131,11 @@ export function mergeMeshes(root)
 {
 	var pool = createMaterialPool();
 	var chunks = [];
-	root.traverse(function (child)
+	root.traverse(function (object)
 	{
+		// `traverse` yields Object3D; `isMesh` is the discriminant three itself
+		// uses, and reading it off the base type is a TS2339 (RM-005 C2).
+		var child = /** @type {import('three').Mesh} */ (object);
 		if (child.isMesh)
 		{
 			chunks = chunks.concat(chunksFor(child, pool));

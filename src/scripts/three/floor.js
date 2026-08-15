@@ -42,8 +42,10 @@ export class Floor extends EventDispatcher
 
 	switchWireframe(flag)
 	{
-		this.floorPlane.visible = !flag;
-		this.roofPlane.visible = !flag;
+		// Both planes are null before init() and after dispose(), and this is
+		// public API an embedder can call at either point (RM-005 C2).
+		if (this.floorPlane) { this.floorPlane.visible = !flag; }
+		if (this.roofPlane) { this.roofPlane.visible = !flag; }
 	}
 
 	init()

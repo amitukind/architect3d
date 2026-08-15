@@ -164,7 +164,14 @@ export class Utils
 		return tTheta;
 	}
 	
-	/** shifts angle to be 0 to 2pi */
+	/**
+	 * shifts angle to be 0 to 2pi
+	 *
+	 * @param {Vector2[]} points
+	 * @param {Vector2} [start] Ray origin. `= undefined` as a default infers the
+	 *        parameter's type AS undefined, so the assignment below could not
+	 *        type-check; the tag is what says "optional Vector2" (RM-005 C2).
+	 */
 	static getCyclicOrder(points, start=undefined)
 	{
 		if(!start)

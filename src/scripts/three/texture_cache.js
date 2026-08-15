@@ -1,5 +1,5 @@
 // @ts-check
-import {TextureLoader} from 'three';
+import {TextureLoader, Texture} from 'three';
 
 /**
  * One decode per image, however many surfaces draw with it (RM-002 R-04).
@@ -45,7 +45,11 @@ const loader = new TextureLoader();
 
 /**
  * @typedef {Object} CacheEntry
- * @property {import('three').Texture} master The loaded original. Never handed out.
+ * @property {?import('three').Texture} master The loaded original. Never handed
+ *           out. Nullable only for the statement between the object literal and
+ *           the loader returning - nothing reads an entry before `entries.set`,
+ *           so anything IN the map has one. The three guards below say that
+ *           rather than assume it (RM-005 C2).
  * @property {Set<import('three').Texture>} clones Live handles, for needsUpdate on load.
  * @property {boolean} loaded
  * @property {Array<function(): void>} waiting Callbacks queued before the load landed.
@@ -89,7 +93,10 @@ export function acquireTexture(url, onLoad)
 		entries.set(url, entry);
 	}
 
-	var clone = entry.master.clone();
+	// See CacheEntry.master: an entry in the map always has one. Guarding beats
+	// asserting - if the invariant is ever broken, a caller gets a fresh texture
+	// instead of a TypeError mid-render.
+	var clone = entry.master ? entry.master.clone() : new Texture();
 	entry.clones.add(clone);
 	originOf.set(clone, url);
 
@@ -142,7 +149,7 @@ export function releaseTexture(texture)
 	entry.clones.delete(texture);
 	if (entry.clones.size === 0)
 	{
-		entry.master.dispose();
+		if (entry.master) { entry.master.dispose(); }
 		entries.delete(url);
 	}
 }
@@ -185,7 +192,7 @@ export function clearTextureCache()
 {
 	entries.forEach(function (entry)
 	{
-		entry.master.dispose();
+		if (entry.master) { entry.master.dispose(); }
 	});
 	entries.clear();
 }

@@ -140,6 +140,7 @@ export class Edge extends EventDispatcher
 		releaseTexture(this.texture);
 		this.texture = null;
 		releaseTexture(this.lightMap);
+		/** @type {?import('three').Texture} */
 		this.lightMap = null;
 
 		// This edge is finished for good, so the document stops tracking its
@@ -335,7 +336,9 @@ export class Edge extends EventDispatcher
 	 *   it double-darkens every corner it already has a shadow in.
 	 *
 	 * @param {number} color
-	 * @param {number} side A three side constant.
+	 * @param {import('three').Side} side A three side constant. Typed as `Side`
+	 * rather than `number` since RM-005 C2 - @types/three narrows it to the three
+	 * legal values, and a `number` will not go in.
 	 * @param {boolean} [lit=true] Whether to apply the vignette lightmap. The
 	 * exterior filler does not get one - it is the back of the wall, and the
 	 * vignette is painted for an interior.
@@ -545,7 +548,7 @@ export class Edge extends EventDispatcher
 	 * would look like it had a strip of paper stuck along the top.
 	 *
 	 * @param {number} color
-	 * @param {number} side A three side constant.
+	 * @param {import('three').Side} side A three side constant.
 	 * @returns {(MeshBasicMaterial|MeshStandardMaterial)}
 	 */
 	makeFillerMaterial(color, side)

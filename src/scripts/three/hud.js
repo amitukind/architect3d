@@ -126,7 +126,14 @@ export class HUD extends EventDispatcher
 		var scope = this;
 		if (scope.activeObject) 
 		{
-			scope.activeObject.children.forEach((obj) => {obj.material.color.set(scope.getColor());});
+			// `children` is Object3D[] and only a Mesh carries a material. Every
+			// child here IS one - makeObject builds a LineSegments, a Mesh cone and
+			// a Mesh sphere - so this narrows rather than asserts (RM-005 C2).
+			scope.activeObject.children.forEach((obj) =>
+			{
+				var mesh = /** @type {import('three').Mesh} */ (obj);
+				if (mesh.material) { /** @type {any} */ (mesh.material).color.set(scope.getColor()); }
+			});
 		}
 		scope.three.ensureNeedsUpdate();
 	}
