@@ -3,6 +3,20 @@ import {EVENT_UPDATED} from '../core/events.js';
 import {cmPerPixel, pixelsPerCm} from '../core/dimensioning.js';
 import {resolveElement} from '../core/dom.js';
 
+
+/**
+ * JSDoc-only type imports (RM-005 C2).
+ *
+ * These names were already used in the annotations below and resolved to
+ * nothing - 43 TS2304s across eleven files, every one of them a type the
+ * project defines or three exports, named but never brought into scope. A
+ * `@typedef` import costs no runtime code and no bundle bytes: it exists
+ * entirely for the checker, which is the point of writing the JSDoc at all.
+
+ *
+ * @typedef {import('../model/floorplan.js').Floorplan} Floorplan
+ * @typedef {import('./floorplanner.js').Floorplanner2D} Floorplanner2D
+ */
 /**
  * The View to be used by a Floorplanner to render in/interact with.
  */

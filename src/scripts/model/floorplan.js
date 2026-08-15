@@ -17,6 +17,20 @@ import {Wall} from './wall.js';
 import {deriveWallIds} from '../core/wall_identity.js';
 import {Room} from './room.js';
 
+
+/**
+ * JSDoc-only type imports (RM-005 C2).
+ *
+ * These names were already used in the annotations below and resolved to
+ * nothing - 43 TS2304s across eleven files, every one of them a type the
+ * project defines or three exports, named but never brought into scope. A
+ * `@typedef` import costs no runtime code and no bundle bytes: it exists
+ * entirely for the checker, which is the point of writing the JSDoc at all.
+
+ *
+ * @typedef {import('../floorplanner/carbonsheet.js').CarbonSheet} CarbonSheet
+ * @typedef {import('three').Mesh} Mesh
+ */
 /** */
 export const defaultFloorPlanTolerance = 10.0;
 
@@ -1409,12 +1423,13 @@ export class Floorplan extends EventDispatcher
 	 * Find the "rooms" in our planar straight-line graph. Rooms are set of the
 	 * smallest (by area) possible cycles in this graph.
 	 * 
-	 * @param corners
-	 *            The corners of the floorplan.
-	 * @returns The rooms, each room as an array of corners.
-	 * @param {Corners[]}
-	 *            corners
-	 * @return {Corners[][]} loops
+	 * `Corners` was a typo for `Corner`, and the tag was malformed besides - the
+	 * name sat on one line and the parameter on the next, so it documented
+	 * nothing and resolved to nothing (RM-005 C2). Two @param tags for one
+	 * parameter, only one of which had a type.
+	 *
+	 * @param {Corner[]} corners The corners of the floorplan.
+	 * @returns {Corner[][]} The rooms, each as an array of corners.
 	 */
 	findRooms(corners)
 	{

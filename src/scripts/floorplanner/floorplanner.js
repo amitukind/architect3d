@@ -10,6 +10,19 @@ import {EVENT_NOTHING_CLICKED} from '../core/events.js';
 import {resolveElement} from '../core/dom.js';
 import {FloorplannerView2D, floorplannerModes} from './floorplanner_view.js';
 
+
+/**
+ * JSDoc-only type imports (RM-005 C2).
+ *
+ * These names were already used in the annotations below and resolved to
+ * nothing - 43 TS2304s across eleven files, every one of them a type the
+ * project defines or three exports, named but never brought into scope. A
+ * `@typedef` import costs no runtime code and no bundle bytes: it exists
+ * entirely for the checker, which is the point of writing the JSDoc at all.
+
+ *
+ * @typedef {import('../model/floorplan.js').Floorplan} Floorplan
+ */
 /** how much will we move a corner to make a wall axis aligned (cm) */
 //export const snapTolerance = 25;//In CMS
 /**

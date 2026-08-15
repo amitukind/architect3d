@@ -1,6 +1,19 @@
 import {Vector3} from 'three';
 import {PointerLockControls as PointerLockControlsAddon} from 'three/addons/controls/PointerLockControls.js';
 
+
+/**
+ * JSDoc-only type imports (RM-005 C2).
+ *
+ * These names were already used in the annotations below and resolved to
+ * nothing - 43 TS2304s across eleven files, every one of them a type the
+ * project defines or three exports, named but never brought into scope. A
+ * `@typedef` import costs no runtime code and no bundle bytes: it exists
+ * entirely for the checker, which is the point of writing the JSDoc at all.
+
+ *
+ * @typedef {import('three').Camera} Camera
+ */
 /**
  * three's PointerLockControls, plus the walk-through rig this app built on it.
  *

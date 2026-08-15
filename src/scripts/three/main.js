@@ -22,6 +22,19 @@ import {Skybox} from './skybox.js';
 import {isStudio, setRenderProfile} from '../core/render_profile.js';
 import {runtimeOf} from '../core/design_runtime.js';
 
+
+/**
+ * JSDoc-only type imports (RM-005 C2).
+ *
+ * These names were already used in the annotations below and resolved to
+ * nothing - 43 TS2304s across eleven files, every one of them a type the
+ * project defines or three exports, named but never brought into scope. A
+ * `@typedef` import costs no runtime code and no bundle bytes: it exists
+ * entirely for the checker, which is the point of writing the JSDoc at all.
+
+ *
+ * @typedef {import('../model/model.js').Model} Model
+ */
 // --- S8: colour management, on ---------------------------------------------
 //
 // r152 turned this on by default and S4 turned it back off, so that the engine

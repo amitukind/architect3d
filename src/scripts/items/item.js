@@ -5,6 +5,21 @@ import {Utils} from '../core/utils.js';
 import {disposeObject, disposeMaterial} from '../core/resource_registry.js';
 import {Dimensioning} from '../core/dimensioning.js';
 
+
+/**
+ * JSDoc-only type imports (RM-005 C2).
+ *
+ * These names were already used in the annotations below and resolved to
+ * nothing - 43 TS2304s across eleven files, every one of them a type the
+ * project defines or three exports, named but never brought into scope. A
+ * `@typedef` import costs no runtime code and no bundle bytes: it exists
+ * entirely for the checker, which is the point of writing the JSDoc at all.
+
+ *
+ * @typedef {import('three').BufferGeometry} BufferGeometry
+ * @typedef {import('three').Material} Material
+ * @typedef {import('../model/model.js').Model} Model
+ */
 /**
  * An Item is an abstract entity for all things placed in the scene, e.g. at
  * walls or on the floor.

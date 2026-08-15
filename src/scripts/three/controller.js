@@ -2,6 +2,23 @@ import {EventDispatcher, Vector2, Vector3, Mesh, PlaneGeometry, MeshBasicMateria
 import {EVENT_ITEM_REMOVED, EVENT_ITEM_LOADED, EVENT_ITEM_MOVE_FINISH} from '../core/events.js';
 import { Utils } from '../core/utils.js';
 
+
+/**
+ * JSDoc-only type imports (RM-005 C2).
+ *
+ * These names were already used in the annotations below and resolved to
+ * nothing - 43 TS2304s across eleven files, every one of them a type the
+ * project defines or three exports, named but never brought into scope. A
+ * `@typedef` import costs no runtime code and no bundle bytes: it exists
+ * entirely for the checker, which is the point of writing the JSDoc at all.
+
+ *
+ * @typedef {import('three').Camera} Camera
+ * @typedef {import('./hud.js').HUD} HUD
+ * @typedef {import('./main.js').Main} Main
+ * @typedef {import('../model/model.js').Model} Model
+ * @typedef {import('./orbitcontrols.js').OrbitControls} OrbitControls
+ */
 export const states = {UNSELECTED: 0, SELECTED: 1, DRAGGING: 2, ROTATING: 3,  ROTATING_FREE: 4, PANNING: 5};
 
 // Controller is the class that maintains the items, floors, walls selection in
