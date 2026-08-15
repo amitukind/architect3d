@@ -42,11 +42,13 @@
  * `rooms/textures/` may be renamed **only** with a retirement entry, and the
  * three assertions below are what enforce it. Do not delete a name; retire it.
  */
-import {describe, expect, it} from 'vitest';
-import {readFileSync, readdirSync, existsSync, statSync} from 'node:fs';
+import {afterAll, describe, expect, it} from 'vitest';
+import {readFileSync, readdirSync, existsSync, statSync, mkdtempSync, copyFileSync, rmSync, unlinkSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
-import {dirname, join, sep} from 'node:path';
+import {dirname, join, sep, basename} from 'node:path';
+import {tmpdir} from 'node:os';
 import {createHash} from 'node:crypto';
+import {textureVram} from '../tools/check-budget.mjs';
 import {resolveModelUrl} from '../src/scripts/core/legacy_models.js';
 import {AssetManifest, MANIFEST_VERSION} from '../src/scripts/core/asset_manifest.js';
 import {AssetResolver} from '../src/scripts/core/asset_resolver.js';
@@ -478,5 +480,104 @@ describe('the asset manifest describes the tree it ships with (RM-003 A5)', () =
 		// quietly rewriting everything.
 		const live = resolver.resolve('rooms/textures/marbletiles.jpg');
 		expect(live.url).toBe('https://cdn.example.com/a3d/rooms/textures/marbletiles.jpg');
+	});
+});
+
+/**
+ * M-15: every format the tree uploads is a format the budget can count.
+ *
+ * ## The hole this closes
+ *
+ * `textureVram()` read `.png`, `.jpg` and `.jpeg`. RM-004 B5 turned 18 textures
+ * into `.ktx2` and the extension list did not change with them, so the line fell
+ * 43.00 -> 12.54 MB and roughly a quarter of that fall was the measurement
+ * letting go rather than the tree getting cheaper. Nothing failed, because
+ * nothing was watching the watcher.
+ *
+ * The general shape of the bug is "a budget stops seeing a file kind", and it
+ * will recur the next time a format is adopted - AVIF for the thumbnails, a
+ * basis-universal successor, whatever three supports in three years. So the
+ * assertion here is not "KTX2 is counted"; it is **every GPU-uploaded asset the
+ * manifest declares moves this number**, which is the property that stays true
+ * when the format list changes again.
+ *
+ * Everything runs against a temporary directory. An earlier version of this
+ * check copied a file into `public/` and deleted it afterwards, which leaves a
+ * stray asset in the tree the moment a run is interrupted - and `public/` is
+ * exactly the directory three other tests in this file assert the contents of.
+ */
+describe('the VRAM budget can see every format the tree uploads (RM-005 C1)', () =>
+{
+	/** Manifest kinds that become a WebGL texture. Thumbnails are `<img>` and do not. */
+	const GPU_KINDS = new Set(['model-texture', 'texture', 'environment']);
+
+	const scratch = mkdtempSync(join(tmpdir(), 'a3d-vram-'));
+	afterAll(() => rmSync(scratch, {recursive: true, force: true}));
+
+	/** Copy one asset in, measure, take it out again. */
+	function costOf(relative)
+	{
+		const staged = join(scratch, basename(relative));
+		copyFileSync(join(PUBLIC, relative), staged);
+		try {return textureVram(scratch);}
+		finally {unlinkSync(staged);}
+	}
+
+	it('counts a compressed texture, not just an uncompressed one', () =>
+	{
+		// The two halves of the sum, each proved on its own. A KTX2 costing zero
+		// is the exact state the tree was in before C1, and it passed every gate.
+		expect(costOf('rooms/textures/marbletiles.jpg')).toBeGreaterThan(0);
+		expect(costOf('models/js-glb/textures/oak_wood.ktx2')).toBeGreaterThan(0);
+	});
+
+	it('charges a compressed texture less than the same pixels uncompressed', () =>
+	{
+		// ## This test failed to fail, and the fix is both halves below
+		//
+		// It first read `costOf(hardwood.jpg)` against `costOf(oak_wood.ktx2)` and
+		// asserted the second was smaller. Breaking the `.ktx2` branch to check the
+		// gate left it GREEN: a texture the budget cannot see costs zero, and zero
+		// is less than everything. An ordering assertion with no floor under it is
+		// satisfied most completely by the bug it exists to catch.
+		//
+		// So: a floor first, then the ordering, and against the SAME pixels rather
+		// than two different files - comparing a 512x512 photograph to a 669x1024
+		// texture was measuring the dimensions as much as the format.
+		const bytes = readFileSync(join(PUBLIC, 'models/js-glb/textures/oak_wood.ktx2'));
+		const pixels = bytes.readUInt32LE(20) * bytes.readUInt32LE(24);
+		const compressed = costOf('models/js-glb/textures/oak_wood.ktx2');
+
+		expect(compressed).toBeGreaterThan(0);
+		// Directional rather than exact, so the model can be refined - one byte per
+		// texel today, and BC1 is really half that - without rewriting the test.
+		// What must not change is the ordering: a format adopted to save memory has
+		// to measure as saving memory, or the budget argues for the wrong thing.
+		expect(compressed).toBeLessThan(Math.round(pixels * 4 * 4 / 3));
+	});
+
+	it('sees every uploaded asset the manifest declares', () =>
+	{
+		const uploaded = Object.entries(MANIFEST_JSON.assets)
+			// A retired name points at another entry's file; costing it would count
+			// the same pixels twice and prove nothing the live name has not already.
+			.filter(([, entry]) => GPU_KINDS.has(entry.kind) && !entry.url)
+			.map(([name]) => name);
+
+		// A floor on the corpus, so this cannot quietly pass by measuring nothing.
+		expect(uploaded.length).toBeGreaterThan(20);
+
+		const invisible = uploaded.filter((name) => costOf(name) === 0);
+		expect(invisible, `these upload to the GPU and cost the VRAM budget nothing:\n  ${invisible.join('\n  ')}`)
+			.toEqual([]);
+	});
+
+	it('reports the whole tree at the figure tools/budget.json records', () =>
+	{
+		// Ties the per-file property above to the number the gate actually prints,
+		// so a measurement that is right file-by-file and wrong in aggregate - a
+		// double count, a directory skipped - still fails.
+		const recorded = JSON.parse(readFileSync(join(ROOT, 'tools/budget.json'), 'utf8'));
+		expect(textureVram(PUBLIC)).toBe(recorded.budgets['texture-vram'].measured);
 	});
 });

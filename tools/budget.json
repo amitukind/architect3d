@@ -261,6 +261,24 @@
     "that fallback, and tightening it would make the budget fail on the hardware it",
     "is least able to help.",
     "",
+    "RM-005 C1 CORRECTED THE PARAGRAPH ABOVE, and the correction is left beside it",
+    "rather than folded in. Everything it says about the HEADROOM is right and",
+    "stands: the limit covers the RGBA8 fallback, and it is not tightened. What it",
+    "says about the NUMBER was wrong. textureVram() read .png, .jpg and .jpeg, and",
+    "B5 had just turned 18 textures into .ktx2 - so the figure did not assume 1 bpp",
+    "for them, it did not count them at all. Copying an existing 669x1024 .ktx2 into",
+    "public/rooms/textures/ moved the line by 0.00 MB, which is the demonstration",
+    "that a regression in the format this program spent two sprints adopting was",
+    "invisible here.",
+    "",
+    "So texture-vram goes UP, 12.54 -> 20.15 MB, and the limit does not move. This",
+    "is the second correction to this same line and the two went opposite ways: B4",
+    "found it counting 174 thumbnails no GPU is asked for and the honest figure was",
+    "smaller; C1 found it counting 18 fewer textures than the tree has and the",
+    "honest figure is larger. Neither was a change to the tree. A budget that falls",
+    "because the measurement stopped looking is the failure this file exists to",
+    "catch, and it has now happened here twice.",
+    "",
     "THE ESM BUNDLE IS MINIFIED NOW, and lib-esm-gzip came DOWN 130,900 -> 50,300.",
     "That is the fifth time this line has moved and the first time downward.",
     "",
@@ -324,7 +342,7 @@
     },
     "texture-vram": {
       "limit": 47340000,
-      "measured": 13145771
+      "measured": 21130547
     }
   }
 }

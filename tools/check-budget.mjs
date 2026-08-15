@@ -35,7 +35,8 @@
  */
 import {gzipSync} from 'node:zlib';
 import {readFileSync, writeFileSync, existsSync, readdirSync, statSync} from 'node:fs';
-import {join, extname, dirname, sep} from 'node:path';
+import {join, extname, dirname, sep, resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
 
 const BUDGET_FILE = 'tools/budget.json';
 const update = process.argv.includes('--update');
@@ -258,11 +259,36 @@ function largestCatalogItem()
  * real cost, which is the safe direction for a ceiling to be built on.
  *
  * The 4/3 factor is a full mip chain: 1 + 1/4 + 1/16 + ... converges to 4/3.
+ *
+ * ## What B5 converted, this stopped counting (RM-005 C1)
+ *
+ * B5 turned 18 of these textures into `.ktx2` and the extension list below did
+ * not change with them, so all 18 dropped out of the sum. The line went from
+ * 43.00 MB to 12.54 MB and read as a win; roughly a quarter of that fall was
+ * the measurement letting go. Demonstrated rather than reasoned: copying an
+ * existing 669x1024 `.ktx2` into `public/rooms/textures/` and re-running this
+ * file moves the number by **0.00 MB**. A budget that cannot see the format it
+ * exists to encourage is not guarding anything.
+ *
+ * A compressed texture is counted at one byte per texel. That is the model
+ * `tools/encode-textures.mjs` already uses to report its own savings, and
+ * keeping the two identical is what lets this line and
+ * `asset-pipeline/texture-transcode.json` be read against each other. It is a
+ * model and not an observation: the real cost is 0.5 bytes per texel where
+ * Basis transcodes to BC1 or ETC1 and 1 where it reaches BC7 or ETC2, so this
+ * over-reports on most hardware - the opposite direction from the PNG and JPEG
+ * path above, and the safe direction for both.
+ *
+ * On a device with no compressed format at all, Basis falls back to RGBA8 and
+ * every one of these costs the full four bytes again. That fallback is what
+ * the limit's headroom is for, which is why the headroom does not tighten when
+ * this number falls.
  */
-function textureVram()
+export function textureVram(root = 'public')
 {
 	const PIXEL = new Set(['.png', '.jpg', '.jpeg']);
 	let texels = 0;
+	let compressedTexels = 0;
 
 	const visit = (dir) =>
 	{
@@ -278,14 +304,45 @@ function textureVram()
 			// files; both are fixed, and this is the half that changes the number.
 			if (/(^|\/)thumbnails(_new)?$/.test(path)) { continue; }
 			if (entry.isDirectory()) { visit(path); continue; }
-			if (!PIXEL.has(extname(entry.name).toLowerCase())) { continue; }
-			const size = pngSize(readFileSync(path)) || jpegSize(readFileSync(path));
+			const ext = extname(entry.name).toLowerCase();
+			if (!PIXEL.has(ext) && ext !== '.ktx2') { continue; }
+			const bytes = readFileSync(path);
+			if (ext === '.ktx2')
+			{
+				const compressed = ktx2Size(bytes);
+				if (compressed) { compressedTexels += compressed.w * compressed.h; }
+				continue;
+			}
+			const size = pngSize(bytes) || jpegSize(bytes);
 			if (size) { texels += size.w * size.h; }
 		}
 	};
-	visit('public');
+	visit(root);
 
-	return Math.round(texels * 4 * 4 / 3);
+	return Math.round((texels * 4 + compressedTexels) * 4 / 3);
+}
+
+/** The twelve bytes every KTX2 container opens with. */
+const KTX2_MAGIC = Buffer.from([0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/**
+ * Level-0 dimensions from a KTX2 header.
+ *
+ * Hand-rolled beside `pngSize` and `jpegSize` rather than imported, even
+ * though `tools/encode-textures.mjs` exports these same three lines as
+ * `ktx2Dimensions`. That module pulls `ktx2-encoder`, `jpeg-js` and `pngjs`;
+ * this one is a tier-1 gate that runs on every build, and making it depend on
+ * the Basis encoder to read twelve bytes of magic is the wrong trade. The
+ * layout is fixed by the container specification and cannot drift:
+ * identifier, `vkFormat`, `typeSize`, then `pixelWidth` at byte 20 and
+ * `pixelHeight` at byte 24, all little-endian.
+ *
+ * @param {Buffer} b
+ */
+function ktx2Size(b)
+{
+	if (b.length < 32 || !b.subarray(0, 12).equals(KTX2_MAGIC)) { return null; }
+	return {w: b.readUInt32LE(20), h: b.readUInt32LE(24)};
 }
 
 /** @param {Buffer} b */
@@ -372,83 +429,98 @@ function human(bytes)
 	return (bytes / 1024).toFixed(1) + ' KB';
 }
 
-const budget = JSON.parse(readFileSync(BUDGET_FILE, 'utf8'));
-const rows = [];
-let failures = 0;
-let skipped = 0;
-
-for (const item of MEASUREMENTS)
+/**
+ * The driver, behind an entry guard (RM-005 C1).
+ *
+ * Everything below used to run at module scope, which meant importing this
+ * file to reuse one measurement ran the whole gate and could call
+ * process.exit. B4 learned the same lesson the expensive way in
+ * tools/resize-textures.mjs, where a scratchpad import ran main() and
+ * silently resized the catalog; the guard there is the one copied here.
+ */
+function main()
 {
-	// A measurement may return a bare byte count, or {bytes, note} when naming
-	// what it measured is what makes the failure actionable.
-	const raw = item.measure();
-	const measured = (raw && typeof raw === 'object') ? raw.bytes : raw;
-	const note = (raw && typeof raw === 'object') ? raw.note : null;
-	const entry = budget.budgets[item.key];
+	const budget = JSON.parse(readFileSync(BUDGET_FILE, 'utf8'));
+	const rows = [];
+	let failures = 0;
+	let skipped = 0;
 
-	if (!entry)
+	for (const item of MEASUREMENTS)
 	{
-		console.error(`No budget recorded for "${item.key}". Add it to ${BUDGET_FILE}.`);
-		failures++;
-		continue;
+		// A measurement may return a bare byte count, or {bytes, note} when naming
+		// what it measured is what makes the failure actionable.
+		const raw = item.measure();
+		const measured = (raw && typeof raw === 'object') ? raw.bytes : raw;
+		const note = (raw && typeof raw === 'object') ? raw.note : null;
+		const entry = budget.budgets[item.key];
+
+		if (!entry)
+		{
+			console.error(`No budget recorded for "${item.key}". Add it to ${BUDGET_FILE}.`);
+			failures++;
+			continue;
+		}
+
+		if (measured === null)
+		{
+			rows.push({label: item.label, status: 'skip', detail: `no output — run \`npm run ${item.needs}\``});
+			skipped++;
+			continue;
+		}
+
+		if (update)
+		{
+			entry.measured = measured;
+		}
+
+		const over = measured > entry.limit;
+		const headroom = ((entry.limit - measured) / entry.limit) * 100;
+		rows.push({
+			label: item.label,
+			status: over ? 'OVER' : 'ok',
+			detail: `${human(measured).padStart(9)}  /  ${human(entry.limit).padStart(9)} limit` +
+				(over
+					? `  — over by ${human(measured - entry.limit)}`
+					: `  (${headroom.toFixed(1)}% headroom)`) +
+				(note ? `  ${note}` : ''),
+		});
+		if (over)
+		{
+			failures++;
+		}
 	}
 
-	if (measured === null)
+	const width = Math.max(...rows.map((row) => row.label.length));
+	console.log('');
+	for (const row of rows)
 	{
-		rows.push({label: item.label, status: 'skip', detail: `no output — run \`npm run ${item.needs}\``});
-		skipped++;
-		continue;
+		const mark = row.status === 'OVER' ? '✗' : (row.status === 'skip' ? '–' : '✓');
+		console.log(`  ${mark} ${row.label.padEnd(width)}   ${row.detail}`);
 	}
+	console.log('');
 
 	if (update)
 	{
-		entry.measured = measured;
+		writeFileSync(BUDGET_FILE, JSON.stringify(budget, null, 2) + '\n');
+		console.log(`Recorded current measurements in ${BUDGET_FILE}.`);
+		console.log('Limits were NOT changed — edit them by hand, with a reason in the commit message.');
+		process.exit(0);
 	}
 
-	const over = measured > entry.limit;
-	const headroom = ((entry.limit - measured) / entry.limit) * 100;
-	rows.push({
-		label: item.label,
-		status: over ? 'OVER' : 'ok',
-		detail: `${human(measured).padStart(9)}  /  ${human(entry.limit).padStart(9)} limit` +
-			(over
-				? `  — over by ${human(measured - entry.limit)}`
-				: `  (${headroom.toFixed(1)}% headroom)`) +
-			(note ? `  ${note}` : ''),
-	});
-	if (over)
+	if (skipped)
 	{
-		failures++;
+		console.log(`${skipped} measurement(s) skipped: their build output is not present.`);
 	}
+
+	if (failures)
+	{
+		console.error(`Size budget exceeded by ${failures} measurement(s).`);
+		console.error('Either make it smaller, or raise the limit in tools/budget.json deliberately.');
+		process.exit(1);
+	}
+
+	console.log('Within budget.');
+
 }
 
-const width = Math.max(...rows.map((row) => row.label.length));
-console.log('');
-for (const row of rows)
-{
-	const mark = row.status === 'OVER' ? '✗' : (row.status === 'skip' ? '–' : '✓');
-	console.log(`  ${mark} ${row.label.padEnd(width)}   ${row.detail}`);
-}
-console.log('');
-
-if (update)
-{
-	writeFileSync(BUDGET_FILE, JSON.stringify(budget, null, 2) + '\n');
-	console.log(`Recorded current measurements in ${BUDGET_FILE}.`);
-	console.log('Limits were NOT changed — edit them by hand, with a reason in the commit message.');
-	process.exit(0);
-}
-
-if (skipped)
-{
-	console.log(`${skipped} measurement(s) skipped: their build output is not present.`);
-}
-
-if (failures)
-{
-	console.error(`Size budget exceeded by ${failures} measurement(s).`);
-	console.error('Either make it smaller, or raise the limit in tools/budget.json deliberately.');
-	process.exit(1);
-}
-
-console.log('Within budget.');
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) { main(); }
