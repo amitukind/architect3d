@@ -380,10 +380,17 @@ export class Floorplan extends EventDispatcher
 	/**
 	 * Creates a new wall.
 	 * 
-	 * @param {Corner}
-	 *            start The start corner.
-	 * @param {Corner}
-	 *            end The end corner.
+	 * The three trailing parameters are optional and were not declared as such,
+	 * so every two-argument call in the project read as a TS2554 the moment
+	 * `Floorplan` became a resolvable type (RM-005 C2). The two tags above were
+	 * malformed as well - the type on one line and the name on the next, which
+	 * documents neither.
+	 *
+	 * @param {Corner} start The start corner.
+	 * @param {Corner} end The end corner.
+	 * @param {Vector2} [a] Curve control point, for a curved wall.
+	 * @param {Vector2} [b] The second control point.
+	 * @param {string} [id] Assigned identity, when one is being restored.
 	 * @returns {Wall} The new wall.
 	 */
 	newWall(start, end, a, b, id)
@@ -1334,9 +1341,14 @@ export class Floorplan extends EventDispatcher
 
 	/**
 	 * Returns the center of the floorplan in the y plane
-	 * 
-	 * @return {Vector2} center
-	 * @see https://threejs.org/docs/#api/en/math/Vector2
+	 *
+	 * @return {Vector3} center
+	 * @see https://threejs.org/docs/#api/en/math/Vector3
+	 *
+	 * The tag said `Vector2` and the link pointed at Vector2 (RM-005 C2).
+	 * `getDimensions` returns a `Vector3` in all three of its branches, and
+	 * `FloorItem` reads `.z` off this - which type-checked as an error and works
+	 * perfectly at runtime, because the documentation was the only thing wrong.
 	 */
 	getCenter()
 	{

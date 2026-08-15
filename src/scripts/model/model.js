@@ -1,3 +1,4 @@
+// @ts-check
 import {EVENT_LOADED, EVENT_LOADING, EVENT_GLTF_READY} from '../core/events.js';
 import {EventDispatcher, Vector3, Mesh} from 'three';
 import {Floorplan} from './floorplan.js';

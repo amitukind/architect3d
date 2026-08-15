@@ -1,3 +1,4 @@
+// @ts-check
 import {OrbitControls as OrbitControlsAddon} from 'three/addons/controls/OrbitControls.js';
 import {EVENT_CAMERA_MOVED} from '../core/events.js';
 
@@ -61,7 +62,11 @@ export class OrbitControls extends OrbitControlsAddon
 		this._cameraMoved = () =>
 		{
 			this.needsUpdate = true;
-			this.dispatchEvent({type: EVENT_CAMERA_MOVED});
+			// This class adds an event three's map does not know about, which is the
+			// whole reason it exists - `Edge` listens for it (RM-005 C2). The cast
+			// is to `OrbitControlsEventMap`'s key type because the alternative is
+			// re-declaring three's map to add one string to it.
+			this.dispatchEvent(/** @type {any} */ ({type: EVENT_CAMERA_MOVED}));
 		};
 		this.addEventListener('change', this._cameraMoved);
 
@@ -99,9 +104,13 @@ export class OrbitControls extends OrbitControlsAddon
 		// wherever the element happens to be rooted now. Removing a listener
 		// twice is a no-op, and if a future three renames this private the worst
 		// case is the status quo: super.dispose() still does the normal thing.
-		if (this._keyInterceptRoot && this._interceptControlDown)
+		// `_interceptControlDown` is three's private, undeclared in the types, and
+		// the comment above already says what happens if a future release renames
+		// it. Read through a cast naming just that field (RM-005 C2).
+		var addon = /** @type {{_interceptControlDown?: EventListener}} */ (/** @type {unknown} */ (this));
+		if (this._keyInterceptRoot && addon._interceptControlDown)
 		{
-			this._keyInterceptRoot.removeEventListener('keydown', this._interceptControlDown, {capture: true});
+			this._keyInterceptRoot.removeEventListener('keydown', addon._interceptControlDown, {capture: true});
 		}
 		this._keyInterceptRoot = null;
 

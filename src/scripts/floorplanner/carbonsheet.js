@@ -1,3 +1,4 @@
+// @ts-check
 import {EventDispatcher} from 'three';
 import {EVENT_UPDATED} from '../core/events.js';
 import {cmPerPixel, pixelsPerCm} from '../core/dimensioning.js';
@@ -33,7 +34,10 @@ export class CarbonSheet extends EventDispatcher
 		super();
 		this.canvasElement = resolveElement(canvas, 'carbon sheet canvas');
 		this.canvas = (typeof canvas === 'string') ? canvas : this.canvasElement.id;
-		this.context = this.canvasElement.getContext('2d');
+		// `resolveElement` returns an Element; only a canvas has getContext, and
+		// this one is a canvas by contract - the parameter is named for it and the
+		// resolver's failure message says so (RM-005 C2).
+		this.context = /** @type {HTMLCanvasElement} */ (this.canvasElement).getContext('2d');
 		this.floorplan = floorplan;
 		this.viewmodel = viewmodel;
 		
@@ -142,14 +146,17 @@ export class CarbonSheet extends EventDispatcher
 		var scope = this;
 		this._url = val;
 		this._loaded = false;
+		// `this` inside an onload handler is typed as GlobalEventHandlers, which
+		// has no width or height. It is the image (RM-005 C2), and reading it off
+		// `scope._image` says so without relying on the binding at all.
 		this._image.onload = function()
-		{			
-			scope._rawWidthPixels = this.width;
-			scope._rawHeightPixels = this.height;
+		{
+			scope._rawWidthPixels = scope._image.width;
+			scope._rawHeightPixels = scope._image.height;
 			scope._rawWidth = scope._rawWidthPixels * cmPerPixel;
 			scope._rawHeight = scope._rawHeightPixels * cmPerPixel;
 			
-			scope._widthByHeightRatio = this.width / this.height;
+			scope._widthByHeightRatio = scope._image.width / scope._image.height;
 			
 			if(scope._widthPixels < 2.0)
 			{
@@ -291,6 +298,13 @@ export class CarbonSheet extends EventDispatcher
 	
 	drawOriginCrossHair()
 	{
+		// `getContext('2d')` returns null when the canvas already has a context of
+		// another kind, so `context` is nullable and every draw has to say so
+		// (RM-005 C2). One guard per method rather than one per statement.
+		if (!this.context)
+		{
+			return;
+		}
 		var ox = 0;
 		var oy = 0;
 		//draw origin crosshair
@@ -302,7 +316,8 @@ export class CarbonSheet extends EventDispatcher
 	/** */
 	draw() 
 	{
-		if(this._loaded)
+		// See drawOriginCrossHair: the 2D context is nullable.
+		if(this.context && this._loaded)
 		{
 			var conX = this.viewmodel.convertX(this._x);
 			var conY = this.viewmodel.convertY(this._y);

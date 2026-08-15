@@ -1,3 +1,4 @@
+// @ts-check
 import {Vector2} from 'three';
 import {Item} from './item.js';
 import {Utils} from '../core/utils.js';
@@ -21,7 +22,12 @@ export class FloorItem extends Item
 			var center = this.model.floorplan.getCenter();
 			this.position.x = center.x;
 			this.position.z = center.z;
-			this.position.y = 0.5 * (this.geometry.boundingBox.max.y - this.geometry.boundingBox.min.y);
+			// `boundingBox` is null until `computeBoundingBox()` runs, and three does
+			// not run it for you (RM-005 C2). Every path that reaches here has, but
+			// the guard is a line and the alternative is a TypeError inside a
+			// constructor.
+			var box = this.geometry && this.geometry.boundingBox;
+			this.position.y = box ? 0.5 * (box.max.y - box.min.y) : 0;
 		}
 	}
 

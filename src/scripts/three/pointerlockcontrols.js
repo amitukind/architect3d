@@ -1,3 +1,4 @@
+// @ts-check
 import {Vector3} from 'three';
 import {PointerLockControls as PointerLockControlsAddon} from 'three/addons/controls/PointerLockControls.js';
 
@@ -191,7 +192,16 @@ export class PointerLockControls extends PointerLockControlsAddon
 	{
 		super.lock();
 
-		var element = this.domElement;
+		// `domElement` is nullable on the addon's base class, and the vendor-prefixed
+		// call is not in lib.dom - Safari carried `webkitRequestFullscreen` long
+		// after the standard one existed and three's types do not describe it
+		// (RM-005 C2). The cast is to a shape naming exactly the one method being
+		// probed, rather than to `any`.
+		var element = /** @type {(HTMLElement & {webkitRequestFullscreen?: function(): void})|null} */ (this.domElement);
+		if (!element)
+		{
+			return;
+		}
 		if (element.requestFullscreen)
 		{
 			// Rejects if the call is not user-initiated; that is the browser's

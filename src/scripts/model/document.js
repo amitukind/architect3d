@@ -51,12 +51,30 @@ import {SAVE_UNITS} from './floorplan.js';
  */
 
 /**
- * @typedef {Object} ParseResult
- * @property {boolean} ok
- * @property {?DesignDocument} document Null when `ok` is false.
+ * A discriminated union rather than four independent properties (RM-005 C2).
+ *
+ * It used to read `{ok: boolean, document: ?DesignDocument, ...}`, which says
+ * the two are unrelated - so `if (!result.ok) { return; }` narrowed nothing and
+ * every use of `result.document` past that guard was a possibly-null. The
+ * comment "Null when `ok` is false" was the whole of the relationship, and a
+ * comment is not a type.
+ *
+ * @typedef {Object} ParseFailure
+ * @property {false} ok
+ * @property {null} document
  * @property {Array<DocumentProblem>} errors
  * @property {Array<DocumentProblem>} warnings
  */
+
+/**
+ * @typedef {Object} ParseSuccess
+ * @property {true} ok
+ * @property {DesignDocument} document
+ * @property {Array<DocumentProblem>} errors
+ * @property {Array<DocumentProblem>} warnings
+ */
+
+/** @typedef {ParseFailure|ParseSuccess} ParseResult */
 
 /**
  * @param {*} value

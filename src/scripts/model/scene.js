@@ -1,3 +1,4 @@
+// @ts-check
 import {EventDispatcher, Color} from 'three';
 // three's own addons since S4, replacing the three-gltf-loader and
 // @calvinscofield/three-objloader repacks. Each of those bundled its own copy
@@ -322,7 +323,7 @@ export class Scene extends EventDispatcher
 	 * dependency lives in addItem(); supplying a loader here makes the whole
 	 * model layer runnable headlessly (vitest, Node) and lets an embedder
 	 * supply its own asset pipeline.
-	 * @param {?function(string, Object, function(Object, Array))} fn
+	 * @param {?function(string, Object, function(Object, Array): void): void} fn
 	 *        Receives (fileName, metadata, onLoad) and must call
 	 *        onLoad(geometry, materials). Pass null to restore the built-in
 	 *        format-based loaders.

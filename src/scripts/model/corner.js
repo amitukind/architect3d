@@ -1,3 +1,4 @@
+// @ts-check
 import {EVENT_ACTION, EVENT_DELETED, EVENT_MOVED, EVENT_CORNER_ATTRIBUTES_CHANGED} from '../core/events.js';
 import {EventDispatcher, Vector2} from 'three';
 import {Utils} from '../core/utils.js';
@@ -412,7 +413,11 @@ export class Corner extends EventDispatcher
 		for (var i=0;i<neighbors.length;i++)
 		{
 			var wall = this.wallToOrFrom(neighbors[i]);
-			if(wall.wallType == WallTypes.CURVED)
+			// `adjacentCorners()` is derived from the walls, so a neighbour always
+			// has one - but `wallToOrFrom` can return null and now says so, and
+			// skipping is what this loop already does for a wall it cannot use
+			// (RM-005 C2).
+			if(!wall || wall.wallType == WallTypes.CURVED)
 			{
 				continue;
 			}
@@ -574,12 +579,15 @@ export class Corner extends EventDispatcher
 		{
 			return wall.distanceFrom(cPoint);
 		}
-		else if(wall.wallType == WallTypes.CURVED)
-		{
-			var p = wall.bezier.project(cPoint);
-			var projected = new Vector2(p.x, p.y); 
-			return projected.distanceTo(cPoint);
-		}
+		// `else` rather than `else if (CURVED)` (RM-005 C2). WallTypes is
+		// `Enum('STRAIGHT', 'CURVED')` and has no third value, so the old form had
+		// an implicit fallthrough returning undefined - which every caller compares
+		// against a tolerance, and `undefined < n` is false. A corner would have
+		// silently declined to merge with a wall of an unknown type rather than
+		// saying so. Same code, one branch fewer, and the return type is a number.
+		var p = wall.bezier.project(cPoint);
+		var projected = new Vector2(p.x, p.y);
+		return projected.distanceTo(cPoint);
 	}
 
 	/** Gets the distance from a corner.
@@ -623,7 +631,7 @@ export class Corner extends EventDispatcher
 
 	/** Get wall to corner.
 	 * @param {Corner} corner A corner.
-	 * @return {Wall} The associated wall or null.
+	 * @return {?Wall} The associated wall, or null.
 	 */
 	wallTo(corner)
 	{
@@ -639,7 +647,7 @@ export class Corner extends EventDispatcher
 
 	/** Get wall from corner.
 	 * @param {Corner}  corner A corner.
-	 * @return {Wall} The associated wall or null.
+	 * @return {?Wall} The associated wall, or null.
 	 */
 	wallFrom(corner)
 	{
@@ -655,7 +663,8 @@ export class Corner extends EventDispatcher
 
 	/** Get wall to or from corner.
 	 * @param {Corner} corner A corner.
-	 * @return {Wall} The associated wall or null.
+	 * @return {?Wall} The associated wall, or null. Both sources can return
+	 * null, so this can - which the `{Wall}` here used to deny (RM-005 C2).
 	 */
 	wallToOrFrom(corner)
 	{
