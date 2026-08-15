@@ -247,6 +247,11 @@ footer .credit a:hover{text-decoration:underline}
   <a href="#residual-findings">26 · Decision log</a>
   <a href="#residual-risks">27 · Risks &amp; dependencies</a>
   <a href="#residual-sprints">28 · Sprints C1–C2</a>
+
+  <div class="toc-head mono" style="margin-top:22px">CORRECTION RM-006</div>
+  <a href="#correction">29 · Executive summary</a>
+  <a href="#correction-findings">30 · Decision log</a>
+  <a href="#correction-sprints">31 · Sprint D1</a>
 </nav>
 
 <main>
@@ -3076,13 +3081,177 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
 </section>
 
 
+<!-- ======================= 29 RM-006 EXECUTIVE SUMMARY ======================= -->
+<header class="sheet">
+  <div class="sheet-body">
+    <div class="eyebrow">CORRECTION PROGRAM · DRAWING Nº RM-006</div>
+    <h1>The encode nobody looked at</h1>
+    <p class="lede">RM-005 C1 ended by raising one thing and not settling it. Settling it took one sprint, found that <strong>nine of the eighteen textures B5 compressed are past the project's own codec gate</strong>, and found on the way that the instrument used to reach that verdict had been measuring the wrong picture for two programs. Both halves are corrections, and neither was available by reading anything.</p>
+  </div>
+  <div class="titleblock">
+    <div><div class="tb-k">PROJECT</div><div class="tb-v">architect3d</div></div>
+    <div><div class="tb-k">SUCCEEDS</div><div class="tb-v">RM-005 — both sprints landed</div></div>
+    <div><div class="tb-k">BRANCH</div><div class="tb-v">amit @ 3d21b81</div></div>
+    <div><div class="tb-k">SCOPE</div><div class="tb-v">21 GPU textures · 1 instrument · 3 budgets</div></div>
+    <div><div class="tb-k">DATE</div><div class="tb-v">2026-08-15</div></div>
+    <div><div class="tb-k">REV</div><div class="tb-v">A · delivered</div></div>
+  </div>
+</header>
+
+<section id="correction">
+  <div class="sec-eyebrow">§ 29 · EXECUTIVE SUMMARY</div>
+  <h2>One deferral, and the instrument that would have prevented it</h2>
+  <p class="sec-sub">B5 encoded 18 model textures against a gate that weighs disk against video memory and never looks at the picture, and said so in its own docblock: the scope was &ldquo;18 furniture textures seen at a few hundred pixels&rdquo;. That is a claim about how something looks, made without rendering it. C1 refused four of five room textures on looks alone and wrote the question down. This answers it.</p>
+
+  <div class="stats">
+    <div class="stat"><div class="v">9 of 18</div><div class="k">of B5's model textures are past the <strong>3.0 RMS codec gate</strong> this project already had. Four past 4.5, and one at more than double</div></div>
+    <div class="stat"><div class="v">3&times;</div><div class="k">the pixel oracle had been written as a throwaway script and deleted, before this. That is the direct reason B5's encode was never checked &mdash; <strong>the thing that looks at the picture did not exist anywhere a sprint could reach</strong></div></div>
+    <div class="stat"><div class="v">7.441</div><div class="k">the figure C1 published for <code>hardwood.jpg</code>, which the new harness could not reproduce &mdash; until <code>outputColorSpace</code> was set to Linear-sRGB, when it returns 7.441, max 66 and 19.88% over 8, <strong>to three decimals</strong></div></div>
+    <div class="stat"><div class="v">0.000</div><div class="k">the residual: a rendered source against its own decoded pixels. Every run now fails unless the render path is transparent, which is the check the previous three harnesses did not have</div></div>
+  </div>
+
+  <p><strong>What was actually wrong, in two sentences.</strong> The earlier oracle differenced linear-light values quantised to eight bits, while the application renders in sRGB (<code>three/main.js:262</code>, asserted by two suites) &mdash; so it reported the error in a frame nobody looks at. The bias is not one-directional: it overstates mid-tones and understates highlights, and this repository holds one of each, so <code>Ground_4K</code> was too harsh at 1.098 (really 0.761) and <code>Garden</code>, a photograph of sky, was too kind at 4.483 (really 6.552).</p>
+
+  <p><strong>What this program is not.</strong> It is not a new gate, a new threshold or a new policy. The gate is B4's <code>codecRms</code> of 3.0, unchanged; the rule applied is B1's &mdash; <em>an asset that cannot match the pixel tier ships uncompressed</em> &mdash; applied per file for the third time. Nothing is a judgement call: every refusal below carries the number that produced it, and every setting the encoder has was swept before any of it was reverted.</p>
+</section>
+
+<!-- ======================= 30 RM-006 DECISION LOG ======================= -->
+<section id="correction-findings">
+  <div class="sec-eyebrow">§ 30 · DECISION LOG</div>
+  <h2>Five findings, all of them measured</h2>
+  <p class="sec-sub">Every row was produced by running something against the tree at <code>3d21b81</code>. Four contradict something the repository currently says about itself, and three of those four were written by the two programs immediately preceding this one &mdash; which is the pattern, not a coincidence: a measurement nobody can re-run becomes a quotation, and a quotation is not checked again.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Nº</th><th>Finding</th><th>Severity</th><th>Where</th><th>Sprint</th></tr></thead>
+    <tbody>
+      <tr><td>P-1</td><td>Nine of B5's eighteen model textures are past the 3.0 codec gate</td><td><span class="chip crit">high</span></td><td><code>public/models/js-glb/textures/</code></td><td>D1</td></tr>
+      <tr><td>P-2</td><td>The oracle that produced C1's verdicts differenced a frame the application never renders</td><td><span class="chip crit">high</span></td><td><code>asset-pipeline/room-transcode-oracle.json</code> · <code>skybox-transcode-oracle.json</code></td><td>D1</td></tr>
+      <tr><td>P-3</td><td>The repointer only goes one way, so a refusal cannot be undone</td><td><span class="chip warn">med</span></td><td><code>tools/repoint-textures.mjs:126</code></td><td>D1</td></tr>
+      <tr><td>P-4</td><td>Three size budgets were lowered on the strength of that encode</td><td><span class="chip warn">med</span></td><td><code>tools/budget.json</code> @ <code>e6541a8</code></td><td>D1</td></tr>
+      <tr><td>P-5</td><td>The encoder's docblock is wrong about VRAM by a factor of eight</td><td><span class="chip">low</span></td><td><code>tools/encode-textures.mjs:13</code></td><td>D1</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>P-1 · Nine of eighteen <span class="chip crit">high</span> <span class="chip acc">measured</span></h3>
+  <p>Each texture rendered from the source it was encoded from and from its shipped container, through identical geometry, camera, sampler and colour-space state at 1:1, and differenced in the framebuffer. RMS is over RGB in 0&ndash;255; the gate is 3.0.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Texture</th><th>Pixels</th><th>RMS</th><th>p95</th><th>p99</th><th>max</th><th>&gt;8</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td><code>nyc2.jpg</code></td><td>420&times;600</td><td><strong>7.004</strong></td><td>9</td><td>33</td><td>174</td><td>5.10%</td><td>refused &mdash; 2.3&times; the gate</td></tr>
+      <tr><td><code>walnut-marin.jpg</code></td><td>587&times;466</td><td><strong>4.880</strong></td><td>10</td><td>14</td><td>33</td><td>8.45%</td><td>refused</td></tr>
+      <tr><td><code>oak_wood.jpg</code></td><td>669&times;1024</td><td><strong>4.879</strong></td><td>10</td><td>14</td><td>40</td><td>8.15%</td><td>refused</td></tr>
+      <tr><td><code>grey-brown_wood.jpg</code></td><td>669&times;1024</td><td><strong>4.523</strong></td><td>9</td><td>13</td><td>29</td><td>6.32%</td><td>refused</td></tr>
+      <tr><td><code>ik-ekero-orange_baked.jpg</code></td><td>512&times;512</td><td><strong>3.650</strong></td><td>6</td><td>14</td><td>90</td><td>2.73%</td><td>refused</td></tr>
+      <tr><td><code>we-narrow6white_baked.jpg</code></td><td>512&times;512</td><td><strong>3.488</strong></td><td>7</td><td>15</td><td>50</td><td>3.86%</td><td>refused</td></tr>
+      <tr><td><code>bd-shalebedside-smoke_baked.jpg</code></td><td>512&times;512</td><td><strong>3.456</strong></td><td>7</td><td>11</td><td>85</td><td>2.29%</td><td>refused</td></tr>
+      <tr><td><code>cb-archnight-white_baked.png</code></td><td>512&times;512</td><td><strong>3.392</strong></td><td>7</td><td>14</td><td>72</td><td>3.75%</td><td>re-encoded at quality 192</td></tr>
+      <tr><td><code>cb-clapboard_baked.jpg</code></td><td>512&times;512</td><td><strong>3.214</strong></td><td>6</td><td>14</td><td>53</td><td>2.72%</td><td>refused</td></tr>
+      <tr><td colspan="8" style="opacity:.7">The other nine measure 1.090 to 2.770 and are inside the gate. They stay compressed.</td></tr>
+    </tbody>
+  </table></div>
+  <p><strong>The sources are provably the right ones.</strong> They were recovered from <code>e6541a8~1</code> &mdash; the commit before B5 deleted them &mdash; and one was re-encoded with the shipped settings and hashed: it reproduces the committed container <em>byte for byte</em>. So this is a measurement of what shipped, not of something like it.</p>
+  <p><strong>Every setting was swept before anything was reverted</strong>, because a gate failure at one setting is not a codec verdict &mdash; C1 made that point about the room textures and it holds here. ETC1S at maximum quality rescues exactly one: <code>cb-archnight-white_baked.png</code> falls to 2.728 at quality 192, and at 55 KB it also replaces a 187 KB PNG, so the better-looking option is the smaller one. It gets a per-file entry rather than a global quality change, which would have cost the other seventeen 30&ndash;50% more disk to fix one. UASTC clears the gate for all nine at 123&ndash;456% of source &mdash; for every one of them, shipping the source is <em>smaller</em> than shipping UASTC.</p>
+
+  <h3>P-2 · The oracle was measuring the wrong picture <span class="chip crit">high</span> <span class="chip acc">measured</span></h3>
+  <p>The new harness was built to be calibrated: before trusting it against the 18, it was pointed at the five room textures C1 t5 published, and it reproduced none of them. Every figure came out low, and not by a constant factor.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Texture</th><th>C1 published</th><th>Corrected</th><th>Was</th><th>Now</th></tr></thead>
+    <tbody>
+      <tr><td><code>light_brick.jpg</code></td><td>10.171</td><td>7.379</td><td>refused</td><td>refused</td></tr>
+      <tr><td><code>hardwood.jpg</code></td><td>7.441</td><td>6.147</td><td>refused</td><td>refused</td></tr>
+      <tr><td><code>marbletiles.jpg</code></td><td>5.532</td><td>4.120</td><td>refused</td><td>refused</td></tr>
+      <tr><td><code>light_fine_wood.jpg</code></td><td>4.145</td><td>2.639</td><td>refused</td><td><strong>inside the gate</strong></td></tr>
+      <tr><td><code>walllightmap.png</code></td><td>1.269</td><td>0.592</td><td>passes</td><td>passes</td></tr>
+      <tr><td><code>Ground_4K.jpg</code></td><td>1.098</td><td>0.761</td><td>transcoded</td><td>transcoded</td></tr>
+      <tr><td><code>envs/Garden.jpg</code></td><td>4.483</td><td><strong>6.552</strong></td><td>refused</td><td>refused, harder</td></tr>
+    </tbody>
+  </table></div>
+  <p>A sweep over the plausible causes found it exactly. With <code>outputColorSpace</code> set to Linear-sRGB instead of sRGB, the harness returns <code>hardwood.jpg</code> at <strong>7.441, max 66, 19.88% of channels over 8</strong> &mdash; the published row to three decimals. The earlier oracle wrote linear-light values into an eight-bit framebuffer and differenced those.</p>
+  <p><strong>The last row is why this matters more than a rounding correction.</strong> Six of the seven moved down and one moved up, because an sRGB/linear confusion is not a scale factor: it stretches the shadows and crushes the highlights. <code>Garden</code> is nearly all highlight, so the harness that was too harsh on everything else was <em>too kind</em> to the one texture whose refusal C1 had to argue for. And <code>light_fine_wood.jpg</code> changes verdict: the pixel reason to refuse it has gone, and it stays uncompressed only for the architectural reason C1 recorded separately &mdash; <code>texture_cache</code> still cannot hold a <code>CompressedTexture</code>.</p>
+  <p><strong>What now prevents it is not care.</strong> Every run renders the source and differences it against the source's own decoded pixels first. A transparent path returns zero and does: 0.000 across the calibration set, 0.014 worst case across the tree. Under Linear-sRGB output that residual is nowhere near zero, so the run fails before it reports a single codec figure. The check costs one extra frame per texture and would have caught this the first time it ran.</p>
+
+  <h3>P-3 · The repointer only goes one way <span class="chip warn">med</span> <span class="chip acc">measured</span></h3>
+  <p>B5 wrote <code>repointJson</code> to move an image reference from a source to its transcode, because a texture that was encoded stayed encoded. A per-asset refusal is a verdict on a <em>measurement</em>, and measurements change &mdash; so the first attempt to revert eight textures left eight containers naming files that were no longer there. <code>repoint --check</code> named all eight, which is the safety net working; it is not the same as being able to fix them, and the fix by hand is editing the JSON chunk of eight GLBs.</p>
+  <p>It now returns an image to its source, moves the texture off <code>KHR_texture_basisu</code> back onto <code>source</code>, and drops the extension from <code>extensionsUsed</code> and <code>extensionsRequired</code> when the last KTX2 leaves a container &mdash; a container declaring an extension it does not use is refused outright by strict loaders. The BIN chunk is still copied through byte for byte, so B1's geometry guarantee holds by construction in both directions.</p>
+
+  <h3>P-4 · Three budgets were lowered on this encode <span class="chip warn">med</span> <span class="chip acc">measured</span></h3>
+  <p><code>git log</code> on <code>tools/budget.json</code> shows B5 (<code>e6541a8</code>) lowering three limits in the same commit that transcoded the eighteen:</p>
+  <div class="tw"><table>
+    <thead><tr><th>Limit</th><th>Before B5 (<code>17688b3</code>)</th><th>B5 set</th><th>Needed now</th><th>Restored to</th></tr></thead>
+    <tbody>
+      <tr><td><code>public-total</code></td><td>6,200,000</td><td>5,870,000</td><td>~6,122,000</td><td><strong>6,200,000</strong></td></tr>
+      <tr><td><code>public-largest</code></td><td>330,000</td><td>271,000</td><td>314,335</td><td><strong>330,000</strong></td></tr>
+      <tr><td><code>demo-total</code></td><td>13,860,000</td><td>13,740,000</td><td>~13,684,000</td><td><strong>13,860,000</strong></td></tr>
+    </tbody>
+  </table></div>
+  <p><strong>Not one of them goes a byte past where it already was.</strong> A ratchet exists to stop a limit drifting up while nobody is looking; it does not exist to make a quality regression permanent by pricing the fix out, and a limit set by a saving that failed the project's own gate is not a limit that was earned. <code>demo-total</code> is restored even though the tree fits under B5's value, because 0.4% of headroom is a tripwire for whichever unrelated commit arrives next &mdash; applying the argument to two of the three and not the third would just move the failure somewhere it explains nothing.</p>
+
+  <h3>P-5 · Eight times wrong, in the direction that does not matter <span class="chip">low</span> <span class="chip acc">measured</span></h3>
+  <p><code>encode-textures.mjs</code> says a KTX2 &ldquo;stays compressed in memory at roughly 1 bit per pixel against RGBA8's 32&rdquo;, while the arithmetic three lines below charges one <strong>byte</strong> per pixel. The arithmetic is the one that runs, and it is right for ASTC 4x4 and BC7 and twice the true cost of the BC1/ETC2 this catalog actually transcodes to &mdash; conservative, which is the correct direction for a budget. The prose is simply wrong, and it is the sentence a reader would quote.</p>
+</section>
+
+<!-- ======================= 31 RM-006 SPRINT ======================= -->
+<section id="correction-sprints">
+  <div class="sec-eyebrow">§ 31 · SPRINT</div>
+  <h2>One sprint</h2>
+  <p class="sec-sub">Delivered in one pass. There is no second sprint because there is no second question: the deferral RM-005 handed forward was &ldquo;has anybody looked at these&rdquo;, and looking is one task.</p>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">D1</span>
+      <h3>Measure the eighteen, and keep the instrument</h3>
+      <div class="meta"><span class="chip ok">done</span><span class="chip">P-1</span><span class="chip crit">P-2</span><span class="chip">P-3</span><span class="chip">1 week</span><span class="chip acc">no dependencies</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Render every texture the encoder has ever considered against the source it was encoded from, act on whatever fails B4's 3.0 gate under B1's per-asset rule, and leave the measurement in the repository so the next encode cannot skip it.</p>
+
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE · OBSERVABILITY · DoD</div>
+      <ul>
+        <li><strong>M-20 = 0.</strong> No texture ships compressed while measuring past 3.0 RMS, and the claim is a command rather than a spreadsheet</li>
+        <li><strong>M-21 = 0.000.</strong> The rendered source matches its own decoded pixels, per texture, or the run reports nothing</li>
+        <li><strong>M-22 = 21 of 21.</strong> Every GPU texture the encoder considered &mdash; shipped compressed or refused &mdash; has a rendered measurement on file</li>
+        <li><strong>No limit moves past a value it has already held</strong>, and the commit says which commit each number comes from</li>
+        <li><strong>Rollback.</strong> Per texture. Each refusal is one entry in <code>REFUSED</code>, one source file and one repoint</li>
+      </ul>
+    </div>
+
+    <div class="gate">
+      <div class="g-head">LANDED &mdash; D1</div>
+      <ul>
+        <li><strong>Nine of eighteen were past the gate, and the sprint's first act was to distrust its own instrument.</strong> The new harness was calibrated against C1's published figures before being pointed at anything, it failed, and the failure was worth more than the pass would have been &mdash; see P-2. Two programs of texture verdicts were reached through a frame the application never renders.</li>
+
+        <li><strong>The oracle is a tool now, not a script.</strong> <code>npm run oracle</code>, in the shape of the five <code>--check</code> tools already in <code>tools/</code>. It recovers its own sources from the commit that deleted them, which is what makes it usable at all against a tree where the encode already happened &mdash; the encoder unlinks the source in the same run that writes the container.</li>
+
+        <li><strong>Two traps are handled and both were real.</strong> <code>TextureLoader</code> hands back <code>flipY = true</code> and <code>KTX2Loader</code> hands back <code>false</code>, and a compressed texture cannot be flipped on upload &mdash; so comparing them as loaded differences an image against its own mirror. Both orientations are scored and <code>mirrorTells</code> records how confidently they were separated; it runs 10&times; to 86&times; on real content, so the trap would have quadrupled every figure. And the server 404s rather than serving an SPA fallback, which is the trap B4's oracle hit and had to be moved off <code>vite preview</code> for.</li>
+
+        <li><strong>Eight ship as JPEGs again, one is re-encoded, nine were already fine.</strong> B1's per-asset rule, applied for the third time after the model catalog and <code>Garden</code>. <code>cb-archnight-white_baked.png</code> is the good case: quality 192 takes it from 3.392 to 2.728 and from a 187 KB PNG to a 55 KB container, so it is both better looking and smaller than either alternative.</li>
+
+        <li><strong>The path bug the reverse repointer shipped with was caught by the check that exists for it.</strong> The first run wrote <code>textures/textures/oak_wood.jpg</code> &mdash; a doubled directory, because the finder returned a path and the caller joined it onto a directory again. <code>repoint --check</code> named all eight containers before anything else ran. A writer can be wrong; that is why the reader is a separate command.</li>
+
+        <li><strong>Adding a KTX2 without measuring it now fails in four seconds.</strong> The render stays behind <code>npm run oracle -- --check</code> because it costs a browser and two minutes &mdash; the same reason <code>ledger:check</code> is a command. But the cheap half is a test: is there a measurement for this file, did it pass, and was the render path transparent when it ran. Confirmed by breaking all three.</li>
+
+        <li><strong>Three budgets went back to values they had already held</strong>, and the VRAM ceiling did not move: <em>Runtime assets</em> 5.28 &rarr; 5.84 MB against 5.91, <em>Largest single asset</em> 252 &rarr; 307 KB against 322, <em>Deployed tree</em> 12.44 &rarr; 13.05 MB against 13.22, <em>Texture VRAM</em> 16.15 &rarr; 27.38 MB against an unchanged 45.15. The VRAM is the price of the correction and it is paid out of headroom that was already there.</li>
+
+        <li><strong>1,271 headless tests in 30 files (6 new) and 62 in the browser, five pipeline <code>--check</code>s green, ten budgets green, lint and typecheck clean, the type ledger at 0 of 0.</strong> No public signature, saved design or asset name changed &mdash; the eighteen live inside <code>.glb</code> containers and are never named by a document.</li>
+
+        <li><strong>What this leaves.</strong> <code>light_fine_wood.jpg</code> is now inside the gate and could be compressed if <code>texture_cache</code> could hold a <code>CompressedTexture</code>; C1 built that change, proved it works, and reverted it for want of a consumer. There is now exactly one consumer, worth about 0.7 MB of VRAM. That is a real deferral rather than a rediscovered one, and it is the first thing this program hands forward.</li>
+      </ul>
+    </div>
+  </div>
+
+  <p style="margin-top:16px">One week. What is worth carrying out of it is not the nine textures &mdash; it is that <strong>a measurement nobody can re-run stops being a measurement</strong>. The oracle was correct all three times it was written and thrown away all three times, and in the gap the project made two texture decisions it could not check and one of them was wrong. The fix was not more care; it was <code>git add</code>.</p>
+</section>
+
+
 <footer>
   <p><strong>Method &mdash; RM-004.</strong> Three measurements against the working tree at <code>3cf1c24</code> on branch <code>amit</code>, all of them produced by running something rather than by reading code. <em>The payload</em> &mdash; every one of the 370 manifest entries read and gzipped at level 9, and every <code>.glb</code> walked chunk by chunk, splitting the BIN into buffer views an accessor points at, views an image points at, and the remainder, then a census of accessor <code>componentType</code> per attribute semantic and of index width against each primitive's <code>POSITION</code> count. <em>Wall identity</em> &mdash; three fixtures loaded, censused, round-tripped through <code>saveFloorplan()</code> and <code>loadFloorplan()</code> and intersected, plus a constructed two-walls-one-pair case run through the same round trip. <em>The type ledger</em> &mdash; <code>npx vue-tsc --noEmit --checkJs</code>, bucketed by area, by error code and by file. <strong>What was not run:</strong> no codec. Draco, meshopt and KTX2 are named throughout and none has been executed against this catalog, which is why M-12 carries no target and why B1's first task is the trial rather than its conclusion. Two repository inaccuracies were found and are recorded in §21 G-3 rather than fixed, since this is a planning pass: <code>tsconfig.json</code>'s SFC subtotal disagrees with the tree <em>and</em> with its own itemisation.</p>
   <p><strong>Sources &mdash; RM-004.</strong> <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_mesh_quantization/README.md">KHR_mesh_quantization</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_draco_mesh_compression/README.md">KHR_draco_mesh_compression</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_meshopt_compression/README.md">EXT_meshopt_compression</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_texture_basisu/README.md">KHR_texture_basisu</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/specification/2.0/README.md#binary-gltf-layout">glTF 2.0 &mdash; Binary glTF layout</a> &middot; <a href="https://threejs.org/docs/#examples/en/loaders/DRACOLoader">three.js &mdash; DRACOLoader</a> &middot; <a href="https://threejs.org/docs/#examples/en/loaders/KTX2Loader">three.js &mdash; KTX2Loader</a> &middot; <a href="https://www.typescriptlang.org/tsconfig/#checkJs">TypeScript &mdash; checkJs</a></p>
   <p><strong>Method &mdash; RM-005.</strong> Five measurements against the working tree at <code>5bfb795</code> on branch <code>amit</code>, all produced by running something. <em>The textures</em> &mdash; every <code>.png</code>, <code>.jpg</code> and <code>.jpeg</code> under <code>public/</code> outside the thumbnail directories read for its header dimensions and costed at four bytes per texel with the 4/3 mip factor, then each file attributed to the module that uploads it by grepping the three call sites in <code>three/</code>. <em>The budget hole</em> &mdash; an existing 669&times;1024 <code>.ktx2</code> copied into <code>public/rooms/textures/</code>, <code>tools/check-budget.mjs</code> run before and after, and the file removed; the line did not move. <em>The type tier</em> &mdash; <code>npx vue-tsc --noEmit --checkJs</code>, bucketed by directory, by file, by error code and by receiver type, cross-referenced against <code>grep -rl "@ts-check" src</code> to separate files that are clean from files that are protected. <em>The ledger</em> &mdash; the <code>"//"</code> block parsed the way <code>tests/type-coverage.test.js</code> parses it, its rows summed, and <code>git log -S</code> run on the stale row and the heading that contradicts it. <em>The crash</em> &mdash; <code>RoofItem.prototype.closestCeilingPoint</code> called against a floorplan stub returning no roof planes, and the <code>TypeError</code> caught and printed. <strong>What was not run:</strong> no encoder, and no renderer. The 8.75 MB C1 projects is the encoder's 1 bpp model applied to seven files, not an observed GPU figure &mdash; the same arithmetic that produced B5's 30.46 &rarr; 7.61 MB, whose disk half <em>was</em> measured at 0.459 and whose VRAM half was not. And the C1 spike's question &mdash; whether two <code>CompressedTexture</code> clones are one upload or two &mdash; is deliberately left open, because reading a signature is what produced the costing this program is correcting. Three repository inaccuracies were found and are recorded in §26 rather than fixed, since this is a planning pass: the <code>Skybox</code> claim in <code>tools/encode-textures.mjs</code> and <code>docs/architecture.md</code>, the KTX2 claim in <code>tools/budget.json</code>, and the stale NOT YET row in <code>tsconfig.json</code>.</p>
   <p><strong>Method &mdash; RM-005 C2, added on delivery.</strong> The type half was measured differently from everything above it, and the difference is the finding. Every count in §26 J-3 was produced by <code>npx vue-tsc --noEmit --checkJs</code> against a tree where <code>three</code> resolved to <code>any</code> &mdash; the package ships no <code>.d.ts</code> and <code>@types/three</code> was not installed, which a five-line probe confirms: <code>new Vector3().notAThing</code> type-checked without complaint. So 355 was never a count of the defects in this codebase; it was a count of what a half-blind checker could see. Installing the types took it to 267, resolving the project's own JSDoc names took it back to 300, and the sprint ended at 0. <strong>What was not run:</strong> nothing was measured about runtime behaviour. Six defects were found by reading the checker's output and two of them &mdash; the RoofItem and WallItem crashes &mdash; were reproduced by calling the method against a stub, which is the only place in this program a claim about behaviour is backed by an execution rather than by a reading. The other four are argued from the code and pinned by tests written for them.</p>
   <p><strong>Sources &mdash; RM-005.</strong> <a href="https://threejs.org/docs/#api/en/textures/CompressedTexture">three.js &mdash; CompressedTexture</a> &middot; <a href="https://threejs.org/docs/#api/en/textures/Source">three.js &mdash; Source</a> &middot; <a href="https://github.com/KhronosGroup/KTX-Specification">KTX 2.0 container specification</a> &middot; <a href="https://www.typescriptlang.org/tsconfig/#checkJs">TypeScript &mdash; checkJs</a> &middot; <a href="https://www.typescriptlang.org/docs/handbook/jsdoc-supported-types.html">TypeScript &mdash; JSDoc reference</a></p>
-  <p>architect3d &middot; Delivery &amp; precision program RM-004 rev A &middot; <strong>delivered</strong>, all five sprints &middot; residual program RM-005 rev A &middot; <strong>delivered</strong>, both sprints &middot; successor to hardening program RM-003</p>
+  <p><strong>Method &mdash; RM-006.</strong> One measurement, run twenty-one times, against the working tree at <code>3d21b81</code> on branch <code>amit</code>. Every GPU texture the encoder has ever considered &mdash; the eleven now shipping as KTX2, the eight refused here, <code>ps_7.jpg</code> and <code>envs/Garden.jpg</code> &mdash; was rendered from its authored source and from its transcode through one <code>WebGLRenderer</code> under SwiftShader, same plane, same orthographic camera at 1:1, <code>NearestFilter</code>, no mipmaps, both textures tagged sRGB and the renderer outputting sRGB, and the two frames read back with <code>gl.readPixels</code> and differenced per channel over RGB. Sources for the eighteen were recovered with <code>git log --diff-filter=D</code> and <code>git show</code> against the parent of the commit that deleted each one; provenance was checked by re-encoding one with the shipped settings and comparing SHA-256 against the committed container, which matches byte for byte. The encoder sweep re-encoded each failing texture at <code>qualityLevel</code> 128, 192 and 255 and once as UASTC, and measured all four the same way. <strong>What was not run:</strong> no on-screen-size sweep. The gate is defined at 1:1 &mdash; <code>codecRms</code> in <code>tools/resize-textures.mjs</code> compares the decoded output against the pixels that went into the encoder &mdash; and re-measuring at the size furniture happens to be drawn at, in order to let a failure pass, would be moving the threshold rather than meeting it. <strong>Three repository inaccuracies were found and, unlike a planning pass, all three were fixed here:</strong> the Linear-sRGB frame behind C1's published figures, the one-directional repointer, and the &ldquo;1 bit per pixel&rdquo; claim in <code>tools/encode-textures.mjs</code>. The superseded oracle figures are kept in place with a corrected column written beside them rather than overwritten, because what C1 decided and why is still the record.</p>
+  <p><strong>Sources &mdash; RM-006.</strong> <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_texture_basisu/README.md">KHR_texture_basisu</a> &middot; <a href="https://github.com/KhronosGroup/KTX-Specification">KTX 2.0 container specification</a> &middot; <a href="https://threejs.org/docs/#manual/en/introduction/Color-management">three.js &mdash; Color management</a> &middot; <a href="https://threejs.org/docs/#api/en/textures/CompressedTexture">three.js &mdash; CompressedTexture</a> &middot; <a href="https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_etc/">WEBGL_compressed_texture_etc</a></p>
+  <p>architect3d &middot; Delivery &amp; precision program RM-004 rev A &middot; <strong>delivered</strong>, all five sprints &middot; residual program RM-005 rev A &middot; <strong>delivered</strong>, both sprints &middot; correction program RM-006 rev A &middot; <strong>delivered</strong> &middot; successor to hardening program RM-003</p>
   <p class="credit">Created by <a href="https://amitukind.com" target="_blank" rel="noopener noreferrer">Amit Verma</a></p>
 </footer>
 

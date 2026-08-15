@@ -2,6 +2,63 @@
 
 ## [Unreleased]
 
+### RM-006 — the encode that was never looked at
+
+RM-005 C1 ended by raising one thing and not settling it: B5 had encoded 18
+model textures gating only on disk and video memory, and had never rendered one.
+This settles it. **Nine of the eighteen were past the codec gate**, eight of them
+now ship as JPEGs again, and the instrument that found them is in the repository
+instead of being thrown away for a fourth time.
+
+**The pixel oracle is a tool now — `npm run oracle`.** It renders a texture and
+its KTX2/ETC1S transcode through identical geometry, camera, sampler and
+colour-space state at 1:1 and differences the frames, and it recovers its own
+sources from the commit that deleted them. That measurement had been built three
+times as a throwaway script and deleted three times, which is the direct reason
+B5's encode was never checked: the thing that looks at the picture did not exist
+anywhere a sprint could reach.
+
+**Calibration failed, and that was the finding.** Pointed at the five room
+textures C1 t5 published, it reproduced none of them — every figure came out
+low. The cause is exact: with `outputColorSpace` set to Linear-sRGB the harness
+returns `hardwood.jpg` at 7.441, max 66, 19.88% over 8, which is the published
+row to three decimals. **The earlier oracle differenced a frame nobody sees**
+— the application renders in sRGB — and its bias is not one-directional, so
+mid-tones were overstated and highlights understated. `Ground_4K` was 1.098 and
+is 0.761; `Garden` was 4.483 and is 6.552. Every run now renders the source and
+checks it against its own decoded pixels first; that residual is 0.000, and
+under the old configuration it would not be.
+
+**Nine of B5's eighteen fail the 3.0 RMS gate** — `nyc2.jpg` at 7.004 with a
+worst pixel 174 levels out, two wood grains at 4.88, six more between 3.2 and
+4.5. Every encoder setting was swept before anything was reverted. ETC1S at
+maximum quality rescues exactly one: `cb-archnight-white_baked.png` goes 3.392 →
+2.728 at quality 192 and replaces a 187 KB PNG with a 55 KB container, so it is
+both better looking and smaller. UASTC clears all nine and costs 123–456% of
+source, which is larger than simply shipping the source. So eight ship as JPEGs,
+under B1's per-asset rule for the third time.
+
+**Three size budgets go back to their pre-B5 values** — 6,200,000 / 330,000 /
+13,860,000, the numbers in `tools/budget.json` at `17688b3`. B5 lowered all
+three on the strength of this encode. No limit goes one byte past where it
+already was. Texture VRAM is 16.15 → 27.38 MB against an unchanged 45.15 ceiling.
+
+**`repoint-textures.mjs` goes both ways.** B5 wrote it one-directional because a
+texture that was encoded stayed encoded; a refusal is a verdict on a
+measurement, and measurements change. It now returns an image to its source,
+moves the texture off `KHR_texture_basisu` onto `source`, and drops the
+extension declaration when the last KTX2 leaves a container.
+
+Adding a `.ktx2` without measuring it now fails the test tier in four seconds;
+the browser render stays behind `npm run oracle -- --check`. Also corrected:
+`encode-textures.mjs` said KTX2 "stays compressed at roughly 1 bit per pixel"
+while the arithmetic beside it charged one **byte** — the arithmetic is right and
+conservative, the prose was wrong by a factor of eight.
+
+No public signature, saved design or asset name changed. New in
+`asset-pipeline/`: `model-transcode-oracle.json`, plus corrected columns written
+into the two oracle files whose figures it supersedes.
+
 ### RM-005 C1 — the last of the texture memory
 
 The first sprint of the residual program. It set out to take the 11.67 MB of

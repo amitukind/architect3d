@@ -138,14 +138,28 @@ true rather than merely stated. Retirements are declared in
 that is not there. Rename a room texture only with a retirement; do not delete a
 name.
 
-The 18 textures that live inside `.glb` containers are then **KTX2/ETC1S**,
-which takes VRAM from 43.00 MB to 12.54 MB. A JPEG becomes RGBA8 on the way to
-the GPU whatever it cost on disk; a KTX2 is transcoded to a format the GPU reads
-directly and stays compressed at about 1 bit per pixel. `tools/encode-textures.mjs`
-transcodes, `tools/repoint-textures.mjs` rewrites the containers, and the second
-of those edits the JSON chunk and copies the BIN chunk through byte for byte —
-so the Draco geometry above is untouched by construction rather than
+Eleven textures are then **KTX2/ETC1S**, taking VRAM to 27.38 MB against a 45.15
+MB ceiling. A JPEG becomes RGBA8 on the way to the GPU whatever it cost on disk;
+a KTX2 is transcoded to a format the GPU reads directly and stays compressed at
+one byte per pixel against RGBA8's four. `tools/encode-textures.mjs` transcodes,
+`tools/repoint-textures.mjs` rewrites the containers in either direction, and
+the second of those edits the JSON chunk and copies the BIN chunk through byte
+for byte — so the Draco geometry above is untouched by construction rather than
 re-verified.
+
+**Eleven, not the eighteen B5 encoded, and the difference is the rule that
+governs this whole pipeline.** `tools/transcode-oracle.mjs` renders a texture and
+its transcode through identical state at 1:1 and differences the frames; nine of
+B5's eighteen came out past the 3.0 RMS gate the resize pass already used, so
+eight of them ship as JPEGs and one is re-encoded at a higher quality. **An
+asset that cannot match the pixel tier ships uncompressed** — first applied to
+the model catalog in B1, then to a sky photograph in C1, and now per texture
+here. The refusals are listed with their measured error in `encode-textures.mjs`.
+
+Run `npm run oracle -- --check` before adding a compressed texture. The cheap
+half of that — every shipped `.ktx2` has a measurement and the measurement
+passed — is asserted in `tests/asset-integrity.test.js` and runs with the normal
+suite.
 
 Two things about the runtime are worth knowing. **Nothing holds a renderer.**
 `KTX2Loader` needs `workerConfig`, a record of which compressed formats the GPU
