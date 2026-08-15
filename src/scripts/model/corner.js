@@ -760,9 +760,27 @@ export class Corner extends EventDispatcher
 				//It will lead to recursion. So ensure in the move(newX, newY) method mergeWithIntersected is not called
 				//Hence added a third parameter to move(newX, newY, mergeWithIntersections) that is a boolean value
 				//Send this boolean value as false to avoid recursion crashing of the application
-				this.move(intersection.x, intersection.y, false, updateFloorPlan); //Causes Recursion if third parameter is true
-					
-				this.floorplan.update();
+				this.move(intersection.x, intersection.y, false); //Causes Recursion if third parameter is true
+
+				// `updateFloorPlan` reaches something now (RM-005 C2).
+				//
+				// It was passed as a FOURTH argument to `move()` above, which takes
+				// three, so it was discarded and this method's only parameter did
+				// nothing at all. The checker named it - TS2554, expected 2-3 and got
+				// 4 - and the argument was in the wrong call rather than missing from
+				// the signature: `move()` does not update the floorplan, it batches,
+				// and the update this flag is about is the one on the next line.
+				//
+				// `floorplan.js:357` is the caller that asks for false. It splits a
+				// wall at every intersection, merging a new corner at each, and then
+				// updates ONCE at the end of the loop - so with the flag dropped a
+				// split across N intersections ran N+1 full updates, each rebuilding
+				// every room and recentring the camera. That is RM-003 A2's finding
+				// exactly, in a path A2 did not reach.
+				if (updateFloorPlan)
+				{
+					this.floorplan.update();
+				}
 				return true;
 			}
 		}

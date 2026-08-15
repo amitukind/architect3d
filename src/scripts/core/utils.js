@@ -379,9 +379,15 @@ export class Utils
 	 }
 
 	/**
-     @param corners Is an array of points with x,y attributes
-      @param startX X start coord for raycast
-      @param startY Y start coord for raycast
+	 * @param {Vector2} point The point to test.
+	 * @param {Vector2[]} corners An array of points with x,y attributes.
+	 * @param {Vector2} [start] Ray origin. Defaults to the origin.
+	 *
+	 * The three tags above replace two that named `startX` and `startY`,
+	 * parameters this function has not had since the pre-refactor coordinate
+	 * form - the same signature change the four preserved bugs in this file are
+	 * pinned against. Marking `start` optional is what stops `FloorItem` from
+	 * reporting TS2554 for the ordinary two-argument call (RM-005 C2).
 	 */
 	static pointInPolygon(point, corners, start)
 	{

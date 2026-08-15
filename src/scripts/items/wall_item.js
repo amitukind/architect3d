@@ -29,7 +29,10 @@ export class WallItem extends Item
 		 * itself before it could be re-bound. Bound once here so `releaseWall()`
 		 * can undo it.
 		 */
-		this._onWallDeleted = (event) => {this.remove(event.item);};
+		// `Item.remove()` takes nothing and removes `this`, which is what this
+		// listener wants - the wall it is attached to has gone (RM-005 C2). The
+		// argument read as "remove that item" and did nothing.
+		this._onWallDeleted = () => {this.remove();};
 		/*
 		 * This used to carry a TODO reading "This caused a huge headache.
 		 * HalfEdges get destroyed/created every time floorplan is edited. This

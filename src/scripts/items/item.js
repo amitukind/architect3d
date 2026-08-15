@@ -687,7 +687,16 @@ export class Item extends Mesh
 	}
 
 	/** */
-	moveToPosition(vec3)
+	/**
+	 * @param {import('three').Vector3} vec3
+	 * @param {Object} [intersection] Ignored here. Declared because `WallItem`
+	 *        overrides this and DOES use it, and `Item.clickDragged` calls
+	 *        through `this` - so the two-argument call at line 665 is correct for
+	 *        a wall item and only looked wrong against this signature (RM-005 C2).
+	 *        Dropping the argument instead would have broken wall placement.
+	 */
+	// eslint-disable-next-line no-unused-vars -- see the docblock: subclasses use it
+	moveToPosition(vec3, intersection)
 	{
 		this.position.copy(vec3);
 		if(this.bhelper)

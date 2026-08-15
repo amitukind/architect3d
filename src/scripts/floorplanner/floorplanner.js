@@ -103,9 +103,13 @@ export class Floorplanner2D extends EventDispatcher
 		this._pointerOptions = {passive: false};
 		this._pointerDownEvent = (event) => {scope.mousedown(event);};
 		this._pointerMoveEvent = (event) => {scope.mousemove(event);};
-		this._pointerUpEvent = (event) => {scope.mouseup(event);};
-		this._pointerLeaveEvent = (event) => {scope.mouseleave(event);};
-		this._doubleClickEvent = (event) => {scope.doubleclick(event);};
+		// These three take no event - `mouseup(/*event*/)` has its parameter
+		// commented out - so they are called without one (RM-005 C2). Passing an
+		// argument to a zero-parameter function is a no-op in JS and a TS2554 here;
+		// the handlers below that DO read the event still get it.
+		this._pointerUpEvent = () => {scope.mouseup();};
+		this._pointerLeaveEvent = () => {scope.mouseleave();};
+		this._doubleClickEvent = () => {scope.doubleclick();};
 		this._keyUpEvent = (event) => {scope.keyUp(event);};
 		this._keyDownEvent = (event) => {scope.keyDown(event);};
 		this._floorplanLoadedEvent = () => {scope.reset();};

@@ -222,7 +222,11 @@ export class Scene extends EventDispatcher
 	/**
 	 * Removes an item.
 	 * @param item The item to be removed.
-	 * @param dontRemove If not set, also remove the item from the items list.
+	 * @param {boolean} [keepInList] If not set, also remove the item from the
+	 *        items list. Optional, and now declared as such: `Model` calls this
+	 *        with one argument in two places and TypeScript read a two-parameter
+	 *        signature as requiring both (RM-005 C2). The docblock said
+	 *        `dontRemove`, which is neither the parameter's name nor its sense.
 	 */
 	removeItem(item, keepInList)
 	{
@@ -338,7 +342,11 @@ export class Scene extends EventDispatcher
 	 * @param rotation The initial rotation around the y axis.
 	 * @param scale The initial scaling.
 	 * @param fixed True if fixed.
-	 * @param newItemDefinitions - Object with position and 'edge' attribute if it is a wall item
+	 * @param {Object} [newItemDefinitions] Object with position and 'edge'
+	 *        attribute if it is a wall item. Optional: `Model.loadSerialized`
+	 *        calls this with seven arguments, which is the ordinary case - a
+	 *        document restores an item's own position rather than a placement
+	 *        hint (RM-005 C2).
 	 */
 	addItem(itemType, fileName, metadata, position, rotation, scale, fixed, newItemDefinitions)
 	{

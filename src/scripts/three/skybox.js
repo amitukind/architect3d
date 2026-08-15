@@ -519,6 +519,13 @@ export class Skybox extends EventDispatcher
 		// shape a compressed texture needs: the material is built INSIDE the
 		// callback, from the texture that arrives, so it holds a
 		// `CompressedTexture` as readily as a `Texture` and always could have.
+		//
+		// The trailing `undefined, function(){...}` this used to carry went with
+		// it. `loadTexture` takes two arguments and owns the failure path for both
+		// loaders, so the third and fourth were being dropped - which C1 did not
+		// notice and the type checker did, in the very next sprint (TS2554,
+		// expected 2 got 4). The message they logged, `ERROR LOADEING FILE`, is
+		// replaced by `loadTexture`'s, which names the URL.
 		scope.loadTexture(url, function (t)
 		{
 			// The environment photograph, decoded on the way in so the shader's
@@ -530,10 +537,7 @@ export class Skybox extends EventDispatcher
 			var textureUniform = {type: 't', value: t};
 			var uniforms = {envMap: textureUniform};
 			scope.skyMat = new ShaderMaterial({vertexShader: scope.vertexShader, fragmentShader: scope.fragmentShader, uniforms: uniforms, side: DoubleSide});
-			scope.toggleEnvironment(scope.useEnvironment);			
-		}, undefined, function()
-		{
-			console.log('ERROR LOADEING FILE');
+			scope.toggleEnvironment(scope.useEnvironment);
 		});
 	}
 	

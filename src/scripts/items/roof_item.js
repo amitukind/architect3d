@@ -92,6 +92,29 @@ export class RoofItem extends Item
 		//No good results so assign the closestPoint of the last roof in the above iteration
 		if(globalResult.point == null)
 		{
+				// `result` is null when the loop never ran, which is every design with
+				// no rooms - and `roofPlanes()` pushes one plane per room (RM-005 C2).
+				//
+				// This threw. Not in an odd corner of the API either: the constructor
+				// calls `closestCeilingPoint()` on line 24, so adding a ceiling item
+				// before drawing a room was `TypeError: Cannot read properties of null
+				// (reading 'closestPoint')`, and the state it needs is the one every
+				// design starts in.
+				//
+				// Found by reading the type checker's output rather than by anybody
+				// hitting it - two of the 355 sit on the line below, TS18047 for
+				// `result` and again for `result.closestPoint`. That is the second
+				// defect this family has produced, after P2's and B3's.
+				//
+				// Staying where it is, is the honest answer to "what is the nearest
+				// ceiling" when there is no ceiling. `moveToPosition` with the current
+				// position is a no-op, so the item lands wherever it was placed and
+				// the user moves it - which is what `FloorItem.isValidPosition` already
+				// does when it cannot find a room to be in.
+				if(result == null)
+				{
+						return this.position.clone();
+				}
 				return result.closestPoint.clone();
 		}
 		return globalResult.point.clone();

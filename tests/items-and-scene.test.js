@@ -1196,3 +1196,63 @@ describe('Model.exportSerialized', () => {
 		});
 	});
 });
+
+/**
+ * RoofItem threw on a design with no rooms, and the checker had already said so.
+ *
+ * Two of the library's 355 type errors sat on one line of
+ * `items/roof_item.js` - TS18047 for `result` and again for
+ * `result.closestPoint`. `result` is only ever assigned inside a loop over
+ * `floorplan.roofPlanes()`, which pushes one plane per room, so an empty
+ * floorplan left it null and the line dereferenced it.
+ *
+ * Not a corner of the API: `RoofItem`'s constructor calls
+ * `closestCeilingPoint()` (`roof_item.js:24`), so adding a ceiling item before
+ * drawing a room was a TypeError, and that is the state every design starts in.
+ *
+ * Constructed rather than found. No fixture has a design with no rooms and a
+ * ceiling item, which is exactly why nothing caught it - the crash needs the
+ * emptiest possible document, and every fixture is a real one.
+ */
+describe('RoofItem on a design with no ceiling (RM-005 C2, J-5)', () =>
+{
+	/** The two things `closestCeilingPoint` reads off `this`. */
+	const withRoofs = (planes) => ({
+		model: {floorplan: {roofPlanes: () => planes}},
+		position: new three.Vector3(10, 20, 30),
+	});
+
+	it('does not throw when the floorplan has no rooms', () =>
+	{
+		const item = withRoofs([]);
+		expect(() => RoofItem.prototype.closestCeilingPoint.call(item)).not.toThrow();
+	});
+
+	it('stays where it is, which is the honest answer when there is no ceiling', () =>
+	{
+		// `moveToPosition` with the current position is a no-op, so the item lands
+		// where it was placed and the user moves it - the same answer
+		// `FloorItem.isValidPosition` gives when it cannot find a room to be in.
+		const item = withRoofs([]);
+		const where = RoofItem.prototype.closestCeilingPoint.call(item);
+
+		expect(where).toBeInstanceOf(three.Vector3);
+		expect([where.x, where.y, where.z]).toEqual([10, 20, 30]);
+		// A copy, not the live position: the caller passes it to moveToPosition,
+		// which would otherwise be handed the vector it is about to overwrite.
+		expect(where).not.toBe(item.position);
+	});
+
+	it('still prefers a real ceiling when there is one', () =>
+	{
+		// The fix must not have turned the normal path into the fallback. One roof
+		// that contains the point, so the loop assigns and the guard is not reached.
+		const item = withRoofs([{}]);
+		item.model.floorplan.roofPlanes = () => [{}];
+		const contained = {distance: 5, contains: true, point: new three.Vector3(1, 2, 3), closestPoint: new three.Vector3(9, 9, 9)};
+		const stub = {...item, roofContainsPoint: () => contained};
+
+		const where = RoofItem.prototype.closestCeilingPoint.call(stub);
+		expect([where.x, where.y, where.z]).toEqual([1, 2, 3]);
+	});
+});

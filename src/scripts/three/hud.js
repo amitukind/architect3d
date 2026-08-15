@@ -189,9 +189,12 @@ export class HUD extends EventDispatcher
 	makeObject(item) 
 	{
 		var object = new Object3D();
-		var line = new LineSegments(this.makeLineGeometry(item),this.makeLineMaterial(this.rotating));
+		// `makeLineMaterial` and `makeSphere` take nothing - both read `getColor()`
+		// off `this` - so the arguments they were handed went nowhere (RM-005 C2).
+		// `this.rotating` is what `getColor()` already consults.
+		var line = new LineSegments(this.makeLineGeometry(item),this.makeLineMaterial());
 		var cone = this.makeCone(item);
-		var sphere = this.makeSphere(item);
+		var sphere = this.makeSphere();
 		object.add(line);
 		object.add(cone);
 		object.add(sphere);

@@ -51,7 +51,8 @@ export class Controller extends EventDispatcher
 		this.itemloadedevent = (o) => {scope.itemLoaded(o.item);};
 
 		this.mousedownevent = (event)=> {scope.mouseDownEvent(event);};
-		this.mouseupevent = (event)=> {scope.mouseUpEvent(event);};
+		// `mouseUpEvent()` reads nothing off the event (RM-005 C2).
+		this.mouseupevent = ()=> {scope.mouseUpEvent();};
 		this.mousemoveevent = (event)=> {scope.mouseMoveEvent(event);};
 		// Non-passive: both handlers call preventDefault().
 		this._pointerOptions = {passive: false};
