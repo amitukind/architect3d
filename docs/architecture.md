@@ -158,14 +158,25 @@ without a KTX2 loader attached refuses these files outright rather than
 rendering them untextured. `Scene` attaches one; a consumer supplying their own
 loader through `setItemLoader` must too.
 
-**The room textures are still JPEG**, and the reason is a real limitation rather
-than an oversight. `texture_cache` hands out a `Texture` synchronously and fills
-in the pixels when the load lands, which works because `TextureLoader.load()`
-returns one immediately and clones share a `source`. `KTX2Loader.load()` returns
-`undefined` and delivers a `CompressedTexture` whose data lives in `mipmaps`, so
-there is nothing to hand back at call time. Supporting it means making
-`acquireTexture` asynchronous and changing `Floor`, `Edge` and `Skybox` with it.
-That is 8.75 MB more, costed and not taken.
+**Most of the room textures are still JPEG**, and the paragraph that used to sit
+here was wrong in two ways that RM-005 C1 measured. It read: *"Supporting it
+means making `acquireTexture` asynchronous and changing `Floor`, `Edge` and
+`Skybox` with it. That is 8.75 MB more, costed and not taken."*
+
+`Skybox` was never in that list. It does not use `texture_cache` and never has —
+it holds its own loader — and it owned 8.00 MB of the 11.67 MB available. Its
+ground photograph is a KTX2 now, `Ground_4K.jpg` is a retired name pointing at
+it, and that is 4.00 MB of the correction. Its environment map was measured and
+refused: ETC1S bands a sky gradient at RMS 4.48 against a 3.0 gate.
+
+The cache limitation itself is real and is stated correctly above — `texture_cache`
+hands out a `Texture` synchronously, `KTX2Loader.load()` returns `undefined` and
+delivers a `CompressedTexture` whose data lives in `mipmaps`. C1 built the change
+that removes it and then reverted it, because the five textures behind the cache
+all refuse ETC1S on their own merits: 7.4, 5.5, 10.2 and 4.1 RMS against a gate
+of 3.0, and the fifth is a lightmap whose 21-byte dynamic range makes an absolute
+gate the wrong instrument. **The cache was never the binding constraint — the
+content was.** See `asset-pipeline/room-transcode-oracle.json`.
 
 `dimensioning.js` converts between centimetres (what the model stores) and
 whatever unit the user picked. `render_profile.js` is the table of shading

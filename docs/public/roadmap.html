@@ -2712,9 +2712,9 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
   <div class="tw"><table>
     <thead><tr><th>Nº</th><th>Metric</th><th class="num">Today</th><th class="num">Target</th><th>How it is measured</th><th>Sprint</th></tr></thead>
     <tbody>
-      <tr><td>M-15</td><td>Uploaded textures the VRAM budget can count</td><td class="num">10 of 28</td><td class="num">28 of 28</td><td>Compare the file list <code>textureVram()</code> walks against the manifest entries whose <code>kind</code> is <code>model-texture</code>, <code>texture</code> or <code>environment</code></td><td>C1</td></tr>
-      <tr><td>M-16</td><td>Texture VRAM, on the corrected measurement</td><td class="num">20.15 MB</td><td class="num">11.40 MB</td><td><code>npm run budget</code> after M-15. The target assumes the encoder's 1&nbsp;bpp model and drops to 14.15 MB if the C1 spike says the cache cannot share a compressed upload &mdash; see N-2</td><td>C1</td></tr>
-      <tr><td>M-17</td><td>Textures fetched without passing through <code>AssetResolver</code></td><td class="num">2</td><td class="num">0</td><td><code>grep -n "rooms/textures/" src/scripts/three/*.js</code>, minus the constants that are resolved at their point of use</td><td>C1</td></tr>
+      <tr><td>M-15</td><td>Uploaded textures the VRAM budget can count</td><td class="num">10 of 28</td><td class="num">28 of 28 <span class="chip ok">met</span></td><td>Compare the file list <code>textureVram()</code> walks against the manifest entries whose <code>kind</code> is <code>model-texture</code>, <code>texture</code> or <code>environment</code></td><td>C1</td></tr>
+      <tr><td>M-16</td><td>Texture VRAM, on the corrected measurement</td><td class="num">20.15 MB</td><td class="num">16.15 MB <span class="chip warn">part</span></td><td><code>npm run budget</code> after M-15. The target assumes the encoder's 1&nbsp;bpp model and drops to 14.15 MB if the C1 spike says the cache cannot share a compressed upload &mdash; see N-2</td><td>C1</td></tr>
+      <tr><td>M-17</td><td>Textures fetched without passing through <code>AssetResolver</code></td><td class="num">2</td><td class="num">0 <span class="chip ok">met</span></td><td><code>grep -n "rooms/textures/" src/scripts/three/*.js</code>, minus the constants that are resolved at their point of use</td><td>C1</td></tr>
       <tr><td>M-18</td><td><code>vue-tsc --checkJs</code> errors outside the checked set</td><td class="num">355</td><td class="num">0</td><td><code>npx vue-tsc --noEmit --checkJs 2>&amp;1 | grep -c "error TS"</code></td><td>C2</td></tr>
       <tr><td>M-19</td><td><code>src/scripts</code> files carrying <code>// @ts-check</code></td><td class="num">25 of 55</td><td class="num">55 of 55</td><td><code>find src/scripts -name '*.js' | wc -l</code> against the same list filtered by <code>grep -l "@ts-check"</code></td><td>C2</td></tr>
     </tbody>
@@ -2905,7 +2905,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
     <div class="sprint-head">
       <span class="sprint-no">C1</span>
       <h3>The last of the texture memory</h3>
-      <div class="meta"><span class="chip acc">proposed</span><span class="chip warn">J-1</span><span class="chip warn">J-2</span><span class="chip warn">J-3</span><span class="chip">1 week</span><span class="chip acc">no dependencies</span></div>
+      <div class="meta"><span class="chip ok">done</span><span class="chip warn">J-1</span><span class="chip warn">J-2</span><span class="chip warn">J-3</span><span class="chip">1 week</span><span class="chip acc">no dependencies</span></div>
     </div>
     <p class="goal"><strong>Objective.</strong> Take the 11.67 MB that B5 left, cheapest two-thirds first, and fix the measurement before changing the thing it measures. Put <code>Skybox</code> behind the resolver on the way, because the encode is a retirement and a retirement only reaches code that resolves.</p>
 
@@ -2949,6 +2949,33 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
         <li><strong>The VRAM budget limit is untouched</strong>, and the CHANGELOG says why a line in a program about lowering VRAM went up</li>
         <li><strong>Rollback.</strong> Per task. Task 3 reverts by restoring two files and two manifest rows; task 5 reverts to the current cache wholesale</li>
         <li><strong>DoD.</strong> Three tiers green · five pipeline <code>--check</code>s green · ten budgets green · <code>docs/architecture.md</code> corrected on both counts &mdash; the <code>Skybox</code> claim and the 8.75 MB &mdash; · CHANGELOG</li>
+      </ul>
+    </div>
+
+    <div class="gate">
+      <div class="g-head">LANDED &mdash; C1</div>
+      <ul>
+        <li><strong>4.00 MB banked against a projected 8.75, and the shortfall is the sprint's finding rather than its failure.</strong> Every one of the seven candidate textures was rendered against its own transcode and differenced in the framebuffer &mdash; a thing no previous texture sprint did &mdash; and five of the seven refuse. B5's 8.75 MB was arithmetic on file sizes, and it assumed a codec nobody had looked through.</li>
+
+        <li><strong>The measurement was wrong before anything was encoded, and correcting it moved the number the wrong way first.</strong> <code>textureVram()</code> read <code>.png</code>, <code>.jpg</code> and <code>.jpeg</code>; B5 had turned 18 textures into <code>.ktx2</code> and the extension list did not follow. The line fell 43.00 &rarr; 12.54 MB after B5 and roughly a quarter of that fall was the measurement letting go. Proved by dropping a 669&times;1024 KTX2 into <code>public/</code> and watching the budget move by <strong>0.00 MB</strong>. Corrected to 20.15 MB with the limit untouched &mdash; the second correction to this line, and the two went opposite ways.</li>
+
+        <li><strong>J-1 held, and it was the whole of the win.</strong> <code>Skybox</code> owns 8.00 MB of the 11.67 and has never called <code>acquireTexture</code>. Its ground photograph is a KTX2 now, 5.33 &rarr; 1.33 MB, and the sprint's entire saving is that one file. Its environment map was measured and refused: RMS 4.483 against B4's 3.0 gate with 4.08% of channels off by more than 8 &mdash; banding in a sky gradient, on the surface a first-person viewer looks at longest.</li>
+
+        <li><strong>Then the second half found something better than the memory it was after.</strong> N-2's spike came back YES: two clones of a compressed texture differing in <code>repeat</code> cost one <code>_gl.createTexture()</code>, measured, with a break proving the counter can see a second. So the cache change was built &mdash; an empty <code>CompressedTexture</code> handed out and cloned as before, payload adopted into the master and every live clone on arrival, signature and synchronous return intact. It worked.</li>
+
+        <li><strong>And then all five textures behind it refused, so it was reverted.</strong> 7.441, 5.532, 10.171 and 4.145 RMS against a gate of 3.0, two of them past double. A quality sweep first, because B5 chose <code>qualityLevel</code> 128 out of 255: at maximum, hardwood is still 1.8&times; the gate and light_brick 2.8&times;, for nearly twice the file. <strong>The cache was never the binding constraint &mdash; the content was</strong>, and these textures would have refused ETC1S with any cache at all. Machinery with no consumer is a liability, so it went.</li>
+
+        <li><strong>The fifth texture is the one worth remembering.</strong> <code>walllightmap.png</code> passes on absolute error &mdash; RMS 1.269, nothing off by more than 8 &mdash; and it was nearly taken. It is a hand-painted vignette spanning bytes 232 to 253, so its entire dynamic range is 21 levels: 1.269 is <strong>6.0% of that range</strong> and its worst pixel 23.8%. Against its own content it is the most damaged of the five, where hardwood's 7.441 is 2.9% of a full-range image. An absolute gate is the wrong instrument for a low-contrast texture, and nothing in the tree would have said so.</li>
+
+        <li><strong>J-2 was a prerequisite and behaved like one.</strong> The encode is a retirement and a retirement only reaches code that resolves, so the two literals were removed first. Three tests hold it: no loader takes a bare asset path, every fetch argument is resolved at the call or bound from a resolve, and the tree's five texture literals are enumerated so a sixth is a decision.</li>
+
+        <li><strong>Two of those tests failed to fail on the first attempt, and both were the same mistake.</strong> One asked "does this file mention <code>resolveAsset</code> anywhere?" &mdash; satisfied by the method's own DECLARATION, so removing both call sites left it green. The other asserted a KTX2 costs less than a JPEG, and a texture the budget cannot see costs zero, which is less than everything. A check on the existence of a tool rather than on its use, twice in one sprint.</li>
+
+        <li><strong>The real browser found what nothing else could.</strong> <code>KTX2Loader.load()</code> THROWS on a missing <code>workerConfig</code> rather than failing soft, and jsdom has no WebGL to produce one &mdash; the one place B4's architectural objection was pointing at something real, and it lands in <code>Skybox</code> rather than <code>Scene</code> because <code>Scene</code> only attaches its loader. Four browser tests now prove the transcode: container magic on the wire, a compressed format reported by the device, <code>isCompressedTexture</code> with an 11-level mip chain, and the material recompiled.</li>
+
+        <li><strong>Raised and not settled.</strong> B5 encoded 18 model textures gating only on disk and VRAM and never rendered one. If ETC1S is destructive enough on wood grain at 512&times;512 to fail at 7.4 RMS, some of those 18 are likely degraded and nobody has looked. The sources are in git history rather than in the tree, so the measurement is recoverable and is not free.</li>
+
+        <li><strong>1,259 headless tests in 30 files and 62 in the browser (5 new), five pipeline <code>--check</code>s green, ten budgets green, lint and typecheck clean.</strong> Texture VRAM 20.15 &rarr; 16.15 MB on the corrected measurement, <em>Runtime assets</em> 5.32 &rarr; 5.28 MB, <em>Deployed tree</em> 12.48 &rarr; 12.44 MB. No limit moved: 40 KB of headroom is not a ratchet, and the VRAM ceiling still guards the RGBA8 fallback.</li>
       </ul>
     </div>
   </div>
@@ -3011,7 +3038,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
   <div class="tw"><table>
     <thead><tr><th>Sprint</th><th>Work</th><th>Effort</th><th>Depends on</th><th>Metrics moved</th></tr></thead>
     <tbody>
-      <tr><td><strong>C1</strong> <span class="chip acc">proposed</span></td><td>The last of the texture memory</td><td>1 week</td><td>—</td><td>M-15, M-16, M-17. Internally ordered; can stop after task 3 with 8.00 MB banked</td></tr>
+      <tr><td><strong>C1</strong> <span class="chip ok">done</span></td><td>The last of the texture memory</td><td>1 week</td><td>—</td><td>M-15 and M-17 met, M-16 part. 4.00 MB banked of a projected 8.75, and the shortfall is the finding — see LANDED</td></tr>
       <tr><td><strong>C2</strong> <span class="chip acc">proposed</span></td><td>Type coverage, library tier</td><td>2 weeks</td><td>—</td><td>M-18, M-19. Three of C1's files are also C2 task 3, and are worth doing during C1</td></tr>
     </tbody>
   </table></div>

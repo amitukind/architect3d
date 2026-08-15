@@ -2,6 +2,45 @@
 
 ## [Unreleased]
 
+### RM-005 C1 — the last of the texture memory
+
+The first sprint of the residual program. It set out to take the 11.67 MB of
+texture VRAM that RM-004 B5 left behind, and it banked **4.00 MB** — because
+five of the seven candidate textures were rendered, measured and refused.
+
+**Texture VRAM is reported honestly now, and the honest number went up.**
+`textureVram()` read `.png`, `.jpg` and `.jpeg`; B5 turned 18 textures into
+`.ktx2` and the extension list did not follow, so 18 uploads stopped being
+counted. Dropping a 669×1024 KTX2 into `public/` moved the budget by 0.00 MB.
+Corrected 12.54 → 20.15 MB with the limit untouched — the second correction to
+this line, and the two went opposite ways.
+
+**`Skybox` was fetching two textures the manifest could not reach.** Both were
+string literals passed straight to `TextureLoader.load()`, bypassing
+`AssetResolver` — and they are 8.00 MB of the 11.67. That bypass cost nothing
+while B4 was downscaling files in place, and would have broken the moment a name
+moved, which is exactly what this sprint needed to do.
+
+**`Ground_4K.jpg` is a KTX2**, 5.33 → 1.33 MB. The old name is retired to it, so
+anything still asking for the JPEG resolves. `envs/Garden.jpg` was measured and
+kept: ETC1S bands a sky gradient at RMS 4.483 against a 3.0 gate.
+
+**The texture cache change was built, tested, and reverted.** B5 recorded that
+`acquireTexture` could not hold a `CompressedTexture`, and that was true; the
+replacement handed out an empty container and adopted the decoded payload into
+every live clone on arrival, keeping the signature and the synchronous return.
+Then the five textures it was built for all refused — 7.4, 5.5, 10.2 and 4.1 RMS
+against a gate of 3.0, and a lightmap whose 21-byte dynamic range makes an
+absolute gate the wrong instrument. **The cache was never the binding
+constraint; the content was.** Machinery with no consumer is a liability, so it
+went, and the measurements stayed.
+
+Nothing here changes a public signature, a saved design, or an asset name that
+stops resolving. No budget limit moved.
+
+Two measurements are new in `asset-pipeline/`:
+`skybox-transcode-oracle.json` and `room-transcode-oracle.json`.
+
 ## [2.3.0] - 2026-08-15
 
 Small debts, and two of them turned out to be real bugs.
