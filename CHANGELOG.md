@@ -106,12 +106,53 @@
   renderer does, so this is the stricter reading as well as the more durable
   one.
 
+* **Five oversized textures are now capped at 1024px, and GPU memory fell by
+  59%.** Texture VRAM goes **104.67 MB → 43.00 MB** and the deployed tree loses
+  1.50 MB alongside it. Nothing about the runtime changed: the filenames did not
+  move, so every `.glb` that references these maps is untouched and every saved
+  design resolves exactly as before.
+
+  The defect was resolution, not compression. `Ground_4K.jpg` was 1822×1822
+  built from a 73 KB source — 0.023 bytes per texel — and the skybox tiles it at
+  `repeat.set(40, 40)`, so each tile lands on a few dozen screen pixels and mip
+  0 was memory nothing ever read.
+
+  **What it cost, measured in rendered frames rather than claimed.** A pixel
+  oracle rendered each texture before and after and differenced the framebuffer,
+  separating harness noise (0.00 everywhere), codec loss, and resolution.
+  `Ground_4K` and `white_wood` are free at every size. `Garden` is free up to
+  512px. The two dark wood grains carry a real 2.3–3.7 rms difference at
+  realistic sizes with worst pixels 23–39/255 — small, and not nothing. The
+  numbers are in `asset-pipeline/resize-oracle.json`.
+
+* **The texture VRAM budget was measuring the wrong thing, and is corrected
+  rather than moved.** It reported 164.41 MB over 202 images. 174 of those are
+  `<img :src>` thumbnails the browser decodes lazily and never uploads, and the
+  manifest's own `kind` was mislabelling 148 of them — so anything branching on
+  kind was wrong about them too. The honest figure was 28 textures holding
+  104.67 MB.
+
+* **Five budget limits came down and none went up.** `texture-vram`,
+  `public-total`, `demo-total`, `public-largest` and `catalog-item-largest`, each
+  re-set to about 5% over the new measurement. Two are worth reading as findings:
+  `public-largest` changed *which file* it points at, and `catalog-item-largest`
+  more than halved without any model being touched, because Full Bed's remaining
+  cost was never its geometry.
+
 ### Added
 
 * **`npm run encode`** and `npm run encode:check`, the same
   committed-output, staleness-checked shape as `npm run manifest`. A checkout
   builds and serves with no encoder installed; the glTF-Transform and Draco
   packages are devDependencies and nothing at runtime imports them.
+
+* **`npm run resize`** and `npm run resize:check`, the same shape again. The
+  check needs no encoder and no image decoding at all — the cap is a property of
+  the dimensions and staleness is a property of the hashes — so it runs in half a
+  second. `tests/texture-resize.test.js` asserts the same claims from a bare
+  checkout, and separately tests the resampler itself against synthetic images
+  with hand-derived answers: a half-black, half-white split must resample to
+  **188**, not 128, which is the entire gamma question reduced to one integer.
 
 * **A `codec` field on every manifest entry**, derived from the container's own
   `extensionsRequired` rather than declared, and `resolver.codecMix()` /
@@ -166,12 +207,31 @@ left to be discovered:
 
 ### Deferred
 
-KTX2/Basis for the texture half, with the case measured rather than asserted:
-transport takes only 4.4% of those 5.23 MB because they are already
-entropy-coded, and the real prize is the 164 MB of VRAM, which BC7/ETC2 would
-take to 41 MB. It is not in this release because the encoder needs
-KTX-Software binaries that are not installed here, and quoting a published
-ratio in place of a measurement is the one thing this programme does not do.
+**KTX2/Basis, now declined on evidence rather than postponed for tooling.** The
+encoder was built and run: 25 of 28 textures encode, 4.13 → 2.16 MB on disk, and
+**78.50 MB of VRAM against the 61.67 MB the resize actually took**. Three things
+decided against it, and the measurements are in the roadmap so it can be picked
+up cold rather than re-derived:
+
+* 19 of the 28 textures — 72.78 MB, 70% of the total — live inside `.glb` files,
+  and `GLTFLoader` resolves their image URIs relative to the model, bypassing the
+  resolver. KTX2 changes the file extension, so all 19 containers would need
+  rewriting and the Draco-encoded output would go back through the pipeline.
+* `KTX2Loader.load()` throws without `detectSupport(renderer)`, and the texture
+  cache is deliberately page-wide and renderer-free. Wiring it puts back a
+  coupling two earlier sprints went to some trouble to remove.
+* It compresses upscaled pixels very efficiently, which is solving the wrong
+  problem well.
+
+The two compose. A later sprint can still encode the *resized* textures and take
+the remaining ~32 MB, from a starting point 59% smaller than the one it faced
+here.
+
+**Two PNGs worth a look next.** With the largest JPEGs resized,
+`rooms/textures/hardwood.png` is now the biggest file served at 476 KB — a
+512×512 texture carrying **1.861 bytes per texel**, nine times the density of
+any JPEG in the catalog. An earlier pass re-encoded 21 opaque PNGs as JPEG for
+exactly this reason and this one survived it.
 
 ## [2.0.0] - 2026-08-15
 

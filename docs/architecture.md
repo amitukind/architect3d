@@ -104,6 +104,35 @@ nobody fetches. And the encoder hand-assembles its GLB output rather than using
 two of those are shared, and embedding would duplicate 933 KB while serving the
 same pixels twice.
 
+Textures are capped at **1024px on the long edge**, which is the other half of
+the delivery story and a much cheaper half. Five files were over it; resizing
+them took GPU memory from 104.67 MB to 43.00 MB and the tree down another
+1.50 MB. `tools/resize-textures.mjs` does it, on the same terms as the encoder:
+committed output, `--check`able, gates that can only fall back.
+
+Two properties are doing the work, and both are worth understanding before
+changing the cap. **The filename does not move**, so the 19 textures that live
+inside `.glb` containers — which `GLTFLoader` resolves relative to the model,
+bypassing the resolver entirely — are reachable without rewriting a single
+container. And the image is resampled **in linear light with alpha
+premultiplied**, because averaging sRGB values averages the wrong numbers and
+visibly darkens fine bright detail on exactly the wood grain this targets.
+
+The interesting question was what a downscale costs, and the answer is not
+"nothing". `asset-pipeline/resize-oracle.json` holds 25 rendered-frame
+comparisons, decomposed into harness noise, JPEG generation loss, and
+resolution. The ground and the pale wood are free at every size; the
+environment map is free below 512px; the two dark wood grains carry a real
+2.3–3.7 rms difference (of 255) at realistic sizes. That was judged a good
+trade for 61.67 MB, and it is written down so the judgement can be revisited
+rather than reconstructed.
+
+KTX2/Basis would have taken 78.50 MB instead of 61.67, and was declined —
+mostly because of the `.glb` indirection above, and because `KTX2Loader`
+requires a renderer that `texture_cache` deliberately does not hold. The
+CHANGELOG's *Deferred* section has the full case. The two compose: encoding the
+already-resized textures is still available and now starts 59% smaller.
+
 `dimensioning.js` converts between centimetres (what the model stores) and
 whatever unit the user picked. `render_profile.js` is the table of shading
 constants the 3D view reads — it lives here rather than in `three/` because the

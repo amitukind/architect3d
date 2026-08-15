@@ -1,0 +1,144 @@
+{
+	"cap": 1024,
+	"quality": 95,
+	"gates": {
+		"lowFrequencyRms": 2,
+		"lowFrequencyMax": 8,
+		"codecRms": 3
+	},
+	"textures": [
+		{
+			"name": "models/js-glb/textures/grey-brown_wood.jpg",
+			"from": {
+				"width": 1500,
+				"height": 2297,
+				"bytes": 700642
+			},
+			"to": {
+				"width": 669,
+				"height": 1024,
+				"bytes": 300250
+			},
+			"vram": {
+				"before": 18376000,
+				"after": 3653632
+			},
+			"fidelity": {
+				"lowFrequencyRms": 0.4576,
+				"lowFrequencyMax": 1,
+				"codecRms": 1.705,
+				"detailPsnr": 35.74
+			},
+			"sha256": "1723bc3abe9b8083"
+		},
+		{
+			"name": "models/js-glb/textures/oak_wood.jpg",
+			"from": {
+				"width": 1500,
+				"height": 2297,
+				"bytes": 721149
+			},
+			"to": {
+				"width": 669,
+				"height": 1024,
+				"bytes": 314335
+			},
+			"vram": {
+				"before": 18376000,
+				"after": 3653632
+			},
+			"fidelity": {
+				"lowFrequencyRms": 0.4875,
+				"lowFrequencyMax": 1,
+				"codecRms": 1.7629,
+				"detailPsnr": 35.48
+			},
+			"sha256": "f416c09223f73ef4"
+		},
+		{
+			"name": "models/js-glb/textures/white_wood.jpg",
+			"from": {
+				"width": 1500,
+				"height": 2297,
+				"bytes": 234840
+			},
+			"to": {
+				"width": 669,
+				"height": 1024,
+				"bytes": 98071
+			},
+			"vram": {
+				"before": 18376000,
+				"after": 3653632
+			},
+			"fidelity": {
+				"lowFrequencyRms": 0.2455,
+				"lowFrequencyMax": 1,
+				"codecRms": 0.7273,
+				"detailPsnr": 47.5
+			},
+			"sha256": "4e3f05ee73d3ed9c"
+		},
+		{
+			"name": "rooms/textures/Ground_4K.jpg",
+			"from": {
+				"width": 1822,
+				"height": 1822,
+				"bytes": 74964
+			},
+			"to": {
+				"width": 1024,
+				"height": 1024,
+				"bytes": 59111
+			},
+			"vram": {
+				"before": 17704981,
+				"after": 5592405
+			},
+			"fidelity": {
+				"lowFrequencyRms": 0.1373,
+				"lowFrequencyMax": 1,
+				"codecRms": 0.1658,
+				"detailPsnr": 49.57
+			},
+			"sha256": "03c814d34de565db"
+		},
+		{
+			"name": "rooms/textures/envs/Garden.jpg",
+			"from": {
+				"width": 2048,
+				"height": 1024,
+				"bytes": 864047
+			},
+			"to": {
+				"width": 1024,
+				"height": 512,
+				"bytes": 255744
+			},
+			"vram": {
+				"before": 11184811,
+				"after": 2796203
+			},
+			"fidelity": {
+				"lowFrequencyRms": 0.5557,
+				"lowFrequencyMax": 2,
+				"codecRms": 1.6542,
+				"detailPsnr": 30.99
+			},
+			"sha256": "b430e85853abc37a"
+		}
+	],
+	"skipped": [],
+	"totals": {
+		"textures": 28,
+		"resized": 5,
+		"disk": {
+			"before": 4333027,
+			"after": 2764896
+		},
+		"vram": {
+			"before": 109753156,
+			"after": 45084868
+		}
+	}
+}

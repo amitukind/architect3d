@@ -80,15 +80,30 @@ describe('the environment map', () =>
 
 	it('decodes to the image it is supposed to be', async () =>
 	{
-		// A JPEG that decodes to the wrong dimensions means the re-encode resampled
-		// something it should not have. 2048x1024 is the equirectangular ratio the
-		// sky shader's UV mapping assumes.
+		// This assertion used to read `2048 x 1024`, and the comment beside it
+		// bundled two different claims into one pair of numbers:
+		//
+		//   1. that P6's re-encode did not resample anything, and
+		//   2. that 2:1 is the equirectangular ratio the sky shader's UV
+		//      mapping assumes.
+		//
+		// Only the second is a property of the software. RM-004 B4 resized this
+		// map to 1024x512 on purpose - it was 10.67 MB of VRAM, the largest
+		// single file in the tree, and the skybox samples it across a dome that
+		// never resolves 2048 texels. So claim 1 is now false by design, while
+		// claim 2 is exactly as true as it was.
+		//
+		// Split accordingly: the RATIO is asserted as the invariant, because
+		// that is what the shader would actually break on, and the dimensions
+		// are pinned separately so a future resize has to come here and say so.
 		skybox.toggleEnvironment(true);
 		expect(await waitForEnvironment()).toBe(true);
 
 		const image = skybox.skyMat.uniforms.envMap.value.image;
 		expect(image).toBeTruthy();
-		expect(image.width).toBe(2048);
-		expect(image.height).toBe(1024);
+		expect(image.width / image.height, 'equirectangular maps must be 2:1').toBe(2);
+		// The B4 cap. Changing it means changing tools/resize-textures.mjs.
+		expect(image.width).toBe(1024);
+		expect(image.height).toBe(512);
 	});
 });

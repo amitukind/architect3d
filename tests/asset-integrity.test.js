@@ -229,12 +229,46 @@ describe('the compression pass left nothing behind', () =>
 
 	it('reports honest numbers', () =>
 	{
+		// ## The reports are a chain, and this test used to assume P6 was the end
+		//
+		// `bytesAfter` is what P6 left on disk, and comparing it to the file that
+		// is there now asks "has anything touched this since" - a good question
+		// with a wrong default answer. RM-004 B4 resized four textures P6 had
+		// converted, deliberately and with its own report, and this assertion
+		// read that as P6 having lied.
+		//
+		// So the current bytes are checked against the LAST pass that recorded
+		// touching the file, not the first. P6's own numbers are still asserted
+		// exactly as written - `texture-compression.json` is a historical record
+		// and editing it to match a later tree would falsify the history this
+		// suite exists to hold. What is relaxed is only which report gets to
+		// claim the current bytes.
+		//
+		// The ratchet survives: every file still has to match SOME recorded
+		// pass, so nothing changes silently. A future pipeline stage adds itself
+		// to `LATER_PASSES` and inherits the same discipline.
+		const LATER_PASSES = [
+			{
+				report: JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/resize-report.json'), 'utf8')),
+				name: 'RM-004 B4 resize',
+				entries: (report) => report.textures.map((entry) => [entry.name, entry.to.bytes]),
+			},
+		];
+		/** @type {Map<string, {bytes: number, pass: string}>} */
+		const superseded = new Map();
+		for (const pass of LATER_PASSES)
+		{
+			for (const [name, bytes] of pass.entries(pass.report)) { superseded.set(name, {bytes, pass: pass.name}); }
+		}
+
 		let before = 0;
 		let after = 0;
 		for (const entry of COMPRESSION.converted)
 		{
 			expect(entry.bytesAfter).toBeLessThan(entry.bytesBefore);
-			expect(statSync(join(PUBLIC, entry.to)).size).toBe(entry.bytesAfter);
+			const later = superseded.get(entry.to);
+			const expected = later ? later.bytes : entry.bytesAfter;
+			expect(statSync(join(PUBLIC, entry.to)).size, later ? `${entry.to}, per ${later.pass}` : entry.to).toBe(expected);
 			before += entry.bytesBefore;
 			after += entry.bytesAfter;
 		}

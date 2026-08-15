@@ -1032,8 +1032,8 @@
 			"kind": "model-texture"
 		},
 		"models/js-glb/textures/grey-brown_wood.jpg": {
-			"bytes": 700642,
-			"hash": "sha256-rOpuOVHDdASxVWNr7JCRFk0uKCQFeoUbt3rkb2cv+XI=",
+			"bytes": 300250,
+			"hash": "sha256-FyO8Or6bgIP61AaPNtKs/Ub2B9lnQQg3BLtjzFumnrk=",
 			"kind": "model-texture"
 		},
 		"models/js-glb/textures/ik-ekero-blue_baked.jpg": {
@@ -1052,8 +1052,8 @@
 			"kind": "model-texture"
 		},
 		"models/js-glb/textures/oak_wood.jpg": {
-			"bytes": 721149,
-			"hash": "sha256-3xKIFKm95/Osi0+tBTAkE59QcIQWjRNUKEJ+LAxnA58=",
+			"bytes": 314335,
+			"hash": "sha256-9BbAkiP3PvSN+YNzyyS943s1Xljvi4Gpm86E2iS4BW8=",
 			"kind": "model-texture"
 		},
 		"models/js-glb/textures/ore-3legged-white_baked.jpg": {
@@ -1077,8 +1077,8 @@
 			"kind": "model-texture"
 		},
 		"models/js-glb/textures/white_wood.jpg": {
-			"bytes": 234840,
-			"hash": "sha256-kdjBCaOG9pQ7+3Feey9H5FgO2hHPM0tXlDATiswfEt0=",
+			"bytes": 98071,
+			"hash": "sha256-Tj8F7nPT7Zwsxp5ImCwtXEYXeUE8e2Tz8DHWFVvxaGk=",
 			"kind": "model-texture"
 		},
 		"models/js-glb/we-crosby2piece-greenbaked.glb": {
@@ -1945,13 +1945,13 @@
 			"kind": "thumbnail"
 		},
 		"rooms/textures/Ground_4K.jpg": {
-			"bytes": 74964,
-			"hash": "sha256-gcBbtGxrffUl8rMJ0Hmf46GCzalKOZoGG5VCsikw0i4=",
+			"bytes": 59111,
+			"hash": "sha256-A8gU003lZdutnma/VZI4VKonAH52vMByHpEzkZz2QZs=",
 			"kind": "texture"
 		},
 		"rooms/textures/envs/Garden.jpg": {
-			"bytes": 864047,
-			"hash": "sha256-2lnnQL6YDaZVXz/uJxY+hPC9jTdrPGn08LedjJ1mdoY=",
+			"bytes": 255744,
+			"hash": "sha256-tDDoWFOrw3ptxTZeFMkfprmtx0aX6mlHNwb1n7mIMQ8=",
 			"kind": "environment"
 		},
 		"rooms/textures/hardwood.png": {

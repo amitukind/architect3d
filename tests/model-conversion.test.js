@@ -25,7 +25,7 @@
  */
 import {afterAll, beforeAll, describe, expect, it} from 'vitest';
 import {createHash} from 'node:crypto';
-import {readFileSync, readdirSync, existsSync} from 'node:fs';
+import {readFileSync, readdirSync, existsSync, statSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {dirname, join} from 'node:path';
 import {mergeMeshes} from '../src/scripts/core/geometry_merge.js';
@@ -122,13 +122,44 @@ describe('every legacy model converted', () =>
 		const copied = readdirSync(join(CONVERTED_DIR, 'textures'));
 		expect(copied.length).toBeGreaterThan(0);
 
-		const untouched = copied.filter((name) => existsSync(join(LEGACY_DIR, name)));
+		// RM-004 B4 is the second pass to make byte-equality the wrong way to
+		// observe this claim, and it does it differently from P6 - which is why
+		// it needs naming separately rather than falling out of the filename.
+		// P6 re-encoded PNG to JPEG, so its outputs have no same-named file in
+		// the legacy tree and the `existsSync` split below already excludes
+		// them. B4 resized three JPEGs IN PLACE, keeping every filename, which
+		// is the whole reason that route needed no .glb rewriting - and the
+		// side effect is that they still look untouched to a filename test
+		// while no longer matching their source byte for byte.
+		//
+		// Pinned to the report rather than to a literal list, so a texture
+		// cannot stop matching its source without a pipeline pass recording
+		// that it did.
+		const RESIZED = new Set(JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/resize-report.json'), 'utf8'))
+			.textures
+			.filter((entry) => entry.name.startsWith('models/js-glb/textures/'))
+			.map((entry) => entry.name.split('/').pop()));
+		expect(RESIZED.size).toBeGreaterThan(0);
+
+		const untouched = copied.filter((name) => existsSync(join(LEGACY_DIR, name)) && !RESIZED.has(name));
 		const reencoded = copied.filter((name) => !existsSync(join(LEGACY_DIR, name)));
 
 		for (const name of untouched)
 		{
 			expect(digest(join(CONVERTED_DIR, 'textures', name)), name)
 				.toBe(digest(join(LEGACY_DIR, name)));
+		}
+
+		// The exemption has to stay narrow: a resized texture's legacy source is
+		// still there under the same name, and it must be the one that got
+		// bigger rather than the one that got replaced by something unrelated.
+		for (const name of RESIZED)
+		{
+			const legacy = join(LEGACY_DIR, name);
+			expect(existsSync(legacy), `legacy source for the resized ${name}`).toBe(true);
+			expect(statSync(join(CONVERTED_DIR, 'textures', name)).size,
+				`${name} should be smaller than the source it was resized from`)
+				.toBeLessThan(statSync(legacy).size);
 		}
 
 		// Every texture that is no longer byte-identical to its source is one P6

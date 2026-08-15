@@ -170,7 +170,44 @@
     "The honest figure is 28 textures holding 104.67 MB, and five of those 28 are",
     "80 MB of it. The limit comes down 171.66 -> 109.90 MB to sit 5% over the real",
     "number instead of 64% over a wrong one. A ceiling with 39% headroom is not a",
-    "ceiling."
+    "ceiling.",
+    "",
+    "RM-004 B4 LOWERED FIVE LIMITS and raised none, which is the second time this",
+    "program has moved a whole group downward - P6 was the first, B1 the second, and",
+    "the reason is the same each time: leaving a ceiling where it was after the thing",
+    "it measures got smaller hands the next change slack it did not earn.",
+    "",
+    "Five textures were over a 1024px cap and are now under it. That is the whole",
+    "change - no format change, no new runtime code, no .glb touched, because the",
+    "filenames did not move. What it did to these numbers:",
+    "",
+    "  texture-vram          104.67 MB -> 43.00 MB    the point of the sprint",
+    "  public-total            7.45 MB ->  5.95 MB",
+    "  demo-total             14.41 MB -> 12.91 MB",
+    "  public-largest          844 KB   ->  476 KB    Garden.jpg -> hardwood.png",
+    "  catalog-item-largest    752 KB   ->  356 KB    Full Bed, less than half",
+    "",
+    "Two of those are worth reading as findings rather than as improvements.",
+    "",
+    "public-largest changed WHICH FILE it points at. It was Garden.jpg, the",
+    "environment map, and it is now rooms/textures/hardwood.png - a 512x512 texture",
+    "that costs 476 KB because it is a PNG carrying 1.861 bytes per texel, nine times",
+    "the density of any JPEG in the catalog. P6 re-encoded 21 opaque PNGs as JPEG for",
+    "exactly this reason and this one survived. It is now the largest file served,",
+    "and the per-file ceiling is what surfaced it - which is the second time that",
+    "limit has found something no total could see.",
+    "",
+    "catalog-item-largest more than halved without any model being touched, because",
+    "Full Bed's cost was never its geometry. B1 took it 1.53 MB -> 752 KB by encoding",
+    "the mesh; B4 took it 752 KB -> 356 KB by resizing a texture it references. The",
+    "two halvings came from opposite ends of the same asset, and neither was visible",
+    "in the other's measurement.",
+    "",
+    "What is NOT in these numbers: KTX2/Basis would take texture-vram from 43.00 MB",
+    "to about 10.75. B4 built the encoder, measured it at 78.50 MB saved against this",
+    "pass's 61.67, and chose against it - see tools/resize-textures.mjs for the three",
+    "reasons and docs/public/roadmap.html for the measurements, kept so the decision",
+    "can be revisited on evidence rather than re-derived."
   ],
   "budgets": {
     "demo-js-gzip": {
@@ -182,36 +219,36 @@
       "measured": 7306
     },
     "demo-total": {
-      "limit": 15800000,
-      "measured": 15107482
+      "limit": 14220000,
+      "measured": 13538794
     },
     "lib-iife-gzip": {
       "limit": 239000,
       "measured": 230051
     },
     "public-total": {
-      "limit": 8200000,
-      "measured": 7808579
+      "limit": 6560000,
+      "measured": 6240447
     },
     "lib-esm-gzip": {
       "limit": 134000,
       "measured": 130519
     },
     "public-largest": {
-      "limit": 910000,
-      "measured": 864047
+      "limit": 513000,
+      "measured": 487769
     },
     "catalog-item-largest": {
-      "limit": 810000,
-      "measured": 770006
+      "limit": 384000,
+      "measured": 364868
     },
     "decoder-total": {
       "limit": 264000,
       "measured": 252673
     },
     "texture-vram": {
-      "limit": 115240821,
-      "measured": 109753163
+      "limit": 47340000,
+      "measured": 45084875
     }
   }
 }
