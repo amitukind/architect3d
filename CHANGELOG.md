@@ -41,6 +41,43 @@ stops resolving. No budget limit moved.
 Two measurements are new in `asset-pipeline/`:
 `skybox-transcode-oracle.json` and `room-transcode-oracle.json`.
 
+### RM-005 C2 — the library type tier
+
+**355 type errors to zero, and every file in `src/scripts` is now checked.**
+`npm run typecheck` covers the library, so a regression fails the build rather
+than an audit command somebody remembers to run.
+
+**three had no type declarations at all.** The package ships no `.d.ts` and
+`@types/three` was not installed, so `import {Vector3} from 'three'` resolved to
+`any` — and with it every three type this codebase names in JSDoc. The check had
+been theatre for the half of the project that is three code. `@types/three` is a
+new devDependency; it ships nothing.
+
+That also means **355 was never the real number**. The count rose twice on the
+way down — to 267 when three got real types, back to 300 when the project's own
+JSDoc names started resolving — because a `Wall` that is actually a `Wall` has
+properties worth getting wrong.
+
+**Six defects, and three methods nobody could call.** Two crashes reachable from
+the state every design starts in: adding a ceiling item with no rooms, and a wall
+item with no walls. A parameter passed as a fourth argument to a three-parameter
+function and silently discarded, which made a wall split run N+1 full rebuilds
+instead of one. An implicit fallthrough returning `undefined` where every caller
+compares against a tolerance. A `var` read outside the loop that assigns it. A
+frozen shared constant aliased onto a mutable renderer field. And three methods
+shadowed or calling into nothing — two of which would have thrown.
+
+**Seven JSDoc tags were wrong about the code**, which is worse than missing: a
+wrong tag makes correct code look broken. `getCenter()` documented as `Vector2`
+returns a `Vector3`; `halfAngleVector` documented two `Vector2` parameters with
+the same name and takes two `HalfEdge`s.
+
+`npm run ledger:check` is new — a tier-1 command enforcing the type ledger's
+ceiling, which had been claimed in prose since B3 and asserted by nothing.
+
+Zero suppressions added; the count is still 4. No public API changed, except
+that `Item.remove(child)` now detaches the child instead of recursing.
+
 ## [2.3.0] - 2026-08-15
 
 Small debts, and two of them turned out to be real bugs.
