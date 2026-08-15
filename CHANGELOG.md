@@ -2,6 +2,69 @@
 
 ## [Unreleased]
 
+### Fixed
+
+* **The error highlight on an item was drawn at a quarter of its intended
+  strength.** `Item.createGlow(color, opacity, ignoreDepth)` normalised its
+  `opacity` argument and then built the material with a hard-coded `0.2`, so
+  `showError`'s call passing **0.8** had no effect. Found by a dead-assignment
+  lint warning pointing at the normalisation nobody read.
+
+* **`hasOwnProperty` is called through `Object.prototype` in three places**, one
+  of them `Main`'s options merge — which reads keys off an object the embedder
+  supplies, and would have thrown on a consumer passing `{hasOwnProperty: ...}`.
+
+### Changed
+
+* **The ESM bundle is minified: 130.3 KB → 46.5 KB gzipped, a 63% cut**, and
+  `lib-esm-gzip` came **down** 134,000 → 50,300 — the fifth time that limit has
+  moved and the first downward.
+
+  A4 minified the IIFE and left this one alone, reasoning that its comments are
+  the JSDoc a typed consumer reads on hover. That premise was false and one
+  command checks it: `package.json` points `types` at `dist/types/`,
+  `npm run types:emit` generates that tree from the same source, and the
+  declaration files carry the JSDoc — 190 comment lines in `asset_resolver.d.ts`
+  alone. An editor reads hover text from the `.d.ts`, never from the bundle.
+  Verified the way A4 verified the IIFE: the minified bundle parses, exposes all
+  174 exports, still externalises three and bezier-js, and its resolver still
+  resolves.
+
+* **Unreachable code removed from `Utils.pointInPolygon`.** A block that moved
+  the ray origin outside the polygon was guarded by `startX === undefined`,
+  where `startX` is `start.x || 0` — an expression that cannot be undefined. It
+  had never run. It would not have mattered if it had: the preserved arity bug
+  below it means the function returns `false` for any ray. Recorded in place,
+  because repairing that guard is exactly the change someone would make
+  believing they had fixed something.
+
+* **Seven stale TODOs resolved or costed.** The one in `WallItem` described a
+  problem RM-004 B2 had already solved and was actively misleading; it now
+  records what B2 did instead. `Lights`' "share the wall height with
+  Blueprint.Wall" is *not* actioned and says why — the values are 300 and 250
+  and the gap is deliberate, so sharing them would move every light and need a
+  fresh parity capture. Two more (the room-detection walk, rotated item corners)
+  are stated concretely with the gate each would need.
+
+### Added
+
+* **`npm run lint` now fails on warnings** (`--max-warnings 0`), after clearing
+  all 32. Two of them were real defects — see *Fixed* — which is the argument
+  for the ratchet: a warning nobody has to act on is a warning nobody reads.
+
+* **The type ledger in `tsconfig.json` is checked by a test.** It had drifted a
+  **fourth** time — B5 added `src/scripts/core/texture_formats.js` and neither
+  the directory count nor the total moved, in the sprint immediately after the
+  one that rewrote the ledger under a heading reading *RECOUNT, DO NOT
+  INCREMENT*. `tests/type-coverage.test.js` now parses those numbers: the
+  CHECKED counts must match the tree exactly and sum to their own total, while
+  the NOT YET total is a ceiling, so improving something cannot fail the build.
+
+* **`vite/client` in `tsconfig` types**, which is where `declare module '*.css'`
+  lives. `src/app/main.js` imports a stylesheet for its side effect, and without
+  it the audit command reported one TS2882 against a ledger claiming `src/app`
+  was at zero. The library total falls 356 → 355.
+
 ## [2.2.0] - 2026-08-15
 
 The texture half of the payload, finished. 2.1.0 capped five oversized images

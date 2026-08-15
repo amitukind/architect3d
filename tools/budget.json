@@ -259,7 +259,31 @@
     "practice. A device with none still loads these textures correctly: Basis falls",
     "back to RGBA8, and the figure would climb back toward 43 MB. The headroom is",
     "that fallback, and tightening it would make the budget fail on the hardware it",
-    "is least able to help."
+    "is least able to help.",
+    "",
+    "THE ESM BUNDLE IS MINIFIED NOW, and lib-esm-gzip came DOWN 130,900 -> 50,300.",
+    "That is the fifth time this line has moved and the first time downward.",
+    "",
+    "A4 minified the IIFE and halved its ceiling; it left the ESM alone on the",
+    "argument that the comments are the JSDoc a typed consumer reads on hover. That",
+    "premise was false and one command checks it: package.json points `types` at",
+    "dist/types/blueprint.d.ts, `npm run types:emit` generates that tree from the",
+    "same source, and the declaration files carry the JSDoc - 190 comment lines in",
+    "asset_resolver.d.ts alone. An editor reads hover text from the .d.ts, never",
+    "from the bundle.",
+    "",
+    "  130.3 KB gzipped -> 47.9 KB     -63.3%",
+    "",
+    "Verified rather than assumed, the same way A4 verified the IIFE: the minified",
+    "bundle parses, exposes all 174 exports, still externalises three and bezier-js,",
+    "and its AssetResolver still resolves and reports transcoderPath().",
+    "",
+    "A5 predicted the next docblock would trip this limit; B1's did, and B5's did",
+    "again. Four consecutive raises for a line that had stopped measuring code and",
+    "started measuring documentation - which is the exact diagnosis A4 wrote about",
+    "the IIFE before fixing it, left unapplied to the file it did not fix. The",
+    "property the line guards is unchanged: three bundled would be far above 50 KB",
+    "minified or not, so the externals check still fires."
   ],
   "budgets": {
     "demo-js-gzip": {
@@ -283,8 +307,8 @@
       "measured": 5581142
     },
     "lib-esm-gzip": {
-      "limit": 134000,
-      "measured": 133421
+      "limit": 50300,
+      "measured": 47630
     },
     "public-largest": {
       "limit": 271000,

@@ -16,7 +16,22 @@ export class Lights extends EventDispatcher
 		this.scene = scene;
 		this.floorplan = floorplan;		
 		this.tol = 1;
-		this.height = 300; // TODO: share with Blueprint.Wall
+		/**
+		 * Where the key light sits, in centimetres.
+		 *
+		 * Carried a TODO reading "share with Blueprint.Wall" for as long as this
+		 * file has existed, and it should not be actioned as written. The
+		 * configured wall height defaults to **250**; this is **300**, and the
+		 * gap is the point - a light level with the top of the walls rakes
+		 * across them instead of lighting the floor.
+		 *
+		 * Sharing the value would move every light in every scene and change
+		 * every rendered frame, so it is a parity change requiring a fresh
+		 * golden capture, not a tidy-up. If it is ever wanted, the honest form
+		 * is `configurationOf(this).wallHeight + 50`, which states the
+		 * relationship rather than repeating a number.
+		 */
+		this.height = 300;
 		this.hemiLight = null;
 		this.dirLight = null;
 		this.fillLight = null;

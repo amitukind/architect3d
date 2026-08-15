@@ -233,7 +233,7 @@ export class Room extends EventDispatcher
 	{
 		if (index < 0)
 		{
-			return index += this.corners.length;
+			return index + this.corners.length;
 		}
 		else
 		{
@@ -273,7 +273,7 @@ export class Room extends EventDispatcher
 	updateArea()
 	{
 		var oldarea = this.area;
-		var points = [];
+		var points;
 		var allpoints = [];
 		this.areaCenter = new Vector2();
 		this._polygonPoints = [];

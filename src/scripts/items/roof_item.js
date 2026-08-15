@@ -49,8 +49,8 @@ export class RoofItem extends Item
 					var triangle = new Triangle(vertexAt(f[0]), vertexAt(f[1]), vertexAt(f[2]));
 					var ipoint = new Vector3();
 					var cpoint = new Vector3();
-					var contains = false;
-					var distance = 0.0;
+					var contains;
+					var distance;
 					closestPoint = triangle.closestPointToPoint(forpoint, cpoint);
 					triangle.getPlane(plane);
 					plane.projectPoint(forpoint, ipoint);
@@ -76,7 +76,7 @@ export class RoofItem extends Item
 	closestCeilingPoint()
 	{
 		var roofs = this.model.floorplan.roofPlanes();
-		var roof = null;
+		var roof;
 		var globalResult = {distance: Number.MAX_VALUE, point: null};
 		var result = null;
 		for (var i=0;i< roofs.length; i++)

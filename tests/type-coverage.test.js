@@ -98,6 +98,57 @@ describe('every area that reached zero stays opted in (RM-004 B3)', () =>
 		expect(optedOut).toEqual([]);
 	});
 
+	it('the ledger in tsconfig.json describes this tree', () =>
+	{
+		// ## Why a test and not a rule
+		//
+		// The rule existed. B3 rewrote the ledger with the shell command beside
+		// every number under a heading reading RECOUNT, DO NOT INCREMENT, and it
+		// drifted again in the very next sprint - B5 added
+		// `src/scripts/core/texture_formats.js` and neither the directory count
+		// nor the total moved. That is the fourth drift, and the third different
+		// person-shaped reason: nobody adding a file is thinking about a comment
+		// in tsconfig.
+		//
+		// The counts are parsed out of the note rather than duplicated here, so
+		// there is still exactly one place the numbers live.
+		// tsconfig is JSONC. Only whole-line comments are stripped, so a `//`
+		// inside a string - a URL in the note, say - survives untouched.
+		const jsonc = readFileSync(join(ROOT, 'tsconfig.json'), 'utf8')
+			.split('\n')
+			.filter((line) => !/^\s*\/\//.test(line))
+			.join('\n');
+		// The ledger lives under the "//" key, which is the convention tsc
+		// accepts for a comment that has to survive a JSON parse.
+		const note = JSON.parse(jsonc)['//'].join('\n');
+
+		const checkedTotal = Number(/CHECKED - (\d+) files/.exec(note)[1]);
+		const actualChecked = walk(join(ROOT, 'src'), /\.(js|vue)$/).filter(has).length;
+		expect(actualChecked, 'the CHECKED total in tsconfig.json is stale').toBe(checkedTotal);
+
+		// Each area the ledger itemises, checked against the directory it names.
+		const AREAS = {
+			'src/app': {directory: 'src/app', match: /\.vue$/},
+			'src/scripts/core': {directory: 'src/scripts/core', match: /\.js$/},
+			'src/app/composables': {directory: 'src/app/composables', match: /\.js$/},
+			'src/app/persistence': {directory: 'src/app/persistence', match: /\.js$/},
+		};
+		for (const [area, {directory, match}] of Object.entries(AREAS))
+		{
+			// `      21  src/scripts/core the whole directory`
+			const claimed = new RegExp('^\\s*(\\d+)\\s+' + area.replace(/\//g, '\\/') + '\\s', 'm').exec(note);
+			expect(claimed, `tsconfig.json no longer itemises ${area}`).toBeTruthy();
+			expect(walk(join(ROOT, directory), match).length, `${area} count is stale`).toBe(Number(claimed[1]));
+		}
+
+		// The itemisation has to sum to the total it sits under, which is the
+		// arithmetic A2 and B3 each found broken.
+		const itemised = [...note.matchAll(/^\s*(\d+)\s+src\/[\w./-]+/gm)]
+			.map((row) => Number(row[1]));
+		const sum = itemised.slice(0, 7).reduce((total, n) => total + n, 0);
+		expect(sum, 'the CHECKED itemisation does not sum to its own total').toBe(checkedTotal);
+	});
+
 	it('counts the suppressions, so they can only go down', () =>
 	{
 		// Seven, all of them RM-002 P2's, each pinning a preserved-bug arity in

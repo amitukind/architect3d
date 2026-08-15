@@ -30,11 +30,22 @@ export class WallItem extends Item
 		 * can undo it.
 		 */
 		this._onWallDeleted = (event) => {this.remove(event.item);};
-		/* TODO:
-         This caused a huge headache.
-         HalfEdges get destroyed/created every time floorplan is edited.
-         This item should store a reference to a wall and front/back,
-         and grab its edge reference dynamically whenever it needs it.
+		/*
+		 * This used to carry a TODO reading "This caused a huge headache.
+		 * HalfEdges get destroyed/created every time floorplan is edited. This
+		 * item should store a reference to a wall and front/back, and grab its
+		 * edge reference dynamically whenever it needs it."
+		 *
+		 * RM-004 B2 solved it, by a different route than the one suggested.
+		 * Rather than have the item resolve an edge on demand, walls were given
+		 * ids derived from their corner pair, which made `HalfEdge.id`
+		 * (`${wall.id}:front|back`) stable across a load. `Model.newRoom` now
+		 * notes which face a bound item is on before the floorplan is destroyed
+		 * and puts it back on that face afterwards - not merely on the nearest
+		 * one, which is the same answer everywhere except where two walls meet.
+		 *
+		 * Left as a record rather than deleted: the headache was real, and the
+		 * shape of the fix is worth knowing before anybody re-derives it.
 		 */
 
 		/** used for finding rotations */

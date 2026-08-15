@@ -96,7 +96,7 @@ function probe()
 	var canvas = document.createElement('canvas');
 	canvas.width = 1;
 	canvas.height = 1;
-	var gl = null;
+	var gl;
 	try
 	{
 		gl = /** @type {?WebGLRenderingContext} */ (

@@ -386,23 +386,34 @@ export class Utils
 	static pointInPolygon(point, corners, start)
 	{
 		start = start || new Vector2(0,0);
-		var startX = start.x || 0;
-		var startY = start.y || 0;
 
-		//ensure that point(startX, startY) is outside the polygon consists of corners
-		var tMinX = 0, tMinY = 0;
-		var tI = 0;
-
-		if (startX === undefined || startY === undefined)
-		{
-			for (tI = 0; tI < corners.length; tI++)
-			{
-				tMinX = Math.min(tMinX, corners[tI].x);
-				tMinY = Math.min(tMinX, corners[tI].y);
-			}
-			startX = tMinX - 10;
-			startY = tMinY - 10;
-		}
+		// ## Unreachable code removed, behaviour unchanged (RM-004 follow-on)
+		//
+		// What stood here was a block that walked the corners, found a point
+		// below and left of all of them, and moved the ray origin there - so
+		// the raycast would begin outside the polygon, which is what makes a
+		// crossing count mean anything. It read two locals, `startX` and
+		// `startY`, that existed only to feed it.
+		//
+		// It never ran once. Its guard was `startX === undefined || startY ===
+		// undefined`, and `startX` was `start.x || 0` - an expression that
+		// cannot yield undefined, because `0` is defined. The guard was false on
+		// every call this function has ever received, so `startX`/`startY` were
+		// computed, never read, and are gone with it.
+		//
+		// **And it would not have mattered if it had run.** See the PRESERVED
+		// BUG below: `lineLineIntersect` is called with six arguments to a
+		// four-parameter function, so every comparison inside it is false and
+		// `pointInPolygon` returns false whatever ray you cast. Repairing the
+		// guard would have moved a ray origin that feeds a test which cannot
+		// succeed. Recorded because that is precisely the change somebody would
+		// otherwise make, believing they had fixed something.
+		//
+		// The block carried a typo too - `tMinY = Math.min(tMinX, corners[tI].y)`
+		// reads tMinX where it means tMinY - quoted here rather than left
+		// commented out, since correcting it would only have made unreachable
+		// code marginally less wrong.
+		var tI;
 
 		var tIntersects = 0;
 		for (tI = 0; tI < corners.length; tI++)
@@ -529,7 +540,11 @@ export class Utils
 		var tResults = [];
 		var tMap = {};
 		for (var tI = 0; tI < arr.length; tI++) {
-			if (!tMap.hasOwnProperty(arr[tI])) {
+			// Object.prototype.hasOwnProperty.call, not obj.hasOwnProperty. Identical
+			// for a plain object and correct for one that is not - a key literally
+			// named "hasOwnProperty" shadows the method and turns the guard into a
+			// TypeError. `tMap` is keyed by caller-supplied array values here.
+			if (!Object.prototype.hasOwnProperty.call(tMap, arr[tI])) {
 				tResults.push(arr[tI]);
 				tMap[hashFunc(arr[tI])] = true;
 			}

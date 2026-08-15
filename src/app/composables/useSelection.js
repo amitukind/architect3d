@@ -92,7 +92,7 @@ export function useSelection(store)
 			return current.object;
 		}
 		var floorplan = blueprint.model.floorplan;
-		var found = null;
+		var found;
 		switch (current.type)
 		{
 		case SELECTION_ITEM:

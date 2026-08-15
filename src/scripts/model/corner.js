@@ -305,7 +305,7 @@ export class Corner extends EventDispatcher
 	**/
 	removeAll()
 	{
-		var i = 0;
+		var i;
 		// One re-derivation for the whole gesture (RM-003 A2).
 		//
 		// Every wall removed below runs Floorplan.update(), and since A2 so does
@@ -500,7 +500,7 @@ export class Corner extends EventDispatcher
 	adjacentCorners()
 	{
 		var retArray = [];
-		var i = 0;
+		var i;
 		for (i = 0; i < this.wallStarts.length; i++)
 		{
 			retArray.push(this.wallStarts[i].getEnd());
@@ -518,7 +518,7 @@ export class Corner extends EventDispatcher
 	 */
 	isWallConnected(wall)
 	{
-		var i =0;
+		var i;
 		for (i = 0; i < this.wallStarts.length; i++)
 		{
 			if (this.wallStarts[i] == wall)
@@ -679,7 +679,7 @@ export class Corner extends EventDispatcher
 	/** @param {Corner} corner @see Corner#combineWithCorner */
 	_combineWithCorner(corner)
 	{
-		var i = 0;
+		var i;
 		// update position to other corner's
 		this.move(corner.x, corner.y, false);
 		// absorb the other corner's wallStarts and wallEnds
@@ -714,7 +714,7 @@ export class Corner extends EventDispatcher
 
 	mergeWithIntersected(updateFloorPlan=true)
 	{
-		var i =0;
+		var i;
 		// check corners
 		for (i = 0; i < this.floorplan.getCorners().length; i++)
 		{
@@ -772,7 +772,7 @@ export class Corner extends EventDispatcher
 	/** Ensure we do not have duplicate walls (i.e. same start and end points) */
 	removeDuplicateWalls()
 	{
-		var i = 0;
+		var i;
 		// delete the wall between these corners, if it exists
 		var wallEndpoints = {};
 		var wallStartpoints = {};

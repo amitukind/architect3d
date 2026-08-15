@@ -149,7 +149,6 @@ export class Floor extends EventDispatcher
 			: new MeshPhongMaterial({
 				map: floorTexture,
 				side: DoubleSide,
-				// ambient: 0xffffff, TODO_Ekki
 				color: 0xcccccc,
 				specular: 0x0a0a0a
 			});

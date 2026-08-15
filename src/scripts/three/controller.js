@@ -510,7 +510,7 @@ export class Controller extends EventDispatcher
 		{
 			return this.freeMouse3D(vec2);
 		}
-		var intersections = null;
+		var intersections;
 		if (customIntersections && customIntersections.length > 0)
 		{
 			intersections = this.getIntersections(vec2, customIntersections, true);
@@ -636,7 +636,6 @@ export class Controller extends EventDispatcher
 		this.needsUpdate = true;
 	}
 
-	// TODO: there MUST be simpler logic for expressing this
 	updateMouseover()
 	{
 		if (this.intersectedObject != null)

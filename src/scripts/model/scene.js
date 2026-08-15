@@ -332,7 +332,8 @@ export class Scene extends EventDispatcher
 	 * Creates an item and adds it to the scene.
 	 * @param itemType The type of the item given by an enumerator.
 	 * @param fileName The name of the file to load.
-	 * @param metadata TODO
+	 * @param metadata Item descriptor: `itemName`, `resizable`, `format`, and
+	 *        the catalog fields carried through to the placed item.
 	 * @param position The initial position.
 	 * @param rotation The initial rotation around the y axis.
 	 * @param scale The initial scaling.

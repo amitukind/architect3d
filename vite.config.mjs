@@ -180,19 +180,40 @@ export default defineConfig(({mode}) => {
 				sourcemap: true,
 				chunkSizeWarningLimit: 5000,
 				/**
-				 * NOT minified, and that is the other half of A4's answer.
+				 * Minified, and this reverses a decision A4 made and A5, B1 and B4
+				 * each deferred rather than revisited.
 				 *
-				 * This entry is consumed through a bundler, which strips comments on
-				 * the consumer's way to production - so the 52.2% of this file that
-				 * is comments costs transfer and parse time at install and build,
-				 * and nothing at runtime. What those comments buy is the JSDoc a
-				 * typed consumer sees on hover, which is the documentation for a
-				 * library that ships no .d.ts hand-written by anybody.
+				 * ## The argument that kept it unminified, and why it was wrong
 				 *
-				 * So: minify the artifact a browser downloads, leave the one a
-				 * toolchain reads.
+				 * A4 minified the IIFE and left this one alone, on the grounds that
+				 * "what those comments buy is the JSDoc a typed consumer sees on
+				 * hover, which is the documentation for a library that ships no
+				 * .d.ts hand-written by anybody."
+				 *
+				 * The premise is false, and checking it takes one command.
+				 * `package.json` sets `types` to `./dist/types/blueprint.d.ts`, and
+				 * `npm run types:emit` generates that whole tree from the same
+				 * source - carrying the JSDoc with it. `dist/types/core/asset_resolver.d.ts`
+				 * has 190 lines of comment in it. An editor reads hover text from
+				 * the declaration file, never from the bundle, so minifying here
+				 * costs a typed consumer nothing at all.
+				 *
+				 * What it was actually buying was a readable `node_modules`, which
+				 * is worth something and is not worth 65 KB gzipped on every
+				 * install - and the sourcemap is still emitted for anyone who needs
+				 * to read it.
+				 *
+				 * ## Why it took four sprints
+				 *
+				 * Because the limit kept being raised instead. A5 left it at 0.8%
+				 * headroom and predicted the next docblock would trip it; B1's did,
+				 * and raised it; B5 raised it again. Four consecutive raises for a
+				 * line that had stopped measuring code and started measuring
+				 * documentation - which is exactly the diagnosis A4 wrote down
+				 * about the IIFE before fixing it, applied to the file it did not
+				 * fix.
 				 */
-				minify: false,
+				minify: true,
 				rollupOptions: {
 					/**
 					 * three and bezier-js stay OUT of this bundle (RM-002 R-06).

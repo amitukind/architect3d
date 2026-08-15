@@ -534,8 +534,8 @@ export class HalfEdge extends EventDispatcher
 	 */
 	halfAngleVector(v1, v2)
 	{
-		var v1startX=0.0, v1startY=0.0, v1endX=0.0, v1endY=0.0;
-		var v2startX=0.0, v2startY=0.0, v2endX=0.0, v2endY=0.0;
+		var v1startX, v1startY, v1endX, v1endY;
+		var v2startX, v2startY, v2endX, v2endY;
 
 		// make the best of things if we dont have prev or next
 		if (!v1)

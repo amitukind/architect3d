@@ -129,7 +129,7 @@ export function draftStoreKind()
 export async function readDraft(now)
 {
 	var pointer = readPointer();
-	var draft = null;
+	var draft;
 
 	try
 	{

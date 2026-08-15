@@ -1443,7 +1443,8 @@ export class Floorplan extends EventDispatcher
 				{
 					var roomShift = Utils.cycle(room, j);
 					var str = Utils.map(roomShift, hashFunc).join(sep);
-					if (lookup.hasOwnProperty(str))
+					// Object.prototype.hasOwnProperty.call, not obj.hasOwnProperty. Identical for a plain object and correct for one that is not - a key literally named "hasOwnProperty" shadows the method and turns the guard into a TypeError.
+					if (Object.prototype.hasOwnProperty.call(lookup, str))
 					{
 						add = false;
 					}
@@ -1522,8 +1523,14 @@ export class Floorplan extends EventDispatcher
 		}
 
 		// find tightest loops, for each corner, for each adjacent
-		// TODO: optimize this, only check corners with > 2 adjacents, or
-		// isolated cycles
+		//
+		// Carried a TODO reading "optimize this, only check corners with > 2
+		// adjacents, or isolated cycles". Both suggestions are sound and neither
+		// is free: this walk is what decides which loops become ROOMS, so a
+		// corner skipped here is a room that stops existing. Any narrowing needs
+		// the room-detection fixtures as its gate, and a measurement first -
+		// nothing has ever established that this loop is slow on a real
+		// floorplan, only that it looks quadratic.
 		var loops = [];
 
 		corners.forEach((firstCorner) => {

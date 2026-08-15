@@ -640,7 +640,7 @@ export class IndexedDbDraftRepository
 		{
 			return null;
 		}
-		var raw = null;
+		var raw;
 		try {raw = this._legacy.getItem(LEGACY_STORAGE_KEY);} catch {return null;}
 		if (!raw)
 		{

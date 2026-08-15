@@ -57,7 +57,7 @@
     "repoint:check": "node tools/repoint-textures.mjs --check",
     "budget": "node tools/check-budget.mjs",
     "budget:update": "node tools/check-budget.mjs --update",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "typecheck": "vue-tsc --noEmit",
     "types:emit": "tsc -p tsconfig.build.json",
     "prepare": "simple-git-hooks",

@@ -80,7 +80,10 @@ export class Main extends EventDispatcher
 		var options = {resize: true,pushHref: false,spin: true,spinSpeed: .00002,clickPan: true,canMoveFixedItems: false,renderProfile: null};
 		for (var opt in options)
 		{
-			if (options.hasOwnProperty(opt) && opts.hasOwnProperty(opt))
+			// Object.prototype.hasOwnProperty.call, not obj.hasOwnProperty. Identical for a plain object and correct for one that is not - a key literally named "hasOwnProperty" shadows the method and turns the guard into a TypeError. `opts` is supplied by the embedder, which
+			// is exactly the object whose keys this code does not control.
+			if (Object.prototype.hasOwnProperty.call(options, opt)
+				&& Object.prototype.hasOwnProperty.call(opts, opt))
 			{
 				options[opt] = opts[opt];
 			}

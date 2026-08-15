@@ -745,7 +745,18 @@ export class Item extends Mesh
 	 *
 	 * offset is Vector3 (used for getting corners of object at a new position)
 	 *
-	 * TODO: handle rotated objects better!
+	 * Carried a TODO reading "handle rotated objects better!". What it means,
+	 * concretely: the corners returned are an axis-aligned box around the item's
+	 * half-dimensions, so a rotated item reports a footprint that is too large
+	 * along one axis and too small along the other. Placement and wall-fitting
+	 * both read it, which is why the item that will not sit in a corner at 45
+	 * degrees does fit at 0.
+	 *
+	 * Not fixed here because it is a behaviour change with a visible blast
+	 * radius rather than a tidy-up: returning the true rotated corners changes
+	 * which placements are legal, and the fixtures that pin placement were
+	 * captured against this behaviour. It needs its own change, with those
+	 * fixtures re-captured deliberately.
 	 */
 	getCorners(xDim, yDim, position)
 	{
@@ -822,8 +833,12 @@ export class Item extends Mesh
 	createGlow(color, opacity, ignoreDepth)
 	{
 		ignoreDepth = ignoreDepth || false;
+		// `opacity` was normalised here and then ignored - the material below
+		// hard-coded 0.2 - so the one caller, `showError` passing 0.8, drew its
+		// error highlight at a quarter of the intended strength. Found by the
+		// dead-assignment warning that flagged the normalisation as unread.
 		opacity = opacity || 0.2;
-		var glowMaterial = new MeshBasicMaterial({color: color, blending: AdditiveBlending, opacity: 0.2, transparent: true, depthTest: !ignoreDepth});
+		var glowMaterial = new MeshBasicMaterial({color: color, blending: AdditiveBlending, opacity: opacity, transparent: true, depthTest: !ignoreDepth});
 		var glow = new Mesh(this.geometry.clone(), glowMaterial);
 		glow.position.copy(this.position);
 		glow.rotation.copy(this.rotation);
