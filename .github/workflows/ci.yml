@@ -1,0 +1,61 @@
+# Continuous integration for architect3d.
+#
+# BRANCH POLICY (deliberate, to conserve Actions minutes and storage):
+#   - Runs ONLY on pushes to `dev` and `master`.
+#   - Does NOT run on the `amit` working branch, or on any other branch.
+#   - Can always be started by hand from the Actions tab (workflow_dispatch).
+#
+# There is intentionally no `pull_request:` trigger. Add one only if you want
+# checks on PRs raised from working branches - it will consume minutes per PR
+# update. Nothing here uploads artifacts or populates the Actions cache, so the
+# workflow consumes no repository storage.
+name: CI
+
+on:
+  push:
+    branches:
+      - dev
+      - master
+  workflow_dispatch:
+
+# A newer push to the same branch cancels the older run instead of paying for both.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests (headless data layer)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          # No `cache:` on purpose - npm ci here takes ~20s, and caching would
+          # consume repository cache storage for a marginal time saving.
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run characterization tests
+        run: npm test
+
+      - name: Lint
+        # Blocking since S1 (ESLint 10 flat config). Two rules new to ESLint 10
+        # are set to 'warn' in eslint.config.js rather than silenced - see the
+        # comment there.
+        run: npm run lint
+
+      - name: Build library
+        # Proves the Vite lib build still produces the IIFE bundle the demo
+        # loads. Output goes to dist/, which is gitignored and not uploaded.
+        run: npm run build

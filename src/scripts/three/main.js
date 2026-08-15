@@ -1,26 +1,54 @@
-import $ from 'jquery';
-import {EventDispatcher, Vector2, Vector3, WebGLRenderer,ImageUtils, PerspectiveCamera, OrthographicCamera} from 'three';
+import {EventDispatcher, Vector2, Vector3, WebGLRenderer, PerspectiveCamera, OrthographicCamera} from 'three';
+import {ColorManagement, SRGBColorSpace} from 'three';
 import {Plane} from 'three';
-import {PCFSoftShadowMap} from 'three';
-import {Clock} from 'three';
-// import {FirstPersonControls} from './first-person-controls.js';
+import {PCFSoftShadowMap, ACESFilmicToneMapping, NoToneMapping, PMREMGenerator} from 'three';
+import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {PointerLockControls} from './pointerlockcontrols.js';
 
 import {EVENT_UPDATED, EVENT_WALL_CLICKED, EVENT_NOTHING_CLICKED, EVENT_FLOOR_CLICKED, EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED, EVENT_GLTF_READY} from '../core/events.js';
 import {EVENT_CAMERA_ACTIVE_STATUS, EVENT_FPS_EXIT, EVENT_CAMERA_VIEW_CHANGE} from '../core/events.js';
 import {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY} from '../core/constants.js';
+import {resolveElement, elementBox, measureViewport, pixelRatio} from '../core/dom.js';
 
 import {OrbitControls} from './orbitcontrols.js';
 
-// import {Controls} from './controls.js';
 import {Controller} from './controller.js';
 import {HUD} from './hud.js';
 import {Floorplan3D} from './floorPlan.js';
 import {Lights} from './lights.js';
 import {Skybox} from './skybox.js';
+import {renderProfile, isStudio, setRenderProfile} from './render_profile.js';
+
+// --- S8: colour management, on ---------------------------------------------
+//
+// r152 turned this on by default and S4 turned it back off, so that the engine
+// bump could be reviewed as a geometry change rather than a colour one. This is
+// the sprint that reverses that decision, deliberately and with its own review.
+//
+// With it on, `new Color(0xRRGGBB)` reads the literal as sRGB and stores the
+// linear value, every colour texture is decoded by the GPU on the way in, and
+// the frame is encoded back to sRGB on the way out. That is one coherent
+// pipeline instead of three-quarters of one, and it is what every other three
+// application and every glTF asset already assumes.
+//
+// `true` is three's own default, so this line changes nothing on its own. It
+// is written out because S4 wrote `false` here: a reader needs to see that the
+// freeze was lifted on purpose, and a deleted line says nothing. It also has to
+// stay at module scope rather than move into the renderer setup - a Color
+// converts when it is constructed, and materials are built long before any
+// renderer exists.
+ColorManagement.enabled = true;
 
 export class Main extends EventDispatcher
 {
+	/**
+	 * @param {Model} model
+	 * @param {(HTMLElement|string)} element The container to render into, or its
+	 * element id / CSS selector. The string form is the deprecated back-compat
+	 * path.
+	 * @param {string} canvasElement Unused; kept for signature compatibility.
+	 * @param {Object} opts
+	 */
 	constructor(model, element, canvasElement, opts)
 	{
 		super();
@@ -36,9 +64,10 @@ export class Main extends EventDispatcher
 		this.pauseRender = true;
 		this.model = model;
 		this.scene = model.scene;
-		this.element = $(element);
+		this.element = resolveElement(element, '3D viewer container');
 		this.canvasElement = canvasElement;
 		this.options = options;
+		this._disposed = false;
 
 		this.domElement = null;
 		this.orthocamera = null;
@@ -52,7 +81,6 @@ export class Main extends EventDispatcher
 
 		this.controls = null;
 		this.fpscontrols = null;
-		this.fpsclock = new Clock(true);
 		this.firstpersonmode = false;
 
 		this.renderer = null;
@@ -65,19 +93,20 @@ export class Main extends EventDispatcher
 		this.hasClicked = false;
 
 		this.hud = null;
+		this.lights = null;
+		this.skybox = null;
+		this.environmentTexture = null;
 
 		this.heightMargin = null;
 		this.widthMargin = null;
 		this.elementHeight = null;
 		this.elementWidth = null;
 
-
-		this.itemSelectedCallbacks = $.Callbacks(); // item
-		this.itemUnselectedCallbacks = $.Callbacks();
-
-		this.wallClicked = $.Callbacks(); // wall
-		this.floorClicked = $.Callbacks(); // floor
-		this.nothingClicked = $.Callbacks();
+		// Removed in S2: five $.Callbacks lists (itemSelected / itemUnselected /
+		// wallClicked / floorClicked / nothingClicked). Every .fire() and .add()
+		// against them was already commented out - the EventDispatcher events
+		// dispatched by itemIsSelected() and friends replaced them - so they were
+		// jQuery's last foothold in this file and nothing but dead weight.
 
 		this.floorplan = null;
 
@@ -91,51 +120,212 @@ export class Main extends EventDispatcher
 		this.clippingEmpty = Object.freeze([]);
 		this.clippingEnabled = false;
 
-//		console.log('THIS ON MOBILE DEVICE ::: ', isMobile, isTablet);
 
 		this.init();
 	}
 
+	/**
+	 * Enabling seam, in the same shape as Utils.setRandomSource and
+	 * Scene.setItemLoader from S0: swap in a renderer so the viewer can be mounted
+	 * and unmounted under test without a WebGL context. Pass null to restore the
+	 * real WebGLRenderer. Nothing in the library calls this - it exists so the
+	 * mount/destroy/remount contract can be a CI test rather than a manual page.
+	 *
+	 * @param {?function(Main): Object} fn
+	 */
+	static setRendererFactory(fn)
+	{
+		Main._rendererFactory = (typeof fn === 'function') ? fn : null;
+	}
+
 	getARenderer()
 	{
-// scope.renderer = new WebGLRenderer({antialias: true, preserveDrawingBuffer:
-// true, alpha:true}); // preserveDrawingBuffer:true - required to support
-// .toDataURL()
-		var renderer = new WebGLRenderer({antialias: true, alpha:true});
+		// The seam swaps the *renderer*, not the configuration of it. Until S8
+		// this returned the fake immediately, so everything below - the colour
+		// space, the shadow map, the clear colour - ran only against a real
+		// WebGL context and no test could see any of it. Configuring whatever
+		// renderer we were handed costs nothing, keeps the fake honest, and is
+		// what lets tests/viewer-lifecycle.test.js assert on the output colour
+		// space at all.
+		var renderer = Main._rendererFactory
+			? Main._rendererFactory(this)
+			: new WebGLRenderer({antialias: true, alpha:true});
 
-// scope.renderer.autoClear = false;
+		// sRGB out. This is three's default too, and is written explicitly for
+		// the same reason as the line at the top of the file: S4 set it to
+		// Linear, and an S8 reader needs to see that it was changed rather than
+		// left alone. The two halves must move together - a decoded texture
+		// written into an unencoded frame lands a full gamma too dark, and an
+		// undecoded one into an encoded frame lands far too bright.
+		renderer.outputColorSpace = SRGBColorSpace;
+
 		renderer.shadowMap.enabled = true;
 		renderer.shadowMapSoft = true;
 		renderer.shadowMap.type = PCFSoftShadowMap;
 		renderer.setClearColor( 0xFFFFFF, 1 );
 		renderer.clippingPlanes = this.clippingEmpty;
 		renderer.localClippingEnabled = false;
-//		renderer.setPixelRatio(window.devicePixelRatio);
-// renderer.sortObjects = false;
+
+		this.applyToneMapping(renderer);
 
 		return renderer;
+	}
+
+	/**
+	 * Filmic tone mapping, under the studio profile.
+	 *
+	 * The scene has a hemisphere light at 1.1*pi and a key at 0.5*pi over
+	 * mostly-white surfaces, which means large areas of it land above 1.0 in
+	 * linear space. With NoToneMapping - three's default, and what this app has
+	 * always used - everything above 1.0 is clamped, so those areas become
+	 * exactly #ffffff and all the shading inside them is thrown away. It is why
+	 * a brightly lit white wall loses its corner.
+	 *
+	 * ACES rolls the highlights off instead of cutting them, so the same wall
+	 * keeps its gradient, and it slightly desaturates the extremes, which is what
+	 * stops a saturated fabric reading as a flat sticker.
+	 *
+	 * Tone mapping is applied *after* lighting and *before* the sRGB encode, so
+	 * it composes with the S8 colour pipeline rather than competing with it.
+	 * Explicitly setting NoToneMapping on the classic path matters: this method
+	 * also runs from applyRenderProfile on a live renderer, and leaving the
+	 * previous value in place would make classic-after-studio a third look.
+	 *
+	 * @param {Object} renderer
+	 */
+	applyToneMapping(renderer)
+	{
+		renderer.toneMapping = isStudio() ? ACESFilmicToneMapping : NoToneMapping;
+		renderer.toneMappingExposure = renderProfile.toneMappingExposure;
+	}
+
+	/**
+	 * Build the image-based environment and hang it on the scene.
+	 *
+	 * `RoomEnvironment` is a three addon: a handful of emissive boxes arranged as
+	 * a photographer's softbox room. Rendered once into a cube target and
+	 * prefiltered by PMREMGenerator, it becomes the irradiance every physically
+	 * based material samples for its ambient and specular response.
+	 *
+	 * This is the change that does the most for the least, because the catalog is
+	 * 168 glTF models and glTF materials are physically based by definition. In
+	 * the classic scene their only light is one hemisphere and one very dim red
+	 * directional, so a chrome tap and a matte cushion shade almost identically -
+	 * they have nothing to reflect. Here they reflect a room.
+	 *
+	 * Cost is one offscreen render at startup and one cube texture held for the
+	 * life of the viewer. The generator itself is disposed immediately; the
+	 * texture it produced is not, and is released in dispose().
+	 */
+	buildEnvironment()
+	{
+		this.environmentTexture = null;
+		if (!isStudio() || !renderProfile.environment)
+		{
+			this.scene.getScene().environment = null;
+			return;
+		}
+
+		// A stubbed renderer has no WebGL context to render the cube into. The
+		// viewer is fully functional without an environment - it is ambient light,
+		// not geometry - so this degrades rather than throws, which is what lets
+		// the mount/unmount suite run headless.
+		if (typeof this.renderer.compile !== 'function')
+		{
+			return;
+		}
+
+		var pmrem = new PMREMGenerator(this.renderer);
+		var room = new RoomEnvironment();
+		this.environmentTexture = pmrem.fromScene(room, 0.04).texture;
+		this.scene.getScene().environment = this.environmentTexture;
+		room.dispose();
+		pmrem.dispose();
+	}
+
+	/**
+	 * Switch render profile on a live viewer.
+	 *
+	 * Three things have to happen together and in this order: the profile is
+	 * swapped, the renderer and environment are reconfigured against it, and then
+	 * every Edge and Floor is thrown away and rebuilt - because a material's
+	 * class is fixed at construction and no amount of assignment turns a
+	 * MeshBasicMaterial into a MeshStandardMaterial.
+	 *
+	 * The Skybox is rebuilt too, for the fog and the sky gradient. Loaded items
+	 * are not: they are glTF, they were always physically based, and they pick up
+	 * the new environment and tone mapping without being touched.
+	 *
+	 * @param {string} mode RENDER_CLASSIC or RENDER_STUDIO.
+	 */
+	applyRenderProfile(mode)
+	{
+		setRenderProfile(mode);
+
+		this.applyToneMapping(this.renderer);
+
+		if (this.environmentTexture)
+		{
+			this.environmentTexture.dispose();
+			this.environmentTexture = null;
+		}
+		this.buildEnvironment();
+
+		if (this.skybox)
+		{
+			var wasEnvironment = this.skybox.useEnvironment;
+			this.skybox.dispose();
+			this.skybox = new Skybox(this.scene, this.renderer);
+			this.skybox.toggleEnvironment(wasEnvironment);
+		}
+
+		if (this.lights)
+		{
+			this.lights.dispose();
+			this.lights = new Lights(this.scene, this.model.floorplan);
+			this.lights.updateShadowCamera();
+		}
+
+		if (this.floorplan)
+		{
+			this.floorplan.redraw();
+		}
+
+		this.needsUpdate = true;
+		this.render(true);
 	}
 
 	init()
 	{
 		var scope = this;
-		ImageUtils.crossOrigin = '';
+		// ImageUtils.crossOrigin was removed in r103. It set a default for the
+		// deprecated ImageUtils loaders, which nothing here used - the app loads
+		// textures through TextureLoader, whose crossOrigin defaults to
+		// 'anonymous' and is set per-loader where it matters.
 
 		var orthoScale = 100;
-		var orthoWidth = window.innerWidth;
-		var orthoHeight = window.innerHeight;
+		// Provisional frustum only - updateWindowSize() below recomputes it from
+		// the container before the first frame is drawn.
+		var initialSize = measureViewport(scope.element, window.innerWidth, window.innerHeight);
+		var orthoWidth = initialSize.width;
+		var orthoHeight = initialSize.height;
 
-		scope.domElement = scope.element.get(0);
+		scope.domElement = scope.element;
 
 		scope.fpscamera = new PerspectiveCamera(60, 1, 1, 10000 );
 		scope.perspectivecamera = new PerspectiveCamera(45, 10, scope.cameraNear, scope.cameraFar);
 		scope.orthocamera = new OrthographicCamera(orthoWidth / -orthoScale, orthoWidth /orthoScale, orthoHeight /orthoScale, orthoHeight / -orthoScale, scope.cameraNear, scope.cameraFar);
 
 		scope.camera = scope.perspectivecamera;
-// scope.camera = scope.orthocamera;
 
 		scope.renderer = scope.getARenderer();
 		scope.domElement.appendChild(scope.renderer.domElement);
+
+		// Before the Skybox, which reads scene.fog, and before Lights - both are
+		// cheap to build and neither depends on the environment, but keeping the
+		// order "renderer, environment, world" means there is never a frame where
+		// a physically based material exists with nothing to reflect.
+		scope.buildEnvironment();
 
 		scope.skybox = new Skybox(scope.scene, scope.renderer);
 
@@ -148,16 +338,20 @@ export class Main extends EventDispatcher
 		scope.controls.minZoom = 0.9;
 		scope.controls.screenSpacePanning = true;
 
-		scope.fpscontrols = new PointerLockControls(scope.fpscamera);
+		// domElement is what gets pointer-locked and taken fullscreen. The fork
+		// defaulted it to document.body and the addon requires it explicitly;
+		// the viewer is the better target and is what the user is looking at.
+		scope.fpscontrols = new PointerLockControls(scope.fpscamera, scope.domElement);
 		scope.fpscontrols.characterHeight = 160;
 
 		this.scene.add(scope.fpscontrols.getObject());
 		this.fpscontrols.getObject().position.set(0, 200, 0);
 
-		this.fpscontrols.addEventListener('unlock', function(){
+		this._fpsUnlockEvent = function(){
 			scope.switchFPSMode(false);
 			scope.dispatchEvent({type:EVENT_FPS_EXIT});
-		});
+		};
+		this.fpscontrols.addEventListener('unlock', this._fpsUnlockEvent);
 
 
 		scope.hud = new HUD(scope, scope.scene);
@@ -166,9 +360,18 @@ export class Main extends EventDispatcher
 		// handle window resizing
 		scope.updateWindowSize();
 
+		// Container-driven, with the window listener kept as the fallback for a
+		// container that has no layout size of its own (see core/dom.js).
+		this._resizeEvent = () => {scope.updateWindowSize();};
+		this._resizeObserver = null;
 		if (scope.options.resize)
 		{
-			$(window).resize(() => {scope.updateWindowSize();});
+			if (typeof ResizeObserver === 'function')
+			{
+				this._resizeObserver = new ResizeObserver(this._resizeEvent);
+				this._resizeObserver.observe(scope.element);
+			}
+			window.addEventListener('resize', this._resizeEvent);
 		}
 		// setup camera nicely
 		scope.centerCamera();
@@ -181,14 +384,101 @@ export class Main extends EventDispatcher
 
 		function animate()
 		{
-//			requestAnimationFrame(animate);
 			scope.renderer.setAnimationLoop(function(){scope.render();});
 			scope.render();
 		}
 		scope.switchFPSMode(false);
 		animate();
 
-		scope.element.mouseenter(function () {scope.mouseOver = true;}).mouseleave(function () {scope.mouseOver = false;}).click(function () {scope.hasClicked = true;});
+		// Auto-spin gating: the model stops rotating while the pointer is over the
+		// viewer, and stops for good once the user has clicked in it.
+		this._mouseEnterEvent = function () {scope.mouseOver = true;};
+		this._mouseLeaveEvent = function () {scope.mouseOver = false;};
+		this._clickEvent = function () {scope.hasClicked = true;};
+		scope.element.addEventListener('mouseenter', this._mouseEnterEvent);
+		scope.element.addEventListener('mouseleave', this._mouseLeaveEvent);
+		scope.element.addEventListener('click', this._clickEvent);
+	}
+
+	/**
+	 * Tear the viewer down: stop the render loop, detach every listener this
+	 * instance attached, release the WebGL context, and take the canvas back out
+	 * of the container. Safe to call more than once.
+	 *
+	 * After this the instance is spent - construct a new Main to mount again.
+	 */
+	dispose()
+	{
+		if (this._disposed)
+		{
+			return;
+		}
+		this._disposed = true;
+		this.pauseRender = true;
+
+		if (this.renderer)
+		{
+			this.renderer.setAnimationLoop(null);
+		}
+
+		if (this._resizeObserver)
+		{
+			this._resizeObserver.disconnect();
+			this._resizeObserver = null;
+		}
+		window.removeEventListener('resize', this._resizeEvent);
+
+		this.element.removeEventListener('mouseenter', this._mouseEnterEvent);
+		this.element.removeEventListener('mouseleave', this._mouseLeaveEvent);
+		this.element.removeEventListener('click', this._clickEvent);
+
+		this.model.floorplan.removeEventListener(EVENT_UPDATED, this.updatedevent);
+		this.model.removeEventListener(EVENT_GLTF_READY, this.gltfreadyevent);
+
+		if (this.controller)
+		{
+			this.controller.dispose();
+		}
+		if (this.fpscontrols)
+		{
+			this.fpscontrols.removeEventListener('unlock', this._fpsUnlockEvent);
+			this.scene.remove(this.fpscontrols.getObject());
+			this.fpscontrols.dispose();
+		}
+		if (this.controls)
+		{
+			this.controls.dispose();
+		}
+		if (this.skybox)
+		{
+			this.skybox.dispose();
+		}
+		if (this.lights)
+		{
+			this.lights.dispose();
+		}
+		if (this.environmentTexture)
+		{
+			this.environmentTexture.dispose();
+			this.environmentTexture = null;
+			this.scene.getScene().environment = null;
+		}
+
+		if (this.renderer)
+		{
+			var canvas = this.renderer.domElement;
+			this.renderer.dispose();
+			// Without this the browser keeps the context alive until GC, and a
+			// mount/unmount loop walks straight into the ~16 live context limit.
+			if (this.renderer.forceContextLoss)
+			{
+				this.renderer.forceContextLoss();
+			}
+			if (canvas && canvas.parentNode)
+			{
+				canvas.parentNode.removeChild(canvas);
+			}
+		}
 	}
 	exportForBlender()
 	{
@@ -235,10 +525,25 @@ export class Main extends EventDispatcher
 		scope.controls.autoRotate = scope.options.spin && !scope.mouseOver && !scope.hasClicked;
 	}
 
+	/**
+	 * A PNG data URL of the current view.
+	 *
+	 * Restored in S5 rather than deprecated. It was silently unreliable: the
+	 * renderer is built without `preserveDrawingBuffer`, so the drawing buffer is
+	 * cleared as soon as a frame is presented, and any read that is not in the
+	 * same task as a render comes back blank or stale. Whether it worked depended
+	 * on when the caller happened to ask.
+	 *
+	 * Drawing a frame first, synchronously, makes it deterministic. The other
+	 * option - `preserveDrawingBuffer: true` - taxes every frame of a viewer that
+	 * runs continuously, to serve an API most embedders never call.
+	 *
+	 * @returns {string} `data:image/png;base64,...`
+	 */
 	dataUrl()
 	{
-		var dataUrl = this.renderer.domElement.toDataURL('image/png');
-		return dataUrl;
+		this.render(true);
+		return this.renderer.domElement.toDataURL('image/png');
 	}
 
 	stopSpin()
@@ -272,6 +577,26 @@ export class Main extends EventDispatcher
 		return this.camera;
 	}
 
+	/**
+	 * Drop the current 3D selection, dispatching EVENT_ITEM_UNSELECTED.
+	 *
+	 * Added in S6, for the same reason as Floorplanner2D.redraw(): the legacy
+	 * demo cleared the selection with
+	 * `three.getController().setSelectedObject(null)` (app.js:914) on every
+	 * switch back to the 2D view, and the Vue app should not have to know that
+	 * a Controller exists to do it.
+	 *
+	 * A no-op after dispose(), so a component's unmount path can call it without
+	 * ordering itself against the teardown.
+	 */
+	clearSelection()
+	{
+		if (this.controller)
+		{
+			this.controller.setSelectedObject(null);
+		}
+	}
+
 
 	/*
 	 * This method name conflicts with a variable so changing it to a different
@@ -302,23 +627,23 @@ export class Main extends EventDispatcher
 	{
 		var scope = this;
 
-		scope.heightMargin = scope.element.offset().top;
-		scope.widthMargin = scope.element.offset().left;
-		scope.elementWidth = scope.element.innerWidth();
+		// Viewport-relative, so these line up with the clientX/clientY the
+		// Controller normalizes against. jQuery's .offset() was document-relative
+		// and silently wrong on a scrolled page.
+		var box = elementBox(scope.element);
+		scope.heightMargin = box.top;
+		scope.widthMargin = box.left;
 
-		if (scope.options.resize)
-		{
-			scope.elementHeight = window.innerHeight - scope.heightMargin;
-		}
-		else
-		{
-			scope.elementHeight = scope.element.innerHeight();
-		}
+		// Container first; the viewport remainder only when the container has no
+		// size of its own, which is what the jQuery code did unconditionally.
+		var size = measureViewport(scope.element, window.innerWidth - box.left, window.innerHeight - box.top);
+		scope.elementWidth = size.width;
+		scope.elementHeight = size.height;
 
-		scope.orthocamera.left = -window.innerWidth / 1.0;
-		scope.orthocamera.right = window.innerWidth / 1.0;
-		scope.orthocamera.top = window.innerHeight / 1.0;
-		scope.orthocamera.bottom = -window.innerHeight / 1.0;
+		scope.orthocamera.left = -scope.elementWidth / 1.0;
+		scope.orthocamera.right = scope.elementWidth / 1.0;
+		scope.orthocamera.top = scope.elementHeight / 1.0;
+		scope.orthocamera.bottom = -scope.elementHeight / 1.0;
 		scope.orthocamera.updateProjectionMatrix();
 
 		scope.perspectivecamera.aspect = scope.elementWidth / scope.elementHeight;
@@ -327,6 +652,25 @@ export class Main extends EventDispatcher
 		scope.fpscamera.aspect = scope.elementWidth / scope.elementHeight;
 		scope.fpscamera.updateProjectionMatrix();
 
+		// Render at the display's real resolution.
+		//
+		// This line was commented out for the life of the project, so the 3D view
+		// has always been drawn at one device pixel per CSS pixel and upscaled -
+		// visibly soft on any retina display, while the 2D floorplanner beside it
+		// has been sharp since S2, which is where `pixelRatio()` comes from.
+		// Sharing that helper matters for more than tidiness: it clamps at 4, so a
+		// 3x or 5x display cannot quietly ask for 25 times the fragments, and it
+		// answers 1 where there is no window at all.
+		//
+		// Set here rather than once at construction so it follows a window dragged
+		// between displays of different density, which is the case a
+		// construction-time call gets wrong.
+		//
+		// Costs fragments and nothing else: the shadow map is a fixed 1024 and
+		// unaffected, and picking is normalised against CSS pixels, so nothing
+		// downstream has to know. `setSize` must come after, because it is what
+		// applies the ratio to the drawing buffer.
+		scope.renderer.setPixelRatio(pixelRatio());
 		scope.renderer.setSize(scope.elementWidth, scope.elementHeight);
 		scope.needsUpdate = true;
 	}
@@ -340,7 +684,6 @@ export class Main extends EventDispatcher
 		scope.controls.target = pan;
 		var distance = scope.model.floorplan.getSize().z * 1.5;
 		var offset = pan.clone().add(new Vector3(0, distance, distance));
-		// scope.controls.setOffset(offset);
 		scope.camera.position.copy(offset);
 		scope.controls.update();
 	}
@@ -543,7 +886,9 @@ export class Main extends EventDispatcher
 		scope.spin();
 		if(scope.firstpersonmode)
 		{
-			scope.fpscontrols.update(scope.fpsclock.getDelta());
+			// No argument: the controls keep their own clock now. THREE.Clock was
+			// deprecated in r183 in favour of a Timer that 0.185.1 does not ship.
+			scope.fpscontrols.update();
 			scope.renderer.render(scope.scene.getScene(), scope.fpscamera);
 
 		}

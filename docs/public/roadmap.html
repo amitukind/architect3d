@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architect3D Migration Roadmap</title>
+<style>
+/* ————— tokens: light (drafting paper) ————— */
+:root{
+  --paper:#F7F9FC;          /* cool drafting white */
+  --panel:#FFFFFF;
+  --ink:#1C2B3A;            /* india-ink navy */
+  --muted:#5D6F83;
+  --line:#D8E0EA;
+  --grid:rgba(43,93,168,.06);
+  --accent:#2B5DA8;         /* drafting blue */
+  --accent-soft:#E8EFF9;
+  --on-accent:#FFFFFF;
+  --ok:#2E7D5B;   --ok-soft:#E2F1EA;
+  --warn:#A66A1F; --warn-soft:#F7EEDD;
+  --crit:#B3453A; --crit-soft:#F8E7E5;
+  --code-bg:#EEF2F7;
+  --shadow:0 1px 2px rgba(28,43,58,.06),0 8px 24px rgba(28,43,58,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0D1624; --panel:#121D2F; --ink:#D9E4F2; --muted:#8CA1BA;
+    --line:#223349; --grid:rgba(122,168,232,.07);
+    --accent:#7AA8E8; --accent-soft:#1A2A44; --on-accent:#0D1624;
+    --ok:#5CB893; --ok-soft:#12291F; --warn:#D9A054; --warn-soft:#2E2412;
+    --crit:#E08578; --crit-soft:#331714; --code-bg:#1A2639;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.25);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0D1624; --panel:#121D2F; --ink:#D9E4F2; --muted:#8CA1BA;
+  --line:#223349; --grid:rgba(122,168,232,.07);
+  --accent:#7AA8E8; --accent-soft:#1A2A44; --on-accent:#0D1624;
+  --ok:#5CB893; --ok-soft:#12291F; --warn:#D9A054; --warn-soft:#2E2412;
+  --crit:#E08578; --crit-soft:#331714; --code-bg:#1A2639;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.25);
+}
+
+/* ————— base ————— */
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font:15.5px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+code,pre,.mono{font-family:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace}
+code{background:var(--code-bg); padding:.1em .35em; border-radius:3px; font-size:.86em; word-break:break-word}
+pre{background:var(--code-bg); border:1px solid var(--line); border-radius:6px; padding:12px 14px; overflow-x:auto; font-size:.82em; line-height:1.55}
+pre code{background:none;padding:0}
+a{color:var(--accent); text-decoration:none}
+a:hover{text-decoration:underline}
+a:focus-visible,button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+h1,h2,h3,h4{line-height:1.2; text-wrap:balance; font-weight:700}
+h2{font-size:26px; margin:0 0 6px}
+h3{font-size:19px; margin:28px 0 10px}
+h4{font-size:16px; margin:22px 0 8px}
+p{margin:10px 0}
+ul,ol{margin:8px 0; padding-left:24px}
+li{margin:4px 0}
+strong{font-weight:650}
+
+/* ————— page frame ————— */
+.frame{max-width:1240px; margin:0 auto; padding:0 24px 80px}
+.layout{display:grid; grid-template-columns:1fr; gap:0}
+nav.toc{display:none; position:sticky; top:24px; align-self:start; padding-top:36px}
+@media(min-width:1180px){
+  .layout{grid-template-columns:210px minmax(0,1fr); gap:40px}
+  nav.toc{display:block}
+}
+nav.toc .toc-head{font-size:11px; letter-spacing:.14em; color:var(--muted); margin-bottom:10px}
+nav.toc a{display:block; font-size:13px; padding:4px 0 4px 12px; color:var(--muted); border-left:2px solid var(--line)}
+nav.toc a:hover{color:var(--accent); text-decoration:none; border-left-color:var(--accent)}
+main{min-width:0; max-width:900px}
+
+/* ————— header: drawing title block ————— */
+header.sheet{
+  margin:32px 0 8px; border:1.5px solid var(--ink); border-radius:2px;
+  background:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px),
+    var(--panel);
+  background-size:22px 22px,22px 22px,auto;
+  box-shadow:var(--shadow);
+}
+.sheet-body{padding:40px 36px 28px}
+.eyebrow{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; font-size:12px; letter-spacing:.18em; color:var(--accent); margin-bottom:10px}
+header.sheet h1{font-size:clamp(28px,5vw,44px); margin:0 0 12px; letter-spacing:-.015em}
+.lede{max-width:62ch; color:var(--muted); font-size:16.5px; margin:0}
+.titleblock{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+  border-top:1.5px solid var(--ink); margin-top:28px;
+}
+.titleblock>div{padding:10px 14px 12px; border-right:1px solid var(--line)}
+.titleblock>div:last-child{border-right:none}
+.tb-k{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:10.5px; letter-spacing:.12em; color:var(--muted)}
+.tb-v{font-size:13.5px; font-weight:600; margin-top:2px; font-variant-numeric:tabular-nums}
+
+/* ————— sections ————— */
+section{margin-top:56px; scroll-margin-top:24px}
+.sec-eyebrow{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11.5px; letter-spacing:.16em; color:var(--accent); margin-bottom:6px}
+.sec-sub{color:var(--muted); max-width:68ch; margin-top:2px}
+
+/* dimension-line divider */
+.dim{display:flex; align-items:center; gap:0; margin:40px 0 0; color:var(--line)}
+.dim::before,.dim::after{content:""; flex:1; border-top:1px solid var(--line)}
+.dim svg{flex:none}
+
+/* ————— chips & badges ————— */
+.chip{display:inline-block; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11px; letter-spacing:.04em;
+  padding:2px 8px; border-radius:999px; border:1px solid var(--line); background:var(--panel); white-space:nowrap}
+.chip.acc{background:var(--accent-soft); border-color:transparent; color:var(--accent)}
+.chip.ok{background:var(--ok-soft); border-color:transparent; color:var(--ok)}
+.chip.warn{background:var(--warn-soft); border-color:transparent; color:var(--warn)}
+.chip.crit{background:var(--crit-soft); border-color:transparent; color:var(--crit)}
+.badge-s{color:var(--ok); font-weight:700} .badge-m{color:var(--warn); font-weight:700} .badge-l{color:var(--crit); font-weight:700}
+
+/* ————— tables ————— */
+.tw{overflow-x:auto; border:1px solid var(--line); border-radius:6px; margin:14px 0; background:var(--panel)}
+table{border-collapse:collapse; width:100%; font-size:13.5px}
+th{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11px; letter-spacing:.08em; text-align:left; color:var(--muted);
+  padding:9px 12px; border-bottom:1.5px solid var(--line); white-space:nowrap; background:var(--panel)}
+td{padding:8px 12px; border-bottom:1px solid var(--line); vertical-align:top}
+tr:last-child td{border-bottom:none}
+td.num,th.num{text-align:right; font-variant-numeric:tabular-nums}
+tbody tr:hover{background:var(--accent-soft)}
+
+/* ————— cards ————— */
+.card{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:18px 20px; box-shadow:var(--shadow)}
+.grid2{display:grid; gap:14px; grid-template-columns:1fr}
+@media(min-width:760px){.grid2{grid-template-columns:1fr 1fr}}
+.grid3{display:grid; gap:14px; grid-template-columns:1fr}
+@media(min-width:760px){.grid3{grid-template-columns:repeat(3,1fr)}}
+
+/* stat tiles */
+.stats{display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); margin:18px 0}
+.stat{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 16px}
+.stat .v{font-size:26px; font-weight:750; letter-spacing:-.02em; font-variant-numeric:tabular-nums}
+.stat .k{font-size:12px; color:var(--muted); margin-top:2px; line-height:1.4}
+
+/* ————— sprint timeline strip ————— */
+.timeline{display:flex; gap:6px; flex-wrap:wrap; margin:18px 0 6px}
+.tl{flex:1 1 76px; min-width:76px; border:1px solid var(--line); border-radius:6px; background:var(--panel); padding:8px 10px}
+.tl .n{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11px; color:var(--accent); font-weight:700}
+.tl .t{font-size:11.5px; line-height:1.35; margin-top:2px; color:var(--muted)}
+.phase-bar{display:flex; gap:6px; margin-top:6px}
+.phase{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:10px; letter-spacing:.08em; color:var(--muted); text-align:center; padding-top:4px; border-top:2px solid var(--accent)}
+
+/* ————— sprint cards ————— */
+.sprint{background:var(--panel); border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:8px;
+  padding:20px 24px; margin:22px 0; box-shadow:var(--shadow)}
+.sprint-head{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap}
+.sprint-no{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:13px; font-weight:700; color:var(--on-accent);
+  background:var(--accent); border-radius:4px; padding:2px 9px}
+.sprint h3{margin:0; font-size:20px}
+.sprint .meta{margin-left:auto; display:flex; gap:6px; flex-wrap:wrap}
+.sprint .goal{color:var(--muted); margin:8px 0 4px; max-width:70ch}
+.gate{background:var(--accent-soft); border-radius:6px; padding:12px 16px; margin-top:14px}
+.gate .g-head{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:10.5px; letter-spacing:.14em; color:var(--accent); margin-bottom:6px}
+.gate ul{margin:0; padding-left:20px; font-size:13.5px}
+.risk-note{font-size:13px; color:var(--muted); margin-top:10px}
+.risk-note b{color:var(--warn)}
+
+/* ————— architecture diagram ————— */
+.arch{display:grid; gap:10px; margin:16px 0}
+.arch-row{display:grid; gap:10px; grid-template-columns:1fr}
+@media(min-width:700px){.arch-cols{grid-template-columns:1fr 1fr 1fr}}
+.node{border:1.5px solid var(--ink); border-radius:4px; background:var(--panel); padding:10px 14px}
+.node .n-t{font-weight:700; font-size:14px}
+.node .n-s{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11px; color:var(--muted); margin-top:3px; line-height:1.6}
+.node.hl{border-color:var(--accent); background:var(--accent-soft)}
+.node.dead{border-style:dashed; border-color:var(--muted); opacity:.75}
+.arch-link{text-align:center; color:var(--muted); font-size:12px; font-family:ui-monospace,Menlo,Consolas,monospace}
+
+/* directory tree */
+.tree{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; line-height:1.7; background:var(--code-bg);
+  border:1px solid var(--line); border-radius:6px; padding:14px 18px; overflow-x:auto; white-space:pre}
+.tree .c{color:var(--muted)}
+.tree .a{color:var(--accent); font-weight:600}
+
+/* checklist */
+.oracle li{margin:6px 0}
+.oracle .id{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11px; color:var(--accent); font-weight:700; margin-right:6px}
+
+footer{margin-top:70px; padding-top:18px; border-top:1px solid var(--line); color:var(--muted); font-size:12.5px}
+@media print{
+  nav.toc{display:none} body{font-size:12px} .sprint,.card,.tw{box-shadow:none}
+  section{margin-top:32px}
+}
+@media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} }
+</style>
+</head>
+<body>
+<div class="frame">
+<div class="layout">
+
+<nav class="toc" aria-label="Contents">
+  <div class="toc-head mono">CONTENTS</div>
+  <a href="#summary">Executive summary</a>
+  <a href="#audit">01 · The system today</a>
+  <a href="#breaks">02 · What breaks &amp; why</a>
+  <a href="#deps">03 · Dependency disposition</a>
+  <a href="#target">04 · Target architecture</a>
+  <a href="#strategy">05 · Migration strategy</a>
+  <a href="#sprints">06 · Sprint plan</a>
+  <a href="#oracle">07 · Parity oracle</a>
+  <a href="#risks">08 · Risk register</a>
+  <a href="#backlog">09 · Post-migration backlog</a>
+</nav>
+
+<main>
+
+<header class="sheet">
+  <div class="sheet-body">
+    <div class="eyebrow">TRANSFORMATION PLAN · DRAWING Nº RM-001</div>
+    <h1>Architect3D Migration Roadmap</h1>
+    <p class="lede">Sprint-by-sprint plan to move the architect3d floorplanner from rollup&nbsp;1 + three&nbsp;r98 + jQuery to <strong>Vue&nbsp;3 (ES6 JavaScript) + Vite + three&nbsp;0.185</strong> — with every existing feature intact and provably so at each step.</p>
+  </div>
+  <div class="titleblock">
+    <div><div class="tb-k">PROJECT</div><div class="tb-v">architect3d</div></div>
+    <div><div class="tb-k">BASELINE</div><div class="tb-v">three 0.98 · rollup 1 · jQuery</div></div>
+    <div><div class="tb-k">TARGET</div><div class="tb-v">Vue 3.5 · Vite 8 · three 0.185</div></div>
+    <div><div class="tb-k">SPRINTS</div><div class="tb-v">10 × 2 weeks</div></div>
+    <div><div class="tb-k">DATE</div><div class="tb-v">2026-08-13</div></div>
+    <div><div class="tb-k">REV</div><div class="tb-v">A</div></div>
+  </div>
+</header>
+
+<!-- ======================= EXEC SUMMARY ======================= -->
+<section id="summary">
+  <div class="sec-eyebrow">§ 00 · EXECUTIVE SUMMARY</div>
+  <h2>Where we are, where we're going</h2>
+  <p class="sec-sub">Findings from a full-code audit (every file in <code>src/scripts/</code>, both demo apps, all assets, every dependency — verified against a live install of three&nbsp;0.185.1, not from memory).</p>
+
+  <div class="stats">
+    <div class="stat"><div class="v">48</div><div class="k">library source files · ~15.8k LOC, already ES6 classes &amp; modules</div></div>
+    <div class="stat"><div class="v">87</div><div class="k">three.js releases behind (r98 → r185, WebGL2-only)</div></div>
+    <div class="stat"><div class="v">25</div><div class="k">furniture models in a dead format (three JSON v3.1 — loader no longer exists)</div></div>
+    <div class="stat"><div class="v">38</div><div class="k">event constants form the library↔UI contract that must survive</div></div>
+    <div class="stat"><div class="v">0</div><div class="k">automated tests today — the first sprint builds the safety net</div></div>
+    <div class="stat"><div class="v">3×</div><div class="k">copies of three.js in today's 4.3 MB bundle (r98 + nested r94 + r96) — Vite target ≈ 600–700 KB min (~85% cut)</div></div>
+  </div>
+
+  <p><strong>The good news:</strong> the library core is in better shape than its toolchain. The data layer (<code>model/</code>, <code>core/</code>) is clean, headless, jQuery-free ES6 with a well-defined event backbone (<code>THREE.EventDispatcher</code> — API unchanged in r185). The hard, valuable algorithms — room detection, DCEL half-edge walls, corner merging — use only <code>Vector2</code> math that survives untouched. The migration is mostly <em>re-hosting</em>, not rewriting.</p>
+  <p><strong>The hard parts</strong> are exactly four: (1)&nbsp;the <code>Geometry</code>/<code>Face3</code>→<code>BufferGeometry</code> rewrite in six mesh-builder functions plus the model-loading merge pipeline; (2)&nbsp;25 furniture models in the pre-r99 JSON format that no modern loader reads — they need one-time offline conversion to glTF, plus a URL-rewrite shim so old saved designs keep loading; (3)&nbsp;color-management and lighting semantics changed under us (r152/r165) — handled with an explicit two-phase strategy: pixel-parity freeze first, deliberate modernization later; (4)&nbsp;the demo UI is a 45&nbsp;KB jQuery/dat.GUI monolith that becomes the Vue&nbsp;3 app — its complete feature inventory and API contract are catalogued in this document so nothing is lost in translation.</p>
+
+  <div class="timeline" aria-label="Sprint overview">
+    <div class="tl"><span class="n">S0</span><div class="t">Safety net: fixtures, tests, CI</div></div>
+    <div class="tl"><span class="n">S1</span><div class="t">Vite toolchain (three stays r98)</div></div>
+    <div class="tl"><span class="n">S2</span><div class="t">De-jQuery library + lifecycle</div></div>
+    <div class="tl"><span class="n">S3</span><div class="t">Assets: legacy JSON → glTF</div></div>
+    <div class="tl"><span class="n">S4</span><div class="t">three bump I: geometry &amp; loaders</div></div>
+    <div class="tl"><span class="n">S5</span><div class="t">three bump II: controls &amp; look</div></div>
+    <div class="tl"><span class="n">S6</span><div class="t">Vue 3 app shell</div></div>
+    <div class="tl"><span class="n">S7</span><div class="t">Inspectors &amp; settings in Vue</div></div>
+    <div class="tl"><span class="n">S8</span><div class="t">Modern color pipeline</div></div>
+    <div class="tl"><span class="n">S9</span><div class="t">Deploy, cleanup, release</div></div>
+  </div>
+  <p class="sec-sub" style="font-size:13px">Phases: <strong>Foundation</strong> S0–S2 · <strong>Assets</strong> S3 · <strong>Engine</strong> S4–S5 · <strong>Application</strong> S6–S7 · <strong>Finish</strong> S8–S9. Every sprint ends with the app fully working — there is no "trust me, it'll compile again in three weeks" window.</p>
+</section>
+
+<!-- ======================= 01 AUDIT ======================= -->
+<section id="audit">
+  <div class="sec-eyebrow">§ 01 · AUDIT</div>
+  <h2>The system today</h2>
+  <p class="sec-sub">Two applications share one library. Only the modern one carries forward; the second is the reference for features the first lacks.</p>
+
+  <div class="arch">
+    <div class="arch-row arch-cols">
+      <div class="node hl"><div class="n-t">Demo app (jQuery)</div><div class="n-s">build/index.html + app.js (45 KB)<br>Bootstrap 3 · dat.GUI · jquery.flip<br>→ becomes the Vue 3 app</div></div>
+      <div class="node"><div class="n-t">Demo app #2 (legacy)</div><div class="n-s">build/index2.html + example.js<br>reference for: texture thumbnails,<br>item context menu, camera nudge</div></div>
+      <div class="node dead"><div class="n-t">resources/ (dead)</div><div class="n-s">vendored TypeScript ancestor<br>never built, never imported<br>→ delete</div></div>
+    </div>
+    <div class="arch-link">▼ &nbsp;BP3DJS global (IIFE) — 57-statement barrel <code>blueprint.js</code> re-exporting ~138 symbols, class <code>BlueprintJS</code> ▼</div>
+    <div class="arch-row arch-cols">
+      <div class="node"><div class="n-t">2D floorplanner</div><div class="n-s">floorplanner/ · 1,678 LOC<br>raw canvas 2D, modes MOVE/DRAW/DELETE<br>carbon-sheet image tracing<br>jQuery: 20 call sites (all replaceable)</div></div>
+      <div class="node"><div class="n-t">Data model (headless)</div><div class="n-s">model/ + core/ · ~4,700 LOC<br>Floorplan/Wall/Corner/Room/HalfEdge<br>zero jQuery · zero DOM<br>save/load JSON schema owner</div></div>
+      <div class="node"><div class="n-t">3D view</div><div class="n-s">three/ + items/ · ~5,500 LOC<br>WebGLRenderer, picking FSM, HUD gizmo<br>8 item classes (doors, windows, rugs…)<br>walls with door/window holes</div></div>
+    </div>
+  </div>
+
+  <h3>What is already right</h3>
+  <ul>
+    <li><strong>Clean layering.</strong> No model file imports <code>floorplanner/</code> or <code>three/</code> — the single cross-layer edge is <code>scene.js → items/factory.js</code>; dependencies otherwise point strictly downward. The data layer runs headless (its only environment touches are the asset loaders and <code>Math.random</code> in id generation) and is unit-testable as-is.</li>
+    <li><strong>Stable event contract.</strong> All cross-layer communication uses <code>THREE.EventDispatcher</code> + 38 string constants (<code>core/events.js</code>). <code>EventDispatcher</code> is unchanged in r185 — the entire backbone survives.</li>
+    <li><strong>The hardest code needs no rewrite.</strong> <code>Floorplan.findRooms</code> (tightest-cycle room detection), <code>Room.updateWalls</code> (DCEL ring), <code>HalfEdge.halfAngleVector</code> (wall offset outlines), corner merge/split — all pure <code>Vector2</code> math on APIs that still exist. These files get frozen semantically and re-hosted verbatim.</li>
+    <li><strong>ES6 source throughout.</strong> No transpile step is even needed for modern browsers — Babel 6, its presets, and most of the rollup plugin chain simply disappear.</li>
+  </ul>
+
+  <h3>The bundle pathology</h3>
+  <p>The 4.3 MB bundle contains <strong>three full copies of three.js</strong> (~3.3 MB, 77%): the root r98, plus a private r94 nested under <code>@calvinscofield/three-objloader</code> and a private r96 under <code>three-reflector2</code> — their <code>^0.94</code>/<code>^0.96</code>/<code>^0.98</code> ranges can never dedupe under 0.x semver, so rollup bundled each copy. Beyond the size, this is a latent correctness bug: <code>instanceof</code> checks silently fail across copies. Full unminified jQuery adds another 0.28 MB. Replacing the wrapper packages with <code>three/addons</code> (S4) and dropping jQuery (S2) collapses the bundle to one shared three. <b>Done:</b> the unminified library build went 3,318 KB &rarr; 1,988 KB (gzip 643 &rarr; 408 KB) when the four repacks were dropped in S4.</p>
+
+  <h3>Dead code discovered (delete, don't port)</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Item</th><th>Evidence</th></tr></thead>
+    <tbody>
+      <tr><td><code>core/exposable.js</code></td><td>imported by nobody; would throw on import (<code>extends EventDispatcher</code> without importing it)</td></tr>
+      <tr><td><code>three/controls.js</code> (565 LOC)</td><td>superseded pre-r70 OrbitControls; <code>main.js:15</code> import commented; internal 3-finger-pan TypeError</td></tr>
+      <tr><td><code>three/first-person-controls.js</code> (377 LOC)</td><td><code>main.js:6</code> import commented; only the barrel exports it; broken <code>_contextmenu</code> binding</td></tr>
+      <tr><td>6 of 7 vendored exporters (~3,600 LOC)</td><td>only <code>OBJExporter</code> is imported (<code>model.js:6</code>); GLTF export uses the npm package, not the vendored copy</td></tr>
+      <tr><td><code>Room.updateArea2</code>, <code>Floorplan.fireOn*</code>, <code>$.Callbacks</code> ×5, QuickSettings, jquery-ui.css</td><td>no callers / never fired / loaded but never referenced</td></tr>
+      <tr><td><code>build/models/obj</code> (2.6 MB), <code>build/vrtest</code> (58 MB), <code>rooms/thumbnails</code></td><td>zero references from any catalog or HTML; vrtest is standalone A-Frame + CDN</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Latent bugs: the preserve-or-fix policy</h3>
+  <p>An audit this deep finds bugs. The policy during migration: <strong>library quirks that shape behavior are preserved bit-for-bit</strong> (fixing them changes floorplans users can already draw); <strong>app-layer dead bugs are fixed deliberately in the Vue rewrite</strong>, each with a test.</p>
+  <div class="grid2">
+    <div class="card">
+      <div class="sec-eyebrow" style="color:var(--warn)">PRESERVE (behavior-defining)</div>
+      <ul style="font-size:13.5px">
+        <li><code>Utils.isClockwise</code> copy-paste quirk — <code>findRooms</code> depends on it verbatim</li>
+        <li><code>Utils.pointInPolygon</code> broken-but-stable — item placement relies on its current output</li>
+        <li>Saved corner coords are in the <em>active display unit</em> (meters by default) incl. odd constants like <code>30.480016…</code> — round-trip fidelity requires exact reproduction</li>
+        <li><code>roof_item.js:16</code> asymmetric Y-centering — <code>geometry.center()</code> would change ceiling-item seating</li>
+        <li>Config snapshots at construction (walls capture height/thickness once) — later unit/config changes intentionally don't retro-apply</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="sec-eyebrow" style="color:var(--ok)">FIX (dead or leaking, with a test)</div>
+      <ul style="font-size:13.5px">
+        <li><s><code>EVENT_MODE_RESET</code> payload misread (<code>app.js:39</code>) — toolbar highlight is dead today; Vue reads <code>evt.mode</code></s> <span class="chip">S6 done</span> — three's EventDispatcher hands a listener the whole event, so <code>mode == floorplannerModes.DRAW</code> compared an object to a number. <code>useFloorplannerMode</code> reads <code>evt.mode</code>, which also picks up the modes the library sets by itself (Esc, and the drop back to MOVE when a drawn wall closes a loop).</li>
+        <li><s>Item inspector never binds the selected item (<code>app.js:574</code> commented <code>setItem</code>)</s> <span class="chip">S6 done</span> — <code>new ItemProperties(selectionsFolder, item)</code> against a constructor taking only the gui, with the binding line commented out beneath it. <code>currentItem</code> stayed null for the life of the page: the panel showed a 10&times;10&times;10 placeholder, resize and the two toggles fell through <code>if(this.currentItem)</code>, Delete deleted nothing, and no Materials folder was ever built.</li>
+        <li><s>Crash adding wall-items before any wall click (<code>aWall</code> null, <code>app.js:979</code>)</s> <span class="chip">S6 done</span> — reproduced on the tagged demo: <code>TypeError: Cannot read properties of null (reading 'currentWall')</code>, nothing added, modal left open. Reachable on any fresh page by opening the catalog and picking a window, a door, a poster or a wall cabinet. The item now goes in unbound for the controller to place.</li>
+        <li><s>Listener leaks: zero teardown in floorplanner/controller; <code>Wall.addCornerMoveListener</code> removal can never match</s> <span class="chip">S2 done</span></li>
+        <li><s>PointerLock <code>disconnect()</code> adds instead of removes key handlers</s> <span class="chip">S2 done</span> — pulled forward; S5 retires the file</li>
+        <li><s>glTF node transforms dropped by the item merge: the flatten uses each mesh's <em>local</em> matrix, so a mesh under a transformed node is merged at the wrong scale or offset</s> <span class="chip">S4 done</span> — <code>mergeMeshes</code> now bakes <code>matrixWorld</code>. Of the 42 affected models, read off the node matrices rather than the bounding boxes: <strong>24 moved, 2 rotated, 14 rescaled uniformly, and only 2 are genuinely stretched</strong> (<code>kitchenCoffeeMachine</code>, <code>kitchenFridgeBuiltIn</code>). The first three classes are similarity transforms, so no individual mesh is deformed. <code>Duck.gltf</code> was the extreme, drawn 100&times; too <em>large</em> at 154 units tall. Both readings for all 168 models are recorded in <code>tests/fixtures/legacy-merge-r98.json</code>, and <code>tools/merge-transform-ab.html</code> renders the 42 pairs under a shared camera. The 21 resizes still want a human eye.</li>
+        <li><s>Curved-wall + wall-item crash: <code>HalfEdge.distanceTo</code>'s curved branch dereferences an undefined <code>_bezier</code></s> <span class="chip">S4 done</span> — a one-word typo: every other curved branch in the file already reads <code>this.wall.bezier</code></li>
+        <li><s>Wall lightmap arrived pi times too dark on r185</s> <span class="chip">S4 done</span> — three's <em>basic</em> material gained a <code>RECIPROCAL_PI</code> on its lightmap term (<code>r98: texel * intensity</code>, <code>r185: texel * intensity * RECIPROCAL_PI</code>), so every wall in the app rendered muddy. <code>lightMapIntensity = Math.PI</code> in <code>edge.js</code> cancels it. Belonged to the S4 parity freeze and was missed there for want of a golden to check against; found in the first frame the parity capture produced. Not to be confused with the lit materials' <code>lights_fragment_maps</code>, which moved the other way.</li>
+        <li><s>Zero-length <code>Wall.wallSize</code> setter produced NaN coordinates</s> <span class="chip">S4 done</span> — not previously on this list, and only latent under r98: <code>Vector2(x, y) { this.x = x || 0; }</code> laundered the NaN back to zero. r125's default parameters let it through and it corrupted the corner. The S0 characterization test was written as the tripwire for exactly this and fired on the bump.</li>
+        <li><code>Main.dataUrl()</code> screenshots silently unreliable (no <code>preserveDrawingBuffer</code>, <code>main.js:101–103</code>) — restore or deprecate <span class="chip">S5</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= 02 BREAKS ======================= -->
+<section id="breaks">
+  <div class="sec-eyebrow">§ 02 · BREAKING-CHANGE ANALYSIS</div>
+  <h2>What breaks &amp; why</h2>
+  <p class="sec-sub">Every <code>THREE.*</code> symbol the codebase touches was classified against a live three&nbsp;0.185.1 install. The breakage surface is enumerable and small — this table is the checklist, and there is no long tail hiding behind it.</p>
+
+  <h3>Top risks, ranked</h3>
+  <div class="tw"><table>
+    <thead><tr><th>#</th><th>Risk</th><th>Where</th><th>Resolution</th><th>Sprint</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td><strong>Legacy JSON models + <code>JSONLoader</code> removal.</strong> 25 assets in three-JSON v3.1; no loader exists in r185 or its addons. Saved designs embed the old URLs.</td><td><code>scene.js:261</code>, <code>build/models/js/</code></td><td>One-time offline conversion (pinned three@0.110 LegacyJSONLoader → GLTFExporter) + <code>LEGACY_MODEL_MAP</code> URL shim in <code>Model.newRoom</code> so old saves load forever</td><td><span class="chip acc">S3</span></td></tr>
+      <tr><td class="num">2</td><td><strong><code>Geometry</code>/<code>Face3</code> removed (r125).</strong> Wall meshes, roof fans, wall-hole cutting, HUD line, and the loader merge pipeline all construct legacy Geometry.</td><td><code>edge.js</code>, <code>floor.js</code>, <code>room.js</code>, <code>half_edge.js</code>, <code>hud.js</code>, <code>scene.js</code>, <code>roof_item.js</code></td><td>BufferGeometry rewrites per-function; loader pipeline → <code>mergeGeometries(geoms, true)</code> with material groups</td><td><span class="chip ok">S4 done</span></td></tr>
+      <tr><td class="num">3</td><td><strong>Wall UV/hole rewrite.</strong> <code>makeWall</code> mutates <code>ShapeGeometry.vertices</code> + hand-builds <code>faceVertexUvs</code> — both gone; same import name now returns a different class (silent break).</td><td><code>edge.js:286–316</code></td><td><code>applyMatrix4</code> + rebuild <code>uv</code> attribute with the same per-vertex math; lightmap now reads channel 0</td><td><span class="chip ok">S4 done</span></td></tr>
+      <tr><td class="num">4</td><td><strong>Color management flipped (r152).</strong> Output is sRGB-encoded by default; hex colors get working-space conversion. Zero compile errors — pure visual drift.</td><td>renderer, every texture/material</td><td>Two-phase: parity freeze (<code>ColorManagement.enabled=false</code>, linear output, lights ×π) lands with the bump in S4; deliberate modernization with new golden screenshots in S8</td><td><span class="chip acc">S4→S8</span></td></tr>
+      <tr><td class="num">5</td><td><strong>Legacy light scaling removed (r165).</strong> Lit surfaces (Phong floors, loaded items) render ~π× darker without compensation; unlit walls/sky/ground are unaffected.</td><td><code>lights.js:25,29</code></td><td>Multiply hemisphere/directional intensities by π (1.1→3.46, 0.5→1.57), then calibrate visually</td><td><span class="chip acc">S5</span></td></tr>
+      <tr><td class="num">6</td><td><strong>PointerLockControls architecture changed.</strong> The vendored copy carries a custom walk-physics rig (WASD, gravity, jump, character height) the addon doesn't have.</td><td><code>pointerlockcontrols.js:62–150</code></td><td>Addon for lock/look; port ~90 LOC of walk physics as an app-level updater; keep fullscreen-on-lock</td><td><span class="chip acc">S5</span></td></tr>
+      <tr><td class="num">7</td><td><strong>OrbitControls fork swap.</strong> App pipes a custom <code>needsUpdate</code> render-dirty flag and two custom events through the controls object; hot-swaps <code>controls.object</code> for ortho mode.</td><td><code>orbitcontrols.js</code>, <code>main.js:142–149,470–482</code>, <code>edge.js:48–57</code></td><td>Addon + thin shim: <code>'change'</code> listener sets dirty flag and re-dispatches <code>EVENT_CAMERA_MOVED</code>; <code>listenToKeyEvents</code> restores arrow keys</td><td><span class="chip acc">S5</span></td></tr>
+      <tr><td class="num">8</td><td><strong>ESM circular import crashes under Vite.</strong> <code>configuration.js ↔ dimensioning.js</code> — TDZ ReferenceError under native ESM, empirically reproduced. Only rollup 1's IIFE flattening hides it today.</td><td><code>configuration.js:1,21</code></td><td>Move unit-string constants to a leaf module. Must land before Vite dev ever boots</td><td><span class="chip acc">S1</span></td></tr>
+      <tr><td class="num">9</td><td><strong><code>Box3.setFromObject</code> looser since r140.</strong> Wall/room bounds feed item snapping — silent placement drift.</td><td><code>half_edge.js:253</code>, <code>room.js:180</code>, <code>item.js:79</code></td><td>Pass <code>precise:true</code> at all three sites; covered by placement parity tests</td><td><span class="chip ok">S4 done</span></td></tr>
+      <tr><td class="num">10</td><td><strong>Ground reflector dead-on-arrival.</strong> <code>three-reflector2</code> imports the removed <code>Math</code> alias — ESM build failure against r185.</td><td><code>skybox.js:56</code></td><td>Feature-flag OFF in S4 (it blocks the build); rebuild on addons <code>Reflector</code> with the two-texture blend, or keep the static ground — decision gate in S5</td><td><span class="chip acc">S4→S5</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>The mechanical tail (small, enumerated)</h3>
+  <p style="font-size:14px"><code>THREE.Math</code>→<code>MathUtils</code> · <code>Matrix4.getInverse</code>→<code>.invert()</code> · <code>applyMatrix</code>→<code>applyMatrix4</code> · <code>Raycaster.linePrecision</code>→<code>params.Line.threshold</code> (already dead code) · <code>ImageUtils.crossOrigin</code> — delete · <code>computeFaceNormals</code>→<code>computeVertexNormals</code>/precomputed normals · material-array <code>emissive</code> guard (Basic materials have none) · <code>uv2</code>→<code>uv1</code> moot (lightmap channel 0) · skybox shader uniform <code>texture</code> renamed (reserved in GLSL3).</p>
+
+  <h3>jQuery surface in the library (the de-jQuery work list)</h3>
+  <div class="tw"><table>
+    <thead><tr><th>File</th><th>Surface</th><th>Replacement</th><th>Effort</th></tr></thead>
+    <tbody>
+      <tr><td><code>floorplanner/floorplanner.js</code></td><td><code>.bind()</code> ×5 (mouse+touch), <code>offset()</code> ×4, <code>innerWidth/Height()</code> ×4</td><td>pointer events, <code>getBoundingClientRect</code> (also fixes a latent scroll-offset bug), <code>{passive:false}</code> touchmove</td><td><span class="badge-m">M</span></td></tr>
+      <tr><td><code>floorplanner/floorplanner_view.js</code></td><td><code>$(window)</code> resize/orientation; sizes canvas to <code>window.innerWidth</code> — fights any real layout; no devicePixelRatio</td><td>ResizeObserver, container-driven sizing, DPR-aware bitmap + coordinate math</td><td><span class="badge-m">M</span></td></tr>
+      <tr><td><code>three/main.js</code></td><td><code>$(element)</code>, dead <code>$.Callbacks</code> ×5, <code>$(window).resize</code>, <code>offset()/innerWidth()</code>, live <code>mouseenter/mouseleave/click</code> auto-spin gating (<code>main.js:191</code>)</td><td>element refs, ResizeObserver, native listeners, delete dead code</td><td><span class="badge-s">S</span></td></tr>
+      <tr><td><code>three/controller.js</code></td><td><code>.bind('touchstart mousedown', …)</code> ×3; window-relative mouse math</td><td>pointer events on canvas; container-relative <code>normalizeVector2</code></td><td><span class="badge-s">S</span></td></tr>
+      <tr><td><code>model/ · core/ · items/</code></td><td><strong>zero jQuery</strong> — nothing to do</td><td>—</td><td>—</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Serialization landmines (schema must survive bit-for-bit)</h3>
+  <ul>
+    <li>Design files (<code>.blueprint3d</code>) store corner coordinates <strong>in the active display unit</strong> (meters under stock config) — save/load through <code>cmToMeasureRaw/cmFromMeasureRaw</code>, rounded (not truncated) to 3 decimals, and the file records no unit. Reproduce exactly; do not "fix" to canonical cm. <em>S0 finding:</em> the mirror case is worse than a scale error — a metre-era file loaded under cm shrinks the plan below <code>cornerTolerance</code> (20 cm), so every corner merges into one and the design collapses. Inch round-trips also drift (<code>0.393700</code> and <code>2.5400013716…</code> are not inverses).</li>
+    <li><strong>S0 finding — <code>Version.isVersionHigherThan</code> is inverted, not merely oddly typed.</strong> It evaluates <em>file ≤ check</em>, so a <em>newer</em> file (<code>0.0.3</code>) fails the gate and silently discards <code>a</code>/<code>b</code>/<code>wallType</code> — curved walls from a future file load back straight. Any forward-compatible schema work must fix this deliberately, with a test.</li>
+    <li><strong>S0 finding — <code>loadFloorplan</code> does not no-op on a malformed file.</strong> <code>reset()</code> runs <em>before</em> the validity check, so loading <code>null</code>/<code>{}</code> destroys the current design and dispatches no <code>EVENT_LOADED</code>. The Vue app must validate before calling it.</li>
+    <li><code>item_type</code> numeric registry (<code>factory.js:10</code>: 0,1,2,3,4,7,8,9) is written into every save file — freeze it.</li>
+    <li><code>wallType</code> serializes the <em>Symbol description</em> (<code>"STRAIGHT"/"CURVED"</code>) — the es6-enum replacement must keep producing these strings, gated behind the version check.</li>
+    <li><code>model_url</code> is a literal relative path baked into saves — the S3 shim rewrites <code>models/js/*.js → models/js-glb/*.glb</code> at load so old files stay loadable indefinitely.</li>
+    <li>Headless hazard: loading a design with a <code>carbonSheet</code> block throws if no 2D view is attached — guard when the library runs widget-mode.</li>
+  </ul>
+</section>
+
+<!-- ======================= 03 DEPS ======================= -->
+<section id="deps">
+  <div class="sec-eyebrow">§ 03 · DEPENDENCIES</div>
+  <h2>Dependency disposition</h2>
+  <p class="sec-sub">Every entry in <code>package.json</code>, with grep-verified usage and its fate. The rollup/Babel/esdoc chains — the source of ~120 of the current 128 npm-audit findings — vanish outright.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Package (today)</th><th>Used by</th><th>Verdict</th><th>Replacement / target</th></tr></thead>
+    <tbody>
+      <tr><td><code>three ^0.98.0</code></td><td>everywhere</td><td><span class="chip warn">BUMP</span></td><td><b>Done (S4)</b> — <code>three ^0.185.1</code>; controls swap remains for S5</td></tr>
+      <tr><td><code>jquery ^3.5.1</code></td><td>floorplanner, main, controller + demo</td><td><span class="chip crit">DROP</span></td><td><b>Done (S2)</b> — vanilla DOM + pointer events + ResizeObserver. Uninstalled; the demo's own vendored copy goes with <code>build/</code></td></tr>
+      <tr><td><code>three-gltf-loader</code> (r105 repack)</td><td><code>scene.js:3</code></td><td><span class="chip crit">DROP</span></td><td><code>three/addons/loaders/GLTFLoader.js</code></td></tr>
+      <tr><td><code>three-gltf-exporter</code> (repack)</td><td><code>model.js:8</code></td><td><span class="chip crit">DROP</span></td><td><code>three/addons/exporters/GLTFExporter.js</code></td></tr>
+      <tr><td><code>@calvinscofield/three-objloader</code></td><td><code>scene.js:4</code> — nests a private <strong>three r94</strong> into the bundle</td><td><span class="chip crit">DROP</span></td><td><code>three/addons/loaders/OBJLoader.js</code></td></tr>
+      <tr><td><code>three-reflector2</code></td><td><code>skybox.js:3</code> — nests a private <strong>three r96</strong> into the bundle</td><td><span class="chip crit">DROP</span></td><td><code>three/addons/objects/Reflector.js</code> + blend patch</td></tr>
+      <tr><td><code>three-reflector</code></td><td><em>never imported</em></td><td><span class="chip crit">DROP</span></td><td>—</td></tr>
+      <tr><td><code>bezier-js ^2.4.0</code> <span class="chip">misfiled as devDep</span></td><td><code>wall.js</code> (curved walls: length, project, intersects)</td><td><span class="chip warn">BUMP</span></td><td><code>bezier-js ^6</code>, named import, move to dependencies; smoke-test <code>.update()</code></td></tr>
+      <tr><td><code>es6-enum</code></td><td><code>constants.js</code> (WallTypes), log.js</td><td><span class="chip crit">DROP</span></td><td>inline frozen Symbol enum — keep <code>.description</code> save-file contract</td></tr>
+      <tr><td><code>line-intersect</code></td><td>one call site (<code>utils.js:228</code>)</td><td><span class="chip crit">DROP</span></td><td>inline ~15 lines of segment math</td></tr>
+      <tr><td><code>nodeclipse · braces · event-stream</code></td><td><em>unused</em> (nodeclipse = only unfixable critical CVE in the tree; event-stream locked safe at 4.0.1 — a 2018 panic-pin relic, the malicious flatmap-stream chain is absent)</td><td><span class="chip crit">DROP</span></td><td>— (S1; also clears 2 criticals from npm audit)</td></tr>
+      <tr><td><code>@thi.ng/geom-hull</code></td><td>commented import only</td><td><span class="chip crit">DROP</span></td><td>—</td></tr>
+      <tr><td>rollup 1 + 9 plugins, babel 6 chain, uglify</td><td>build only</td><td><span class="chip crit">DROP</span></td><td><span class="chip ok">NEW</span> <code>vite 8.2</code> + <code>@vitejs/plugin-vue 6</code></td></tr>
+      <tr><td><code>esdoc</code> + plugins (abandoned 2018)</td><td>docs only</td><td><span class="chip crit">DROP</span></td><td>VitePress prose site (S9 &mdash; prose only; the JSDoc stays in the source, where it is read)</td></tr>
+      <tr><td><code>eslint ^4.18</code></td><td>lint</td><td><span class="chip warn">BUMP</span></td><td><code>eslint 10</code> flat config</td></tr>
+      <tr><td><code>npm-run-all · livereload · rollup-watch</code></td><td>scripts</td><td><span class="chip crit">DROP</span></td><td>plain npm scripts + Vite dev server/HMR</td></tr>
+      <tr><td>— </td><td>—</td><td><span class="chip ok">NEW</span></td><td><code>vue 3.5.41</code> · <code>vitest 4</code> · <code>pinia 4</code> (optional) · <code>lil-gui 0.21</code> (interim only, S6→S7)</td></tr>
+    </tbody>
+  </table></div>
+  <p style="font-size:13.5px">Also inherited from the demo page, dying with it: dat.GUI (monkey-patched internals), QuickSettings (loaded, never called), jquery.flip (→ ~10 lines of CSS), jquery-ui.css (unused), Bootstrap 3 + glyphicons (buttons/modal/accordion → Vue components + inline SVG icons). The vendored <code>build/js/lib/jquery-2.1.4</code> / jQuery 1.11.3 / Bootstrap 3.3.5 copies — invisible to Dependabot but shipped to users today — disappear when <code>build/</code> is retired in S9.</p>
+</section>
+
+<!-- ======================= 04 TARGET ======================= -->
+<section id="target">
+  <div class="sec-eyebrow">§ 04 · TARGET ARCHITECTURE</div>
+  <h2>Where the code lands</h2>
+  <p class="sec-sub">A single Vite app with the library under <code>src/lib/</code> — not a monorepo. One consumer, one library, no independent release cadence; workspace plumbing buys nothing at this size and the migration constantly co-edits both sides.</p>
+
+  <div class="tree">architect3d/
+├─ index.html                 <span class="c"># Vite entry</span>
+├─ vite.config.js             <span class="c"># base:'/architect3d/', publicDir</span>
+├─ src/
+│  ├─ main.js                 <span class="c"># createApp</span>
+│  ├─ App.vue
+│  ├─ components/             <span class="c"># see component tree below</span>
+│  ├─ composables/            <span class="c"># useBlueprint, useSelection, useCameraViews, useUnits, useDesignIO</span>
+│  ├─ catalog/catalog.json    <span class="c"># items.js + items_gltf.js unified, typed</span>
+│  ├─ <span class="a">lib/</span>                    <span class="c"># src/scripts/** moved verbatim, migrated in place</span>
+│  │  ├─ core/  model/  floorplanner/  items/  three/
+│  │  └─ blueprint.js         <span class="c"># same public exports — the API contract holds</span>
+│  └─ styles/
+├─ public/
+│  ├─ models/gltf/  models/js-glb/  models/thumbnails/   <span class="c"># runtime string URLs keep working</span>
+│  └─ rooms/textures/
+├─ tools/convert-legacy-json/ <span class="c"># one-shot three@0.110 conversion page (S3)</span>
+├─ tests/                     <span class="c"># vitest: model-layer characterization + fixtures</span>
+└─ .github/workflows/         <span class="c"># ci.yml (lint+test+build) · deploy.yml (Pages)</span></div>
+
+  <h3>Vue component tree</h3>
+  <div class="tree">App.vue                        <span class="c">— owns useBlueprint(); CSS flip / v-show view switch</span>
+├─ ViewSwitcher.vue            <span class="c">— Floor Plan ⇄ 3D (+ walk-through); pause/resume render</span>
+├─ FloorplannerView.vue        <span class="c">— wraps canvas; mounts Floorplanner2D; provides the container only (sizing/ResizeObserver lives in the library, per S2)</span>
+│  └─ FloorplanToolbar.vue     <span class="c">— new/save/load · move/draw/delete (fixes evt.mode bug)</span>
+├─ ThreeViewport.vue           <span class="c">— mounts Main; dispose() on unmount</span>
+│  ├─ MainToolbar.vue          <span class="c">— new/save/load/export OBJ/export GLTF</span>
+│  ├─ ViewCube.vue             <span class="c">— top/front/left/right/isometry · ortho · wireframe</span>
+│  └─ CameraRangePanel.vue     <span class="c">— clip-plane sliders, lock view</span>
+├─ CatalogModal.vue            <span class="c">— 8 categories from catalog.json; guards null-wall placement</span>
+├─ InspectorPanel.vue          <span class="c">— switches on selection type</span>
+│  ├─ CornerInspector · RoomInspector · Wall2DInspector
+│  ├─ ItemInspector            <span class="c">— dims/proportional/fixed/delete/material colors (actually bound)</span>
+│  └─ SurfaceInspector         <span class="c">— wall/floor TexturePicker (thumbnail grid, from index2 reference)</span>
+└─ SettingsPanel.vue           <span class="c">— UnitsSettings · Grid2DSettings · CarbonSheetPanel</span></div>
+
+  <h3>Reactivity discipline (the one Vue-specific trap)</h3>
+  <p>Model objects (<code>Wall</code>, <code>Corner</code>, <code>Room</code>, <code>Item</code>…) rely on <strong>object identity</strong> — <code>===</code> comparisons in merge logic and <code>EventDispatcher</code> listener dedup. Wrapping them in Vue <code>reactive()</code> proxies breaks both silently. The rule, enforced by convention and a lint note: <strong>model instances cross the store boundary only via <code>markRaw</code>/<code>shallowRef</code></strong>; reactive state is limited to plain UI slices (<code>displayUnit</code>, <code>floorplannerMode</code>, <code>viewMode</code>, <code>selection {type, object:markRaw}</code>, camera flags, catalog visibility). The library's own events — not deep reactivity — trigger UI updates, exactly as dat.GUI's <code>updateDisplay()</code> dance does today, minus the dance.</p>
+
+  <h3>Deployment</h3>
+  <p>The committed-<code>build/</code> + <code>git subtree</code> gh-pages pattern dies. Replacement: GitHub Actions on push to master — <code>npm ci &amp;&amp; vite build --base=/architect3d/</code> → <code>actions/deploy-pages</code>. Runtime asset URLs are relative strings, so <code>publicDir</code> keeps them working unchanged under the project base path.</p>
+</section>
+
+<!-- ======================= 05 STRATEGY ======================= -->
+<section id="strategy">
+  <div class="sec-eyebrow">§ 05 · STRATEGY</div>
+  <h2>Migration strategy</h2>
+
+  <div class="grid2">
+    <div class="card"><h4 style="margin-top:0">1 · One variable per sprint</h4>
+    <p style="font-size:14px">Toolchain, then library hygiene, then assets, then engine, then UI. When the three bump lands (S4–S5), the UI around it is the <em>unchanged</em> legacy demo — any regression is attributable to the bump. When Vue lands (S6–S7), the engine under it is already proven. No sprint changes two of these at once.</p></div>
+    <div class="card"><h4 style="margin-top:0">2 · A parity oracle before anything moves</h4>
+    <p style="font-size:14px">There are zero tests today. S0 builds the safety net first: characterization tests over the headless model layer (serialization round-trips, room detection, wall splitting) plus frozen design fixtures and golden screenshots from the live legacy app. Every later sprint regresses against it.</p></div>
+    <div class="card"><h4 style="margin-top:0">3 · Big-bang three bump — inside one milestone</h4>
+    <p style="font-size:14px">Staging at r125 buys nothing: everything hard either breaks <em>at</em> r125 (Geometry, JSONLoader) or <em>after</em> it (color management r152, lights r165, WebGL2-only r163, API renames r151) — an intermediate stop doubles the visual-QA passes and targets a 2021 API we'd immediately re-touch. The breakage surface is fully enumerated (§02), so the jump is executed as one two-sprint milestone with the work sequenced inside it.</p></div>
+    <div class="card"><h4 style="margin-top:0">4 · Assets convert <em>before</em> the engine moves</h4>
+    <p style="font-size:14px">The .glb conversions load fine on the old r105-era loader too — so S3 lands them while everything else is stable, retiring the JSONLoader path <em>before</em> the bump. S4 then deletes a loader nothing uses, instead of doing a format migration mid-bump.</p></div>
+  </div>
+
+  <p style="margin-top:16px"><strong>Two-phase look management.</strong> The r185 default look (sRGB output, physical lights) is a genuine improvement — but adopting it during the bump would make "is this a bug or the new color pipeline?" unanswerable during QA. So the bump itself (S4) freezes the r98 look (<code>ColorManagement.enabled=false</code>, linear output, lights ×π) to make parity provable, and S8 modernizes deliberately, with before/after shots and re-baselined goldens as its own reviewable change.</p>
+  <p><strong>The API contract is the spine.</strong> The 38 event constants, the <code>BlueprintJS</code> facade, <code>switchView('topview'…)</code> string arguments, the <code>item_type</code> registry, and the save-file schema are frozen for the entire migration. Two private-API leaks the demo commits today (<code>floorplanner.view.draw()</code>, <code>three.getController().setSelectedObject(null)</code>) get proper public APIs (<code>redraw()</code>, <code>clearSelection()</code>) in S6 instead of being copied into Vue.</p>
+</section>
+
+<!-- ======================= 06 SPRINTS ======================= -->
+<section id="sprints">
+  <div class="sec-eyebrow">§ 06 · SPRINT PLAN</div>
+  <h2>Sprint by sprint</h2>
+  <p class="sec-sub">Ten two-week sprints in five phases. Effort tags: <span class="badge-s">S</span> mechanical · <span class="badge-m">M</span> real work · <span class="badge-l">L</span> the hard parts. Every sprint ends green against the parity oracle (§07).</p>
+
+  <!-- S0 -->
+  <div class="sprint">
+    <div class="sprint-head"><span class="sprint-no">S0</span><h3>Safety net &amp; baseline</h3>
+      <div class="meta"><span class="chip">Foundation</span><span class="chip acc">2 wks</span></div></div>
+    <p class="goal">Nothing moves until regressions are detectable. Build the harness the other nine sprints lean on.</p>
+    <ul>
+      <li>Tag <code>legacy-demo</code>; keep <code>build/</code> servable as the frozen reference implementation for side-by-side comparison.</li>
+      <li>Freeze fixtures: <code>myhome</code> as-is; one rich design saved from the live legacy app with ≥1 item of all 8 types, non-default textures on every surface, and a carbon sheet; and a <em>separate</em> curved-walls design — mixing curved walls with wall-bound items crashes today (<code>half_edge.js:298</code>, §01 ledger), so these must be distinct fixtures. <code>myhome1</code> is kept only as a documented load-the-same-garbage parity case (versionless cm-era corners load 100× off under the meter default — in the legacy app too). Golden screenshot pack of the oracle scenes (§07).</li>
+      <li>Vitest + characterization tests over the headless model layer <span class="badge-m">M</span>: serialization round-trip (byte-stable fields, unit landmine included), <code>findRooms</code> snapshots (square, L-shape, shared-wall pair, curved), wall split (<code>newWallsForIntersections</code>), corner merge tolerance, <code>Dimensioning</code> conversions with the odd constants. Seed <code>Utils.guide</code> for determinism. Two enabling seams live here because the tests can't run without them: an injectable/mocked model-loader interface in <code>Scene.addItem</code> (the data layer's only network touch) and a carbon-sheet test stub so headless <code>loadFloorplan</code> doesn't dereference the 2D view (<code>floorplan.js:673</code>).</li>
+      <li>GitHub Actions CI: tests blocking, lint report-only (ESLint 4 reports ~89 pre-existing style errors; it becomes blocking in S1 with the ESLint 10 migration). Triggered on <code>dev</code> and <code>master</code> only, so working branches cost no Actions minutes.</li>
+    </ul>
+    <div class="gate"><div class="g-head">EXIT GATE</div><ul>
+      <li>Tests green on untouched master; CI red/green wall live</li>
+      <li>Fixtures + goldens committed; legacy demo boots from the tag</li>
+    </ul></div>
+    <p class="risk-note"><b>Delivered:</b> 419 tests / 946 assertions across 6 modules; 3 deterministic fixtures; 3 enabling seams. <b>Pulled forward from S1:</b> the <code>configuration ↔ dimensioning</code> cycle fix — it was not merely order-dependent, <code>model/floorplan.js</code> and <code>model/model.js</code> threw outright, so no test could import anything. Verified non-behavioral against the frozen bundle. <b>Toolchain constraint discovered:</b> Babel 6 cannot parse static class fields — all source edits before S1 must stay ES2015.</p>
+  </div>
+
+  <!-- S1 -->
+  <div class="sprint">
+    <div class="sprint-head"><span class="sprint-no">S1</span><h3>Vite toolchain — three stays at r98</h3>
+      <div class="meta"><span class="chip">Foundation</span><span class="chip acc">2 wks</span></div></div>
+    <p class="goal">Swap rollup 1 for Vite 8 around the <em>unchanged</em> library, and purge what's dead. The demo must be indistinguishable afterwards.</p>
+    <ul>
+      <li><strong>Fix the ESM blocker first</strong> <span class="badge-s">S</span>: break the <code>configuration ↔ dimensioning</code> cycle (unit constants → leaf module) — Vite dev crashes on it today (empirically verified TDZ error).</li>
+      <li>Vite config: dev server + build for the demo, lib-mode IIFE output as the bridge — a thin <code>legacy-bridge.js</code> does <code>window.BP3DJS = …</code> so the untouched <code>app.js</code>/<code>items.js</code> keep working <span class="badge-m">M</span>.</li>
+      <li>Delete dead code: <code>exposable.js</code>, <code>controls.js</code>, <code>first-person-controls.js</code>, 6 unused exporters, <code>updateArea2</code>, dead callback arrays <span class="badge-s">S</span>.</li>
+      <li>Dependency purge (§03): es6-enum → inline enum (keep <code>.description</code> contract, save-file test proves it); line-intersect → inline; drop geom-hull, three-reflector, event-stream, nodeclipse, braces; bezier-js 2→6 <span class="badge-m">M</span>. ESLint 10 flat config.</li>
+    </ul>
+    <div class="gate"><div class="g-head">EXIT GATE</div><ul>
+      <li><code>vite dev</code> serves the demo behaviorally identical to the frozen reference; <code>vite build</code> output passes the full manual oracle</li>
+      <li>All S0 tests green; npm audit count collapses (babel/esdoc/rollup chains gone)</li>
+    </ul></div>
+    <p class="risk-note"><b>Delivered:</b> Vite 8 dev server + IIFE lib build; the bundle's export surface is identical to the frozen rollup one bar the three intentionally-deleted dead exports. 419 tests still green. <b>npm audit 129 → 25</b> (879 → 332 packages). Dead code removed: 9 files, <code>updateArea2</code>, 12 registrars that would have thrown on call. <code>es6-enum</code> and <code>line-intersect</code> inlined (the enum keeps emitting <code>"STRAIGHT"</code>/<code>"CURVED"</code> Symbol descriptions — the save-file contract); bezier-js 2 → 6 (named export). ESLint 10 flat config, lint now blocking in CI. <b>Two decisions worth knowing:</b> the lockfile moved to <code>lockfileVersion</code> 3 — holding it at 1 was an S0-specific choice for review clarity, and npm 11 emits 3 natively; and two rules new to ESLint 10 (<code>no-useless-assignment</code> ×24, <code>no-prototype-builtins</code> ×4) are <em>warnings</em>, since clearing them means source edits that do not belong in a toolchain sprint.</p>
+    <p class="risk-note"><b>Risk (retired):</b> hidden reliance on rollup's declaration reordering — Vite dev was booted in the first hour, not at the end. The only such reliance was the import cycle, already fixed in S0.</p>
+  </div>
+
+  <!-- S2 -->
+  <div class="sprint">
+    <div class="sprint-head"><span class="sprint-no">S2</span><h3>De-jQuery the library + lifecycle hardening</h3>
+      <div class="meta"><span class="chip">Foundation</span><span class="chip acc">2 wks</span></div></div>
+    <p class="goal">Make the library mountable and unmountable like a component, before any component exists. The jQuery surface (§02) is small and fully enumerated.</p>
+    <ul>
+      <li><code>floorplanner.js</code> / <code>floorplanner_view.js</code>: pointer events with <code>{passive:false}</code>, <code>getBoundingClientRect</code> coordinates, container-driven sizing via ResizeObserver (kills the <code>window.innerWidth</code> layout grab), DPR-aware canvas bitmap + coordinate math <span class="badge-m">M</span>.</li>
+      <li><code>main.js</code> / <code>controller.js</code>: element refs instead of jQuery objects, container-relative mouse normalization, delete dead <code>$.Callbacks</code>; the live <code>mouseenter/mouseleave/click</code> auto-spin gating (<code>main.js:191</code>) ports to native listeners <span class="badge-s">S</span>.</li>
+      <li>Widget-mode hardening: <code>widget:true</code> boot (no floorplanner, controller disabled) gets a regression test, and <code>loadFloorplan</code>'s carbon-sheet dereference gains its guard so widget/headless loads of carbon-sheet designs don't throw <span class="badge-s">S</span>.</li>
+      <li>2D debug artifacts removed while the file is open (the red center dot drawn on every wall draw, <code>floorplanner_view.js:477</code>) — deliberate, since 2D goldens re-baseline at this sprint's exit anyway.</li>
+      <li>Add <code>dispose()</code> to <code>Floorplanner2D</code>, <code>Main</code>, <code>Controller</code>, <code>Skybox</code>: named handlers, full listener teardown, renderer disposal <span class="badge-m">M</span>. Fix the <code>Wall.addCornerMoveListener</code> never-removes leak with a listener-count regression test.</li>
+      <li>Constructors accept an <code>HTMLElement</code> (string id kept as a deprecated back-compat path).</li>
+    </ul>
+    <div class="gate"><div class="g-head">EXIT GATE</div><ul>
+      <li>Demo behaviorally identical — 2D <em>pixel</em> goldens re-baseline here (DPR + the deliberate scroll-offset fix change rendering; structural checks — geometry, labels, hit-testing — carry continuity); <code>jquery</code> no longer imported anywhere under <code>src/lib</code></li>
+      <li>Mount → destroy → remount smoke page shows no listener growth and no WebGL context loss; <code>widget:true</code> boot + carbon-sheet design load pass headless</li>
+      <li>2D canvas is crisp on a retina display (DPR) with pointer accuracy preserved</li>
+    </ul></div>
+    <p class="risk-note"><b>Delivered:</b> jQuery is gone from the library — the last import, the five dead <code>$.Callbacks</code> lists and the npm dependency all removed; the demo keeps its own vendored copy until S6 replaces it. Both input surfaces are now one pointer stream registered <code>{passive:false}</code>, with coordinates from <code>getBoundingClientRect</code>, and <code>pointercancel</code> wired so an interrupted drag no longer strands a pan or a DRAGGING state. Sizing is container-driven through <code>ResizeObserver</code>, falling back to the viewport only when the container has no layout size — which is the legacy demo's case, since <code>jquery.flip</code> stamps <code>height:100%</code> on a collapsed wrapper; that fallback is what keeps the demo pixel-identical. <code>dispose()</code> on Floorplanner2D, FloorplannerView2D, CarbonSheet, Main, Controller, Skybox and BlueprintJS, all idempotent. 464 tests (was 419): two new jsdom modules, 43 tests, covering pointer maths, DPR, container sizing, picking normalization and listener/context balance across five mount→destroy→remount cycles.</p>
+    <p class="risk-note"><b>Fixed, each with a test:</b> the <code>Wall.addCornerMoveListener</code> leak (a fresh closure per call meant <code>removeEventListener</code> could never match) together with <code>setEnd</code>'s inverted add/remove, which had left every re-attached wall deaf to its own end corner; <code>Controller.normalizeVector2</code> dividing by the window instead of the viewer, so picking drifted for any embedder that did not own the page; and <b>pulled forward from S5</b>, <code>PointerLockControls.disconnect()</code> calling <code>addEventListener</code> for its two key handlers — it leaked a pair of document listeners per cycle, which the "no listener growth" gate could not have passed around.</p>
+    <p class="risk-note"><b>Two decisions worth knowing:</b> the library no longer writes to its host's layout (the 2D view used to stamp <code>window.innerWidth/innerHeight</code> onto its parent) — the demo is unaffected because <code>app.js</code> sizes <code>#floorplanner</code> itself. And <code>preventDefault()</code> on the mouse pointer path is deliberately <i>not</i> called: canceling a pointer event while the pointer is down suppresses the compatibility mouse events, and <code>orbitcontrols.js</code> is still driven by <code>mousedown</code>/<code>mousemove</code> until S5. The selection suppression it bought is done declaratively with <code>user-select</code> instead. A fourth seam, <code>Main.setRendererFactory</code>, makes the whole mount/unmount contract a CI test rather than a manual page; the smoke page (<code>tools/lifecycle-smoke.html</code>) remains, because only a real browser can prove the driver released the context.</p>
+  </div>
+
+  <!-- S3 -->
+  <div class="sprint">
+    <div class="sprint-head"><span class="sprint-no">S3</span><h3>Asset modernization — legacy JSON → glTF</h3>
+      <div class="meta"><span class="chip">Assets</span><span class="chip acc">2 wks</span></div></div>
+    <p class="goal">Retire the dead model format while the engine is still r98, so the S4 bump deletes an unused loader instead of doing a format migration mid-flight.</p>
+    <ul>
+      <li><code>tools/convert-legacy-json/</code>: one-shot browser page pinned to three@0.110 (the last release with both <code>LegacyJSONLoader</code> and a matching <code>GLTFExporter</code>) converting all 25 models → <code>public/models/js-glb/*.glb</code>, preserving baked textures <span class="badge-m">M</span>. The tool normalizes materials before export (metalness 0, roughness ≈1): all 25 models are Lambert-shaded, and the stock exporter would stamp them half-metallic (<code>metallicFactor 0.5</code>) — visibly darker and glossier. Per-model visual A/B against the legacy render.</li>
+      <li><code>LEGACY_MODEL_MAP</code> + shim in <code>Model.newRoom</code> — the single choke point every loaded item passes through — rewriting old <code>model_url</code>s and setting <code>format:'gltf'</code>. Lives in the library so programmatic users get it too <span class="badge-s">S</span>.</li>
+      <li>Unify <code>items.js</code> + <code>items_gltf.js</code> (28 + 142 entries) into <code>src/catalog/catalog.json</code>; drop the dead <code>cabinet.json</code> entry; keep the type-8 rug as a converted legacy model (the Kenney pack has no type-8 or wall-art equivalents) <span class="badge-m">M</span>.</li>
+      <li><strong>Pulled forward from the bump:</strong> the <code>scene.js</code> merge-pipeline rewrite to BufferGeometry + material groups <span class="badge-l">L</span> — r98 ships its own <code>BufferGeometryUtils.mergeBufferGeometries(geoms, useGroups)</code> (verified in its examples), vendored temporarily. The riskiest rewrite in the plan thus lands while engine and loaders are otherwise unchanged, and the per-model A/B grid this sprint is already building attributes any merge error to the merge alone.</li>
+      <li>Lay out <code>public/</code> (models, rooms); orphans (models/obj, vrtest, stale thumbnails) marked for the S9 purge.</li>
+    </ul>
+    <div class="gate"><div class="g-head">EXIT GATE</div><ul>
+      <li>Every catalog item loads through the glTF path on r98 — a console counter proves the JSONLoader branch is never entered</li>
+      <li>Pre-migration <code>.blueprint3d</code> fixtures (old URLs) load correctly through the shim; saving re-emits glb-native files that also load</li>
+      <li>Every converted model passes its per-model A/B review — "accepted", not "pixel-identical" (Lambert→Standard BRDF drift is irreducible); item-region goldens re-baseline here</li>
+    </ul></div>
+    <p class="risk-note"><b>Delivered:</b> all 25 models converted, 71,927 triangles, geometry 6.4&nbsp;MB of JSON &rarr; 2.7&nbsp;MB of glb. The catalog is one file: <code>src/catalog/catalog.json</code>, 168 items (27 legacy + 142 glTF, less the entry pointing at a <code>cabinet.json</code> that has never been in this repository), with <code>build/js/items.js</code> generated from it and <code>items_gltf.js</code> deleted. <code>resolveModelUrl()</code> rewrites saved URLs inside <code>Scene.addItem</code> - a wider choke point than <code>Model.newRoom</code>, so it catches items added from the palette too - and updates <code>metadata.modelUrl</code>, so a design needs the shim exactly once and its next save is glb-native. <code>Scene.legacyJsonLoadCount</code> is the exit-gate counter and stays at zero across a full 20-item legacy design. 647 tests (was 464).</p>
+    <p class="risk-note"><b>Deviation - the converter runs in Node, not a pinned three@0.110 browser page.</b> The browser was only ever needed because GLTFExporter re-encodes every texture through a <code>&lt;canvas&gt;</code> to flip it vertically. Flipping the UV coordinate instead (<code>v_gltf = 1 - v_three</code>) is the same transformation, and it lets the baked PNGs be copied byte-for-byte - asserted in the tests - with no decode/re-encode step to lose fidelity in. Geometry comes from r98's own <code>JSONLoader</code> plus <code>BufferGeometry.fromGeometry()</code>, which is the conversion <code>WebGLGeometries</code> already runs before every draw call, so the vertex data written out is what the GPU is handed today. The result is a deterministic script CI can re-run and diff, and no second copy of three.js in the tree.</p>
+    <p class="risk-note"><b>Two things the audit did not know.</b> Four maps - <code>cb-moore_baked.png</code>, <code>ik-kivine_baked.png</code>, <code>pine_wood_coloured.jpg</code>, <code>we-crosby2piece-green_baked.png</code> - are referenced by a model but absent from the repository; they 404 in the legacy demo too, so those models render on their diffuse colour before and after, and the list is pinned by a test. And textures are shared far more than expected (<code>grey-brown_wood.jpg</code> backs eight models, <code>white_wood.jpg</code> four), so they are sidecar files in <code>models/js-glb/textures/</code> rather than chunks inside each .glb - embedding would have duplicated 5.6&nbsp;MB for that one file and defeated HTTP caching.</p>
+    <p class="risk-note"><b>Colour, and why it needed handling here.</b> GLTFLoader tags every baseColorTexture <code>sRGBEncoding</code>; the legacy JSONLoader tagged nothing, and this renderer has <code>outputEncoding = Linear</code> with <code>gammaOutput</code> off. Left alone, all 25 conversions would have rendered about a gamma darker than their originals and failed their own A/B review. <code>Scene</code> restores <code>LinearEncoding</code> for exactly these models - the 142 Kenney models have always rendered as sRGB and are untouched. S8 replaces the lot with a real pipeline and deletes the function.</p>
+    <p class="risk-note"><b>The merge rewrite landed with zero visual delta, and is proven so.</b> <code>core/geometry_merge.js</code> replaces the legacy-<code>Geometry</code> flatten with BufferGeometry + material groups, and <code>tests/helpers/models.js</code> keeps a verbatim copy of the old implementation so the two can be diffed across all 168 catalog models - triangles, material count and bounds - rather than argued about. It also found a bug (below), which it is deliberately <em>not</em> fixing.</p>
+    <p class="risk-note"><b>Deferred:</b> the <code>public/</code> layout. Every asset URL in the demo resolves relative to <code>build/</code>, so moving models and rooms now would mean rewriting the demo's asset base - churn that S6 performs anyway when the Vue shell replaces the demo and takes ownership of the asset root. The converted models live at <code>build/models/js-glb/</code>, self-contained, so <code>models/js/</code> can be deleted in one command once S4 retires JSONLoader. <b>Deferred again in S6, and now to S9:</b> the Vue shell did take ownership of the asset root, and the answer turned out to be one <code>&lt;base href="/build/"&gt;</code>. Moving the directories would also have broken the parity harness, which serves this tree's <code>build/</code> as the current engine.</p>
+
+    <p class="risk-note"><b>Risk:</b> conversion fidelity on multi-material models (per-face material indices) — the A/B review is per-model, not sampled.</p>
+  </div>
+
+  <!-- S4 -->
+  <div class="sprint">
+    <div class="sprint-head"><span class="sprint-no">S4</span><h3>three bump I — geometry &amp; loaders</h3>
+      <div class="meta"><span class="chip">Engine</span><span class="chip acc">2 wks</span><span class="chip crit">hardest sprint</span></div></div>
+    <p class="goal">three ^0.185.1 lands. Everything compiles, loads, and behaves; looking exactly right is S5's job.</p>
+    <ul>
+      <li>Swap loaders/exporters to addons: <code>GLTFLoader</code>, <code>GLTFExporter</code> (modern <code>parseAsync</code>; output is color-managed but valid glTF 2.0), <code>OBJLoader</code>, <code>OBJExporter</code> (drop-in: still synchronous <code>parse(object) → string</code>); delete the three npm repacks and the vendored exporter — the bundle drops from three copies of three.js to one <span class="badge-s">S</span>.</li>
+      <li><strong>The BufferGeometry rewrites</strong> <span class="badge-l">L</span>:
+        <ul>
+          <li><code>scene.js</code> merge pipeline: already rewritten in S3 — here it only swaps the vendored r98 merge util for <code>three/addons/utils/BufferGeometryUtils.mergeGeometries</code> (the r151 rename)</li>
+          <li><code>edge.js makeWall</code>: holes via <code>Shape.holes</code> (unchanged) + <code>applyMatrix4</code> + hand-built <code>uv</code> attribute with the same per-vertex math; filler quads → indexed BufferGeometry</li>
+          <li>roof fans (<code>floor.js</code>, <code>room.js</code>), wall raycast planes (<code>half_edge.js</code> + precomputed normal for <code>wall_item.js:186</code>), HUD line, <code>roofContainsPoint</code> via position/index triples</li>
+        </ul></li>
+      <li><strong>Parity freeze — pulled forward from S5</strong> <span class="badge-s">S</span>: <code>ColorManagement.enabled=false</code>, <code>outputColorSpace=LinearSRGBColorSpace</code>, light intensities ×π. Three lines that make this sprint's golden comparisons satisfiable at all — without them, r185's defaults shift every color and darken lit surfaces mid-sprint.</li>
+      <li>Ground reflector feature-flagged OFF (static textured ground) <span class="badge-s">S</span>: <code>three-reflector2</code> cannot even compile against r185 (<code>import {Math}</code>), so the flag must ship here for the build to go green; the rebuild-vs-fallback decision and its visual signoff stay in S5. (The vendored orbit/pointer-lock controls, by contrast, do compile on r185 — deferring their addon swaps to S5 is safe.)</li>
+      <li>Mechanical tail (§02) in one pass; <code>Box3.setFromObject(…, precise:true)</code> ×3; emissive guard in <code>updateHighlight</code>; fix the curved-wall <code>HalfEdge.distanceTo</code> crash while rewriting the file (§01 ledger) <span class="badge-s">S</span>.</li>
+    </ul>
+    <div class="gate"><div class="g-head">EXIT GATE</div><ul>
+      <li>App boots on r185; all 8 item types load from the catalog; walls render with correct door/window holes that follow item drag/resize/delete</li>
+      <li>Wall texture tiling (repeat = size/scale vs stretch) matches goldens; all S0 tests green</li>
+      <li>OBJ + GLTF export round-trip opens in a viewer with the full scene</li>
+    </ul></div>
+    <p class="risk-note"><b>Delivered:</b> three <b>r98 &rarr; r185.1</b>. All four repacked copies of three are gone (<code>three-gltf-loader</code>, <code>three-gltf-exporter</code>, <code>@calvinscofield/three-objloader</code>, <code>three-reflector2</code>) along with the vendored <code>OBJExporter</code>, which still branched on the removed <code>THREE.Geometry</code>; the unminified library build fell <b>3,318&nbsp;KB &rarr; 1,988&nbsp;KB</b> (gzip 643 &rarr; 408). Every hand-built mesh is now BufferGeometry, with the five <code>Face3(0, i-1, i)</code> loops collected into one <code>triangleFanGeometry</code> so the winding order is decided in one place. <b>703 tests</b> (was 648), lint clean, export surface unchanged at 137.</p>
+
+    <p class="risk-note"><b>The oracle problem, and how it was solved.</b> Rewriting geometry is mechanical; proving the rewrite draws the same thing is not, because after the bump there is no r98 left to compare against. So before touching <code>package.json</code>, three capture scripts ran under r98 and froze what it produced: <code>geometry-r98.json</code> (28 meshes as per-triangle-corner positions, UVs and normals), <code>legacy-models-r98.json</code> (the 25 JSON originals) and <code>legacy-merge-r98.json</code> (the pre-S3 merge for all 168 catalog models, local <em>and</em> world bounds). S3's per-model A/B was built on <code>JSONLoader</code> and would otherwise have died with it; it now runs against the record instead of a live loader, which is strictly stronger — the reference cannot drift when the engine moves. Both capture tools are kept and both refuse to run against r185 with an explanation rather than a stack trace.</p>
+
+    <p class="risk-note"><b>The one thing that genuinely changed:</b> three's ear-clipping triangulator. <code>ShapeGeometry</code> cuts a polygon <em>with holes</em> into a different set of triangles than r98 did — 10 of 14 shared on the two-hole wall, the rest different interior diagonals across the same region. Contours without holes match exactly, and so does every mesh the app builds by hand. This is three's code, not ours, and reproducing r98's output would mean vendoring its triangulator; those cases are asserted as an equivalent surface instead (identical vertex set, identical area, consistent facing, same UV at every vertex). The only place it is observable is wireframe mode.</p>
+
+    <p class="risk-note"><b>Two bugs the bump exposed rather than caused.</b> The vendored <code>OrbitControls</code> was expected to survive to S5 untouched; it calls <code>Quaternion.inverse()</code>, removed in r123, so every viewer mount threw — a runtime break the compile-time audit could not see. And the S0 characterization test for the zero-length <code>wallSize</code> setter fired exactly as written: r98's <code>Vector2(x, y) { this.x = x || 0; }</code> had been laundering a NaN back to zero, r125's default parameters let it through, and the corner was corrupted. Both fixed, both with tests.</p>
+
+    <p class="risk-note"><b>Node transforms, the one intentional visual change.</b> <code>mergeMeshes</code> now bakes <code>matrixWorld</code>, and 42 models move. Classifying them by <em>bounds</em> gave a misleading 21/21 split — an axis-aligned box changes as much under a rotation as under a squash. Decomposing the matrices instead gives the real picture: <b>24 moved, 2 rotated, 14 uniformly rescaled, 2 genuinely stretched</b>. The first three are similarity transforms, so only <code>kitchenCoffeeMachine.glb</code> and <code>kitchenFridgeBuiltIn.glb</code> can have had geometry deformed, and the human review is those two rather than half the set. That is not "the other 40 look identical": where a model is several meshes the fix moves them relative to each other, which is the bug — <code>bedBunk.glb</code> had a mattress floating beside the frame and now has it on it. <code>tools/merge-transform-ab.html</code> shows each pair twice, once under a shared camera (what changed) and once framed individually (does it look right), sorted worst-first. Worth stating plainly: the intuition that the corrected <em>sizes</em> are obviously more plausible does not survive measurement — against the median of the always-correct Kenney models the rescaled set moves slightly further away. The justification is the glTF spec, not aesthetics: a node's transform is part of the model, and every other glTF viewer applies it.</p>
+
+    <p class="risk-note"><b>Also landed:</b> the parity freeze (<code>ColorManagement.enabled=false</code> at import time — a Color converts when it is <em>built</em>, long before any renderer exists — <code>outputColorSpace=LinearSRGBColorSpace</code>, light intensities &times;&pi;), now covered by its own tests since nothing else exercises it. Ground reflector flagged off behind <code>GROUND_REFLECTOR_ENABLED</code>. Skybox shader uniforms <code>texture</code>/<code>sample</code> renamed (both reserved in GLSL ES 3.00). <code>Scene.legacyJsonLoadCount</code> became <code>Scene.unloadableItemCount</code>: the branch it guarded is gone, so what is worth counting is the failure that replaced it — and that path now reports and closes its <code>EVENT_ITEM_LOADING</code> instead of leaving an embedder's spinner up forever. <code>Raycaster.linePrecision</code> removed outright rather than ported: the old code built a raycaster with it and then discarded that instance before casting, so it had never had any effect, and no caller passed it.</p>
+
+    <p class="risk-note"><b>Deferred to S5, deliberately:</b> <code>THREE.Clock</code> is deprecated as of r183 in favour of <code>Timer</code>, which <em>is not shipped</em> in 0.185.1's addons. It stays, warning once per viewer instance, and goes when the FPS walk physics are ported.</p>
+
+    <p class="risk-note"><b>Risk:</b> the ShapeGeometry silent class swap (same name, different object) — audited call-site by call-site in §02; UV math verified against golden wall-texture screenshots.</p>
+  </div>
+
+  <!-- S5 -->
+  <div class="sprint">
+    <div class="sprint-head"><span class="sprint-no">S5</span><h3>three bump II — controls, renderer, pixel parity</h3>
+      <div class="meta"><span class="chip">Engine</span><span class="chip acc">2 wks</span></div></div>
+    <p class="goal">Interaction and look reach provable parity with the frozen r98 reference. The bump milestone closes here.</p>
+    <ul>
+      <li>OrbitControls → addon + shim <span class="badge-m">M</span> (the vendored fork needed a <code>Quaternion.inverse()</code> → <code>invert()</code> fix in S4 just to run; <code>THREE.Clock</code> retires here too): <code>'change'</code> listener sets the render-dirty flag and re-dispatches <code>EVENT_CAMERA_MOVED</code> (edge.js visibility culling depends on it); the controls instance also stays an <code>EventDispatcher</code> target for <code>EVENT_CAMERA_ACTIVE_STATUS</code> — view presets force-show all wall edges through it (<code>edge.js:48–57</code>); <code>listenToKeyEvents(window)</code>; ortho/perspective <code>controls.object</code> swap regression-tested.</li>
+      <li>PointerLockControls → addon + ported walk physics (~90 LOC: WASD, gravity, jump, character height), camera-based instead of the removed <code>getObject()</code> rig; fullscreen-on-lock kept; <code>disconnect()</code> bug fixed <span class="badge-m">M</span>. Baseline note: the FPS button is commented out of the legacy demo's HTML — capture the S0 baseline via console (<code>three.switchFPSMode(true)</code>) or un-comment it on the <code>legacy-demo</code> tag.</li>
+      <li>Lighting finish (freeze landed in S4, written as <code>1.1 * Math.PI</code> / <code>0.5 * Math.PI</code> so the provenance is visible): calibrate those starting points (3.456, 1.571), shadow-camera <code>updateProjectionMatrix</code> fix, dead light props deleted <span class="badge-s">S</span>.</li>
+      <li>Skybox: shader uniform rename; ground-reflector decision (flagged OFF since S4): rebuild on addons <code>Reflector</code> with the two-texture blend, or keep the static ground permanently — explicit decision gate, both acceptable. <b>The parity grid makes this concrete:</b> it is the only remaining difference in the whole ten-state comparison. r98's reflector <em>replaced</em> the ground material with a two-texture blend at wrap 40&times;40/50&times;50, which read as fine noise; the fallback is <code>Ground_4K.jpg</code> on a plain material at repeat 10&times;10, which reads as coarse tiles with visible seams. Raising that repeat is a third option, and much the cheapest <span class="badge-m">M</span>. Remove the debug <code>AxesHelper</code>.</li>
+      <li><code>Main.dataUrl()</code> decision: restore reliable screenshots (<code>preserveDrawingBuffer</code> or render-target readback) or deprecate the API — it is silently unreliable today <span class="badge-s">S</span>.</li>
+    </ul>
+    <p class="risk-note"><b>Delivered:</b> both vendored control files are gone, replaced by thin shims over <code>three/addons</code>. <code>orbitcontrols.js</code> went from 1,045 lines to 68: the fork was almost entirely stale three, and only two edits were ever the app's - a <code>needsUpdate</code> render-dirty flag and an <code>EVENT_CAMERA_MOVED</code> dispatch that wall culling depends on. Both are now driven off the addon's own <code>change</code> event. <code>pointerlockcontrols.js</code> kept its ~90 lines of walk physics and dropped everything else; the addon rotates the camera directly, so <code>getObject()</code> now returns the camera and walking goes through <code>moveForward</code>/<code>moveRight</code> rather than translating a yaw rig. <b>725 tests</b> (was 715), export surface unchanged at 137.</p>
+
+    <p class="risk-note"><b>Mouse-look needed no calibration:</b> the addon's sensitivity constant is 0.002 and so was the fork's <code>lookspeed</code>, so <code>pointerSpeed</code> 1.0 is exactly the old feel. Two subtler things did need attention. <code>moveForward</code> reads the camera's <em>matrix</em>, which only the render pass refreshes - and <code>Main</code> updates the walk before it renders, so every step would have followed the previous frame's heading; the fork had no such lag because it translated a rig by its quaternion. One <code>updateMatrix()</code> puts it back. And <code>THREE.Clock</code>, deprecated in r183 in favour of a <code>Timer</code> that 0.185.1 <em>does not ship</em>, is retired by giving the controls their own clock - which also clamps the delta, so entering walk mode from a backgrounded tab no longer applies several seconds of gravity in one frame.</p>
+
+    <p class="risk-note"><b>The lighting was already right; the shadows were not.</b> S4's &times;&pi; intensities reproduce r98 exactly - the parity grid confirms the Phong floors match - so they are kept as written rather than re-picked. What was broken is the shadow camera: <code>updateShadowCamera()</code> set a new frustum and then called <code>updateProjectionMatrix()</code> inside <code>if (this.dirLight.shadowCamera)</code>, guarding on a property three removed around r73. The branch has been dead for the life of the file, so the projection was never rebuilt and shadows kept whatever frustum they were born with, sizing themselves for the wrong plan as soon as a room changed shape. Fixed, and it is an intended difference from r98 rather than a regression. <code>shadowDarkness</code> and <code>shadowCameraVisible</code> deleted - inert properties on a plain object since before r98.</p>
+
+    <p class="risk-note"><b>Ground reflector: decided, and the answer is the static ground.</b> The parity grid made this concrete by showing exactly what was lost, and it was not the mirror. The reflector replaced the ground material with a blend of two textures at wrap 40&times;40 and 50&times;50 over a mirror pass at intensity 0.1 - imperceptible at that strength, and a polished floor is a strange default for a room planner. Nearly all the visible difference was <em>tiling frequency</em>: the fallback material tiled the same image at 10&times;10, which reads as large flat squares with seams. Setting it to 40&times;40 recovers the look for the cost of one number. <code>GROUND_REFLECTOR_ENABLED</code> stays exported so the decision is legible and reversible. The debug <code>AxesHelper</code> - three coloured lines out of the origin of every design, never behind a flag - is deleted.</p>
+
+    <p class="risk-note"><b><code>Main.dataUrl()</code>: restored, not deprecated.</b> It read the drawing buffer of a renderer built without <code>preserveDrawingBuffer</code>, so the buffer had been cleared on present and whether a screenshot worked depended on when the caller happened to ask. It now draws a frame synchronously and reads in the same task, which is deterministic and free when nobody calls it; <code>preserveDrawingBuffer: true</code> would tax every frame of a continuously-running viewer instead. The same failure mode, hit twice while building the parity capture, is what identified the fix.</p>
+
+    <p class="risk-note"><b>Test harness:</b> the listener counter now tracks (target, type, listener) identity instead of counting raw calls. Removing a listener that was never added is a legitimate no-op that library teardown does routinely - the addon's <code>disconnect()</code> unconditionally removes pointermove/up/cancel - and counting those drove the net negative, so a clean teardown looked like it had over-removed. jsdom implements neither pointer capture nor pointer lock, both of which three calls into; those are stubbed in the harness rather than guarded in the library.</p>
+
+    <div class="gate"><div class="g-head">EXIT GATE</div><ul>
+      <li>Full §07 oracle passes on r185 under the unchanged legacy demo UI</li>
+      <li>Side-by-side screenshot grid r98 vs r185 accepted (camera-inside-wall 0.3-opacity fade, lightmap look, shadows, sky gradient) &mdash; <b>the reference now exists</b>: <code>npm run parity</code> renders ten states through both engines and writes <code>tools/parity/index.html</code>. The <code>legacy-demo</code> tag ships a prebuilt bundle, so r98 is served as static files with none of its packages installed. Both sides are captured in one run rather than committed as PNGs, because a software-GL screenshot is not portable between machines but "render both here, now" always is.</li>
+      <li>Walk-through mode: lock, WASD, jump, exit event all behave as before</li>
+    </ul></div>
+  </div>
+
+  <!-- S6 -->
+  <div class="sprint">
+    <div class="sprint-head"><span class="sprint-no">S6</span><h3>Vue 3 app shell</h3>
+      <div class="meta"><span class="chip">Application</span><span class="chip acc">2 wks</span></div></div>
+    <p class="goal">The jQuery demo is replaced by the Vue app: shell, viewports, toolbars, catalog, file IO. Inspectors ride along in an interim panel so the app never loses features mid-swap.</p>
+    <ul>
+      <li><code>App.vue</code> + <code>FloorplannerView</code> / <code>ThreeViewport</code> mounting the library with proper <code>dispose()</code> on unmount; CSS view flip replaces jquery.flip <span class="badge-m">M</span>.</li>
+      <li>Composables: <code>useBlueprint</code>, <code>useSelection</code> (single reactive selection replacing the <code>aWall</code>/<code>anItem</code> globals), <code>useCameraViews</code>, <code>useDesignIO</code> (FileReader/Blob flows; the GLTF export's model→Main→app event double-hop wrapped in a single promise) <span class="badge-m">M</span>. <code>markRaw</code> discipline per §04.</li>
+      <li>Toolbars, ViewCube, CatalogModal from <code>catalog.json</code> — with the deliberate bug fixes: <code>evt.mode</code> payload, item-inspector binding, null-wall placement guard <span class="badge-s">S</span>.</li>
+      <li>Library API additions so Vue never touches privates: <code>floorplanner.redraw()</code>, <code>three.clearSelection()</code> <span class="badge-s">S</span>.</li>
+      <li>Auto-spin contract reproduced <span class="badge-s">S</span>: <code>Main</code> defaults <code>spin:true</code> (hover pauses, first click stops) and the demo calls <code>stopSpin()</code> at boot — <code>useCameraViews</code> owns this so the Vue app boots non-spinning exactly like today.</li>
+      <li>Interim inspector: one <code>lil-gui</code> wrapper component reproducing today's dat.GUI folders, deleted in S7.</li>
+    </ul>
+
+    <p class="risk-note"><b>Delivered:</b> <code>index.html</code> is the Vue application. Nine single-file components and six composables replace <code>build/js/app.js</code>, and the legacy JavaScript stack leaves with it - jQuery, jquery.flip, dat.GUI, quicksettings and bootstrap.js are all unreferenced by the app; Bootstrap's <em>stylesheet</em> and the glyphicon font stay until S7 swaps them for inline SVG, so the sprint changes the wiring and not the look. The flip is 20 lines of CSS reproducing jquery.flip's own defaults (rotateX, 500ms, ease-out), and it keeps both faces laid out at full size throughout - a <code>v-if</code> would collapse the hidden pane to zero and the viewer would come back with a zero aspect ratio. <b>779 tests</b> (was 725), lint clean, export surface unchanged at 137, and the library build carries no Vue and no lil-gui: <code>src/scripts/</code> is the library and <code>src/app/</code> is one consumer of it.</p>
+
+    <p class="risk-note"><b>The three app-layer bugs are fixed, each with a test</b> (see the ledger in &sect;01 for what each one was). Worth noting what the third one means for the exit gate: the item inspector has never worked, so resize, proportional lock, lock-in-place and per-material colours have no legacy behaviour to match. Their baseline is the library API, exactly as P6 says.</p>
+
+    <p class="risk-note"><b>Two public APIs, so the app never reaches through:</b> <code>Floorplanner2D.redraw()</code> and <code>Main.clearSelection()</code>. The demo called <code>floorplanner.view.draw()</code> in five places and <code>three.getController().setSelectedObject(null)</code> in one; copying those into Vue would have pinned <code>view</code> and <code>Controller</code> in place for S7 to work around. <code>redraw()</code> exists because the things that need it - display unit, grid spacing, zoom, the wall-measurement flags - all live in <code>Configuration</code>, which dispatches nothing.</p>
+
+    <p class="risk-note"><b>markRaw held, and the selection collapsed to one.</b> Library objects cross into the store through <code>shallowRef</code> + <code>markRaw</code> and nothing puts one in a deep ref, so <code>===</code> still means what room detection and EventDispatcher dedup need it to mean. The demo's <code>aWall</code> and <code>anItem</code> globals became a single <code>{type, object}</code>, with one deliberate exception: the last clicked wall or floor is kept separately as a placement context, because selecting a window must not forget which wall you were working on. The demo got that by accident, by never clearing <code>aWall</code> - which is also where the null crash came from.</p>
+
+    <p class="risk-note"><b>The leak test found a real one, in three.</b> <code>OrbitControls</code> resolves the document for its capture-phase keydown as <code>domElement.getRootNode()</code>, in <code>connect()</code> and again in <code>disconnect()</code>. Detach the element in between and the removal lands on the orphaned subtree while the listener stays on the real document. Vue runs <code>beforeUnmount</code> ahead of removing the DOM so an ordinary route unmount is safe, but <code>@vue/test-utils</code> detaches first - and so does any embedder doing <code>container.innerHTML = ''</code> before <code>dispose()</code>. The shim now remembers the node it attached to, which makes <code>dispose()</code> order-independent; the alternative was to filter the listener out of the test, which would have made the gate mean less.</p>
+
+    <p class="risk-note"><b>Three decisions worth knowing.</b> The pre-S6 demo is still runnable at <code>/legacy.html</code> (<code>npm run legacy:index</code>, generated from <code>build/index.html</code> by the same script that used to generate the root <code>index.html</code>) - it is how the two were compared while this was built, and it retires with <code>build/</code> in S9. The asset root is <em>not</em> restructured: every URL in the library, the catalog and every saved design is a bare relative string resolved at runtime, and one <code>&lt;base href="/build/"&gt;</code> redirects all of them without touching a single one, where the alternative is an asset-base parameter threaded through every loader for a directory S9 moves anyway. And the walk-through button is restored to the bottom bar - it is in the demo's markup but commented out, which is why P10 says "capture via console"; S5 rebuilt those controls and wired the exit event, so there was no longer a reason to hide it.</p>
+
+    <div class="gate"><div class="g-head">EXIT GATE</div><ul>
+      <li>Every §07 scenario passes in the Vue app (inspector scenarios via the interim panel)</li>
+      <li>Route-level unmount/remount is leak-free; HMR on components doesn't wedge the WebGL context</li>
+      <li>Toolbar mode highlighting works — better than the legacy demo, where it was silently dead</li>
+    </ul></div>
+  </div>
+
+  <!-- S7 -->
+  <div class="sprint">
+    <div class="sprint-head"><span class="sprint-no">S7</span><h3>Inspectors &amp; settings — dat.GUI retired</h3>
+      <div class="meta"><span class="chip">Application</span><span class="chip acc">2 wks</span></div></div>
+    <p class="goal">Native Vue inspectors replace the interim panel; the last legacy UI dependencies leave the repo.</p>
+    <ul>
+      <li><code>InspectorPanel</code> switching on selection type: Corner (x/y/elevation in display units), Room (name), Wall2D (straight/curved + length), Item (dims with proportional coupling, fixed, delete, per-material colors), Surface (wall/floor textures) <span class="badge-m">M</span>.</li>
+      <li><code>TexturePicker</code> as a thumbnail grid (upgrade over today's dropdowns, modeled on the index2 reference UI).</li>
+      <li><code>SettingsPanel</code>: units radio group, snap/grid/zoom, wall-measurement flags, CarbonSheet panel (url/size/anchor/position/transparency) <span class="badge-m">M</span>.</li>
+      <li>Remove lil-gui, Bootstrap, glyphicons (→ inline SVG icons), and the last jQuery from the repo <span class="badge-s">S</span>.</li>
+    </ul>
+
+    <p class="risk-note"><b>Delivered:</b> the inspector is native Vue - five selection panels, a settings panel and five field primitives, switching on <code>selection.type</code> - and the last three legacy UI dependencies are gone with it. lil-gui is uninstalled, Bootstrap's stylesheet and the glyphicon webfont are unreferenced, and the application's own CSS is <b>115&nbsp;KB &rarr; 8.9&nbsp;KB</b> with sixteen inline SVG paths in place of four font formats. The panel is two tabs rather than dat.GUI's nested accordions: what is selected, and everything that is not. <b>799 tests</b> (was 779), lint clean, export surface unchanged at 137.</p>
+
+    <p class="risk-note"><b>The gate's grep, honestly.</b> <code>grep -r jquery\|bootstrap\|dat.gui src/ index.html</code> returns matches, and every one of them is prose - docblocks recording what each file replaced. There is no import, no script tag, no stylesheet link and no npm dependency. <code>build/</code> still holds the frozen demo and its vendored jQuery, which is S9's to delete along with the directory; deleting it now would break both the pre-S6 comparison page and the parity harness, which serves this tree's <code>build/</code> as the current engine.</p>
+
+    <p class="risk-note"><b>The texture dropdowns became a grid, and the data moved out of the app.</b> The demo carried its surfaces as a bare array of <code>[url, stretch, scale]</code> triples inside <code>app.js</code>, with the names living separately in two dropdown maps - so a texture could be renamed in one place and not the other, and "Checker" and "Bricks" turned out to be the same image at two scales with no way to tell them apart but picking one and looking at the wall. They are <code>src/catalog/textures.json</code> now, beside the furniture catalog, and the picker shows the thumbnails that have been in the repository all along: the dead-code ledger above lists <code>rooms/thumbnails</code> as unreferenced, which was true of every page except <code>build/index2.html</code>, the reference UI this grid is modelled on. Matching the current surface to a swatch needs url <em>and</em> scale - but only when the texture is not stretched, because <code>Edge.updateTexture</code> ignores scale in that case and the default design has been saving its stretched wall maps with <code>scale: 0</code> against the catalog's <code>1</code> since before this migration began.</p>
+
+    <p class="risk-note"><b>A fourth dead panel, found while porting the third.</b> The corner inspector listened for <code>EVENT_CORNER_ATTRIBUTES_CHANGED</code> - which the x/y/elevation <em>setters</em> dispatch - and carried a commented-out line for <code>EVENT_MOVED</code>. But dragging a corner on the plan goes through <code>Corner.move()</code>, which writes the private fields directly and dispatches only <code>EVENT_MOVED</code>, so the numbers never followed the drag. Both are listened for now, with a test. In the same vein the room name redraws the canvas as you type rather than on the next mouse move, and the panel reports area through the same <code>cmToMeasure(area, 2)</code> call the canvas label uses, so the two cannot disagree.</p>
+
+    <p class="risk-note"><b>Two decisions worth knowing.</b> <code>configSystemUI</code> stays <code>false</code>: the library's in-canvas editors for corner elevation and room name have never run in this application's life and no test covers them, and the native panels now offer both edits with a real form, so the <code>window.prompt</code> fallback is only reached by a double-click. And <code>vue/no-mutating-props</code> is switched off for <code>src/app/inspector/</code> alone, with the reason written into the config: those props are live model objects passed raw on purpose, not parent state, and writing to one is what an inspector <em>is</em>. It is not worked around by aliasing the prop to a local const, which would have satisfied the linter without changing anything real.</p>
+
+    <div class="gate"><div class="g-head">EXIT GATE</div><ul>
+      <li>Full §07 oracle passes with native panels; unit switch redraws 2D labels live</li>
+      <li><code>grep -r jquery\|bootstrap\|dat.gui src/ index.html</code> → zero hits</li>
+      <li>Item inspector edits the actually-selected item (regression test on the resurrected <code>setItem</code> path)</li>
+    </ul></div>
+  </div>
+
+  <!-- S8 -->
+  <div class="sprint">
+    <div class="sprint-head"><span class="sprint-no">S8</span><h3>Modern color pipeline &amp; visual modernization</h3>
+      <div class="meta"><span class="chip">Finish</span><span class="chip acc">2 wks</span></div></div>
+    <p class="goal">Deliberately un-freeze the r98 look: adopt r185's color management as a reviewed, intentional visual change — the only sprint allowed to move pixels.</p>
+    <ul>
+      <li><code>ColorManagement</code> on; <code>outputColorSpace = SRGBColorSpace</code>; <code>texture.colorSpace = SRGBColorSpace</code> on every color map (wall, floor, ground, env, thumbnails-in-scene); lightmap kept calibrated <span class="badge-m">M</span>.</li>
+      <li>Sky gradient shader gains <code>#include &lt;colorspace_fragment&gt;</code> so it tracks the lit content; light intensities re-tuned from the ×π baseline; material-color inspector pins a working-space convention for hex round-trips <span class="badge-m">M</span>.</li>
+      <li><code>renderer.setPixelRatio(devicePixelRatio)</code> lands here <span class="badge-s">S</span> — the 3D view is blurry on retina today (<code>main.js:113</code> commented out), and this is the sprint whose gate already re-baselines goldens.</li>
+      <li>Optional (time-boxed): equirect environment via <code>scene.background</code> + <code>EquirectangularReflectionMapping</code>, restoring the env-picker feature from the index2 reference.</li>
+      <li>Re-baseline the golden screenshots; document the before/after with a comparison grid.</li>
+    </ul>
+
+    <p class="risk-note"><b>Delivered:</b> colour management is on, <code>outputColorSpace</code> is sRGB, and all seven texture construction sites carry an explicit colour space instead of defaulting to unmanaged. <code>restoreLegacyTextureEncoding</code> is gone, as S3 scheduled. The two hand-written sky shaders opt back into the pipeline with <code>#include &lt;colorspace_fragment&gt;</code>. <code>setPixelRatio</code> lands too, in its own commit. <b>814 tests</b> (was 799), lint clean, export surface unchanged at 137. Three commits, because the sprint has three separable reviews: the pre-work is <em>provably</em> pixel-identical, the colour flip is atomic, and the resolution change must not confound the colour diff.</p>
+
+    <p class="risk-note"><b>How much actually moved, measured.</b> Frozen against managed across the ten states: mean absolute difference <b>0.8 to 5.0</b> per channel, max 22, and exactly <b>0</b> on the 2D canvas. Smaller than "adopt colour management" sounds, and concentrated exactly where the theory puts it. sRGB is close to a power law, so for an unlit textured surface <code>encode(decode(a) &times; decode(b))</code> is close to <code>a &times; b</code> - the walls barely move. What moves is anything with a linear <em>addition</em> in it: the Phong floor is the biggest change in the grid (mean 5.0 on <code>floors</code>, 4.3 on <code>top</code>), because light contributions do not round-trip. The hex material tints move too, which is the ground and the wall fillers.</p>
+
+    <p class="risk-note"><b>The one ordering constraint.</b> <code>ColorManagement.getTransfer()</code> does not consult <code>ColorManagement.enabled</code>, so the moment a texture is tagged sRGB the GPU decodes it whatever the flag says. Tag without flipping the output and every tagged surface is a full gamma too dark; flip without tagging and every untagged one is far too bright. The tags and the output space are therefore one commit. The shader includes could go first precisely because they are a provable no-op beforehand - with output in linear space the include expands to an identity - and the parity grid coming back byte-identical is what proves they resolved at all rather than being silently dropped.</p>
+
+    <p class="risk-note"><b>Two judgement calls, both written into the code.</b> The wall lightmap is tagged <em>sRGB</em>, which is not three's recommendation for a lightMap and is right for this one: it is a hand-painted vignette, not a baked irradiance buffer. It also preserves the picture, because the walls are unlit and sRGB decode followed by sRGB encode is the identity - the authored 232-253 range passes through untouched. Left linear it compresses to 244.6-254.1 and the vignette flattens from 21 bytes to 9.5, which no scalar <code>lightMapIntensity</code> can undo since the factor varies across the texture. And <code>emissiveColor</code> moves <code>0x444444 &rarr; 0x8d8d8d</code>: the literal is never read back or serialized, so what matters is the linear value it decodes to, and leaving it would have made the hover highlight 4.6&times; dimmer for no reason anyone chose.</p>
+
+    <p class="risk-note"><b>What the audit caught, and why it was worth running.</b> Six parallel audits, every finding then attacked by an independent refuter reading three 0.185.1 source. The prize was a comment in <code>edge.js</code> asserting that this sprint should delete <code>lightMapIntensity: Math.PI</code> "with the rest of the freeze". It should not: that factor cancels <code>RECIPROCAL_PI</code> inside the basic material's lightmap term, it is arithmetic <em>inside</em> a shader and untouched by colour management, and deleting it would have darkened every wall in the application by pi. Two more comments were wrong in ways that argued for the wrong edit - <code>lights.js</code> described the &times;pi conversion backwards, and <code>skybox.js</code> misstated when three emits GLSL3. All three are corrected in the pre-work commit. The same pass established that the &times;pi light intensities are a unit conversion rather than a colour workaround, so S8 kept them rather than "re-tuning" them into a constant compensating for something else.</p>
+
+    <p class="risk-note"><b>Known, flagged, and deliberately not fixed here.</b> A design saved before S8 stores glTF <code>baseColorFactor</code> values - raw <em>linear</em> floats - in the same <code>material_colors</code> field that now reads as sRGB, so its furniture reloads darker than it was authored. Migrating needs a format version to know which files to re-interpret, and no file can distinguish a colour the model author baked in from one the user picked, so a blanket re-read would fix the first and corrupt the second. Written up in <code>item.js</code> for S9, which owns the save format. The exposure is limited: the legacy demo's item inspector never bound its item (S6), so nobody could pick a material colour before this migration started.</p>
+
+    <p class="risk-note"><b>The grid grew a third column and a fixture.</b> <code>npm run parity -- --frozen</code> builds the library from a git ref and captures it alongside, so the grid reads <b>r98 | r185 frozen | r185 managed</b> - the two changes in the order they happened. That column has to be compiled, so its worktree borrows the working tree's <code>node_modules</code>; the run refuses to start if the ref's dependencies have drifted. The new <code>checker</code> state paints <code>tools/parity-checker.png</code> on every wall, every floor and the ground at once. Its two greys are <code>#808080</code> and <code>#bcbcbc</code>, which swap roles depending on whether a texture is decoded as sRGB or as linear, so a missing tag is visible without a colour picker - black and white would show nothing, since 0 and 1 are the fixed points of the transfer function.</p>
+
+    <div class="gate"><div class="g-head">EXIT GATE</div><ul>
+      <li>New goldens signed off; §07 behavioral scenarios unchanged (geometry, interaction, serialization untouched)</li>
+      <li>No texture renders in the wrong color space (checker fixture on every surface type)</li>
+    </ul></div>
+  </div>
+
+  <!-- S9 -->
+  <div class="sprint">
+    <div class="sprint-head"><span class="sprint-no">S9</span><h3>Deploy, cleanup, docs, release</h3>
+      <div class="meta"><span class="chip">Finish</span><span class="chip acc">2 wks</span></div></div>
+    <p class="goal">Ship it, slim the repo, and leave the next contributor a map.</p>
+    <ul>
+      <li>GitHub Actions deploy: <code>vite build --base=/architect3d/</code> → Pages; <code>.nojekyll</code>; the gh-pages subtree pattern and <code>gitpush.sh</code> retired <span class="badge-s">S</span>.</li>
+      <li>Repo purge <span class="badge-s">S</span>: delete <code>build/</code> (91 MB — also removes the shipped vulnerable jQuery 1.11.3/2.1.4 + Bootstrap 3.3.5 copies Dependabot can't see), <code>resources/</code> (dead ancestor), esdoc output in <code>docs/</code>, orphaned models/obj + vrtest; root <code>models/</code> becomes <code>asset-pipeline/</code> (it holds the .mtl sources and generator scripts).</li>
+      <li>Package identity decision <span class="badge-s">S</span>: <code>package.json</code>'s <code>main</code> points at <code>build/js/bp3djs.js</code>, which this sprint deletes — either repoint <code>main</code>/add <code>exports</code> to the ESM barrel (<code>src/lib/blueprint.js</code>, optionally a built lib artifact) or declare the package application-only (<code>"private": true</code>).</li>
+      <li>Docs: VitePress site (getting started, architecture, save-file format, event reference) replacing esdoc; README rewrite; CHANGELOG <span class="badge-m">M</span>.</li>
+      <li>Final passes: npm audit review, Lighthouse/perf sanity (render-on-demand verified, 2D redraw coalesced via rAF), version 1.0.0 tag.</li>
+    </ul>
+
+    <p class="risk-note"><b>Delivered:</b> <code>build/</code> is gone, <code>public/</code> holds the 19 MB the application actually loads, and <code>asset-pipeline/</code> holds the sources it was produced from. Tracked files fall from <b>228 MB to 63 MB</b>. The deploy builds from source on a clean runner; <code>gitpush.sh</code>, the gh-pages branch, <code>legacy.html</code>, <code>src/legacy-bridge.js</code>, <code>tools/make-demo-catalog.mjs</code>, esdoc and eight dead root files all go. Four pages of prose documentation replace 82 MB of generated HTML. <code>main</code> points at the ESM barrel, with <code>exports</code> and <code>files</code>. <b>814 tests</b>, lint clean, both builds green, <code>npm audit</code> from 20 to 3.</p>
+
+    <p class="risk-note"><b>The purge's real prize was not the megabytes.</b> Every one of this project's 20 npm advisories - 5 critical, 11 high - arrived through esdoc or <code>esdoc-standard-plugin</code>: babel-traverse, cheerio, marked, minimist, request, taffydb, tough-cookie, lodash. A documentation generator abandoned in 2018 was the entire security surface. Deleting it took the audit to <b>zero</b>. It came back to 3 when VitePress went in - it pins Vite &le;6 and esbuild &le;0.24.2 (GHSA-67mh-4wv8-2f99, no fix available, 2.x is alpha) - and those three are dev-server-only: they affect <code>vitepress dev</code> on a contributor's machine, not the built site, not the application, and not CI, which never starts one. Reported as 3 rather than rounded down to zero.</p>
+
+    <p class="risk-note"><b>Deleting <code>build/</code> wholesale would have hollowed out a test suite.</b> The roadmap said delete it; <code>build/models/js</code> holds the 25 three.js JSON originals that <code>tests/model-conversion.test.js</code> compares every converted <code>.glb</code> against - 194 assertions, the automated half of S3's exit gate. Deleting them turns that suite into a comparison of the conversions with themselves, and it would still have passed. They moved to <code>asset-pipeline/legacy-json/</code> instead: out of the deployed tree, which is what the split is for, but still on disk where the test can reach them. <code>models/js/Duck.gltf</code> went the other way, to <code>public/</code> alone, because it is a live catalog entry and <code>resolveModelUrl</code> only rewrites the 25 names it knows - renaming it to suit the new directory layout would break any saved design that references it.</p>
+
+    <p class="risk-note"><b>The <code>&lt;base&gt;</code> tag was deleted, not repointed.</b> Every asset URL in this project is a bare relative string composed at runtime - in the library, in the catalog, and inside every <code>.blueprint3d</code> file anyone has saved - so with <code>public/</code> mounted at the site root they resolve unaided. That they are relative rather than root-absolute is also exactly what makes the sub-path deploy work: under <code>--base=/architect3d/</code> the page is served from <code>/architect3d/</code> and <code>models/x.glb</code> resolves beneath it, where a leading slash would have gone to the domain root. Verified by reproducing the workflow's assemble step locally and booting all four entry points headless under that prefix - the app, the docs home, a docs page through cleanUrls, and the roadmap - with zero 404s beyond the browser's own <code>/favicon.ico</code>.</p>
+
+    <p class="risk-note"><b>Writing the save-format page found something the code hides.</b> <code>loadFloorplan</code> gates curved-wall control points on <code>Version.isVersionHigherThan(floorplan.version, '0.0.2a')</code>, and that function returns true when its <em>second</em> argument is &ge; its first, per component, as an AND. Run across seven version strings rather than read: <code>0.0.1</code> and <code>0.0.2a</code> keep their curves; <code>0.0.3</code>, <code>0.1.0</code>, <code>1.0.0</code> and <code>1.0</code> all <em>silently lose them</em>. So the format version cannot be bumped - which is not an abstract worry, because it is precisely what S8's <code>material_colors</code> migration was handed to S9 needing. Not fixed here: S0 characterized the comparator and <code>tests/dimensioning.test.js</code> pins it under <code>PRESERVED QUIRK</code>, and unpicking it is a behaviour change that deserves its own review, not a drive-by on the release sprint. It is written down as the concrete blocker for the v2 schema. The second landmine is on the same page: corner coordinates are saved in the user's <em>display unit</em> while wall control points and every item position are saved raw, so one file mixes two units and records neither.</p>
+
+    <p class="risk-note"><b>Perf sanity, both halves, honestly.</b> Render-on-demand is verified and now has a test that can fail: 120 animation frames past a settled scene with the render count unmoved, then one dirty flag producing exactly one frame. Writing it exposed that <code>Main</code> constructs with <code>pauseRender = true</code>, so the obvious version of that test passes against a <em>paused</em> view and proves nothing - it unpauses first, which is the state the application runs in whenever the 3D pane is visible. The other half is <b>not</b> delivered: there is no <code>requestAnimationFrame</code> anywhere in <code>src/scripts/floorplanner/</code>, <code>view.draw()</code> is called synchronously from 14 sites, and the pointermove handler alone contains three of them - so a drag repaints the whole canvas once per pointer event. That is the state §09 already lists as backlog ("2D rAF coalescing"), and this bullet contradicted it; the backlog is right. Coalescing changes when draws happen relative to model mutations, which is a behaviour change on the drag paths and belongs behind its own review.</p>
+
+    <p class="risk-note"><b>Two commits' worth of my own mistakes, for the record.</b> An edit removing the <code>resources/**</code> entry from the eslint ignores took the <code>docs/**</code> line beside it, which only surfaced when the VitePress output started being linted - 1231 errors. The ignores are narrower now on purpose: <code>docs/.vitepress/dist</code> and <code>cache</code> are ignored, and <code>docs/.vitepress/config.mjs</code> beside them is source and <em>is</em> linted. And the first render-on-demand test asserted an idle scene draws nothing while the view was paused, which is a different and much weaker claim; it failed on the one assertion that could catch it.</p>
+
+    <div class="gate"><div class="g-head">EXIT GATE</div><ul>
+      <li>gh-pages serves the Vue app at the same URL; CI + deploy green from a clean clone</li>
+      <li>Repo ~100 MB lighter; fresh <code>git clone && npm ci && npm run dev</code> works in one step</li>
+      <li>§07 oracle passes one final time on the deployed build</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- ======================= 07 ORACLE ======================= -->
+<section id="oracle">
+  <div class="sec-eyebrow">§ 07 · PARITY ORACLE</div>
+  <h2>The regression checklist</h2>
+  <p class="sec-sub">Run against every sprint's exit build — first on the frozen legacy demo to capture goldens (S0), then on each migrated stage. Automated where the model layer allows; manual + screenshot-diff for the visual half. "Existing functionality intact" means <em>this list</em>, not vibes.</p>
+  <ol class="oracle">
+    <li><span class="id">P1</span><strong>Boot:</strong> default design loads — 4 corners (elevations 4/2.5/2.5/4), room "A New Room", textured walls.</li>
+    <li><span class="id">P2</span><strong>2D draw:</strong> DRAW mode click-click walls; Shift snap-to-grid/axis; ESC exits; closing a loop forms a room with floor + name/area label (area in the active unit²); MOVE drags corners/walls/rooms (with snapping); DELETE removes; dimension labels update in the active unit; corner click and room click select for editing; curved-wall toggle shows bezier control handles that drag.</li>
+    <li><span class="id">P3</span><strong>Carbon sheet:</strong> image underlay appears, moves, scales, respects transparency and aspect lock; survives save/load.</li>
+    <li><span class="id">P4</span><strong>3D view:</strong> walls/floors/roofs render; gradient sky, textured ground; orbit/pan/zoom; five view presets; ortho toggle; wireframe toggle; camera-inside-wall fades to 0.3 opacity and restores (wall-bound items hide and show with their edge's culling); view presets force-show all edges; clip-plane sliders section the model; view lock disables rotate; no auto-rotate at boot (with <code>spin</code> enabled: pauses on hover, stops on first click).</li>
+    <li><span class="id">P5</span><strong>Items — one per class (all 8 types):</strong> add from catalog; floor items drag in-plane; wall items slide along walls and snap rotation crossing corners; windows/doors cut wall holes that follow drag/resize and close on delete; doors stay floor-bound, windows drag vertically; rugs render under items; ceiling items snap to the roof plane; free items (type 0) drag on the camera ray; deleting a wall removes its items.</li>
+    <li><span class="id">P6</span><strong>Selection &amp; edit:</strong> hover glow; selected item shows bounding box + dimension labels; HUD rotation arrow (only where allowed) snaps at 90° within tolerance. Resize with/without proportional lock, lock-in-place, and per-material colors persisting through save/load are <em>new bar, from S6</em> — dead in the legacy demo (unbound inspector, §01), so their baseline is the library API, not the legacy UI.</li>
+    <li><span class="id">P7</span><strong>Textures:</strong> wall texture change (single + all-walls-in-room), floor texture change; tiling scale matches goldens; persists across 2D⇄3D switches and save/load.</li>
+    <li><span class="id">P8</span><strong>Save/Load:</strong> download <code>.blueprint3d</code>; reload restores geometry, textures, items, names, carbon sheet exactly; <em>pre-migration fixture files</em> (old model URLs, meters-unit coordinates) load via the shim; unit switch → labels re-render; save-under-meters/load-under-meters round-trips.</li>
+    <li><span class="id">P9</span><strong>Exports:</strong> OBJ and GLTF exports open in a viewer with the full scene. GLTF excludes skybox/ground (as today); OBJ <em>includes</em> them today — no visibility filter exists — and that is preserved as-is (exclusion is a §09 backlog item, not a silent S4 "fix").</li>
+    <li><span class="id">P10</span><strong>Walk-through:</strong> pointer-lock engages (with fullscreen), WASD + jump move at character height, unlock exits back to orbit mode via the exit event. Baseline note: unreachable from the legacy UI (button commented out) — capture via console on the tagged demo.</li>
+    <li><span class="id">P11</span><strong>Config:</strong> snap toggle/resolution, grid spacing, 2D zoom slider, wall-measurement flags each take effect immediately.</li>
+    <li><span class="id">P12</span><strong>Lifecycle (new bar, from S2):</strong> mount→unmount→remount leaks no listeners or WebGL contexts; <code>widget:true</code> boot constructs no floorplanner, disables the controller, and loads carbon-sheet designs without throwing.</li>
+  </ol>
+</section>
+
+<!-- ======================= 08 RISKS ======================= -->
+<section id="risks">
+  <div class="sec-eyebrow">§ 08 · RISK REGISTER</div>
+  <h2>Risks &amp; mitigations</h2>
+  <div class="tw"><table>
+    <thead><tr><th>Risk</th><th>Severity</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td>Loader merge rewrite corrupts multi-material items (every loaded model passes through it)</td><td><span class="chip crit">high</span></td><td>Dedicated vitest fixtures per format; per-model A/B grid in S3/S4; material-group order asserted, not assumed</td></tr>
+      <tr><td>Vue reactivity proxies break model identity (<code>===</code>, listener dedup) — silent, delayed breakage</td><td><span class="chip crit">high</span></td><td><code>markRaw</code>/<code>shallowRef</code> rule (§04) from day one; a unit test wraps a Wall in the store and asserts merge logic still works</td></tr>
+      <tr><td>Save-file drift (unit landmine, Symbol descriptions, type registry)</td><td><span class="chip crit">high</span></td><td>Byte-level round-trip tests in S0 <em>before</em> anything moves; fixtures from the legacy app are the contract</td></tr>
+      <tr><td>Color/lighting parity dispute — "is this a bug or the new pipeline?"</td><td><span class="chip warn">med</span></td><td>Two-phase strategy: S5 freezes to r98 look, S8 modernizes deliberately with re-baselined goldens</td></tr>
+      <tr><td>Curved-wall corner-merge recursion (the code's own comments warn it crashed before)</td><td><span class="chip warn">med</span></td><td>Model layer frozen semantically; S0 characterization tests cover merge/split; no <code>var</code>→<code>let</code> "cleanup" in <code>findRooms</code></td></tr>
+      <tr><td>Touch regressions when jQuery's non-passive listeners become vanilla</td><td><span class="chip warn">med</span></td><td>Explicit <code>{passive:false}</code>; device pass (tablet + phone) in S2 and S6 exit gates</td></tr>
+      <tr><td>WebGL2-only three (r163+) drops very old devices</td><td><span class="chip ok">low</span></td><td>~97%+ device support; add a WebGL2 capability message; legacy tag remains for the rest</td></tr>
+      <tr><td>bezier-js 2→6 behavioral drift (<code>.update()</code> after control-point mutation)</td><td><span class="chip ok">low</span></td><td>Curved-wall fixture in S0 (length/center/projection snapshots) gates the bump in S1</td></tr>
+      <tr><td>Reflector blend port stalls</td><td><span class="chip ok">low</span></td><td>Pre-agreed fallback: static textured ground behind a feature flag — visually minor (blend intensity is 0.05–0.1 today)</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ======================= 09 BACKLOG ======================= -->
+<section id="backlog">
+  <div class="sec-eyebrow">§ 09 · AFTER THE MIGRATION</div>
+  <h2>Post-migration backlog</h2>
+  <p class="sec-sub">Deliberately out of scope — parity first. Each becomes cheap once the new foundation exists.</p>
+  <ul>
+    <li><strong>The save format, in one piece &mdash; <span class="chip ok">DONE</span>.</strong> The three things S9 established were one problem, done together in three commits after S9 closed. The load gate stopped consulting the version, which is what made the field usable; <code>isVersionHigherThan</code> now does what its name says, with <code>compare</code> and <code>isVersionAtLeast</code> beside it. Save format <b>2.0.0</b> stores canonical centimetres and stamps <code>"units": "cm"</code>, so all twenty-five save/load unit combinations round-trip exactly where only the five matching pairs did, and a metre-era file can no longer collapse a plan to a single point. <code>material_colors</code> became sparse &mdash; a colour only where somebody chose one. The pre-S8 values are still <em>not</em> re-interpreted, and the reason survived the version field arriving: a stamp tells you a file is old, not what is inside it, and nothing in a 0.0.2a file separates a colour the model author baked in from one the user picked. Old files are read as written and written straight back, so nothing is discarded; the ambiguity stops being created rather than being resolved retroactively. <code>tests/fixtures/v1/</code> is the frozen corpus, <code>metres-room.blueprint3d</code> included. 828 tests.</li>
+    <li><strong>Quirk fixes with tests:</strong> the preserved <code>Utils.pointInPolygon</code>/<code>isClockwise</code> bugs, listener-accumulation edge cases, skybox/ground exclusion for OBJ export (see P9) — each as an isolated, testable change.</li>
+    <li><strong>Features from the index2 reference:</strong> environment-map picker, camera nudge/pan buttons, item context menu, item-loading indicator (its <code>EVENT_ITEM_LOADING/LOADED</code> events already exist in the library) — their API surface is already catalogued.</li>
+    <li><strong>Undo/redo:</strong> the event backbone + serialized snapshots make a command stack tractable now.</li>
+    <li><strong>Performance:</strong> texture cache + disposal (today <code>TextureLoader</code> re-loads per wall redraw and never disposes), instanced furniture, and 2D rAF coalescing &mdash; still open, and S9 measured it: no <code>requestAnimationFrame</code> anywhere in the 2D path, <code>view.draw()</code> called synchronously from 14 sites, three of them inside the pointermove handler.</li>
+    <li><strong>TypeScript</strong> (optional): the lib is now clean ESM with JSDoc; incremental <code>checkJs</code> adoption is low-friction if ever wanted — the user's chosen target for this migration is JavaScript, so this stays parked.</li>
+    <li><strong>WebXR:</strong> <code>setAnimationLoop</code> is already the render driver; the old A-Frame vrtest can be replaced by a native XR mode.</li>
+  </ul>
+</section>
+
+<footer>
+  <p><strong>Method.</strong> This plan is grounded in a full multi-pass audit of the codebase at commit <code>ca4796b</code> (2026-08-13): every file in <code>src/scripts/</code> read and inventoried; both demo apps traced feature-by-feature into the API contract in §01/§07; every <code>THREE.*</code> symbol verified against a live three@0.185.1 install (and the vendored controls diffed against pristine r98 copies); the ESM circular-import crash reproduced empirically; asset formats verified by reading file headers; dependency verdicts grep-verified. File:line references throughout point at the audited commit.</p>
+  <p>architect3d · Migration Roadmap RM-001 rev A · 10 sprints ≈ 20 weeks · single-developer cadence — S3's conversion tooling and S8's visual pass carry the natural slack for spillover from the S4 and S6 heavies. Plan reviewed by three independent adversarial passes (factual accuracy, sequencing, completeness) before delivery; 21 findings folded back in.</p>
+</footer>
+
+</main>
+</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,904 @@
+@import 'tailwindcss';
+
+/*
+ * Application styles.
+ *
+ * ## History
+ *
+ * S6 kept Bootstrap 3 so the shell rewrite would not also be a visual rewrite.
+ * S7 dropped it - 115 KB of CSS and 220 KB of glyphicon webfont for a button
+ * style, a panel border and sixteen icons - and hand-wrote the ~800 lines that
+ * replaced it. This file is the third generation: Tailwind v4 owns layout and
+ * spacing in the templates, and what remains here is the *design system* -
+ * tokens, base, and the handful of component classes that repeat often enough
+ * to earn a name.
+ *
+ * ## The look, and why
+ *
+ * A drafting studio, not a dashboard. The ground is a cool near-black with a
+ * blue bias; the accent is a pencil amber. The blue-on-blue "blueprint" palette
+ * is the obvious move for a floorplanner and precisely why it is not used here
+ * - the 2D canvas is already full of cyan and green interaction states, and an
+ * amber chrome around them reads as brass instruments around a drawing rather
+ * than more of the same hue.
+ *
+ * Every measurement in the interface is set in the mono face with tabular
+ * figures. That is the one typographic rule the whole app follows: if it is a
+ * number with a unit, it is monospaced, so a column of dimensions lines up and
+ * a changing readout does not reflow the bar it sits in.
+ *
+ * No webfont. S7 deleted 220 KB of one and the project has had no network
+ * dependency for a glyph since; the sans/mono contrast below comes from the
+ * system stack, which costs nothing and never flashes.
+ *
+ * ## Theming
+ *
+ * Two palettes, switched by `data-theme` on <html>. The tokens are plain custom
+ * properties and `@theme inline` tells Tailwind to reference them rather than
+ * inline their values, which is what makes `bg-surface` follow a runtime theme
+ * change instead of freezing whichever palette was compiled first.
+ *
+ * The media query exists so the first paint is correct before useTheme has run:
+ * without it a dark-mode user gets one white frame on every load.
+ */
+
+/* ------------------------------------------------------------------ tokens */
+
+:root
+{
+	color-scheme: light;
+
+	/* Paper: the light palette. Cool rather than cream - the warm-cream-and-
+	   serif look is a template, and the 2D canvas needs a neutral it can print
+	   dark ink onto. */
+	--ground: #eef0f4;
+	--surface: #ffffff;
+	--raised: #ffffff;
+	--overlay: #ffffff;
+	--sunk: #f4f6f9;
+
+	--line: #d8dde6;
+	--line-soft: #e9edf2;
+	--line-strong: #c2cad6;
+
+	--ink: #141821;
+	--ink-soft: #5c6577;
+	--ink-faint: #939cad;
+
+	--accent: #d9601a;
+	--accent-hi: #ef7526;
+	--accent-ink: #ffffff;
+	--accent-wash: rgb(217 96 26 / 0.10);
+
+	--select: #0a7fcc;
+	--select-wash: rgb(10 127 204 / 0.12);
+	--danger: #cf3239;
+	--danger-wash: rgb(207 50 57 / 0.10);
+	--good: #12945f;
+
+	--shadow-panel: 0 1px 2px rgb(20 24 33 / 0.06), 0 8px 24px rgb(20 24 33 / 0.08);
+	--shadow-float: 0 2px 6px rgb(20 24 33 / 0.10), 0 12px 32px rgb(20 24 33 / 0.14);
+
+}
+
+:root[data-theme='dark']
+{
+	color-scheme: dark;
+
+	/* Studio: the dark palette, and the default the app boots into. */
+	--ground: #0b0d11;
+	--surface: #12151c;
+	--raised: #1a1f29;
+	--overlay: #212836;
+	--sunk: #0e1116;
+
+	--line: #262d3a;
+	--line-soft: #1c222d;
+	--line-strong: #38414f;
+
+	--ink: #e7eaf0;
+	--ink-soft: #8d97a9;
+	--ink-faint: #5c6577;
+
+	--accent: #ff8a3d;
+	--accent-hi: #ffa063;
+	--accent-ink: #1a0e04;
+	--accent-wash: rgb(255 138 61 / 0.14);
+
+	--select: #4cc2ff;
+	--select-wash: rgb(76 194 255 / 0.16);
+	--danger: #ff5c63;
+	--danger-wash: rgb(255 92 99 / 0.14);
+	--good: #3ed598;
+
+	--shadow-panel: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.35);
+	--shadow-float: 0 2px 6px rgb(0 0 0 / 0.45), 0 12px 32px rgb(0 0 0 / 0.5);
+
+}
+
+/* Correct before JS runs. useTheme stamps data-theme on <html> as soon as it
+   loads, and from then on the attribute wins over this block. */
+@media (prefers-color-scheme: dark)
+{
+	:root:not([data-theme='light'])
+	{
+		color-scheme: dark;
+
+		--ground: #0b0d11;
+		--surface: #12151c;
+		--raised: #1a1f29;
+		--overlay: #212836;
+		--sunk: #0e1116;
+
+		--line: #262d3a;
+		--line-soft: #1c222d;
+		--line-strong: #38414f;
+
+		--ink: #e7eaf0;
+		--ink-soft: #8d97a9;
+		--ink-faint: #5c6577;
+
+		--accent: #ff8a3d;
+		--accent-hi: #ffa063;
+		--accent-ink: #1a0e04;
+		--accent-wash: rgb(255 138 61 / 0.14);
+
+		--select: #4cc2ff;
+		--select-wash: rgb(76 194 255 / 0.16);
+		--danger: #ff5c63;
+		--danger-wash: rgb(255 92 99 / 0.14);
+		--good: #3ed598;
+
+		--shadow-panel: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.35);
+		--shadow-float: 0 2px 6px rgb(0 0 0 / 0.45), 0 12px 32px rgb(0 0 0 / 0.5);
+
+	}
+}
+
+/*
+ * `inline` is doing real work here: it makes Tailwind emit
+ * `background-color: var(--ground)` for `bg-ground` instead of resolving the
+ * token to a literal at build time. Without it every utility would bake in the
+ * light palette and the theme toggle would change nothing.
+ */
+@theme inline
+{
+	--color-ground: var(--ground);
+	--color-surface: var(--surface);
+	--color-raised: var(--raised);
+	--color-overlay: var(--overlay);
+	--color-sunk: var(--sunk);
+
+	--color-line: var(--line);
+	--color-line-soft: var(--line-soft);
+	--color-line-strong: var(--line-strong);
+
+	--color-ink: var(--ink);
+	--color-ink-soft: var(--ink-soft);
+	--color-ink-faint: var(--ink-faint);
+
+	--color-accent: var(--accent);
+	--color-accent-hi: var(--accent-hi);
+	--color-accent-ink: var(--accent-ink);
+	--color-accent-wash: var(--accent-wash);
+
+	--color-select: var(--select);
+	--color-select-wash: var(--select-wash);
+	--color-danger: var(--danger);
+	--color-danger-wash: var(--danger-wash);
+	--color-good: var(--good);
+
+	--font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+	--font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+	--shadow-panel: var(--shadow-panel);
+	--shadow-float: var(--shadow-float);
+
+	--radius-panel: 10px;
+}
+
+/* -------------------------------------------------------------------- base */
+
+@layer base
+{
+	html
+	{
+		height: 100%;
+		overflow: hidden;
+	}
+
+	body
+	{
+		height: 100%;
+		margin: 0;
+		overflow: hidden;
+		background: var(--ground);
+		color: var(--ink);
+		font-family: var(--font-sans);
+		font-size: 13px;
+		line-height: 1.45;
+		-webkit-font-smoothing: antialiased;
+		text-rendering: optimizeLegibility;
+	}
+
+	/* Every focusable thing gets the same ring, once, rather than each component
+	   inventing one. :focus-visible so a mouse click on a tool button does not
+	   leave a ring behind it. */
+	:focus-visible
+	{
+		outline: 2px solid var(--accent);
+		outline-offset: 1px;
+		border-radius: 4px;
+	}
+
+	::selection
+	{
+		background: var(--accent-wash);
+		color: var(--ink);
+	}
+
+	/* The panels scroll a lot and the platform scrollbar is a light-mode
+	   artefact on a dark ground in every browser that still draws one. */
+	* {scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;}
+	*::-webkit-scrollbar {width: 10px; height: 10px;}
+	*::-webkit-scrollbar-track {background: transparent;}
+	*::-webkit-scrollbar-thumb {background: var(--line); border: 3px solid transparent; background-clip: content-box; border-radius: 6px;}
+	*::-webkit-scrollbar-thumb:hover {background: var(--line-strong); background-clip: content-box;}
+}
+
+/* -------------------------------------------------------- component layer */
+
+@layer components
+{
+	/*
+	 * Numbers. The one rule the whole interface follows - see the header note.
+	 * Applied to dimensions, areas, coordinates, zoom percentages and the
+	 * inspector's numeric fields.
+	 */
+	.num
+	{
+		font-family: var(--font-mono);
+		font-variant-numeric: tabular-nums;
+		font-size: 11px;
+		letter-spacing: -0.01em;
+	}
+
+	/* Small uppercase section labels. Tracking is what makes 10px uppercase
+	   legible rather than a smudge. */
+	.eyebrow
+	{
+		font-size: 10px;
+		font-weight: 600;
+		letter-spacing: 0.09em;
+		text-transform: uppercase;
+		color: var(--ink-faint);
+	}
+
+	/* ---- buttons ---- */
+
+	.btn
+	{
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		height: 28px;
+		padding: 0 10px;
+		font: inherit;
+		font-size: 12px;
+		font-weight: 500;
+		color: var(--ink-soft);
+		background: transparent;
+		border: 1px solid transparent;
+		border-radius: 7px;
+		cursor: pointer;
+		white-space: nowrap;
+		user-select: none;
+		transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+	}
+
+	.btn:hover:not(:disabled)
+	{
+		color: var(--ink);
+		background: var(--raised);
+	}
+
+	.btn:disabled
+	{
+		opacity: 0.4;
+		cursor: default;
+	}
+
+	.btn.is-active
+	{
+		color: var(--accent);
+		background: var(--accent-wash);
+	}
+
+	/* Bordered variant, for actions that need to read as a control rather than
+	   a menu item - the toolbar clusters floating over the viewport. */
+	.btn-outline
+	{
+		color: var(--ink);
+		background: var(--surface);
+		border-color: var(--line);
+	}
+
+	.btn-outline:hover:not(:disabled)
+	{
+		border-color: var(--line-strong);
+	}
+
+	.btn-primary
+	{
+		color: var(--accent-ink);
+		background: var(--accent);
+		border-color: transparent;
+	}
+
+	.btn-primary:hover:not(:disabled)
+	{
+		color: var(--accent-ink);
+		background: var(--accent-hi);
+	}
+
+	.btn-danger
+	{
+		color: var(--danger);
+	}
+
+	.btn-danger:hover:not(:disabled)
+	{
+		color: var(--danger);
+		background: var(--danger-wash);
+	}
+
+	/* Square icon-only button: the tool rail and the floating clusters. */
+	.btn-icon
+	{
+		width: 30px;
+		padding: 0;
+	}
+
+	.btn-tool
+	{
+		width: 36px;
+		height: 36px;
+		padding: 0;
+		border-radius: 9px;
+	}
+
+	/* A file input dressed as a button. The input covers the label so the whole
+	   control is the drop target and the click target. */
+	.btn-file
+	{
+		position: relative;
+		overflow: hidden;
+	}
+
+	.btn-file input[type='file']
+	{
+		position: absolute;
+		inset: 0;
+		opacity: 0;
+		cursor: pointer;
+	}
+
+	/* ---- surfaces ---- */
+
+	/* Floating clusters over the viewport. The blur is what keeps a control
+	   legible over both a bright floor and a dark sky without a solid fill
+	   hiding the model. */
+	.glass
+	{
+		background: color-mix(in srgb, var(--surface) 78%, transparent);
+		backdrop-filter: blur(14px) saturate(1.4);
+		border: 1px solid var(--line);
+		border-radius: var(--radius-panel);
+		box-shadow: var(--shadow-float);
+	}
+
+	.panel
+	{
+		background: var(--surface);
+		border: 1px solid var(--line);
+		border-radius: var(--radius-panel);
+	}
+
+	/* ---- form controls ---- */
+
+	.field-input
+	{
+		width: 100%;
+		height: 28px;
+		padding: 0 8px;
+		font: inherit;
+		font-size: 12px;
+		color: var(--ink);
+		background: var(--sunk);
+		border: 1px solid var(--line);
+		border-radius: 7px;
+		transition: border-color 120ms ease;
+	}
+
+	.field-input:hover
+	{
+		border-color: var(--line-strong);
+	}
+
+	.field-input:focus
+	{
+		outline: none;
+		border-color: var(--accent);
+		box-shadow: 0 0 0 3px var(--accent-wash);
+	}
+
+	.field-input.num
+	{
+		text-align: right;
+	}
+
+	select.field-input
+	{
+		cursor: pointer;
+		appearance: none;
+		padding-right: 22px;
+		background-image: linear-gradient(45deg, transparent 50%, var(--ink-faint) 50%), linear-gradient(135deg, var(--ink-faint) 50%, transparent 50%);
+		background-position: calc(100% - 12px) 12px, calc(100% - 8px) 12px;
+		background-size: 4px 4px, 4px 4px;
+		background-repeat: no-repeat;
+	}
+
+	textarea.field-input
+	{
+		height: auto;
+		padding: 6px 8px;
+		resize: vertical;
+	}
+
+	/* Range inputs are the one native control with no useful cross-browser
+	   styling hook, so both thumbs are written out. */
+	.field-slider
+	{
+		flex: 1;
+		min-width: 0;
+		height: 18px;
+		appearance: none;
+		background: transparent;
+		cursor: pointer;
+	}
+
+	.field-slider::-webkit-slider-runnable-track
+	{
+		height: 4px;
+		background: var(--line);
+		border-radius: 2px;
+	}
+
+	.field-slider::-moz-range-track
+	{
+		height: 4px;
+		background: var(--line);
+		border-radius: 2px;
+	}
+
+	.field-slider::-webkit-slider-thumb
+	{
+		appearance: none;
+		width: 13px;
+		height: 13px;
+		margin-top: -4.5px;
+		background: var(--accent);
+		border: 0;
+		border-radius: 50%;
+	}
+
+	.field-slider::-moz-range-thumb
+	{
+		width: 13px;
+		height: 13px;
+		background: var(--accent);
+		border: 0;
+		border-radius: 50%;
+	}
+
+	.field-checkbox
+	{
+		flex: none;
+		width: 15px;
+		height: 15px;
+		margin: 0;
+		accent-color: var(--accent);
+		cursor: pointer;
+	}
+
+	/* Segmented control: the 2D/Split/3D switch and the unit picker. */
+	.segmented
+	{
+		display: inline-flex;
+		padding: 2px;
+		background: var(--sunk);
+		border: 1px solid var(--line);
+		border-radius: 8px;
+	}
+
+	.segment
+	{
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 5px;
+		height: 24px;
+		padding: 0 9px;
+		font: inherit;
+		font-size: 11px;
+		font-weight: 500;
+		color: var(--ink-soft);
+		background: transparent;
+		border: 0;
+		border-radius: 6px;
+		cursor: pointer;
+		white-space: nowrap;
+		transition: background-color 120ms ease, color 120ms ease;
+	}
+
+	.segment:hover:not(.is-active)
+	{
+		color: var(--ink);
+	}
+
+	.segment.is-active
+	{
+		color: var(--ink);
+		background: var(--raised);
+		box-shadow: var(--shadow-panel);
+	}
+
+	/* ---- inspector ---- */
+
+	.inspector-tab
+	{
+		display: flex;
+		flex: 1;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		height: 34px;
+		font: inherit;
+		font-size: 12px;
+		color: var(--ink-faint);
+		background: transparent;
+		border: 0;
+		border-bottom: 2px solid transparent;
+		cursor: pointer;
+		transition: color 120ms ease, border-color 120ms ease;
+	}
+
+	.inspector-tab:hover
+	{
+		color: var(--ink-soft);
+	}
+
+	.inspector-tab.is-active
+	{
+		color: var(--ink);
+		border-bottom-color: var(--accent);
+	}
+
+	.inspector-body
+	{
+		flex: 1;
+		overflow-y: auto;
+		padding: 12px;
+	}
+
+	.inspector-section
+	{
+		display: flex;
+		flex-direction: column;
+		gap: 9px;
+	}
+
+	.inspector-heading
+	{
+		margin: 0;
+		font-size: 13px;
+		font-weight: 600;
+	}
+
+	.inspector-subheading
+	{
+		margin: 6px 0 0;
+		font-size: 10px;
+		font-weight: 600;
+		letter-spacing: 0.09em;
+		text-transform: uppercase;
+		color: var(--ink-faint);
+	}
+
+	.inspector-empty,
+	.inspector-note
+	{
+		margin: 0;
+		color: var(--ink-faint);
+		line-height: 1.55;
+	}
+
+	.inspector-readout
+	{
+		margin: 0;
+		color: var(--ink-soft);
+	}
+
+	/* ---- collapsible groups ---- */
+
+	.group
+	{
+		border: 1px solid var(--line-soft);
+		border-radius: 9px;
+		overflow: hidden;
+	}
+
+	.group-title
+	{
+		display: flex;
+		align-items: center;
+		gap: 7px;
+		width: 100%;
+		padding: 8px 10px;
+		font: inherit;
+		font-size: 12px;
+		font-weight: 600;
+		text-align: left;
+		color: var(--ink-soft);
+		background: var(--sunk);
+		border: 0;
+		cursor: pointer;
+		transition: color 120ms ease;
+	}
+
+	.group-title:hover
+	{
+		color: var(--ink);
+	}
+
+	.group.is-open .group-title
+	{
+		color: var(--ink);
+		border-bottom: 1px solid var(--line-soft);
+	}
+
+	.group-caret
+	{
+		display: inline-flex;
+		flex: none;
+		color: var(--ink-faint);
+		transition: transform 140ms ease;
+	}
+
+	.group.is-open .group-caret
+	{
+		transform: rotate(90deg);
+	}
+
+	.group-body
+	{
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 10px;
+	}
+
+	/* ---- field rows ---- */
+
+	.field
+	{
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.field-label
+	{
+		font-size: 11px;
+		color: var(--ink-faint);
+	}
+
+	.field-check
+	{
+		flex-direction: row;
+		align-items: center;
+		gap: 8px;
+		cursor: pointer;
+	}
+
+	.field-check .field-label
+	{
+		font-size: 12px;
+		color: var(--ink-soft);
+	}
+
+	.field-range-row,
+	.field-color-row
+	{
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.field-output
+	{
+		flex: none;
+		min-width: 46px;
+		text-align: right;
+		font-family: var(--font-mono);
+		font-variant-numeric: tabular-nums;
+		font-size: 11px;
+		color: var(--ink-soft);
+	}
+
+	.field-swatch
+	{
+		flex: none;
+		width: 34px;
+		height: 26px;
+		padding: 0;
+		background: none;
+		border: 1px solid var(--line);
+		border-radius: 6px;
+		cursor: pointer;
+	}
+
+	.field-hex
+	{
+		font-family: var(--font-mono);
+		font-size: 11px;
+		color: var(--ink-faint);
+	}
+
+	.radio-list
+	{
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.radio-row
+	{
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 12px;
+		color: var(--ink-soft);
+		cursor: pointer;
+	}
+
+	.radio-row input
+	{
+		accent-color: var(--accent);
+	}
+
+	.radio-suffix
+	{
+		margin-left: auto;
+		font-family: var(--font-mono);
+		font-size: 10px;
+		color: var(--ink-faint);
+	}
+
+	.btn-block
+	{
+		display: flex;
+		width: 100%;
+		margin-top: 8px;
+	}
+
+	/* ---- texture grid ---- */
+
+	.texture-grid
+	{
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+		gap: 6px;
+	}
+
+	.texture-swatch
+	{
+		display: block;
+		padding: 3px;
+		font: inherit;
+		font-size: 10px;
+		line-height: 1.25;
+		color: var(--ink-faint);
+		background: var(--sunk);
+		border: 2px solid transparent;
+		border-radius: 8px;
+		cursor: pointer;
+		transition: border-color 120ms ease, color 120ms ease;
+	}
+
+	.texture-swatch:hover:not(:disabled)
+	{
+		color: var(--ink-soft);
+		border-color: var(--line-strong);
+	}
+
+	.texture-swatch.is-current
+	{
+		color: var(--ink);
+		border-color: var(--accent);
+	}
+
+	.texture-swatch:disabled
+	{
+		opacity: 0.4;
+		cursor: default;
+	}
+
+	.texture-swatch img
+	{
+		display: block;
+		width: 100%;
+		height: 42px;
+		object-fit: cover;
+		border-radius: 5px;
+		margin-bottom: 3px;
+	}
+
+	.texture-name
+	{
+		display: block;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	/* ---- kbd ---- */
+
+	kbd
+	{
+		display: inline-block;
+		min-width: 17px;
+		padding: 1px 4px;
+		font-family: var(--font-mono);
+		font-size: 10px;
+		line-height: 15px;
+		text-align: center;
+		color: var(--ink-soft);
+		background: var(--sunk);
+		border: 1px solid var(--line);
+		border-bottom-width: 2px;
+		border-radius: 4px;
+	}
+}
+
+/* ------------------------------------------------------------------ motion */
+
+/*
+ * Reka UI drives its own enter/leave state via data attributes; these are the
+ * two transitions the app reuses across dialogs, drawers and popovers rather
+ * than each one restating them.
+ */
+@keyframes a3d-fade-in {from {opacity: 0;} to {opacity: 1;}}
+@keyframes a3d-fade-out {from {opacity: 1;} to {opacity: 0;}}
+@keyframes a3d-slide-in-right {from {transform: translateX(16px); opacity: 0;} to {transform: translateX(0); opacity: 1;}}
+@keyframes a3d-pop-in {from {transform: scale(0.97); opacity: 0;} to {transform: scale(1); opacity: 1;}}
+
+[data-state='open'].a3d-fade {animation: a3d-fade-in 140ms ease-out;}
+[data-state='closed'].a3d-fade {animation: a3d-fade-out 110ms ease-in;}
+[data-state='open'].a3d-pop {animation: a3d-pop-in 150ms cubic-bezier(0.16, 1, 0.3, 1);}
+[data-state='closed'].a3d-pop {animation: a3d-fade-out 110ms ease-in;}
+[data-state='open'].a3d-slide {animation: a3d-slide-in-right 180ms cubic-bezier(0.16, 1, 0.3, 1);}
+[data-state='closed'].a3d-slide {animation: a3d-fade-out 130ms ease-in;}
+
+@media (prefers-reduced-motion: reduce)
+{
+	*,
+	*::before,
+	*::after
+	{
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
+}

@@ -1,19 +1,20 @@
 import {Item} from './item.js';
 import {Matrix4, Triangle, Plane, Vector3} from 'three';
+import {faceIndices} from '../core/geometry_builders.js';
 /**
  * A Floor Item is an entity to be placed related to a floor.
  */
 export class RoofItem extends Item
 {
-	constructor(model, metadata, geometry, material, position, rotation, scale, isgltf=false)
+	constructor(model, metadata, geometry, material, position, rotation, scale)
 	{
-		super(model, metadata, geometry, material, position, rotation, scale, isgltf);
+		super(model, metadata, geometry, material, position, rotation, scale);
 		this.allowRotate = false;
 		this.boundToFloor = false;
 		this._freePosition = false;
 		if(this.geometry)
 		{
-			this.geometry.applyMatrix(new Matrix4().makeTranslation(-0.5 * (this.geometry.boundingBox.max.x + this.geometry.boundingBox.min.x), -0.5 * (this.geometry.boundingBox.max.y - this.geometry.boundingBox.min.y),-0.5 * (this.geometry.boundingBox.max.z + this.geometry.boundingBox.min.z)));
+			this.geometry.applyMatrix4(new Matrix4().makeTranslation(-0.5 * (this.geometry.boundingBox.max.x + this.geometry.boundingBox.min.x), -0.5 * (this.geometry.boundingBox.max.y - this.geometry.boundingBox.min.y),-0.5 * (this.geometry.boundingBox.max.z + this.geometry.boundingBox.min.z)));
 			this.geometry.computeBoundingBox();
 		}
 		this.halfSize = this.objectHalfSize();
@@ -36,11 +37,16 @@ export class RoofItem extends Item
 			var g = roof.geometry;
 			var result = {distance: Number.MAX_VALUE, contains: false, point: null, closestPoint: null};
 			var closestPoint = null;
-			for (var i=0;i< g.faces.length;i++)
+			// Geometry.faces/.vertices are gone; the same triangles now come out
+			// of the index and position attributes.
+			var faces = faceIndices(g);
+			var position = g.getAttribute('position');
+			var vertexAt = (i) => new Vector3(position.getX(i), position.getY(i), position.getZ(i));
+			for (var i=0;i< faces.length;i++)
 			{
-					var f = g.faces[i];
+					var f = faces[i];
 					var plane = new Plane();
-					var triangle = new Triangle(g.vertices[f.a], g.vertices[f.b], g.vertices[f.c]);
+					var triangle = new Triangle(vertexAt(f[0]), vertexAt(f[1]), vertexAt(f[2]));
 					var ipoint = new Vector3();
 					var cpoint = new Vector3();
 					var contains = false;

@@ -17,6 +17,42 @@ import {Room} from './room.js';
 export const defaultFloorPlanTolerance = 10.0;
 
 /**
+ * The unit every coordinate in a save file this build writes is expressed in,
+ * and the value of the file's `units` field.
+ *
+ * Centimetres, because that is what the model itself holds - so writing the
+ * file in them makes the numbers in it the numbers in memory, and makes a
+ * design independent of the display unit the user happened to have selected.
+ */
+export const SAVE_UNITS = 'cm';
+
+/**
+ * Choose how to turn a stored coordinate into centimetres.
+ *
+ * @param {?string} units The file's `units` field, absent on 0.0.2a and older.
+ * @returns {function(number): number}
+ */
+function cornerReader(units)
+{
+	if (units === undefined || units === null)
+	{
+		// Pre-2.0.0: written in the display unit active at save time.
+		return (value) => Dimensioning.cmFromMeasureRaw(value);
+	}
+	if (units !== SAVE_UNITS)
+	{
+		// Nothing writes anything else, so this is a file from a build that does
+		// not exist yet, or a hand-edited one. Warn and read it as centimetres
+		// rather than throw: refusing to open a design is a worse outcome than
+		// opening one whose scale the user can see is wrong.
+		console.warn(
+			`architect3d: save file declares units "${units}", which this build does not know. ` +
+			`Reading coordinates as ${SAVE_UNITS}.`);
+	}
+	return (value) => value;
+}
+
+/**
  * A Floorplan represents a number of Walls, Corners and Rooms. This is an
  * abstract that keeps the 2d and 3d in sync
  */
@@ -57,31 +93,11 @@ export class Floorplan extends EventDispatcher
 		 * @type {Object}
 		 */
 		this.metaroomsdata = {};
-		// List with reference to callback on a new wall insert event
-		/**
-		 * @deprecated
-		 */
-		this.new_wall_callbacks = [];
-		// List with reference to callbacks on a new corner insert event
-		/**
-		 * @deprecated
-		 */
-		this.new_corner_callbacks = [];
-		// List with reference to callbacks on redraw event
-		/**
-		 * @deprecated
-		 */
-		this.redraw_callbacks = [];
-		// List with reference to callbacks for updated_rooms event
-		/**
-		 * @deprecated
-		 */
-		this.updated_rooms = [];
-		// List with reference to callbacks for roomLoaded event
-		/**
-		 * @deprecated
-		 */
-		this.roomLoadedCallbacks = [];
+		// Removed in S1: new_wall_callbacks, new_corner_callbacks,
+		// redraw_callbacks, updated_rooms and roomLoadedCallbacks. They were
+		// plain Arrays whose only registrars (fireOnNewWall and friends) called
+		// .add() on them - a TypeError had anything ever called them. Nothing
+		// did; every event on this class goes through EventDispatcher.
 
 		this.floorTextures = {};
 		/**
@@ -181,25 +197,9 @@ export class Floorplan extends EventDispatcher
 		});
 	}
 
-	fireOnNewWall(callback)
-	{
-		this.new_wall_callbacks.add(callback);
-	}
 
-	fireOnNewCorner(callback)
-	{
-		this.new_corner_callbacks.add(callback);
-	}
 
-	fireOnRedraw(callback)
-	{
-		this.redraw_callbacks.add(callback);
-	}
 
-	fireOnUpdatedRooms(callback)
-	{
-		this.updated_rooms.add(callback);
-	}
 
 	// This method needs to be called from the 2d floorplan whenever
 	// the other method newWall is called.
@@ -257,25 +257,6 @@ export class Floorplan extends EventDispatcher
 				intersections = true;
 			}
 		}
-//		for( i=0;i<this.corners.length;i++)
-//		{
-//			var aCorner = this.corners[i];
-//			if(aCorner)
-//			{
-//				aCorner.relativeMove(0, 0);
-//				aCorner.snapToAxis(25);
-//			}
-//		}
-//		this.update();
-//		for( i=0;i<this.corners.length;i++)
-//		{
-//			aCorner = this.corners[i];
-//			if(aCorner)
-//			{
-//				aCorner.relativeMove(0, 0);
-//				aCorner.snapToAxis(25);
-//			}
-//		}
 		this.update();
 		
 		return intersections;
@@ -343,14 +324,12 @@ export class Floorplan extends EventDispatcher
 			var updatecorners = o.item.adjacentCorners();
 			updatecorners.push(o.item);
 			scope.update(false, updatecorners);
-//			scope.update(false);//For debug reasons
 			});
 		corner.addEventListener(EVENT_MOVED, function(o){
 			scope.dispatchEvent(o);
 			var updatecorners = o.item.adjacentCorners();
 			updatecorners.push(o.item);
 			scope.update(false, updatecorners);
-//			scope.update(false);//For debug reasons
 			});
 		
 		this.dispatchEvent({type: EVENT_NEW, item: this, newItem: corner});
@@ -509,9 +488,7 @@ export class Floorplan extends EventDispatcher
 		tolerance = tolerance || defaultFloorPlanTolerance;
 		for (var i = 0; i < this.walls.length; i++)
 		{
-			var newtolerance = tolerance;// (tolerance+
-											// ((this.walls[i].wallType ==
-											// WallTypes.CURVED)*tolerance*10));
+			var newtolerance = tolerance;
 			if (this.walls[i].distanceFrom(new Vector2(x, y)) < newtolerance)
 			{
 				return this.walls[i];
@@ -531,11 +508,6 @@ export class Floorplan extends EventDispatcher
 		  var metaRoomData = {};
 			this.rooms.forEach((room)=>{
 				var metaroom = {};
-				// var cornerids = [];
-				// room.corners.forEach((corner)=>{
-				// cornerids.push(corner.id);
-				// });
-				// var ids = cornerids.join(',');
 				var ids = room.roomByCornersId;
 				metaroom['name'] = room.name;
 				metaRoomData[ids] = metaroom;
@@ -545,19 +517,34 @@ export class Floorplan extends EventDispatcher
 
 	// Save the floorplan as a json object file
 	/**
-	 * @return {void}
+	 * Serialize the plan.
+	 *
+	 * Writes save format 2.0.0, whose one difference from 0.0.2a is that it says
+	 * what unit its coordinates are in - and that they are always the same one.
+	 *
+	 * 0.0.2a wrote corner coordinates through `Dimensioning.cmToMeasureRaw()`,
+	 * which converts centimetres into whatever display unit happened to be
+	 * active when the user pressed save. Wall control points and every item
+	 * position went out raw. So one file mixed two units and recorded neither:
+	 * the same plan saved under metres and under centimetres produced two files
+	 * whose corner numbers differed by 100x, and loading either under the wrong
+	 * unit rescaled the whole plan silently. `tests/fixtures/v1/metres-room`
+	 * is that, frozen.
+	 *
+	 * 2.0.0 stores canonical centimetres throughout and stamps `units`. Corners
+	 * therefore agree with the control points and the items for the first time,
+	 * and a file is now independent of the setting it was written under.
+	 *
+	 * @return {Object} The serialized floorplan.
 	 */
 	saveFloorplan()
 	{
-		var floorplans = {version:Version.getTechnicalVersion(), corners: {}, walls: [], rooms: {}, wallTextures: [], floorTextures: {}, newFloorTextures: {}, carbonSheet:{}};
+		var floorplans = {version:Version.getTechnicalVersion(), units: SAVE_UNITS, corners: {}, walls: [], rooms: {}, wallTextures: [], floorTextures: {}, newFloorTextures: {}, carbonSheet:{}};
 		var cornerIds = [];
 // writing all the corners based on the corners array
 // is having a bug. This is because some walls have corners
 // that aren't part of the corners array anymore. This is a quick fix
 // by adding the corners to the json file based on the corners in the walls
-// this.corners.forEach((corner) => {
-// floorplans.corners[corner.id] = {'x': corner.x,'y': corner.y};
-// });
 
 		this.walls.forEach((wall) => {
 			if(wall.getStart() && wall.getEnd())
@@ -576,20 +563,13 @@ export class Floorplan extends EventDispatcher
 			}
 		});
 
+		// Raw, not Dimensioning.cmToMeasureRaw. The model holds centimetres and
+		// so does the file - see the docblock above. This is the whole of the
+		// 2.0.0 change on the write side.
 		cornerIds.forEach((corner)=>{
-			floorplans.corners[corner.id] = {'x': Dimensioning.cmToMeasureRaw(corner.x),'y': Dimensioning.cmToMeasureRaw(corner.y), 'elevation': Dimensioning.cmToMeasureRaw(corner.elevation)};
+			floorplans.corners[corner.id] = {'x': corner.x,'y': corner.y, 'elevation': corner.elevation};
 		});
 
-// this.rooms.forEach((room)=>{
-// var metaroom = {};
-// var cornerids = [];
-// room.corners.forEach((corner)=>{
-// cornerids.push(corner.id);
-// });
-// var ids = cornerids.join(',');
-// metaroom['name'] = room.name;
-// floorplans.rooms[ids] = metaroom;
-// });
 		floorplans.rooms = this.metaroomsdata;
 
 		if(this.carbonSheet)
@@ -623,13 +603,26 @@ export class Floorplan extends EventDispatcher
 		{
 			return;
 		}
+		// How to read the corner coordinates, decided by the file rather than by
+		// its version number - the same rule as the wall records below.
+		//
+		// A stamped file says what unit it is in and this build only writes one,
+		// so `toCentimetres` is the identity for everything 2.0.0 and later. An
+		// unstamped file is 0.0.2a or older, where coordinates were written in
+		// whatever display unit was active at save time and the only guess
+		// available is the unit active now. That guess is wrong whenever the two
+		// differ, it always was, and no amount of care here can recover
+		// information the file does not contain - which is the entire reason the
+		// stamp exists. tests/fixtures/v1/ has the corpus, metres-room included.
+		var toCentimetres = cornerReader(floorplan.units);
+
 		for (var id in floorplan.corners)
 		{
 			var corner = floorplan.corners[id];
-			corners[id] = this.newCorner(Dimensioning.cmFromMeasureRaw(corner.x), Dimensioning.cmFromMeasureRaw(corner.y), id);
+			corners[id] = this.newCorner(toCentimetres(corner.x), toCentimetres(corner.y), id);
 			if(corner.elevation)
 			{
-				corners[id].elevation = Dimensioning.cmFromMeasureRaw(corner.elevation);
+				corners[id].elevation = toCentimetres(corner.elevation);
 			}
 		}
 		var scope = this;
@@ -644,20 +637,43 @@ export class Floorplan extends EventDispatcher
 			{
 				newWall.backTexture = wall.backTexture;
 			}
-			// Adding of a, b, wallType (straight, curved) for walls happened
-			// with introduction of 0.0.2a
-			if(Version.isVersionHigherThan(floorplan.version, '0.0.2a'))
+			// Control points and wallType arrived with save format 0.0.2a. Whether
+			// a given file carries them is a property of THAT FILE, so ask the
+			// record rather than the version stamp.
+			//
+			// This used to read
+			// `if (Version.isVersionHigherThan(floorplan.version, '0.0.2a'))`,
+			// and that call is the reason the save format could not be versioned.
+			// isVersionHigherThan compares its arguments the other way round from
+			// the way its name reads - it is true when the SECOND is >= the first,
+			// per component, as an AND - so the gate let 0.0.2a and anything older
+			// through and rejected everything newer. Stamping a file 0.0.3, 0.1.0
+			// or 1.0.0 turned every curved wall straight and dropped its control
+			// points, with no error. Bumping `version` for any reason at all -
+			// a unit stamp, a colour-space marker - would have silently corrupted
+			// every curved design in existence.
+			//
+			// Reading the data directly removes the trap rather than reasoning
+			// about it, and is what the gate was always a proxy for. It is also
+			// strictly safer: the old form assigned `wall.a` unconditionally once
+			// the version matched, so a file with a version but no control points
+			// threw inside the setter.
+			//
+			// Behaviour is unchanged for every file that can exist. A genuine
+			// pre-0.0.2a file has no `a`/`b` and no `wallType`, so both branches
+			// are skipped exactly as before and the wall keeps the straight
+			// defaults its constructor computed.
+			if (wall.a && wall.b)
 			{
 				newWall.a = wall.a;
 				newWall.b = wall.b;
-				if(wall.wallType == 'CURVED')
-				{
-					newWall.wallType = WallTypes.CURVED;
-				}
-				else
-				{
-					newWall.wallType = WallTypes.STRAIGHT;
-				}
+			}
+			if (wall.wallType !== undefined)
+			{
+				// Anything that is not exactly 'CURVED' means straight, including
+				// lower-case 'curved'. Preserved: WallTypes are Symbols and this is
+				// their description, so the file carries the description string.
+				newWall.wallType = (wall.wallType === 'CURVED') ? WallTypes.CURVED : WallTypes.STRAIGHT;
 			}
 		});
 
@@ -668,7 +684,12 @@ export class Floorplan extends EventDispatcher
 		this.metaroomsdata = floorplan.rooms;
 		this.update();
 
-		if('carbonSheet' in floorplan)
+		// The CarbonSheet is injected by the 2D floorplanner view. In widget mode
+		// (blueprint.js `options.widget`) and in headless use there is no 2D view,
+		// so this.carbonSheet is undefined and the block below used to throw on a
+		// design that carries a carbonSheet entry. Skip it instead: the data is
+		// still round-tripped by saveFloorplan only when a sheet exists.
+		if('carbonSheet' in floorplan && this.carbonSheet)
 		{
 			this.carbonSheet.clear();
 			this.carbonSheet.maintainProportion = false;
@@ -683,7 +704,6 @@ export class Floorplan extends EventDispatcher
 			this.carbonSheet.maintainProportion = true;
 		}
 		this.dispatchEvent({type: EVENT_LOADED, item: this});
-// this.roomLoadedCallbacks.fire();
 	}
 
 	/**
@@ -762,10 +782,9 @@ export class Floorplan extends EventDispatcher
 	{
 		if(updatecorners!=null)
 		{
-//			console.log('UPDATE CORNER ANGLES ::: ', updatecorners.length);
 			updatecorners.forEach((corner)=>{
 				corner.updateAngles();
-			})
+			});
 		} 
 		
 		if(!updateroomconfiguration)
@@ -774,15 +793,12 @@ export class Floorplan extends EventDispatcher
 			return;			
 		}
 		
-//		console.log('UPDATE ROOM WITH NEW ENTRIES ::: ');
 		
 		var scope = this;
 		this.walls.forEach((wall) => {
 			wall.resetFrontBack();
 		});
 
-		// this.rooms.forEach((room)=>{room.removeEventListener(EVENT_ROOM_NAME_CHANGED,
-		// scope.roomNameChanged)});
 
 		var roomCorners = this.findRooms(this.corners);
 		this.rooms = [];
@@ -790,7 +806,6 @@ export class Floorplan extends EventDispatcher
 
 		this.corners.forEach((corner)=>{
 			corner.clearAttachedRooms();
-//			corner.updateAngles();
 		});
 
 		roomCorners.forEach((corners) =>
@@ -825,7 +840,6 @@ export class Floorplan extends EventDispatcher
 		this.assignOrphanEdges();
 		this.updateFloorTextures();
 		this.dispatchEvent({type: EVENT_UPDATED, item: this});
-// console.log('TOTAL WALLS ::: ', this.walls.length);
 	}
 
 	/**

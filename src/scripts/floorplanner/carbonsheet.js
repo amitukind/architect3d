@@ -2,17 +2,24 @@ import {EventDispatcher} from 'three';
 import {EVENT_UPDATED} from '../core/events.js';
 import {cmPerPixel, pixelsPerCm, Dimensioning} from '../core/dimensioning.js';
 import {Configuration} from '../core/configuration.js';
+import {resolveElement} from '../core/dom.js';
 
 /**
  * The View to be used by a Floorplanner to render in/interact with.
  */
 export class CarbonSheet extends EventDispatcher
 {
+	/**
+	 * @param {Floorplan} floorplan
+	 * @param {Floorplanner2D} viewmodel
+	 * @param {(HTMLCanvasElement|string)} canvas The canvas to draw into, or its
+	 * element id. The id form is the deprecated back-compat path.
+	 */
 	constructor(floorplan, viewmodel, canvas)
 	{
 		super();
-		this.canvasElement = document.getElementById(canvas);
-		this.canvas = canvas;
+		this.canvasElement = resolveElement(canvas, 'carbon sheet canvas');
+		this.canvas = (typeof canvas === 'string') ? canvas : this.canvasElement.id;
 		this.context = this.canvasElement.getContext('2d');
 		this.floorplan = floorplan;
 		this.viewmodel = viewmodel;
@@ -57,6 +64,20 @@ export class CarbonSheet extends EventDispatcher
 	_updated()
 	{
 		this.dispatchEvent({type: EVENT_UPDATED});
+	}
+
+	/**
+	 * Drop the tracing image and its handlers. The Image outlives the sheet
+	 * otherwise: its onload closure captures `scope`, so a decode still in flight
+	 * would call back into a disposed view.
+	 */
+	dispose()
+	{
+		this._image.onload = null;
+		this._image.onerror = null;
+		this._image.src = '';
+		this._url = '';
+		this.clear();
 	}
 	
 	clear()
@@ -105,12 +126,12 @@ export class CarbonSheet extends EventDispatcher
 			scope._loaded = true;
 			scope._calibrate();
 			scope._updated();
-		}
+		};
 		this._image.onerror = function()
 		{
 			scope._loaded = false;
 			scope._url = '';
-		}
+		};
 		this._image.src = this._url;
 	}
 	
@@ -149,7 +170,6 @@ export class CarbonSheet extends EventDispatcher
 	set x(val)
 	{
 		this._x = val;
-//		this._anchorX = val;
 		this._updated();
 	}
 	
@@ -161,7 +181,6 @@ export class CarbonSheet extends EventDispatcher
 	set y(val)
 	{
 		this._y = val;
-//		this._anchorY = val;
 		this._updated();
 	}
 	
@@ -173,7 +192,7 @@ export class CarbonSheet extends EventDispatcher
 	set anchorX(val)
 	{
 		this._anchorX = val;
-		this._updated()
+		this._updated();
 	}
 	
 	get anchorX()
@@ -240,10 +259,6 @@ export class CarbonSheet extends EventDispatcher
 		this.context.fillStyle = '#FF0000';
 		this.context.fillRect(ox-1.5, oy-15, 3, 30);
 		this.context.fillRect(ox-15, oy-1.5, 30, 3);
-//		this.context.lineWidth = 1;
-//		this.context.strokeStyle = '#FF0000';
-//		this.context.strokeRect(ox-1.5, oy-15, 1.5, 30);
-//		this.context.strokeRect(ox-15, oy-1.5, 28, 1.5);
 	}	
 
 	/** */

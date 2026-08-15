@@ -1,4 +1,5 @@
-import {EventDispatcher, Vector2, Vector3, Matrix4, Face3, Mesh, Geometry, MeshBasicMaterial, Box3} from 'three';
+import {EventDispatcher, Vector2, Vector3, Matrix4, Mesh, MeshBasicMaterial, Box3} from 'three';
+import {firstFaceNormal, triangleFanGeometry} from '../core/geometry_builders.js';
 import {EVENT_REDRAW} from '../core/events.js';
 import {Utils} from '../core/utils.js';
 import {WallTypes} from '../core/constants.js';
@@ -189,7 +190,6 @@ export class HalfEdge extends EventDispatcher
 			this.wall.backTexture = texture;
 		}
 
-		//this.redrawCallbacks.fire();
 		this.dispatchEvent({type:EVENT_REDRAW, item: this});
 	}
 	
@@ -219,24 +219,23 @@ export class HalfEdge extends EventDispatcher
 	 */
 	generatePlane()
 	{
-		var geometry = new Geometry();
 		var v1 = this.transformCorner(this.interiorStart());
 		var v2 = this.transformCorner(this.interiorEnd());
 		var v3 = v2.clone();
 		var v4 = v1.clone();
 
-		// v3.y = this.wall.height;
-		// v4.y = this.wall.height;
-
 		v3.y = this.wall.startElevation;
 		v4.y = this.wall.endElevation;
 
-		geometry.vertices = [v1, v2, v3, v4];
-		geometry.faces.push(new Face3(0, 1, 2));
-		geometry.faces.push(new Face3(0, 2, 3));
-		geometry.computeFaceNormals();
+		var geometry = triangleFanGeometry([v1, v2, v3, v4]);
 		geometry.computeBoundingBox();
 
+		// computeFaceNormals() is gone with Geometry, and this quad is not
+		// necessarily planar - the two elevations can differ - so averaged vertex
+		// normals would not reproduce it anyway. The only reader is
+		// WallItem.placeInRoom, which wants the first triangle's normal to decide
+		// which way an item faces; compute exactly that, once.
+		this.planeNormal = firstFaceNormal(geometry, new Vector3());
 
 		this.plane = new Mesh(geometry, new MeshBasicMaterial({visible:true}));
 		//The below line was originally setting the plane visibility to false
@@ -250,7 +249,9 @@ export class HalfEdge extends EventDispatcher
 		this.computeTransforms(this.exteriorTransform, this.invExteriorTransform, this.exteriorStart(), this.exteriorEnd());
 
 		var b3 = new Box3();
-		b3.setFromObject(this.plane);
+		// precise: see the same call in room.js. These bounds decide where wall
+		// items may sit, so the r140 loosening would move them.
+		b3.setFromObject(this.plane, true);
 		this.min = b3.min.clone();
 		this.max = b3.max.clone();
 		this.center = this.max.clone().sub(this.min).multiplyScalar(0.5).add(this.min);
@@ -278,7 +279,7 @@ export class HalfEdge extends EventDispatcher
 		tt.makeTranslation(-v1.x, 0, -v1.y);
 		tr.makeRotationY(-angle);
 		transform.multiplyMatrices(tr, tt);
-		invTransform.getInverse(transform);
+		invTransform.copy(transform).invert();
 	}
 
 	/** Gets the distance from specified point.
@@ -295,7 +296,15 @@ export class HalfEdge extends EventDispatcher
 		}
 		else if (this.wall.wallType == WallTypes.CURVED)
 		{
-			var p = this._bezier.project({x:x, y:y});
+			// this.wall.bezier, not this._bezier - a HalfEdge has never had a
+			// _bezier of its own, so this branch threw a TypeError for every
+			// curved wall. It is reached through WallItem.placeInRoom ->
+			// closestWallEdge, which means any design mixing curved walls with
+			// wall-bound items failed to load. Every other curved branch in this
+			// file (getStartX, interiorDistance, ...) already reads through the
+			// wall; this one was simply written wrong. Fixed in S4 (roadmap
+			// section 01 ledger).
+			var p = this.wall.bezier.project({x:x, y:y});
 			var projected = new Vector2(p.x, p.y);
 			return projected.distanceTo(new Vector2(x, y));
 		}
@@ -399,7 +408,6 @@ export class HalfEdge extends EventDispatcher
 	{
 		var vec = this.halfAngleVector(this.prev, this);
 		return new Vector2(this.getStart().x + vec.x, this.getStart().y + vec.y);
-		// return {x:this.getStart().x + vec.x, y:this.getStart().y + vec.y};
 	}
 	
 	/**
@@ -412,7 +420,6 @@ export class HalfEdge extends EventDispatcher
 	{
 		var vec = this.halfAngleVector(this, this.next);
 		return new Vector2(this.getEnd().x + vec.x, this.getEnd().y + vec.y);
-		// return {x:this.getEnd().x + vec.x, y:this.getEnd().y + vec.y};
 	}
 	
 	/**
@@ -484,39 +491,6 @@ export class HalfEdge extends EventDispatcher
 		return [this.interiorStart(), this.interiorEnd(), this.exteriorEnd(), this.exteriorStart()];
 	}	
 	
-//	curvedCorners()
-//	{
-//		if(this.wall)
-//		{
-//			var curves = [];
-//			var o = new Vector2(0, 0);
-//			var s = this.wall.start.location;
-//			var e = this.wall.end.location;
-//			
-////			var avect = this.wall.a.clone().sub(this.wall.start);
-////			var bvect = this.wall.b.clone().sub(this.wall.start);
-//			
-//			var sevect = s.clone().sub(e).normalize();
-//			var se90plus = sevect.clone().rotateAround(o, 3.14*0.5).multiplyScalar(this.wall.thickness*0.5);
-//			var se90minus = sevect.clone().rotateAround(o, -3.14*0.5).multiplyScalar(this.wall.thickness*0.5);
-//			
-//			var s1 = se90plus.clone().add(s);
-//			var e1 = se90plus.clone().add(e);
-//			var e2 = se90minus.clone().add(e);
-//			var s2 = se90minus.clone().add(s);
-//			
-//			curves.push([s1]);
-//			curves.push([this.wall.a.clone().add(se90plus), this.wall.b.clone().add(se90plus), e1]);
-//			curves.push([e2]);
-//			curves.push([this.wall.b.clone().add(se90minus), this.wall.a.clone().add(se90minus), s2]);
-////			curves.push([s2]);
-//			
-//			
-//			return curves;			
-//		}
-//		return [];
-//	}
-
 	/**
 	 * Gets CCW angle from v1 to v2
 	 * @param {Vector2} v1 The point a

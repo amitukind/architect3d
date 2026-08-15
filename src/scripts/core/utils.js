@@ -1,6 +1,43 @@
 import {Vector2} from 'three';
-import {Math as THREEMath} from 'three';
-import {checkIntersection} from 'line-intersect';
+// THREE.Math was renamed MathUtils in r113 and the old alias removed; it also
+// shadowed the global Math, which is why the import was renamed here at all.
+import {MathUtils as THREEMath} from 'three';
+/**
+ * Segment-segment intersection, inlined in S1 to drop the `line-intersect`
+ * dependency (one call site, ~20 lines of maths).
+ *
+ * Ported verbatim from line-intersect@2.2.1 so the numerics - including the
+ * exact `denom == 0` degenerate handling and the inclusive 0..1 bounds - are
+ * unchanged. Returns the same shape the package did: {type} always, plus
+ * {point} only when type is 'intersecting'.
+ *
+ * @returns {{type: string, point?: {x: number, y: number}}}
+ */
+function checkIntersection(x1, y1, x2, y2, x3, y3, x4, y4)
+{
+	var denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
+	var numeA = (x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3);
+	var numeB = (x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3);
+
+	if (denom == 0)
+	{
+		if (numeA == 0 && numeB == 0)
+		{
+			return {type: 'colinear'};
+		}
+		return {type: 'parallel'};
+	}
+
+	var uA = numeA / denom;
+	var uB = numeB / denom;
+
+	if (uA >= 0 && uA <= 1 && uB >= 0 && uB <= 1)
+	{
+		return {type: 'intersecting', point: {x: x1 + uA * (x2 - x1), y: y1 + uA * (y2 - y1)}};
+	}
+
+	return {type: 'none'};
+}
 
 export class Utils
 {
@@ -166,14 +203,32 @@ export class Utils
 		return (tSum >= 0);
 	}
 
+	/**
+	 * Override the random source backing {@link Utils.guide}.
+	 * Tests use this to make generated corner/wall ids deterministic; passing
+	 * no argument (or null) restores Math.random. Production behaviour is
+	 * unchanged - guide() falls back to Math.random whenever nothing is set.
+	 *
+	 * Assigned onto the class object rather than declared as a static field:
+	 * the legacy rollup 1 + Babel 6 toolchain cannot parse static class
+	 * properties. Remove that constraint only after the Vite migration (S1).
+	 *
+	 * @param {function(): number} [fn] Returns a float in [0, 1).
+	 */
+	static setRandomSource(fn)
+	{
+		Utils._randomSource = (typeof fn === 'function') ? fn : null;
+	}
+
 	/** Creates a Guide.
 	 * @returns A new Guide.
 	 */
 	static guide()
 	{
+		var tRandom = Utils._randomSource || Math.random;
 		var tS4 = function ()
 		{
-			return Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
+			return Math.floor((1 + tRandom()) * 0x10000).toString(16).substring(1);
 		};
 		return tS4() + tS4() + '-' + tS4() + '-' + tS4() + '-' + tS4() + '-' + tS4() + tS4() + tS4();
 	}
@@ -260,7 +315,7 @@ export class Utils
 				 var intersect =  ((((polygon[i].y <= y) && (y < polygon[j].y)) ||  ((polygon[j].y <= y) && (y < polygon[i].y))) && (x < (polygon[j].x - polygon[i].x) * (y - polygon[i].y) / (polygon[j].y - polygon[i].y) + polygon[i].x));
 				 if (intersect)
 				 {
-					 	inside = !inside;
+					 inside = !inside;
 				 }
 		 }
 		 return inside;

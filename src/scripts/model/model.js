@@ -3,9 +3,11 @@ import {EventDispatcher, Vector3, Mesh} from 'three';
 import {Floorplan} from './floorplan.js';
 import {Scene} from './scene.js';
 
-import {OBJExporter} from '../exporters/OBJExporter.js';
-
-import GLTFExporter from 'three-gltf-exporter';
+// three's own addons since S4. The vendored OBJExporter was a copy of this file
+// old enough to branch on `instanceof THREE.Geometry`, and three-gltf-exporter
+// shipped a second copy of three; both are gone.
+import {OBJExporter} from 'three/addons/exporters/OBJExporter.js';
+import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js';
 
 /**
  * A Model is an abstract concept the has the data structuring a floorplan. It connects a {@link Floorplan} and a {@link Scene}
@@ -20,11 +22,6 @@ export class Model extends EventDispatcher
 		super();
 		this.floorplan = new Floorplan();
 		this.scene = new Scene(this, textureDir);
-		this.roomLoadingCallbacks = null;
-		this.roomLoadedCallbacks = null;
-		this.roomSavedCallbacks = null;
-		this.roomDeletedCallbacks = null;
-
 	}
 
 	switchWireframe(flag)
@@ -32,18 +29,27 @@ export class Model extends EventDispatcher
 		this.scene.switchWireframe(flag);
 	}
 
+	/**
+	 * Replace the current design with a serialized one.
+	 *
+	 * The format is documented field by field in docs/save-format.md, including
+	 * how a file written before version 2.0.0 is read. Two TODOs sat here for
+	 * the life of this file asking for exactly those two things - the
+	 * documentation and a better format - and both are now done.
+	 *
+	 * @param {string} json A `.blueprint3d` document.
+	 * @emits {EVENT_LOADING} before parsing.
+	 * @emits {EVENT_LOADED} once the floorplan is built and item loads have been
+	 * started - not when the models have arrived. Listen on the scene for that.
+	 */
 	loadSerialized(json)
 	{
-		// TODO: better documentation on serialization format.
-		// TODO: a much better serialization format.
 		this.dispatchEvent({type: EVENT_LOADING, item: this});
-		//      this.roomLoadingCallbacks.fire();
 
 		var data = JSON.parse(json);
 		this.newRoom(data.floorplan, data.items);
 
 		this.dispatchEvent({type: EVENT_LOADED, item: this});
-		//      this.roomLoadedCallbacks.fire();
 	}
 
 	exportMeshAsObj()
@@ -76,10 +82,18 @@ export class Model extends EventDispatcher
 			}
 		  });
 
-		gltfexporter.parse(meshes, function(result)
+		// parseAsync replaces the old two-argument parse(input, onCompleted).
+		// The result is still a plain glTF 2.0 JSON document, so EVENT_GLTF_READY
+		// carries exactly what it always did. Failures used to disappear - the
+		// old exporter had no error channel at all - and now reach the console
+		// instead of leaving a caller waiting on an event that never fires.
+		gltfexporter.parseAsync(meshes).then(function(result)
 		{
 			var output = JSON.stringify( result, null, 2 );
-			scope.dispatchEvent({type:EVENT_GLTF_READY, item: this, gltf: output});
+			scope.dispatchEvent({type:EVENT_GLTF_READY, item: scope, gltf: output});
+		}).catch(function(error)
+		{
+			console.error('glTF export failed', error);
 		});
 	}
 
@@ -90,7 +104,6 @@ export class Model extends EventDispatcher
 		for (var i = 0; i < objects.length; i++)
 		{
 			var obj = objects[i];
-//			items_arr[i] = {item_name: obj.metadata.itemName,item_type: obj.metadata.itemType,model_url: obj.metadata.modelUrl,xpos: obj.position.x,ypos: obj.position.y,zpos: obj.position.z,rotation: obj.rotation.y,scale_x: obj.scale.x,scale_y: obj.scale.y,scale_z: obj.scale.z,fixed: obj.fixed};
 			items_arr[i] = obj.getMetaData();
 		}
 
