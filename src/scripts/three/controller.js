@@ -1,3 +1,4 @@
+// @ts-check
 import {EventDispatcher, Vector2, Vector3, Mesh, PlaneGeometry, MeshBasicMaterial, Raycaster } from 'three';
 import {EVENT_ITEM_REMOVED, EVENT_ITEM_LOADED, EVENT_ITEM_MOVE_FINISH} from '../core/events.js';
 import { Utils } from '../core/utils.js';
@@ -16,6 +17,8 @@ import { Utils } from '../core/utils.js';
  * @typedef {import('three').Camera} Camera
  * @typedef {import('./hud.js').HUD} HUD
  * @typedef {import('./main.js').Main} Main
+ * @typedef {import('../items/item.js').Item} Item
+ * @typedef {import('three').Object3D} Object3D
  * @typedef {import('../model/model.js').Model} Model
  * @typedef {import('./orbitcontrols.js').OrbitControls} OrbitControls
  */
@@ -47,12 +50,23 @@ export class Controller extends EventDispatcher
 		this.enabled = true;
 		this.scene = model.scene;
 
+		/** @type {?Mesh} The invisible ground plane, built by init(). */
 		this.plane = null;
 		this.mouse = new Vector2(0, 0);
 		this.alternateMouse = new Vector2(0, 0);
 
+		/**
+		 * @type {?Item} Whatever the raycaster last hit.
+		 *
+		 * Typed as `Item` rather than `Object3D` because the picking set IS the
+		 * item list - `updateIntersections` raycasts `model.scene.getItems()` -
+		 * and every consumer here calls `mouseOver`, `fixed` or `setSelected` on
+		 * it. The one place that narrows is the assignment (RM-005 C2).
+		 */
 		this.intersectedObject = null;
+		/** @type {?Item} The item under the pointer, if it is an item. */
 		this.mouseoverObject = null;
+		/** @type {?Item} The item the user has selected. */
 		this.selectedObject = null;
 
 		this.mouseDown = false;
@@ -111,11 +125,14 @@ export class Controller extends EventDispatcher
 		this._disposed = true;
 		this.enabled = false;
 
-		this.element.removeEventListener('pointerdown', this.mousedownevent, this._pointerOptions);
-		this.element.removeEventListener('pointermove', this.mousemoveevent, this._pointerOptions);
-		this.element.removeEventListener('pointerup', this.mouseupevent, this._pointerOptions);
-		this.element.removeEventListener('pointercancel', this.mouseupevent, this._pointerOptions);
-		this.element.style.userSelect = this._previousUserSelect;
+		// No options object on removal - see the same change in floorplanner.js.
+		// `passive` is not part of a listener's identity; `capture` is, and both
+		// sides have it false (RM-005 C2).
+		this.element.removeEventListener('pointerdown', this.mousedownevent);
+		this.element.removeEventListener('pointermove', this.mousemoveevent);
+		this.element.removeEventListener('pointerup', this.mouseupevent);
+		this.element.removeEventListener('pointercancel', this.mouseupevent);
+		this.element.style.userSelect = this._previousUserSelect || '';
 
 		this.scene.removeEventListener(EVENT_ITEM_REMOVED, this.itemremovedevent);
 		this.scene.removeEventListener(EVENT_ITEM_LOADED, this.itemloadedevent);
@@ -124,7 +141,10 @@ export class Controller extends EventDispatcher
 		{
 			this.scene.remove(this.plane);
 			this.plane.geometry.dispose();
-			this.plane.material.dispose();
+			// The plane is built with a single MeshBasicMaterial three lines up;
+			// `Mesh.material` is the union either way.
+			var planeMaterial = this.plane.material;
+			if (!Array.isArray(planeMaterial)) { planeMaterial.dispose(); }
 			this.plane = null;
 		}
 
@@ -142,10 +162,11 @@ export class Controller extends EventDispatcher
 	itemRemoved(item)
 	{
 		// invoked as a callback to event in Scene
-		if (item === this.selectedObject)
+		var selected = this.selectedObject;
+		if (item === selected && selected)
 		{
-			this.selectedObject.setUnselected();
-			this.selectedObject.mouseOff();
+			selected.setUnselected();
+			selected.mouseOff();
 			this.setSelectedObject(null);
 		}
 	}
@@ -181,7 +202,7 @@ export class Controller extends EventDispatcher
 	{
 		this.mouse = vec2 || this.mouse;
 		var intersection = this.itemIntersection(this.mouse, this.selectedObject);
-		if (intersection)
+		if (intersection && this.selectedObject)
 		{
 			this.selectedObject.clickPressed(intersection);
 		}
@@ -194,6 +215,10 @@ export class Controller extends EventDispatcher
 		var intersection = scope.itemIntersection(this.mouse, this.selectedObject);
 		if (intersection)
 		{
+			if (!this.selectedObject)
+			{
+				return;
+			}
 			if (scope.isRotating())
 			{
 				this.selectedObject.rotate(intersection);
@@ -207,7 +232,8 @@ export class Controller extends EventDispatcher
 
 	showGroundPlane(flag)
 	{
-		this.plane.visible = flag;
+		// Null before init() and after dispose(); this is public API.
+		if (this.plane) { this.plane.visible = flag; }
 	}
 
 	setGroundPlane()
@@ -375,7 +401,7 @@ export class Controller extends EventDispatcher
 			switch (this.state)
 			{
 			case states.DRAGGING:
-				this.selectedObject.clickReleased();
+				if (this.selectedObject) { this.selectedObject.clickReleased(); }
 				this.switchState(states.SELECTED);
 				this.itemMoveFinished();
 				break;
@@ -481,10 +507,17 @@ export class Controller extends EventDispatcher
 		}
 	}
 
-	selectedObject()
-	{
-		return this.selectedObject;
-	}
+	// Removed in RM-005 C2: `selectedObject()`, a method with the same name as
+	// the field two lines below the constructor sets. An own property shadows a
+	// prototype method, so the method was unreachable from the moment the
+	// constructor ran - and its body, `return this.selectedObject`, would have
+	// returned that same field rather than recursing. Nothing in src or tests
+	// called it.
+	//
+	// It was also what made every read of the field a type error: TypeScript saw
+	// the class member as a function and reported `Property 'setSelected' does
+	// not exist on type '() => ...'` eleven times. Same shape as `updateArea2`,
+	// which S1 deleted for the same reason.
 
 	// updates the vector of the intersection with the plane of a given
 	// mouse position, and the intersected object
@@ -512,7 +545,9 @@ export class Controller extends EventDispatcher
 		var intersects = this.getIntersections(this.mouse, items, false, true);
 		if (intersects.length > 0)
 		{
-			this.intersectedObject = intersects[0].object;
+			// The set raycast above is `getItems()`, so a hit is an Item. Narrowed
+			// here, once, rather than at each of the seven reads (RM-005 C2).
+			this.intersectedObject = /** @type {Item} */ (intersects[0].object);
 		}
 		else
 		{
@@ -560,8 +595,11 @@ export class Controller extends EventDispatcher
 		var retVec = new Vector2();
 		var width = this.three.elementWidth || 1;
 		var height = this.three.elementHeight || 1;
-		retVec.x = ((vec2.x - this.three.widthMargin) / width) * 2 - 1;
-		retVec.y = -((vec2.y - this.three.heightMargin) / height) * 2 + 1;
+		// The margins are null until the first resize measures the element, and a
+		// pointer event can arrive before that - treating "not measured yet" as
+		// zero offset is what the arithmetic already did with null (RM-005 C2).
+		retVec.x = ((vec2.x - (this.three.widthMargin || 0)) / width) * 2 - 1;
+		retVec.y = -((vec2.y - (this.three.heightMargin || 0)) / height) * 2 + 1;
 		return retVec;
 	}
 
@@ -643,7 +681,7 @@ export class Controller extends EventDispatcher
 		if (object != null)
 		{
 			this.selectedObject = object;
-			this.selectedObject.setSelected();
+			object.setSelected();
 			this.three.itemIsSelected(object);
 		}
 		else
@@ -664,7 +702,7 @@ export class Controller extends EventDispatcher
 				{
 					this.mouseoverObject.mouseOff();
 					this.mouseoverObject = this.intersectedObject;
-					this.mouseoverObject.mouseOver();
+					if (this.mouseoverObject) { this.mouseoverObject.mouseOver(); }
 					this.needsUpdate = true;
 				}
 				else
@@ -675,7 +713,7 @@ export class Controller extends EventDispatcher
 			else
 			{
 				this.mouseoverObject = this.intersectedObject;
-				this.mouseoverObject.mouseOver();
+				if (this.mouseoverObject) { this.mouseoverObject.mouseOver(); }
 				this.three.setCursorStyle('pointer');
 				this.needsUpdate = true;
 			}
