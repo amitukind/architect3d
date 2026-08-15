@@ -1277,7 +1277,7 @@ footer .credit a:hover{text-decoration:underline}
     <div><div class="tb-k">BRANCH</div><div class="tb-v">amit @ fff1ebe</div></div>
     <div><div class="tb-k">SCOPE</div><div class="tb-v">13.4k LOC lib · 29 SFCs</div></div>
     <div><div class="tb-k">DATE</div><div class="tb-v">2026-08-14</div></div>
-    <div><div class="tb-k">REV</div><div class="tb-v">A · proposal</div></div>
+    <div><div class="tb-k">REV</div><div class="tb-v">A · delivered @ bd362f0</div></div>
   </div>
 </header>
 
@@ -2156,7 +2156,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
 <footer>
   <p><strong>Method — RM-003.</strong> Full read of the library's resource, loading, change-propagation, identity, history, isolation and asset paths against the working tree at <code>fff1ebe</code> on branch <code>amit</code>, plus <code>README.md</code>, <code>CHANGELOG.md</code>, <code>package.json</code>, <code>vite.config.mjs</code>, <code>tsconfig.json</code>, <code>docs/architecture.md</code>, <code>docs/events.md</code>, <code>tests/README.md</code> and the RM-001/RM-002 sections above. The four findings marked <span class="chip acc">measured</span> were produced by running the library headlessly and counting — mesh churn per <code>update()</code>, <code>EVENT_UPDATED</code> per document open, the malformed-document corpus, and room identity across a wall split — not by reading the code. <code>renderer.info.memory</code>, <code>LoadingManager.abort()</code> and <code>FileLoader</code>'s <code>AbortSignal.any</code> composition were verified in the installed <code>three@0.185.1</code> rather than from documentation. Two documentation inaccuracies were found and are recorded in §16 H-1 rather than fixed, since this is a planning pass: <code>docs/architecture.md:71–74</code> and <code>blueprint.js:200–203</code> both state the model layer holds no GPU resources, and it holds three meshes per room and one per half-edge.</p>
   <p><strong>Sources — RM-003.</strong> <a href="https://threejs.org/manual/#en/cleanup">three.js — Cleanup (freeing resources)</a> · <a href="https://threejs.org/docs/#api/en/renderers/WebGLRenderer">WebGLRenderer.info</a> · <a href="https://threejs.org/docs/#api/en/loaders/managers/LoadingManager">LoadingManager</a> · <a href="https://threejs.org/docs/#examples/en/loaders/GLTFLoader">GLTFLoader</a> · <a href="https://github.com/KhronosGroup/glTF">glTF — Runtime 3D Asset Delivery</a> · <a href="https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria">MDN — Storage quotas and eviction criteria</a> · <a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API/Using_the_Web_Storage_API">MDN — Using the Web Storage API</a> · <a href="https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API">MDN — IndexedDB API</a> · <a href="https://vite.dev/guide/assets">Vite — Static asset handling</a></p>
-  <p>architect3d · Architecture hardening program RM-003 rev A · proposal, pending approval · successor to redline RM-002</p>
+  <p>architect3d · Architecture hardening program RM-003 rev A · <strong>delivered</strong>, all six sprints, released as 2.0.0 on 2026-08-15 · successor to redline RM-002</p>
   <p class="credit">Created by <a href="https://amitukind.com" target="_blank" rel="noopener noreferrer">Amit Verma</a></p>
 </footer>
 

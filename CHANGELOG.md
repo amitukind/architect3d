@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-08-15
+
+Everything built on top of the migration. 1.0.0 was the port; this is a rebuilt
+interface with undo, a split workspace and themes, a save format that records
+the unit it was written in, a deep clean that took 8 MB and 576 files out of the
+tree — and then two review programs, back to back.
+
+The architecture redline (RM-002, P1–P7) took the seven findings a full read of
+the library produced — an item loader with no failure path, global singletons
+that made a second instance impossible, a texture allocated per wall per redraw
+and never released, a canvas repainting synchronously inside `pointermove` — and
+closed them under a type checker and a real-browser test tier, neither of which
+existed when it started. The hardening program (RM-003, A0–A5) closed the eight
+it produced in turn, and they were all one shape: nothing owned a geometry,
+nothing owned a document, and nothing owned an asset's address. Both plans, and
+what each sprint actually delivered rather than what it promised, are in
+[the roadmap](https://amitukind.github.io/architect3d/docs/roadmap.html).
+
+Major rather than minor on three counts, each recorded in full below:
+`Version.isVersionHigherThan` changed behaviour, `core/log.js` and its five
+exports were removed, and the save format is at 2.0.0. A file written by 1.0.0
+still opens unchanged — the break is in what this version *writes* and in two
+points of the export surface, not in what it reads.
+
+1.0.0 was released and never tagged. `v1.0.0` has been added retroactively at
+the commit that dated it, so the boundary this entry describes exists in the
+history as well as in this file.
+
 ### Fixed
 
 * **A room keeps its name and its floor texture when you draw a wall through
