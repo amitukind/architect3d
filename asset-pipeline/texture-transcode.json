@@ -186,24 +186,38 @@
 			"vramBefore": 3653632,
 			"vramAfter": 913408,
 			"sha256": "5f0b77a255f03e6d"
+		},
+		{
+			"from": "rooms/textures/Ground_4K.jpg",
+			"to": "rooms/textures/Ground_4K.ktx2",
+			"pixels": "1024x1024",
+			"bytesBefore": 59111,
+			"bytesAfter": 10401,
+			"vramBefore": 5592405,
+			"vramAfter": 1398101,
+			"sha256": "362685cb2fa03af1"
 		}
 	],
 	"skipped": [
 		{
 			"name": "models/js-glb/textures/ps_7.jpg",
 			"reason": "grows disk by 1793 bytes and saves only 0.15 MB of VRAM"
+		},
+		{
+			"name": "rooms/textures/envs/Garden.jpg",
+			"reason": "ETC1S bands the sky - RMS 4.48 against a 3.0 gate, 4.08% of channels off by more than 8"
 		}
 	],
 	"totals": {
-		"considered": 19,
-		"encoded": 18,
+		"considered": 21,
+		"encoded": 19,
 		"disk": {
-			"before": 1675141,
-			"after": 769008
+			"before": 1989996,
+			"after": 1035153
 		},
 		"vram": {
-			"before": 32152433,
-			"after": 8198105
+			"before": 40541041,
+			"after": 12392409
 		}
 	}
 }

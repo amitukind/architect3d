@@ -279,6 +279,20 @@
     "because the measurement stopped looking is the failure this file exists to",
     "catch, and it has now happened here twice.",
     "",
+    "C1 THEN TOOK 4.00 MB OFF THE CORRECTED FIGURE, 20.15 -> 16.15 MB, from one",
+    "file. rooms/textures/Ground_4K.jpg was 5.33 MB of VRAM and is now a 1.33 MB",
+    "KTX2 - the largest single texture in the tree, and one that B5 had recorded",
+    "as blocked behind the texture cache. It never used the texture cache; Skybox",
+    "loads it directly. See docs/public/roadmap.html section 26.",
+    "",
+    "Its sibling, envs/Garden.jpg, was measured and REFUSED. Rendered against its",
+    "own transcode at 1:1 it comes out at RMS 4.48 against the 3.0 that B4's",
+    "codecRms gate uses, with 4.08% of channels off by more than 8 - banding in a",
+    "sky gradient. That is 2.00 MB not taken, on purpose, and the evidence is in",
+    "asset-pipeline/skybox-transcode-oracle.json. public-total came down 5.32 ->",
+    "5.28 MB and demo-total 12.48 -> 12.44 as a side effect; neither limit moved,",
+    "because 40 KB of headroom is not worth a ratchet.",
+    "",
     "THE ESM BUNDLE IS MINIFIED NOW, and lib-esm-gzip came DOWN 130,900 -> 50,300.",
     "That is the fifth time this line has moved and the first time downward.",
     "",
@@ -306,7 +320,7 @@
   "budgets": {
     "demo-js-gzip": {
       "limit": 371000,
-      "measured": 352545
+      "measured": 352786
     },
     "demo-css-gzip": {
       "limit": 10000,
@@ -314,19 +328,19 @@
     },
     "demo-total": {
       "limit": 13740000,
-      "measured": 13080875
+      "measured": 13049317
     },
     "lib-iife-gzip": {
       "limit": 268000,
-      "measured": 254742
+      "measured": 255002
     },
     "public-total": {
       "limit": 5870000,
-      "measured": 5581142
+      "measured": 5532663
     },
     "lib-esm-gzip": {
       "limit": 50300,
-      "measured": 47630
+      "measured": 47836
     },
     "public-largest": {
       "limit": 271000,
@@ -342,7 +356,7 @@
     },
     "texture-vram": {
       "limit": 47340000,
-      "measured": 21130547
+      "measured": 16936243
     }
   }
 }

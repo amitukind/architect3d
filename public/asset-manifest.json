@@ -1978,9 +1978,17 @@
 			"kind": "thumbnail"
 		},
 		"rooms/textures/Ground_4K.jpg": {
-			"bytes": 59111,
-			"hash": "sha256-A8gU003lZdutnma/VZI4VKonAH52vMByHpEzkZz2QZs=",
-			"kind": "texture"
+			"bytes": 10401,
+			"hash": "sha256-NiaFyy+gOvFiJc4mq1uxseLzifoUJVUhoNIy5TVd3CI=",
+			"kind": "texture",
+			"codec": "ktx2",
+			"url": "rooms/textures/Ground_4K.ktx2"
+		},
+		"rooms/textures/Ground_4K.ktx2": {
+			"bytes": 10401,
+			"hash": "sha256-NiaFyy+gOvFiJc4mq1uxseLzifoUJVUhoNIy5TVd3CI=",
+			"kind": "texture",
+			"codec": "ktx2"
 		},
 		"rooms/textures/envs/Garden.jpg": {
 			"bytes": 255744,

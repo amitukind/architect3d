@@ -714,7 +714,12 @@ describe('every texture the library fetches goes through the resolver (RM-005 C1
 		}
 
 		expect(found.sort()).toEqual([
-			'rooms/textures/Ground_4K.jpg',
+			// Transcoded in C1. The `.jpg` name still resolves - it is retired to
+			// this file - but the library names the live one, which is the shape
+			// `room.js` already uses for `hardwood.jpg`.
+			'rooms/textures/Ground_4K.ktx2',
+			// Measured and left alone: ETC1S bands the sky. See
+			// asset-pipeline/skybox-transcode-oracle.json.
 			'rooms/textures/envs/Garden.jpg',
 			'rooms/textures/hardwood.jpg',
 			'rooms/textures/wallmap.png',

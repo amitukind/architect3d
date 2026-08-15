@@ -188,6 +188,21 @@ const RETIRED = {
 	// room textures were left as JPEG - see tools/encode-textures.mjs for why
 	// the texture cache cannot load a KTX2 today.
 	'rooms/textures/hardwood.png': 'rooms/textures/hardwood.jpg',
+
+	// The ground photograph, transcoded in RM-005 C1. No saved design names it -
+	// it is not in any catalog and no picker offers it - so this entry is not
+	// protecting documents the way the one above is. It is protecting the
+	// PUBLISHED NAME: `Skybox` resolves this string, an embedder may pass it to
+	// `setEnvironmentMap`, and P6 already renamed one of these two files once
+	// (`Garden.png` -> `.jpg`) with nothing to catch a missed reference.
+	//
+	// Retiring it rather than only moving the constant is what makes both true
+	// at once: current builds fetch the KTX2, and a build or a caller still
+	// naming the JPEG gets the KTX2 rather than a 404.
+	//
+	// `envs/Garden.jpg` is deliberately NOT here. It was measured and refused -
+	// ETC1S bands a sky gradient - so it is still a JPEG under its own name.
+	'rooms/textures/Ground_4K.jpg': 'rooms/textures/Ground_4K.ktx2',
 };
 
 function build()

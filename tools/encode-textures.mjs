@@ -83,6 +83,42 @@ const ENCODE = {isUASTC: false, qualityLevel: 128, needSupercompression: true, g
 /** A texture must win disk, or win at least this much VRAM, or it is left alone. */
 const VRAM_FLOOR = 1024 * 1024;
 
+/**
+ * Textures that pass the gate on size and fail it on looks (RM-005 C1).
+ *
+ * The gate above weighs disk against VRAM and says nothing about the picture,
+ * which was defensible while the scope was 18 furniture textures seen at a few
+ * hundred pixels. C1 widened it to two textures that fill the frame, and one of
+ * them refuses.
+ *
+ * Both were rendered through the same geometry, camera and sampler state at 1:1
+ * and differenced in the framebuffer - B4's oracle, pointed at a codec instead
+ * of a resampler. The numbers are in `asset-pipeline/skybox-transcode-oracle.json`:
+ *
+ *                  RMS    p95   p99   max   channels off by >8
+ *     Ground_4K   1.098     2     5    45   0.178%
+ *     Garden      4.483     8    16   128   4.078%
+ *
+ * `Ground_4K` is comfortably inside the 3.0 RMS that B4's `codecRms` gate uses,
+ * and its worst pixels are isolated - 0.178% is speckle. `Garden` is not: a 95th
+ * percentile AT the visibility threshold and 4% of the image past it is not
+ * outliers, it is banding, and it is banding in a photograph of sky, which is
+ * the content ETC1S handles worst and the surface a user looks at longest.
+ *
+ * So it ships as a JPEG. This is B1's per-asset rule rather than a new one: a
+ * model that could not match the pixel tier shipped unquantised, and the
+ * decision was recorded per file rather than taken for the catalog. Refusing on
+ * a measurement is the point; refusing on a hunch would not be.
+ *
+ * UASTC was the obvious alternative and is ruled out by a different budget. It
+ * would fix the banding and cost roughly 1.4 MB on disk against Garden's 250 KB,
+ * and `public-total` has 280 KB of headroom.
+ */
+const REFUSED = {
+	'rooms/textures/envs/Garden.jpg':
+		'ETC1S bands the sky - RMS 4.48 against a 3.0 gate, 4.08% of channels off by more than 8',
+};
+
 /** Kinds that are uploaded to the GPU. Thumbnails are `<img>` and out of scope. */
 const GPU_KINDS = new Set(['model-texture', 'texture', 'environment']);
 
@@ -278,6 +314,15 @@ async function main()
 			diskAfter += source.length;
 			vramAfter += vramBytes(size.width, size.height, 4);
 		};
+
+		// Measured and rejected, which is a different answer from "below the gate"
+		// and is recorded as one. Checked before the encode rather than after, so a
+		// refusal costs no encoder time on every run.
+		if (REFUSED[name])
+		{
+			keep(REFUSED[name]);
+			continue;
+		}
 
 		let encoded;
 		try
