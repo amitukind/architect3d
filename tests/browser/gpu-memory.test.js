@@ -327,3 +327,84 @@ describe('two viewers are independent', () =>
 		expect(seen.size).toBeGreaterThan(20);
 	});
 });
+
+/**
+ * Whether two clones of one compressed texture are one GPU upload (RM-005 C1).
+ *
+ * ## The question, and why it decides a sprint
+ *
+ * `texture_cache` hands every surface its own `Texture.clone()` over one decoded
+ * image. That works because `repeat`, `wrapS` and `colorSpace` are per-clone
+ * while `.source` - and the GPU upload keyed to it - is shared, so a design with
+ * twenty plaster walls pays for one decode and one upload.
+ *
+ * B5 could not extend that to KTX2 and the reason it gave was the load contract:
+ * `KTX2Loader.load()` returns undefined and the pixels of a `CompressedTexture`
+ * live in `.mipmaps` rather than in the shared `.source`. The second half of
+ * that sentence raises a question the first half does not answer - if the data
+ * is not in the source, is the UPLOAD still shared? If it is not, refcounting
+ * buys nothing for these textures and the cache redesign is pointless work.
+ *
+ * Reading three answers it: `_sources` in `WebGLTextures` is a WeakMap keyed on
+ * `texture.source`, `Texture.copy()` assigns `this.source = source.source` and
+ * `CompressedTexture` overrides neither `copy` nor `clone`. Within a source, the
+ * bucket key is `getTextureCacheKey`, which is sampler state - wrap, filters,
+ * anisotropy, format, colorSpace - and notably NOT `repeat` or `offset`, which
+ * are uniforms. So two clones differing only in `repeat` should collide on one
+ * `WebGLTexture`, compressed or not.
+ *
+ * Reading is how B5 got the architectural half of its decision wrong in one
+ * direction and right in the other, so it is measured here rather than trusted:
+ * `info.memory.textures` increments exactly once per `_gl.createTexture()`.
+ */
+describe('a compressed texture shared between surfaces (RM-005 C1)', () =>
+{
+	it('uploads once for two clones that differ in repeat', async () =>
+	{
+		const three = await import('three');
+		const {KTX2Loader} = await import('three/addons/loaders/KTX2Loader.js');
+
+		const renderer = new three.WebGLRenderer({canvas: document.createElement('canvas')});
+		const loader = new KTX2Loader().setTranscoderPath('/basis/').detectSupport(renderer);
+		const master = await loader.loadAsync('/rooms/textures/Ground_4K.ktx2');
+		expect(master.isCompressedTexture, 'not a compressed texture, so this measures nothing').toBe(true);
+
+		// Two surfaces, the way Edge dresses two walls of different widths.
+		const wide = master.clone();
+		wide.wrapS = wide.wrapT = three.RepeatWrapping;
+		wide.repeat.set(4, 1);
+		const narrow = master.clone();
+		narrow.wrapS = narrow.wrapT = three.RepeatWrapping;
+		narrow.repeat.set(1, 1);
+		expect(wide.source, 'clone() stopped sharing the source').toBe(master.source);
+
+		const scene = new three.Scene();
+		const camera = new three.PerspectiveCamera(50, 1, 0.1, 100);
+		camera.position.z = 4;
+		for (const [texture, x] of [[wide, -1], [narrow, 1]])
+		{
+			const mesh = new three.Mesh(new three.PlaneGeometry(1, 1), new three.MeshBasicMaterial({map: texture}));
+			mesh.position.x = x;
+			scene.add(mesh);
+		}
+
+		const before = renderer.info.memory.textures;
+		renderer.render(scene, camera);
+		const uploaded = renderer.info.memory.textures - before;
+
+		// One, not two. If this is ever 2, `texture_cache`'s clone-a-master design
+		// buys nothing for compressed textures and the honest answer for the
+		// remaining room textures is a different one - see roadmap section 27, N-2.
+		expect(uploaded, 'two clones of one compressed texture cost two GPU uploads').toBe(1);
+
+		scene.traverse((object) =>
+		{
+			if (object.isMesh) { object.geometry.dispose(); object.material.dispose(); }
+		});
+		wide.dispose();
+		narrow.dispose();
+		master.dispose();
+		loader.dispose();
+		renderer.dispose();
+	});
+});
