@@ -523,12 +523,29 @@ describe('the VRAM budget can see every format the tree uploads (RM-005 C1)', ()
 		finally {unlinkSync(staged);}
 	}
 
+	/**
+	 * A texture that is compressed TODAY, read from the report rather than named.
+	 *
+	 * These two tests used to say `oak_wood.ktx2`, and RM-006 turned oak_wood back
+	 * into a JPEG - it renders at RMS 4.88 against a 3.0 gate - so both failed on
+	 * a missing file while the property they check was never in question. Which
+	 * texture is compressed is a decision the encoder re-makes every time somebody
+	 * measures one, so naming one in a test pins the wrong thing.
+	 */
+	const compressedSample = (() =>
+	{
+		const report = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/texture-transcode.json'), 'utf8'));
+		const entry = report.textures.find((row) => existsSync(join(PUBLIC, row.to)));
+		if (!entry) { throw new Error('no transcoded texture in the tree to measure'); }
+		return entry.to;
+	})();
+
 	it('counts a compressed texture, not just an uncompressed one', () =>
 	{
 		// The two halves of the sum, each proved on its own. A KTX2 costing zero
 		// is the exact state the tree was in before C1, and it passed every gate.
 		expect(costOf('rooms/textures/marbletiles.jpg')).toBeGreaterThan(0);
-		expect(costOf('models/js-glb/textures/oak_wood.ktx2')).toBeGreaterThan(0);
+		expect(costOf(compressedSample)).toBeGreaterThan(0);
 	});
 
 	it('charges a compressed texture less than the same pixels uncompressed', () =>
@@ -544,9 +561,9 @@ describe('the VRAM budget can see every format the tree uploads (RM-005 C1)', ()
 		// So: a floor first, then the ordering, and against the SAME pixels rather
 		// than two different files - comparing a 512x512 photograph to a 669x1024
 		// texture was measuring the dimensions as much as the format.
-		const bytes = readFileSync(join(PUBLIC, 'models/js-glb/textures/oak_wood.ktx2'));
+		const bytes = readFileSync(join(PUBLIC, compressedSample));
 		const pixels = bytes.readUInt32LE(20) * bytes.readUInt32LE(24);
-		const compressed = costOf('models/js-glb/textures/oak_wood.ktx2');
+		const compressed = costOf(compressedSample);
 
 		expect(compressed).toBeGreaterThan(0);
 		// Directional rather than exact, so the model can be refined - one byte per
@@ -725,5 +742,97 @@ describe('every texture the library fetches goes through the resolver (RM-005 C1
 			'rooms/textures/wallmap.png',
 			'rooms/textures/walllightmap.png',
 		].sort());
+	});
+});
+
+/**
+ * Nothing ships compressed without having been looked at (RM-006).
+ *
+ * ## Why a test as well as a command
+ *
+ * `npm run oracle -- --check` is the real gate: it launches a browser, renders
+ * every texture against the source it was encoded from and differences the
+ * frames. That costs about two minutes, which is the same reason `ledger:check`
+ * is a command rather than a test, and it is the shape every ratchet in `tools/`
+ * already has.
+ *
+ * A command somebody has to remember is exactly what was missing. B5 encoded 18
+ * textures against a gate that weighs disk against video memory and never looks
+ * at the picture, and the reason it never looked is that the thing which looks
+ * had been written twice as a throwaway script and deleted twice. Nine of those
+ * 18 turned out to be past the codec gate. Two programmes passed in between and
+ * every gate in this repository stayed green.
+ *
+ * So the expensive part stays a command, and the cheap part - **is there a
+ * measurement for this file at all, and did it pass** - runs in four seconds
+ * here. Adding a `.ktx2` to the tree without measuring it now fails the test
+ * tier, which is the failure B5 needed and did not get.
+ */
+describe('every compressed texture has been rendered and measured (RM-006)', () =>
+{
+	const GATE = 3.0;
+	const oracle = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/model-transcode-oracle.json'), 'utf8'));
+	const transcode = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/texture-transcode.json'), 'utf8'));
+	const measured = new Map(oracle.rows.map((row) => [row.name, row]));
+
+	it('reads the gate the pipeline actually enforces', () =>
+	{
+		// Pinned against the tool rather than restated, so the two cannot drift
+		// apart into a test that passes against a threshold nobody uses.
+		expect(oracle.gate.codecRms).toBe(GATE);
+		expect(oracle.gate.source).toBe('tools/resize-textures.mjs GATES');
+	});
+
+	it('has a measurement for every texture the tree ships compressed', () =>
+	{
+		const shipped = transcode.textures.filter((entry) => existsSync(join(PUBLIC, entry.to)));
+		expect(shipped.length).toBeGreaterThan(5);
+		const unmeasured = shipped.filter((entry) => !measured.has(entry.from)).map((entry) => entry.from);
+		expect(unmeasured, `these ship as KTX2 and no rendered measurement exists:\n  ${unmeasured.join('\n  ')}`)
+			.toEqual([]);
+	});
+
+	it('every texture that ships compressed is inside the gate', () =>
+	{
+		const past = oracle.rows
+			.filter((row) => row.shipped === 'compressed' && row.rms > GATE)
+			.map((row) => `${row.name} at RMS ${row.rms}`);
+		expect(past, `a texture that cannot match the pixel tier ships uncompressed (B1):\n  ${past.join('\n  ')}`)
+			.toEqual([]);
+	});
+
+	it('the run that produced these numbers had a transparent render path', () =>
+	{
+		// The residual is the rendered source against its own decoded pixels. C1's
+		// oracle differenced a Linear-sRGB frame and reported errors up to 65%
+		// higher than the frame anybody sees; under that configuration this number
+		// is nowhere near zero. Without it, the rest of this file is measuring a
+		// harness rather than a codec.
+		const opaque = oracle.rows.filter((row) => row.residual > 0.5).map((row) => `${row.name} ${row.residual}`);
+		expect(opaque, `the oracle was measuring itself:\n  ${opaque.join('\n  ')}`).toEqual([]);
+	});
+
+	it('every measurement could tell the texture from its own mirror', () =>
+	{
+		// `TextureLoader` gives flipY true and `KTX2Loader` gives false, and a
+		// compressed texture cannot be flipped on upload - so the harness scores
+		// both orientations and keeps the aligned one. A row whose two scores are
+		// close together has not established which it measured. Ground_4K is the
+		// one such row and it is listed rather than waived: it lands at 0.761 in
+		// both orientations, so the verdict holds whichever it is.
+		const ambiguous = oracle.rows.filter((row) => row.mirrorTells !== null && row.mirrorTells < 1.5);
+		expect(ambiguous.map((row) => row.name)).toEqual(['rooms/textures/Ground_4K.jpg']);
+		expect(ambiguous.every((row) => row.rms < GATE)).toBe(true);
+	});
+
+	it('records where each source came from, since the encoder deletes them', () =>
+	{
+		// The measurement is only repeatable while the sources are recoverable, and
+		// they live in git rather than in the tree - `recoverSource` in the oracle
+		// finds the commit that deleted each one. If this ever reads "the tree" for
+		// everything, somebody has stopped deleting sources and the disk saving has
+		// quietly gone away.
+		const origins = new Set(oracle.rows.map((row) => row.from));
+		expect([...origins].sort()).toEqual(['git history', 'the tree']);
 	});
 });
