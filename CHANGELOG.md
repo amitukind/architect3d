@@ -2,6 +2,45 @@
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-08-15
+
+RM-004, the third review programme, and the shortest of the three because it had
+the least to find. RM-002 closed seven architectural findings and RM-003 closed
+eight; what was left over was three unrelated jobs with no theme underneath them
+— a catalog shipped in the shape its exporter left it, a wall that forgot its
+name whenever you undid something, and half an application nobody was
+type-checking. A fourth was added on the way, when the first sprint's new budget
+turned out to be measuring the wrong thing.
+
+**Minor rather than major.** Every export behaves as it did, every saved design
+opens unchanged, and every asset URL resolves to the path it always did. The two
+narrower changes are in *Compatibility* below: what changed is the bytes inside
+the asset files, not their names, and `public/` is not in `package.json`'s
+`files` — so an npm consumer never receives them.
+
+The user-visible half is delivery. The model catalog is Draco-compressed and the
+five oversized textures are capped, which together take `public/` from 10.68 MB
+to **5.95 MB** and GPU memory from a corrected 104.67 MB to **43.00 MB**. Four
+budget ceilings came down as a result — `public-total` 11.70 → 6.56 MB,
+`demo-total` 19.00 → 14.22, `public-largest` 1.45 MB → 513 KB,
+`catalog-item-largest` 1.69 MB → 384 KB — which is the direction a ceiling almost
+never travels. One went up, `lib-esm-gzip`, for the fourth consecutive sprint;
+two are new, `decoder-total` and `texture-vram`. Every one of those moves is
+argued for in `tools/budget.json` rather than quietly adjusted.
+
+The half nobody sees is that the measurements got honest. Three separate numbers
+this programme relied on were wrong when it started: the texture VRAM budget was
+counting 174 images that are never uploaded, the manifest's `kind` was
+mislabelling 148 assets, and the TypeScript ledger had drifted for the third
+time. Each is corrected here, and each is now produced by something that can be
+re-run rather than by something that was once typed in.
+
+Verified at `f48ba72` from a clean detached worktree, `npm ci` from the lockfile,
+before anything was dated: typecheck clean, lint 0 errors, manifest up to date at
+373 assets, encoding up to date at 152 compressed and 13 deliberately not,
+textures all inside the cap, **1,250 headless tests in 30 files and 54 browser
+tests in 10**, ten budgets green, coverage 79.62 / 68.34 / 78.34 / 79.60.
+
 ### Fixed
 
 * **A selected wall stays selected when you undo.** Selection resolves a wall
