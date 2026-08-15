@@ -409,5 +409,367 @@
 			"orientation": "mirrored",
 			"mirrorTells": 11.98
 		}
+	],
+	"settingsSwept": [
+		{
+			"name": "models/js-glb/textures/bd-shalebedside-smoke_baked.jpg",
+			"setting": "ETC1S q128",
+			"rms": 3.456,
+			"max": 85,
+			"pctOver8": 2.29,
+			"bytes": 44688,
+			"pctOfSource": 55,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/bd-shalebedside-smoke_baked.jpg",
+			"setting": "ETC1S q192",
+			"rms": 3.038,
+			"max": 35,
+			"pctOver8": 1.43,
+			"bytes": 62347,
+			"pctOfSource": 77,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/bd-shalebedside-smoke_baked.jpg",
+			"setting": "ETC1S q255",
+			"rms": 3.018,
+			"max": 35,
+			"pctOver8": 1.41,
+			"bytes": 67815,
+			"pctOfSource": 84,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/bd-shalebedside-smoke_baked.jpg",
+			"setting": "UASTC",
+			"rms": 1.023,
+			"max": 9,
+			"pctOver8": 0,
+			"bytes": 284664,
+			"pctOfSource": 353,
+			"clearsGate": true
+		},
+		{
+			"name": "models/js-glb/textures/cb-clapboard_baked.jpg",
+			"setting": "ETC1S q128",
+			"rms": 3.214,
+			"max": 53,
+			"pctOver8": 2.72,
+			"bytes": 32555,
+			"pctOfSource": 58,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/cb-clapboard_baked.jpg",
+			"setting": "ETC1S q192",
+			"rms": 3.087,
+			"max": 55,
+			"pctOver8": 2.51,
+			"bytes": 39127,
+			"pctOfSource": 69,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/cb-clapboard_baked.jpg",
+			"setting": "ETC1S q255",
+			"rms": 3.087,
+			"max": 55,
+			"pctOver8": 2.51,
+			"bytes": 39127,
+			"pctOfSource": 69,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/cb-clapboard_baked.jpg",
+			"setting": "UASTC",
+			"rms": 0.897,
+			"max": 15,
+			"pctOver8": 0.01,
+			"bytes": 170042,
+			"pctOfSource": 302,
+			"clearsGate": true
+		},
+		{
+			"name": "models/js-glb/textures/grey-brown_wood.jpg",
+			"setting": "ETC1S q128",
+			"rms": 4.523,
+			"max": 29,
+			"pctOver8": 6.32,
+			"bytes": 103206,
+			"pctOfSource": 34,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/grey-brown_wood.jpg",
+			"setting": "ETC1S q192",
+			"rms": 4.104,
+			"max": 25,
+			"pctOver8": 4.28,
+			"bytes": 135302,
+			"pctOfSource": 45,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/grey-brown_wood.jpg",
+			"setting": "ETC1S q255",
+			"rms": 3.75,
+			"max": 23,
+			"pctOver8": 2.62,
+			"bytes": 163498,
+			"pctOfSource": 54,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/grey-brown_wood.jpg",
+			"setting": "UASTC",
+			"rms": 1.011,
+			"max": 7,
+			"pctOver8": 0,
+			"bytes": 816302,
+			"pctOfSource": 272,
+			"clearsGate": true
+		},
+		{
+			"name": "models/js-glb/textures/ik-ekero-orange_baked.jpg",
+			"setting": "ETC1S q128",
+			"rms": 3.65,
+			"max": 90,
+			"pctOver8": 2.73,
+			"bytes": 36447,
+			"pctOfSource": 62,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/ik-ekero-orange_baked.jpg",
+			"setting": "ETC1S q192",
+			"rms": 3.46,
+			"max": 76,
+			"pctOver8": 2.49,
+			"bytes": 53005,
+			"pctOfSource": 90,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/ik-ekero-orange_baked.jpg",
+			"setting": "ETC1S q255",
+			"rms": 3.459,
+			"max": 76,
+			"pctOver8": 2.49,
+			"bytes": 54500,
+			"pctOfSource": 93,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/ik-ekero-orange_baked.jpg",
+			"setting": "UASTC",
+			"rms": 2.412,
+			"max": 57,
+			"pctOver8": 1.55,
+			"bytes": 268452,
+			"pctOfSource": 456,
+			"clearsGate": true
+		},
+		{
+			"name": "models/js-glb/textures/nyc2.jpg",
+			"setting": "ETC1S q128",
+			"rms": 7.004,
+			"max": 174,
+			"pctOver8": 5.1,
+			"bytes": 16358,
+			"pctOfSource": 40,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/nyc2.jpg",
+			"setting": "ETC1S q192",
+			"rms": 6.934,
+			"max": 166,
+			"pctOver8": 5.13,
+			"bytes": 17935,
+			"pctOfSource": 44,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/nyc2.jpg",
+			"setting": "ETC1S q255",
+			"rms": 6.934,
+			"max": 166,
+			"pctOver8": 5.13,
+			"bytes": 17935,
+			"pctOfSource": 44,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/nyc2.jpg",
+			"setting": "UASTC",
+			"rms": 1.016,
+			"max": 27,
+			"pctOver8": 0.07,
+			"bytes": 66448,
+			"pctOfSource": 163,
+			"clearsGate": true
+		},
+		{
+			"name": "models/js-glb/textures/oak_wood.jpg",
+			"setting": "ETC1S q128",
+			"rms": 4.879,
+			"max": 40,
+			"pctOver8": 8.15,
+			"bytes": 107292,
+			"pctOfSource": 34,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/oak_wood.jpg",
+			"setting": "ETC1S q192",
+			"rms": 4.37,
+			"max": 32,
+			"pctOver8": 5.5,
+			"bytes": 141061,
+			"pctOfSource": 45,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/oak_wood.jpg",
+			"setting": "ETC1S q255",
+			"rms": 4.02,
+			"max": 32,
+			"pctOver8": 3.74,
+			"bytes": 169276,
+			"pctOfSource": 54,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/oak_wood.jpg",
+			"setting": "UASTC",
+			"rms": 1.177,
+			"max": 13,
+			"pctOver8": 0,
+			"bytes": 839753,
+			"pctOfSource": 267,
+			"clearsGate": true
+		},
+		{
+			"name": "models/js-glb/textures/walnut-marin.jpg",
+			"setting": "ETC1S q128",
+			"rms": 4.88,
+			"max": 33,
+			"pctOver8": 8.45,
+			"bytes": 45830,
+			"pctOfSource": 57,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/walnut-marin.jpg",
+			"setting": "ETC1S q192",
+			"rms": 4.495,
+			"max": 29,
+			"pctOver8": 6.61,
+			"bytes": 65343,
+			"pctOfSource": 81,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/walnut-marin.jpg",
+			"setting": "ETC1S q255",
+			"rms": 4.356,
+			"max": 29,
+			"pctOver8": 6.15,
+			"bytes": 85621,
+			"pctOfSource": 106,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/walnut-marin.jpg",
+			"setting": "UASTC",
+			"rms": 1.717,
+			"max": 12,
+			"pctOver8": 0.01,
+			"bytes": 339373,
+			"pctOfSource": 421,
+			"clearsGate": true
+		},
+		{
+			"name": "models/js-glb/textures/we-narrow6white_baked.jpg",
+			"setting": "ETC1S q128",
+			"rms": 3.488,
+			"max": 50,
+			"pctOver8": 3.86,
+			"bytes": 33912,
+			"pctOfSource": 54,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/we-narrow6white_baked.jpg",
+			"setting": "ETC1S q192",
+			"rms": 3.229,
+			"max": 51,
+			"pctOver8": 3.43,
+			"bytes": 46511,
+			"pctOfSource": 74,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/we-narrow6white_baked.jpg",
+			"setting": "ETC1S q255",
+			"rms": 3.229,
+			"max": 51,
+			"pctOver8": 3.43,
+			"bytes": 46511,
+			"pctOfSource": 74,
+			"clearsGate": false
+		},
+		{
+			"name": "models/js-glb/textures/we-narrow6white_baked.jpg",
+			"setting": "UASTC",
+			"rms": 0.664,
+			"max": 11,
+			"pctOver8": 0,
+			"bytes": 174775,
+			"pctOfSource": 276,
+			"clearsGate": true
+		},
+		{
+			"name": "rooms/textures/envs/Garden.jpg",
+			"setting": "ETC1S q128",
+			"rms": 6.552,
+			"max": 101,
+			"pctOver8": 13.33,
+			"bytes": 84627,
+			"pctOfSource": 33,
+			"clearsGate": false
+		},
+		{
+			"name": "rooms/textures/envs/Garden.jpg",
+			"setting": "ETC1S q192",
+			"rms": 5.452,
+			"max": 84,
+			"pctOver8": 9.26,
+			"bytes": 116881,
+			"pctOfSource": 46,
+			"clearsGate": false
+		},
+		{
+			"name": "rooms/textures/envs/Garden.jpg",
+			"setting": "ETC1S q255",
+			"rms": 5.047,
+			"max": 84,
+			"pctOver8": 7.09,
+			"bytes": 142963,
+			"pctOfSource": 56,
+			"clearsGate": false
+		},
+		{
+			"name": "rooms/textures/envs/Garden.jpg",
+			"setting": "UASTC",
+			"rms": 2.04,
+			"max": 27,
+			"pctOver8": 0.49,
+			"bytes": 644514,
+			"pctOfSource": 252,
+			"clearsGate": true
+		}
 	]
 }

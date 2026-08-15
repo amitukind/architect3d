@@ -131,8 +131,11 @@ const VRAM_FLOOR = 1024 * 1024;
  * a measurement is the point; refusing on a hunch would not be.
  *
  * UASTC was the obvious alternative and is ruled out by a different budget. It
- * would fix the banding and cost roughly 1.4 MB on disk against Garden's 250 KB,
- * and `public-total` is at 1.3% headroom.
+ * does fix the banding - 6.552 down to 2.040 - and costs **629 KB against
+ * Garden's 250 KB**, with `public-total` at 1.3% headroom. C1 estimated that at
+ * "roughly 1.4 MB" from a catalog-wide ratio; RM-006 encoded the file and
+ * measured it, and the estimate was more than twice the truth. The four settings
+ * tried are in `settingsSwept` in asset-pipeline/model-transcode-oracle.json.
  */
 const REFUSED = {
 	// Measured at 6.552 by `npm run oracle`, not the 4.483 recorded here before.
@@ -155,9 +158,10 @@ const REFUSED = {
 	 * Every setting the encoder has was tried before any of this was reverted -
 	 * `npm run oracle -- --sweep`, recorded in the oracle JSON. ETC1S at maximum
 	 * quality rescues exactly one, which is why `cb-archnight-white_baked.png` is
-	 * in `QUALITY` below rather than here. UASTC clears the gate for all nine and
-	 * costs 123% to 456% of the source on disk, so for every one of them shipping
-	 * the source is both better looking and smaller.
+	 * in `QUALITY` below rather than here. UASTC clears the gate for all eight of
+	 * these at 163% to 456% of the source on disk, so for every one of them
+	 * shipping the source is both better looking and smaller. The four settings
+	 * tried per texture are in `settingsSwept` in the oracle JSON.
 	 *
 	 * The numbers are RMS over RGB in 0-255, from a rendered frame at 1:1.
 	 */

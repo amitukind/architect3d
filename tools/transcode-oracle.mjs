@@ -586,7 +586,29 @@ async function main()
 			+ Math.max(...result.rows.map((row) => row.residual)).toFixed(3) + ` / ${RESIDUAL_CEILING} allowed`);
 
 		if (CALIBRATE) { correction(result.rows); return; }
-		if (SWEEP) { sweepReport(result.rows); return; }
+		if (SWEEP)
+		{
+			sweepReport(result.rows);
+			// Merged into the existing record rather than replacing it. The sweep is
+			// the evidence for every refusal - "ETC1S cannot carry this at any
+			// setting" is a claim about four encodes, not one - and a claim whose
+			// evidence lives only in a terminal is the shape this whole tool exists
+			// to stop.
+			const existing = existsSync(OUT_PATH) ? JSON.parse(readFileSync(OUT_PATH, 'utf8')) : {};
+			existing.settingsSwept = result.rows.map((row) => ({
+				name: row.name,
+				setting: row.from,
+				rms: Number(row.rms.toFixed(3)),
+				max: row.max,
+				pctOver8: Number(row.pctOver8.toFixed(2)),
+				bytes: row.bytes,
+				pctOfSource: Math.round(100 * row.bytes / row.sourceBytesLength),
+				clearsGate: row.rms <= GATES.codecRms,
+			}));
+			writeFileSync(OUT_PATH, JSON.stringify(existing, null, '\t') + '\n');
+			console.log('  wrote the sweep into ' + OUT_PATH.replace(ROOT + '/', '') + '\n');
+			return;
+		}
 
 		// Only what ships compressed. A texture measured here and shipped as a JPEG
 		// is already obeying the rule this gate exists to enforce.

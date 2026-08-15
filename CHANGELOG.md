@@ -34,8 +34,8 @@ worst pixel 174 levels out, two wood grains at 4.88, six more between 3.2 and
 4.5. Every encoder setting was swept before anything was reverted. ETC1S at
 maximum quality rescues exactly one: `cb-archnight-white_baked.png` goes 3.392 →
 2.728 at quality 192 and replaces a 187 KB PNG with a 55 KB container, so it is
-both better looking and smaller. UASTC clears all nine and costs 123–456% of
-source, which is larger than simply shipping the source. So eight ship as JPEGs,
+both better looking and smaller. UASTC clears the other eight at 163–456% of
+source, which is larger, for every one of them, than simply shipping the source. So eight ship as JPEGs,
 under B1's per-asset rule for the third time.
 
 **Three size budgets go back to their pre-B5 values** — 6,200,000 / 330,000 /
