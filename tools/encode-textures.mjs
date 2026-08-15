@@ -87,6 +87,28 @@ const VRAM_FLOOR = 1024 * 1024;
 const GPU_KINDS = new Set(['model-texture', 'texture', 'environment']);
 
 /**
+ * The two textures `Skybox` owns, added in RM-005 C1.
+ *
+ * B5's docblock below said the room textures were out of scope because they load
+ * through `three/texture_cache.js`, which cannot hold a `CompressedTexture`.
+ * That is true of five of the seven. It is not true of these two: `Skybox` has
+ * never used the texture cache. It holds its own `TextureLoader`, and its
+ * environment path already builds the material inside the load callback, which
+ * is the shape a compressed texture needs and always was.
+ *
+ * They are also the two biggest, at 8.00 MB of the 11.67 MB available - so the
+ * blocker B5 identified correctly was standing in front of 31% of the prize.
+ *
+ * Named individually rather than by a `rooms/` prefix on purpose. The other five
+ * room textures really are behind the cache, and a pattern that swept them in
+ * would delete five source files the runtime cannot yet load.
+ */
+const SKYBOX_TEXTURES = new Set([
+	'rooms/textures/Ground_4K.jpg',
+	'rooms/textures/envs/Garden.jpg',
+]);
+
+/**
  * Only the textures inside `.glb` containers, and this is the sprint's real
  * boundary rather than a convenience.
  *
@@ -121,8 +143,23 @@ const GPU_KINDS = new Set(['model-texture', 'texture', 'environment']);
  *
  * `GLTFLoader` needs no such change: it has always resolved images
  * asynchronously and hands `KTX2Loader` the buffer itself.
+ *
+ * ## RM-005 C1 corrected the split, and the correction is worth reading
+ *
+ * The table above says "room textures 7 files 11.67 MB". Two of those seven are
+ * `Skybox`'s, and `Skybox` does not call `acquireTexture` - it never has. The
+ * accurate split is:
+ *
+ *     skybox textures   2 files    8.00 MB -> 2.00 MB   no cache involved
+ *     cache textures    5 files    3.67 MB -> 0.92 MB   needs the redesign
+ *
+ * So 69% of what B5 deferred was deferred behind a blocker that did not apply
+ * to it. The mistake was reading the module list off "what draws with a
+ * texture" instead of off `grep -n acquireTexture`, and it is recorded here
+ * rather than quietly fixed because the same shape - a costing named after its
+ * blocker - is what RM-005 exists to correct in two places.
  */
-const SCOPE = /^models\//;
+const SCOPE = (name) => /^models\//.test(name) || SKYBOX_TEXTURES.has(name);
 
 const CHECK = process.argv.includes('--check');
 const DRY = process.argv.includes('--dry');
@@ -199,7 +236,7 @@ async function main()
 	const targets = Object.entries(manifest.assets)
 		.filter(([name, entry]) => GPU_KINDS.has(entry.kind) && (!entry.url || entry.url === name))
 		.map(([name]) => name)
-		.filter((name) => SCOPE.test(name) && !name.endsWith('.ktx2'))
+		.filter((name) => SCOPE(name) && !name.endsWith('.ktx2'))
 		.sort();
 
 	// Already-transcoded work, carried forward.
