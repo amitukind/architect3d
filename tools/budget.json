@@ -315,40 +315,77 @@
     "started measuring documentation - which is the exact diagnosis A4 wrote about",
     "the IIFE before fixing it, left unapplied to the file it did not fix. The",
     "property the line guards is unchanged: three bundled would be far above 50 KB",
-    "minified or not, so the externals check still fires."
+    "minified or not, so the externals check still fires.",
+    "",
+    "RM-006 PUT public-total AND public-largest BACK WHERE B5 FOUND THEM, and that",
+    "sentence is the whole justification: 6,200,000 and 330,000 are not new numbers",
+    "chosen to fit a tree that grew, they are the values in this file at 17688b3,",
+    "the commit before B5.",
+    "",
+    "B5 lowered both - 6,200,000 -> 5,870,000 and 330,000 -> 271,000 - on the",
+    "strength of transcoding 18 model textures to KTX2/ETC1S. `npm run oracle` has",
+    "now rendered all 18 against the sources they were encoded from, and NINE of",
+    "them are past the 3.0 codec gate the project already had: nyc2.jpg at 7.00,",
+    "two wood grains at 4.88, and six more between 3.2 and 4.5. Every encoder",
+    "setting was swept before anything moved; ETC1S clears the gate for one of the",
+    "nine at a higher quality and UASTC clears all nine at 123-456% of source.",
+    "",
+    "So eight ship as JPEGs again, and the disk they take back is disk that was",
+    "never honestly saved. A ratchet exists to stop a limit drifting up while",
+    "nobody is looking. It does not exist to make a quality regression permanent by",
+    "pricing the fix out - and a limit set by a saving that failed the project's own",
+    "gate is exactly the case the ratchet was not written for. Neither number goes",
+    "one byte past where it already was.",
+    "",
+    "  public-total     5.28 -> 5.84 MB against a 5.91 MB ceiling",
+    "  public-largest    252 -> 307 KB  against a 322 KB ceiling  (oak_wood.jpg)",
+    "  demo-total      12.44 -> 13.05 MB against a 13.22 MB ceiling",
+    "  texture-vram    16.15 -> 27.38 MB, limit untouched at 45.15",
+    "",
+    "demo-total is the third of the three and moves for the same reason - B5",
+    "lowered it 13,860,000 -> 13,740,000 in the same commit. It is restored rather",
+    "than left alone even though 13.05 MB fits under 13,740,000, because 0.4% of",
+    "headroom is not a budget, it is a tripwire for whichever unrelated commit",
+    "arrives next. Applying the argument to two of the three lines B5 lowered and",
+    "not the third would just move the failure somewhere it explains nothing.",
+    "",
+    "The VRAM line is the price and it is paid out of headroom that was already",
+    "there. public-total lands with 1.2% under it rather than the 5% this file sets",
+    "limits with, which is tight and is left tight on purpose: the next texture",
+    "added to the catalog should have to argue for itself."
   ],
   "budgets": {
     "demo-js-gzip": {
       "limit": 371000,
-      "measured": 352786
+      "measured": 353326
     },
     "demo-css-gzip": {
       "limit": 10000,
       "measured": 7306
     },
     "demo-total": {
-      "limit": 13740000,
-      "measured": 13049317
+      "limit": 13860000,
+      "measured": 13685438
     },
     "lib-iife-gzip": {
       "limit": 268000,
       "measured": 255002
     },
     "public-total": {
-      "limit": 5870000,
-      "measured": 5532663
+      "limit": 6200000,
+      "measured": 6121106
     },
     "lib-esm-gzip": {
       "limit": 50300,
       "measured": 47836
     },
     "public-largest": {
-      "limit": 271000,
-      "measured": 257820
+      "limit": 330000,
+      "measured": 314335
     },
     "catalog-item-largest": {
       "limit": 384000,
-      "measured": 313799
+      "measured": 363192
     },
     "decoder-total": {
       "limit": 881000,
@@ -356,7 +393,7 @@
     },
     "texture-vram": {
       "limit": 47340000,
-      "measured": 16936243
+      "measured": 28713163
     }
   }
 }

@@ -1,8 +1,18 @@
 {
-	"containers": [],
+	"containers": [
+		{
+			"name": "models/js-glb/nyc-poster2.glb",
+			"images": [
+				"textures/nyc2.jpg"
+			],
+			"binSha256": "24b715ae31f26252",
+			"bytesBefore": 1704,
+			"bytesAfter": 1624
+		}
+	],
 	"catalogs": [],
 	"totals": {
-		"containers": 0,
+		"containers": 1,
 		"catalogs": 0
 	}
 }

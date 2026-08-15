@@ -878,19 +878,19 @@
 			"codec": "draco"
 		},
 		"models/js-glb/DWR_MATERA_DRESSER2.glb": {
-			"bytes": 6436,
-			"hash": "sha256-9Zbn6zPavTi1QcUCkPl/pLenpDtXrLBXWXsh17L5a1I=",
+			"bytes": 6352,
+			"hash": "sha256-AQeQml8dHfUtZl5Oo+3lpgGPRlYFkgPEbIIZmCqUupc=",
 			"kind": "model",
 			"codec": "draco"
 		},
 		"models/js-glb/GUSossingtonendtable.glb": {
-			"bytes": 23056,
-			"hash": "sha256-I8e0tOgoGhrmJODk8NiFsllP/+JJ/rQFrp44wGMlhjk=",
+			"bytes": 22936,
+			"hash": "sha256-crNaOqkuzHFmNoIcBFk0qe0EFPubtpbZyWLo7ghvrew=",
 			"kind": "model"
 		},
 		"models/js-glb/bd-shalebedside-smoke_baked.glb": {
-			"bytes": 8956,
-			"hash": "sha256-taOwAMChbN4E6LD3q3Xh5y/hJ099XYVBgosWFgbWHQc=",
+			"bytes": 8876,
+			"hash": "sha256-dLHu93jYqnUbiVAw6Oq+pScHTsBvPNdfG2J20tqLxIw=",
 			"kind": "model",
 			"codec": "draco"
 		},
@@ -907,8 +907,8 @@
 			"codec": "draco"
 		},
 		"models/js-glb/cb-clapboard_baked.glb": {
-			"bytes": 33664,
-			"hash": "sha256-OyMgyUM+jQ9Ug/2LwPaGQIC1kMFDM4Vgk59IfntJOGA=",
+			"bytes": 33584,
+			"hash": "sha256-aFna73Dj31sbri3dI2J+7E5408X+HnUebui0S2OMuDo=",
 			"kind": "model",
 			"codec": "draco"
 		},
@@ -949,8 +949,8 @@
 			"codec": "draco"
 		},
 		"models/js-glb/gus-churchchair-whiteoak.glb": {
-			"bytes": 40096,
-			"hash": "sha256-k9cRkM0H5K+Qo+6sC0bPASX0rHLzrDNi4rSEuHKwLPU=",
+			"bytes": 40016,
+			"hash": "sha256-1ulkukIUNF77Vn8piq6deIXoKVStDPbuuqvme+grDwQ=",
 			"kind": "model",
 			"codec": "draco"
 		},
@@ -961,8 +961,8 @@
 			"codec": "draco"
 		},
 		"models/js-glb/ik-ekero-orange_baked.glb": {
-			"bytes": 16192,
-			"hash": "sha256-bY1nkqJr6SaOgHSgTC1Vn0SLHBA9h/RBfXyoaHgD9jE=",
+			"bytes": 16112,
+			"hash": "sha256-vdnkPBaE72ZT1WRV4bt5bara5wFjJPEJsYWRU73mKWE=",
 			"kind": "model",
 			"codec": "draco"
 		},
@@ -973,8 +973,8 @@
 			"codec": "draco"
 		},
 		"models/js-glb/ik-stockholmcoffee-brown.glb": {
-			"bytes": 54680,
-			"hash": "sha256-Ymzw9nFBH1/CYM007rPh2oBM0q+xBNr9omVO+B8A4N4=",
+			"bytes": 54560,
+			"hash": "sha256-knWfA70SV5f9XXFaisxt/pLoKzg7xh94vxEFNcbKbck=",
 			"kind": "model"
 		},
 		"models/js-glb/ik_nordli_full.glb": {
@@ -984,8 +984,8 @@
 			"codec": "draco"
 		},
 		"models/js-glb/nyc-poster2.glb": {
-			"bytes": 1704,
-			"hash": "sha256-tOWuJXNgOMUFTKzARn5d/vLXUbPz7Y6KSEvDtu7mjOw=",
+			"bytes": 1624,
+			"hash": "sha256-bXoxmAIOebNK0Moyaeuf3+lK55s5IHbR1UTxyY4iG08=",
 			"kind": "model",
 			"codec": "draco"
 		},
@@ -1007,23 +1007,21 @@
 			"kind": "model-texture",
 			"codec": "ktx2"
 		},
-		"models/js-glb/textures/bd-shalebedside-smoke_baked.ktx2": {
-			"bytes": 44688,
-			"hash": "sha256-ym59cu9sZbyByXSlJ9j5ngvfu+kw7xEGgIakOif0b2c=",
-			"kind": "model-texture",
-			"codec": "ktx2"
+		"models/js-glb/textures/bd-shalebedside-smoke_baked.jpg": {
+			"bytes": 80600,
+			"hash": "sha256-Cs3JmrwKDcxeLoIoG1vmzw6kWVC5r8onRXw+FkVB3QQ=",
+			"kind": "model-texture"
 		},
 		"models/js-glb/textures/cb-archnight-white_baked.ktx2": {
-			"bytes": 41381,
-			"hash": "sha256-/uCMWLSfYuVqwG+/w03m0sLj7tCRUCoNkYONMU5rk28=",
+			"bytes": 55963,
+			"hash": "sha256-XdngsqALjx5RqlPdodxwkLeF4TrFomdGlG4ttBdjnvQ=",
 			"kind": "model-texture",
 			"codec": "ktx2"
 		},
-		"models/js-glb/textures/cb-clapboard_baked.ktx2": {
-			"bytes": 32555,
-			"hash": "sha256-lKmnD0fb/BTV3ulCWssnZB90sWyqIWz93aDytElddVM=",
-			"kind": "model-texture",
-			"codec": "ktx2"
+		"models/js-glb/textures/cb-clapboard_baked.jpg": {
+			"bytes": 56325,
+			"hash": "sha256-IU0mSv0a1Hn0KimJkn3JxmnsTSqTEee5ihpMo5OdFjI=",
+			"kind": "model-texture"
 		},
 		"models/js-glb/textures/cb-kendallbookcasewalnut_baked.ktx2": {
 			"bytes": 37886,
@@ -1055,11 +1053,10 @@
 			"kind": "model-texture",
 			"codec": "ktx2"
 		},
-		"models/js-glb/textures/grey-brown_wood.ktx2": {
-			"bytes": 103206,
-			"hash": "sha256-ni95dUktQshDBqAKQTaYl4r9wvrVB1eYlK7EgZNH9N0=",
-			"kind": "model-texture",
-			"codec": "ktx2"
+		"models/js-glb/textures/grey-brown_wood.jpg": {
+			"bytes": 300250,
+			"hash": "sha256-FyO8Or6bgIP61AaPNtKs/Ub2B9lnQQg3BLtjzFumnrk=",
+			"kind": "model-texture"
 		},
 		"models/js-glb/textures/ik-ekero-blue_baked.ktx2": {
 			"bytes": 22783,
@@ -1067,23 +1064,20 @@
 			"kind": "model-texture",
 			"codec": "ktx2"
 		},
-		"models/js-glb/textures/ik-ekero-orange_baked.ktx2": {
-			"bytes": 36447,
-			"hash": "sha256-tg1NzkBKDoSxrwfGW9tjskI9JHFZkYaFrOeeQ1nDNj4=",
-			"kind": "model-texture",
-			"codec": "ktx2"
+		"models/js-glb/textures/ik-ekero-orange_baked.jpg": {
+			"bytes": 58917,
+			"hash": "sha256-RH+EewNO3+ErzIQclCYBV1AfcPUgz4ZylErsP23UdrY=",
+			"kind": "model-texture"
 		},
-		"models/js-glb/textures/nyc2.ktx2": {
-			"bytes": 16358,
-			"hash": "sha256-8df/SXUGbcx1zK16EDo995KuI7iA7tTY/o8Wl+ST8P8=",
-			"kind": "model-texture",
-			"codec": "ktx2"
+		"models/js-glb/textures/nyc2.jpg": {
+			"bytes": 40783,
+			"hash": "sha256-xiMLjP6gmeucTlaScc1lQrnVrXJNjwCAri5MSW9GXgQ=",
+			"kind": "model-texture"
 		},
-		"models/js-glb/textures/oak_wood.ktx2": {
-			"bytes": 107292,
-			"hash": "sha256-QPHdfth9PZdhoWWLcGKFu4CtvRjYmUZVIG9NTQbp6oE=",
-			"kind": "model-texture",
-			"codec": "ktx2"
+		"models/js-glb/textures/oak_wood.jpg": {
+			"bytes": 314335,
+			"hash": "sha256-9BbAkiP3PvSN+YNzyyS943s1Xljvi4Gpm86E2iS4BW8=",
+			"kind": "model-texture"
 		},
 		"models/js-glb/textures/ore-3legged-white_baked.ktx2": {
 			"bytes": 27209,
@@ -1096,17 +1090,15 @@
 			"hash": "sha256-Vri8Ew+rMiqC7adanHgRuB1FggIIsLqlA5+hawdKkXU=",
 			"kind": "model-texture"
 		},
-		"models/js-glb/textures/walnut-marin.ktx2": {
-			"bytes": 45830,
-			"hash": "sha256-2CPqDaQEp26EQnzk+QtTBemibfSOW/zhodhTUf/F5iU=",
-			"kind": "model-texture",
-			"codec": "ktx2"
+		"models/js-glb/textures/walnut-marin.jpg": {
+			"bytes": 80672,
+			"hash": "sha256-LBGvkKrfzzzptylivG8gXqQh0JFen2y/Fii2/+nEU2A=",
+			"kind": "model-texture"
 		},
-		"models/js-glb/textures/we-narrow6white_baked.ktx2": {
-			"bytes": 33912,
-			"hash": "sha256-DLgc1Z4mgsP5YFAPXVI+Np6ENRQe3rGK+eEreo0Knvc=",
-			"kind": "model-texture",
-			"codec": "ktx2"
+		"models/js-glb/textures/we-narrow6white_baked.jpg": {
+			"bytes": 63239,
+			"hash": "sha256-LbSlDfpF9swNa3wn1HyIRD9p2FUqm/nmGveq7uwOfPQ=",
+			"kind": "model-texture"
 		},
 		"models/js-glb/textures/white_wood.ktx2": {
 			"bytes": 46922,
@@ -1121,8 +1113,8 @@
 			"codec": "draco"
 		},
 		"models/js-glb/we-narrow6white_baked.glb": {
-			"bytes": 24188,
-			"hash": "sha256-Jy1SfJ+0WXcY8AUQ4SeY/kSsEBo/MFnWJubWp6ae0Z0=",
+			"bytes": 24108,
+			"hash": "sha256-Xs3JanW3N/0ExeALaUiFZMiGPQtORsZnpQIVBftRYL8=",
 			"kind": "model",
 			"codec": "draco"
 		},

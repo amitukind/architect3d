@@ -121,17 +121,47 @@ export function writeGlb(json, rest)
 	return out;
 }
 
+/** What an image's `mimeType` should say, from the name it now carries. */
+const MIME = {'.ktx2': 'image/ktx2', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg'};
+
 /**
- * Repoint one container's images at their transcoded selves.
+ * Repoint one container's images, in whichever direction the tree now needs.
+ *
+ * ## Why this goes both ways (RM-006)
+ *
+ * B5 wrote this to move references from a source to its transcode, once, and
+ * that was the only direction anything needed - a texture was encoded and it
+ * stayed encoded. RM-006 broke that assumption: a per-asset refusal is a verdict
+ * on a MEASUREMENT, and a measurement can change. Nine of B5's eighteen turned
+ * out to be past the codec gate, so eight of them go back to being JPEGs, and
+ * the references have to follow them back.
+ *
+ * A one-way repointer would have left eight containers naming files that are no
+ * longer there. `--check` catches that, which is the whole reason it looks for
+ * the file beside the container - but catching it is not fixing it, and the fix
+ * by hand is editing the JSON chunk of eight GLBs.
+ *
+ * The reverse direction takes its target from the tree rather than from the
+ * report: a `.ktx2` reference with no entry in `renamed` is restored to whatever
+ * source sits beside it under the same stem. That is the same question
+ * `--check` asks, so a container this function leaves alone is one `--check`
+ * will pass, by construction.
  *
  * @param {Object} json The glTF JSON chunk, mutated in place.
  * @param {Map<string, string>} renamed source basename -> ktx2 basename
+ * @param {(stem: string, directory: string) => string | null} findSource names the
+ *        source file sitting in that directory beside the container, as a BARE
+ *        BASENAME - the caller joins it back onto the URI's own directory, the
+ *        same way the forward path does - or null when the `.ktx2` is still the
+ *        right target.
  * @returns {string[]} the images that changed
  */
-export function repointJson(json, renamed)
+export function repointJson(json, renamed, findSource = () => null)
 {
 	const changed = [];
 	const movedImages = new Set();
+	const returnedImages = new Set();
+	const transcoded = new Set(renamed.values());
 
 	for (const [index, image] of (json.images || []).entries())
 	{
@@ -140,12 +170,25 @@ export function repointJson(json, renamed)
 		// writer; compare on the decoded basename, which is what the transcode
 		// report keys on.
 		const decoded = decodeURIComponent(image.uri);
-		const target = renamed.get(posix.basename(decoded));
-		if (!target) { continue; }
+		const base = posix.basename(decoded);
+		const target = renamed.get(base);
+		if (target)
+		{
+			image.uri = posix.join(posix.dirname(decoded), target);
+			image.mimeType = 'image/ktx2';
+			movedImages.add(index);
+			changed.push(image.uri);
+			continue;
+		}
 
-		image.uri = posix.join(posix.dirname(decoded), target);
-		image.mimeType = 'image/ktx2';
-		movedImages.add(index);
+		// The way back. Only for a `.ktx2` the report no longer claims, so a
+		// container pointing at a live transcode is never disturbed.
+		if (!base.toLowerCase().endsWith('.ktx2') || transcoded.has(base)) { continue; }
+		const source = findSource(base.replace(/\.ktx2$/i, ''), posix.dirname(decoded));
+		if (!source) { continue; }
+		image.uri = posix.join(posix.dirname(decoded), source);
+		image.mimeType = MIME[posix.extname(source).toLowerCase()] || 'application/octet-stream';
+		returnedImages.add(index);
 		changed.push(image.uri);
 	}
 
@@ -157,20 +200,35 @@ export function repointJson(json, renamed)
 	// JPEG, which is the failure this is meant to prevent outright.
 	for (const texture of json.textures || [])
 	{
-		if (texture.source === undefined || !movedImages.has(texture.source)) { continue; }
-		texture.extensions = texture.extensions || {};
-		texture.extensions[BASISU] = {source: texture.source};
-		delete texture.source;
+		if (texture.source !== undefined && movedImages.has(texture.source))
+		{
+			texture.extensions = texture.extensions || {};
+			texture.extensions[BASISU] = {source: texture.source};
+			delete texture.source;
+			continue;
+		}
+		// And the way back: the plain `source` is how a JPEG is reached, so the
+		// extension entry is removed rather than left pointing at an image that
+		// is no longer a KTX2.
+		const through = texture.extensions && texture.extensions[BASISU];
+		if (!through || !returnedImages.has(through.source)) { continue; }
+		texture.source = through.source;
+		delete texture.extensions[BASISU];
+		if (!Object.keys(texture.extensions).length) { delete texture.extensions; }
 	}
 
 	// Required, not merely used: without the extension there is no way to read
 	// these images at all, and the spec says a container that cannot be
-	// rendered without an extension must declare it required.
+	// rendered without an extension must declare it required. Dropped again when
+	// the last KTX2 leaves - a container that declares an extension it does not
+	// use is refused outright by strict loaders.
+	const stillUsed = (json.textures || []).some((texture) => texture.extensions && texture.extensions[BASISU]);
 	for (const key of ['extensionsUsed', 'extensionsRequired'])
 	{
-		json[key] = json[key] || [];
-		if (!json[key].includes(BASISU)) { json[key].push(BASISU); }
+		json[key] = (json[key] || []).filter((name) => name !== BASISU);
+		if (stillUsed) { json[key].push(BASISU); }
 		json[key].sort();
+		if (!json[key].length) { delete json[key]; }
 	}
 
 	return changed;
@@ -206,7 +264,17 @@ function main()
 		if (!parsed) { problems.push(`${name} is not a readable GLB`); continue; }
 
 		const before = sha(parsed.rest);
-		const changed = repointJson(parsed.json, renamed);
+		// A source beside the container under the same stem, which is exactly
+		// what `--check` requires a reference to resolve to.
+		const findSource = (stem, directory) =>
+		{
+			for (const extension of ['.jpg', '.jpeg', '.png'])
+			{
+				if (existsSync(join(dirname(path), directory, stem + extension))) { return stem + extension; }
+			}
+			return null;
+		};
+		const changed = repointJson(parsed.json, renamed, findSource);
 		if (!changed.length) { continue; }
 
 		const rebuilt = writeGlb(parsed.json, parsed.rest);
