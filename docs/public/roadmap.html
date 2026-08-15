@@ -240,7 +240,13 @@ footer .credit a:hover{text-decoration:underline}
   <a href="#delivery-findings">21 · Decision log</a>
   <a href="#delivery-risks">22 · Risks &amp; dependencies</a>
   <a href="#delivery-compat">23 · Compatibility &amp; non-goals</a>
-  <a href="#delivery-sprints">24 · Sprints B1–B3</a>
+  <a href="#delivery-sprints">24 · Sprints B1–B5</a>
+
+  <div class="toc-head mono" style="margin-top:22px">RESIDUAL RM-005</div>
+  <a href="#residual">25 · Executive summary</a>
+  <a href="#residual-findings">26 · Decision log</a>
+  <a href="#residual-risks">27 · Risks &amp; dependencies</a>
+  <a href="#residual-sprints">28 · Sprints C1–C2</a>
 </nav>
 
 <main>
@@ -2667,10 +2673,359 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
   <p style="margin-top:16px">Three to four weeks end to end, and less if they overlap, since nothing here waits on anything else. That independence is the difference between this program and the last two: RM-003 had a critical path because each sprint installed something the next one needed, and this one has three unrelated jobs that happened to be left over. <strong>If only one thing gets done: B1</strong> &mdash; it is the only one of the three a user can feel, and the seam it uses was built by a sprint that has already shipped.</p>
 </section>
 
+<header class="sheet" id="residual-sheet" style="margin-top:56px">
+  <div class="sheet-body">
+    <div class="eyebrow">RESIDUAL &amp; TYPE TIER · DRAWING Nº RM-005</div>
+    <h1>Residual Program</h1>
+    <p class="lede">Two sprints against the only two things three programs agreed to leave. Both were costed by the sprint that deferred them, and <strong>measuring found both costings wrong in the same direction</strong> &mdash; each deferral was described by its blocker rather than by its contents, and in each case the blocker turns out to guard the smaller half. Five findings, all produced by running something, and one of them is a crash reproduced at a prompt.</p>
+  </div>
+  <div class="titleblock">
+    <div><div class="tb-k">PROJECT</div><div class="tb-v">architect3d</div></div>
+    <div><div class="tb-k">SUCCEEDS</div><div class="tb-v">RM-004 — all 5 sprints landed</div></div>
+    <div><div class="tb-k">BRANCH</div><div class="tb-v">amit @ 5bfb795 · v2.3.0</div></div>
+    <div><div class="tb-k">SCOPE</div><div class="tb-v">10 pixel textures · 55 library files · 355 errors</div></div>
+    <div><div class="tb-k">DATE</div><div class="tb-v">2026-08-15</div></div>
+    <div><div class="tb-k">REV</div><div class="tb-v">A · proposed</div></div>
+  </div>
+</header>
+
+<!-- ======================= 25 EXECUTIVE SUMMARY ======================= -->
+<section id="residual">
+  <div class="sec-eyebrow">§ 25 · EXECUTIVE SUMMARY</div>
+  <h2>Two deferrals, each costed by its blocker</h2>
+  <p class="sec-sub">B5 wrote down what the remaining texture memory would cost and called it a cache redesign. B3 wrote down what the remaining type errors would cost and called it 355. Both numbers are in the repository, both were honest when written, and both describe the hard part rather than the whole part.</p>
+
+  <div class="stats">
+    <div class="stat"><div class="v">68.6%</div><div class="k">of the remaining texture VRAM is behind a module that <strong>never calls the texture cache</strong>. <code>Skybox</code> uses <code>TextureLoader</code> directly, twice</div></div>
+    <div class="stat"><div class="v">0.00 MB</div><div class="k">the Texture VRAM budget moved when a 669&times;1024 KTX2 was dropped into <code>public/</code>. It counts <code>.png</code>, <code>.jpg</code> and <code>.jpeg</code>, and B5 converted 18 textures out of that set</div></div>
+    <div class="stat"><div class="v">356</div><div class="k">what the type ledger's NOT YET rows sum to, under a heading that says 355. Fifth drift, and this one landed <em>in the commit that added the test</em></div></div>
+    <div class="stat"><div class="v">1</div><div class="k">crash reproduced from the checker's output. <code>RoofItem.closestCeilingPoint()</code> throws on any design with no rooms, and the constructor calls it</div></div>
+  </div>
+
+  <p><strong>What measuring changed.</strong> The texture job was recorded as &ldquo;make <code>acquireTexture</code> asynchronous and change <code>Floor</code>, <code>Edge</code> and <code>Skybox</code> with it&rdquo; &mdash; in <code>tools/encode-textures.mjs</code>, in <code>docs/architecture.md</code>, and in the note handed to the last session. <code>Skybox</code> does not call <code>acquireTexture</code>. It never has. It holds its own <code>TextureLoader</code>, fetches two files by string literal, and owns <strong>8.00 MB of the 11.67 MB that is worth compressing</strong>. The redesign that was blocking the sprint reaches the other 3.67 MB.</p>
+
+  <p>The type job has the mirror shape. 355 is the count the audit command prints, but <code>checkJs</code> is off, so <strong><code>npm run typecheck</code> does not see a single one of them</strong> &mdash; they live in the 30 files under <code>src/scripts</code> with no <code>// @ts-check</code> pragma. The count is not the deliverable; the pragma is. And 11 of those 30 files have <strong>no errors at all</strong>: they are clean, unprotected, and free.</p>
+
+  <h3>Architecture health metrics</h3>
+  <p>Continuing RM-004's numbering. Every row is computable today by a command in the repository. One target is deliberately conditional on a spike and is marked as such.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Nº</th><th>Metric</th><th class="num">Today</th><th class="num">Target</th><th>How it is measured</th><th>Sprint</th></tr></thead>
+    <tbody>
+      <tr><td>M-15</td><td>Uploaded textures the VRAM budget can count</td><td class="num">10 of 28</td><td class="num">28 of 28</td><td>Compare the file list <code>textureVram()</code> walks against the manifest entries whose <code>kind</code> is <code>model-texture</code>, <code>texture</code> or <code>environment</code></td><td>C1</td></tr>
+      <tr><td>M-16</td><td>Texture VRAM, on the corrected measurement</td><td class="num">20.15 MB</td><td class="num">11.40 MB</td><td><code>npm run budget</code> after M-15. The target assumes the encoder's 1&nbsp;bpp model and drops to 14.15 MB if the C1 spike says the cache cannot share a compressed upload &mdash; see N-2</td><td>C1</td></tr>
+      <tr><td>M-17</td><td>Textures fetched without passing through <code>AssetResolver</code></td><td class="num">2</td><td class="num">0</td><td><code>grep -n "rooms/textures/" src/scripts/three/*.js</code>, minus the constants that are resolved at their point of use</td><td>C1</td></tr>
+      <tr><td>M-18</td><td><code>vue-tsc --checkJs</code> errors outside the checked set</td><td class="num">355</td><td class="num">0</td><td><code>npx vue-tsc --noEmit --checkJs 2>&amp;1 | grep -c "error TS"</code></td><td>C2</td></tr>
+      <tr><td>M-19</td><td><code>src/scripts</code> files carrying <code>// @ts-check</code></td><td class="num">25 of 55</td><td class="num">55 of 55</td><td><code>find src/scripts -name '*.js' | wc -l</code> against the same list filtered by <code>grep -l "@ts-check"</code></td><td>C2</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><strong>Why M-19 and not M-18 is the one that matters.</strong> B3 proved this the hard way: it removed a component's pragma, reintroduced the error the component used to have, and got a completely clean <code>npm run typecheck</code>. With <code>checkJs</code> off the pragma <em>is</em> the protection. A count that reaches zero and is not opted in has bought a snapshot; a file that carries the pragma has bought a gate.</p>
+</section>
+
+<!-- ======================= 26 DECISION LOG ======================= -->
+<section id="residual-findings">
+  <div class="sec-eyebrow">§ 26 · DECISION LOG</div>
+  <h2>Five findings, with the evidence</h2>
+  <p class="sec-sub">All five are marked <span class="chip acc">measured</span>: four were produced by running a command against the tree at <code>5bfb795</code>, and the fifth by calling the method and catching what it threw. Three of them contradict something the repository currently says about itself, and two of those three were written by the program immediately preceding this one.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Nº</th><th>Finding</th><th>Severity</th><th>Where</th><th>Sprint</th></tr></thead>
+    <tbody>
+      <tr><td>J-1</td><td>Most of the texture memory left is not behind the cache that was blocking it</td><td><span class="chip warn">med</span></td><td><code>three/skybox.js:104, 116</code></td><td>C1</td></tr>
+      <tr><td>J-2</td><td>Two textures are fetched by string literal, so the manifest cannot reach them</td><td><span class="chip warn">med</span></td><td><code>three/skybox.js:45, 116</code></td><td>C1</td></tr>
+      <tr><td>J-3</td><td>The VRAM budget stopped counting the eighteen textures B5 compressed</td><td><span class="chip warn">med</span></td><td><code>tools/check-budget.mjs:264</code></td><td>C1</td></tr>
+      <tr><td>J-4</td><td>The type ledger drifted a fifth time, in the commit that added the test against drift</td><td><span class="chip">low</span></td><td><code>tsconfig.json:65–71</code> · <code>tests/type-coverage.test.js:146</code></td><td>C2</td></tr>
+      <tr><td>J-5</td><td>The checker names a reachable crash, and it is not one of the pinned ones</td><td><span class="chip warn">med</span></td><td><code>items/roof_item.js:95</code></td><td>C2</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>J-1 · The memory left is not behind the blocker <span class="chip warn">med</span> <span class="chip acc">measured</span></h3>
+  <p>Ten pixel files remain in <code>public/</code> outside the thumbnail directories. Reading each one's header for its dimensions and applying the same four-bytes-per-texel-with-mips arithmetic the budget uses:</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>File</th><th class="num">Pixels</th><th class="num">Disk</th><th class="num">VRAM</th><th>Reaches the GPU through</th></tr></thead>
+    <tbody>
+      <tr><td><code>rooms/textures/Ground_4K.jpg</code></td><td class="num">1024&times;1024</td><td class="num">57.7 KB</td><td class="num">5.333 MB</td><td><code>Skybox</code> &mdash; its own <code>TextureLoader</code></td></tr>
+      <tr><td><code>rooms/textures/envs/Garden.jpg</code></td><td class="num">1024&times;512</td><td class="num">249.8 KB</td><td class="num">2.667 MB</td><td><code>Skybox</code> &mdash; its own <code>TextureLoader</code></td></tr>
+      <tr><td><code>rooms/textures/hardwood.jpg</code></td><td class="num">512&times;512</td><td class="num">142.2 KB</td><td class="num">1.333 MB</td><td><code>acquireTexture</code> &mdash; the default floor</td></tr>
+      <tr><td><code>rooms/textures/marbletiles.jpg</code></td><td class="num">512&times;512</td><td class="num">162.3 KB</td><td class="num">1.333 MB</td><td><code>acquireTexture</code></td></tr>
+      <tr><td><code>rooms/textures/light_brick.jpg</code></td><td class="num">256&times;256</td><td class="num">59.3 KB</td><td class="num">0.333 MB</td><td><code>acquireTexture</code></td></tr>
+      <tr><td><code>rooms/textures/light_fine_wood.jpg</code></td><td class="num">256&times;256</td><td class="num">40.6 KB</td><td class="num">0.333 MB</td><td><code>acquireTexture</code></td></tr>
+      <tr><td><code>rooms/textures/walllightmap.png</code></td><td class="num">256&times;256</td><td class="num">16.8 KB</td><td class="num">0.333 MB</td><td><code>acquireTexture</code> &mdash; the shared wall lightmap</td></tr>
+      <tr><td><code>rooms/textures/wallmap.png</code></td><td class="num">256&times;256</td><td class="num">0.7 KB</td><td class="num">0.333 MB</td><td><code>acquireTexture</code> &mdash; below the encoder's gate</td></tr>
+      <tr><td><code>rooms/textures/wallmap_yellow.png</code></td><td class="num">256&times;256</td><td class="num">0.7 KB</td><td class="num">0.333 MB</td><td><code>acquireTexture</code> &mdash; below the gate</td></tr>
+      <tr><td><code>models/js-glb/textures/ps_7.jpg</code></td><td class="num">200&times;200</td><td class="num">1.4 KB</td><td class="num">0.203 MB</td><td>container &mdash; below the gate</td></tr>
+      <tr><td><strong>Total</strong></td><td class="num"></td><td class="num">731.5 KB</td><td class="num">12.54 MB</td><td></td></tr>
+    </tbody>
+  </table></div>
+
+  <p>The last three fail B5's gate &mdash; encode only if the file shrinks <em>or</em> at least 1 MB of VRAM comes back &mdash; and two of them are 0.7 KB PNGs that a KTX2 container would make larger. So <strong>11.67 MB across seven files is what is actually available</strong>, and it divides in a way nothing in the repository currently says:</p>
+
+  <ul>
+    <li><strong>8.00 MB &mdash; 68.6% &mdash; belongs to <code>Skybox</code>, which does not use the texture cache.</strong> <code>skybox.js:104</code> holds <code>new TextureLoader()</code> as an instance field and <code>skybox.js:116</code> constructs a second one inline. Neither goes near <code>acquireTexture</code>, so neither is affected by what <code>acquireTexture</code> promises</li>
+    <li><strong>3.67 MB &mdash; 31.4% &mdash; goes through the cache</strong>, and is the part the redesign is for</li>
+  </ul>
+
+  <p>Better than that: <strong>one of <code>Skybox</code>'s two paths is already the shape the redesign is trying to reach.</strong> <code>setEnvironmentMap()</code> builds its <code>ShaderMaterial</code> <em>inside</em> the load callback (<code>skybox.js:305&ndash;317</code>), so the material is constructed after the texture exists and could take a <code>CompressedTexture</code> today without a line changing in how it is structured. The ground path is the one that uses <code>TextureLoader.load()</code>'s synchronous return, and restructuring it is a local edit in one file &mdash; the material is built twenty lines below the load, from a local variable.</p>
+
+  <p class="risk-note"><b>What the repository says, and why it said it.</b> <code>tools/encode-textures.mjs</code> and <code>docs/architecture.md</code> both name &ldquo;<code>Floor</code>, <code>Edge</code> and <code>Skybox</code>&rdquo; as the three modules the redesign has to change. The first two are right. <code>Skybox</code> was almost certainly included because it is the third thing in <code>three/</code> that draws with a texture, and because nobody grepped: the claim is one <code>grep -n acquireTexture src/scripts/three/skybox.js</code> away from being checked, and it returns nothing. The costing was not wrong about the cache &mdash; the cache blocker is real and B5 read it correctly out of <code>KTX2Loader</code>'s return contract. It was wrong about how much of the prize sat behind it.</p>
+
+  <h3>J-2 · Two textures the manifest cannot reach <span class="chip warn">med</span> <span class="chip acc">measured</span></h3>
+  <p><code>Skybox</code> fetches both of its textures by string literal:</p>
+  <ul>
+    <li><code>skybox.js:45</code> &mdash; <code>this.defaultEnvironment = 'rooms/textures/envs/Garden.jpg'</code>, handed to <code>setEnvironmentMap()</code>, which calls <code>this.texture.load(url, …)</code> directly</li>
+    <li><code>skybox.js:116</code> &mdash; <code>new TextureLoader().load('rooms/textures/Ground_4K.jpg', …)</code>, the URL written inline at the call</li>
+  </ul>
+
+  <p>Every other texture in the viewer goes through <code>this.runtime.assets.resolve(url).url</code> first &mdash; <code>Floor</code> at <code>floor.js:115</code>, <code>Edge</code> at <code>edge.js:94</code> and <code>edge.js:297</code>. That indirection is the whole of A5: a logical name in a document, a physical URL at runtime. It is also the mechanism the hardwood retirement used. <code>rooms/textures/hardwood.png</code> is not on disk any more and every design that names it still opens, because the manifest carries <code>"url": "rooms/textures/hardwood.jpg"</code> against the old name and <code>Floor</code> asks the resolver. <strong><code>Skybox</code> does not ask, so for these two files the retirement mechanism does not exist.</strong></p>
+
+  <p>This is why J-2 is a prerequisite for J-1's 8.00 MB rather than a tidy-up alongside it. Converting <code>Ground_4K.jpg</code> to <code>Ground_4K.ktx2</code> <em>is</em> a retirement &mdash; it is the same operation, on the same table, that <code>hardwood.png</code> went through &mdash; and a retirement only reaches code that resolves. Doing the encode first would delete a file that <code>skybox.js:116</code> still names, and the sky would render on a missing texture.</p>
+
+  <p>The fix is small and the seam is already there. <code>Skybox</code>'s constructor is <code>(scene, renderer, profile)</code>, and <code>scene</code> is the app's <code>Scene</code>, which holds <code>this.runtime</code> (<code>model/scene.js:49</code>) and already reaches <code>this.runtime.assets</code> twice for decoder paths. The resolver is one property access away from both call sites.</p>
+
+  <p class="risk-note"><b>Why this has cost nothing so far.</b> B4 downscaled every oversized texture <em>in place</em> &mdash; same filename, new contents &mdash; and the reason that worked at all was that a name which does not move needs no reference rewriting. Both of these files were rewritten by B4 and <code>Skybox</code> picked up the change without knowing there had been one. A bypass is invisible until the first change that moves a name, and C1 is that change.</p>
+
+  <h3>J-3 · The budget stopped counting what B5 compressed <span class="chip warn">med</span> <span class="chip acc">measured</span></h3>
+  <p><code>textureVram()</code> walks <code>public/</code> and sums <code>w &times; h</code> for every file whose extension is in <code>PIXEL</code>, which is <code>.png</code>, <code>.jpg</code> and <code>.jpeg</code> (<code>check-budget.mjs:264</code>). B5 converted 18 textures to <code>.ktx2</code>. <strong>Those 18 now contribute zero.</strong></p>
+
+  <p>Demonstrated rather than argued: copying <code>public/models/js-glb/textures/oak_wood.ktx2</code> &mdash; a 669&times;1024 texture, 3.65 MB uncompressed &mdash; into <code>public/rooms/textures/</code> and re-running the budget moves the line by <strong>0.00 MB</strong>. It reports 12.54 MB before and 12.54 MB after.</p>
+
+  <p>So the figure in <code>tools/budget.json</code> is not what its own note says it is. The note reads:</p>
+  <div class="tw"><table>
+    <thead><tr><th>What the note says</th><th>What the code does</th></tr></thead>
+    <tbody><tr>
+      <td>&ldquo;The number it reports, 12.54 MB, assumes every KTX2 transcodes to a 1 bpp GPU format&rdquo;</td>
+      <td>Skips <code>.ktx2</code> entirely. At 1 bpp the 18 files are 7.61 MB, so the number the note describes would be <strong>20.15 MB</strong></td>
+    </tr></tbody>
+  </table></div>
+
+  <p>Both halves of the note's reasoning survive this; only the arithmetic is wrong. The headroom really is there to cover a device with no compressed format at all, where Basis falls back to RGBA8 and the tree costs 43.00 MB &mdash; and the limit, 45.15 MB, is still exactly 1.05&times; that fallback. Nothing about the ceiling needs to change. What needs to change is that <strong>the line cannot currently see a regression in the format it exists to encourage</strong>: someone adding a 4K KTX2 environment map would move this budget by nothing at all.</p>
+
+  <p class="risk-note"><b>The correction makes the number go up, and that is the precedent.</b> B4 hit this same line and <em>corrected</em> it rather than moving it &mdash; B1 had counted 202 images at 164 MB when 174 of them were DOM thumbnails no GPU is asked for. The honest figure was smaller and the limit came down with it. This time the honest figure is larger, 12.54 &rarr; 20.15 MB, and the limit stays where it is. A budget that improves because the measurement stopped looking is the one failure mode this program's method exists to catch, and it has now happened twice in the same file.</p>
+
+  <h3>J-4 · A fifth drift, in the commit that added the test <span class="chip">low</span> <span class="chip acc">measured</span></h3>
+  <p>The ledger in <code>tsconfig.json</code> has been wrong four times, and the fourth &mdash; B5 adding <code>core/texture_formats.js</code> without moving either count that touched it &mdash; is why <code>tests/type-coverage.test.js</code> now parses the numbers instead of trusting them. Recounting at <code>5bfb795</code>:</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Area</th><th class="num">Ledger</th><th class="num">Tree</th><th>Note</th></tr></thead>
+    <tbody>
+      <tr><td><code>src/scripts/three</code></td><td class="num">148</td><td class="num">148</td><td>108 in <code>main.js</code>, 22 in <code>controller.js</code></td></tr>
+      <tr><td><code>src/scripts/model</code></td><td class="num">111</td><td class="num">111</td><td>42 in <code>floorplan.js</code>, 20 in <code>corner.js</code>, 18 in <code>room.js</code></td></tr>
+      <tr><td><code>src/scripts/items</code></td><td class="num">55</td><td class="num">55</td><td>31 in <code>item.js</code>, 13 in <code>wall_item.js</code></td></tr>
+      <tr><td><code>src/scripts/floorplanner</code></td><td class="num">41</td><td class="num">41</td><td>18 in <code>floorplanner_view.js</code>, 15 in <code>floorplanner.js</code></td></tr>
+      <tr><td><code>src/app/main.js</code></td><td class="num">1</td><td class="num">0</td><td><strong>Stale.</strong> The row the same commit's own prose says it removed</td></tr>
+      <tr><td><strong>Stated total</strong></td><td class="num">355</td><td class="num">355</td><td>Correct &mdash; and its own rows sum to <strong>356</strong></td></tr>
+    </tbody>
+  </table></div>
+
+  <p>The prose four lines above the table says it plainly: <em>&ldquo;The 356 became 355 when RM-004's follow-on gave the checker <code>vite/client</code>, so <code>src/app/main.js</code> stopped reporting TS2882.&rdquo;</em> The heading was updated to 355 and the row that went to zero was left in place. <code>git log -S</code> puts all three changes &mdash; the new heading, the new test, the surviving row &mdash; in <strong><code>b596fd8</code></strong>, one commit.</p>
+
+  <p>The test does not catch it because the test does not look. It parses <code>CHECKED - (\d+) files</code>, verifies four named directories against the tree, and sums the itemisation with <code>itemised.slice(0, 7)</code>. The CHECKED block has exactly seven numbered rows, so that slice isolates it correctly &mdash; <em>positionally</em>. The five NOT YET rows are never read. Two consequences, and the second is the one that will bite:</p>
+  <ul>
+    <li>The NOT YET itemisation can say anything, because nothing compares it to anything. Its total is asserted as a ceiling elsewhere, deliberately, so that improving the tree cannot fail the build &mdash; but a ceiling is satisfied by 356 as readily as by 355</li>
+    <li><strong><code>slice(0, 7)</code> is a constant that has to change whenever a CHECKED row is added.</strong> Add one and the sum silently omits it while picking up the first NOT YET row instead. The test would still pass roughly as often as not, which is worse than failing</li>
+  </ul>
+
+  <p>One smaller inaccuracy in the same note, recorded rather than fixed: it states that <code>grep -rn "@ts-ignore\|@ts-expect-error" src</code> &ldquo;returns 7 and all 7 are P2's deliberate ones&rdquo;. The grep does return 7, but only <strong>4</strong> are directives &mdash; the other three are the docblock explaining them. The test has this right and asserts <code>&le; 4</code>; only the prose is loose.</p>
+
+  <h3>J-5 · A reachable crash the checker already names <span class="chip warn">med</span> <span class="chip acc">measured</span></h3>
+  <p>Two of the 355 sit on one line, <code>items/roof_item.js:95</code>: <code>'result' is possibly 'null'</code> and <code>'result.closestPoint' is possibly 'null'</code>. Reading the method around them:</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Step</th><th>What happens</th></tr></thead>
+    <tbody>
+      <tr><td><code>roof_item.js:80</code></td><td><code>var result = null;</code></td></tr>
+      <tr><td><code>roof_item.js:81</code></td><td><code>for (var i=0; i&lt; roofs.length; i++)</code> &mdash; the only place <code>result</code> is assigned</td></tr>
+      <tr><td><code>roof_item.js:93</code></td><td><code>if (globalResult.point == null)</code> &mdash; true when the loop never ran</td></tr>
+      <tr><td><code>roof_item.js:95</code></td><td><code>return result.closestPoint.clone();</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <p><code>roofs</code> is <code>this.model.floorplan.roofPlanes()</code>, which pushes one plane per room. A design with no rooms gives an empty array, the loop body never executes, and <code>result</code> is still <code>null</code> at line 95. Called with a stub floorplan returning <code>[]</code>:</p>
+
+  <p class="risk-note"><code>TypeError: Cannot read properties of null (reading 'closestPoint')</code></p>
+
+  <p><strong><code>RoofItem</code>'s constructor calls this</strong> &mdash; <code>roof_item.js:24</code>, <code>var co = this.closestCeilingPoint();</code> &mdash; so the crash is not in a corner of the API. It is on the path that adds a ceiling item, and the condition is &ldquo;the floorplan has no rooms&rdquo;, which is the state every design starts in.</p>
+
+  <p>It is worth being precise about what makes this different from the four arity bugs P2 found in <code>core/utils.js</code>. Those are <em>preserved</em>: each is pinned with <code>@ts-expect-error</code>, each carries a docblock naming what it breaks and why the library depends on the broken behaviour, and each has a characterization test. They are decisions. This one is pinned by nothing, documented nowhere, and lives in a file with no pragma &mdash; so <code>npm run typecheck</code> is silent about it, and the only reason it is visible at all is that somebody ran the audit command and read the output.</p>
+
+  <h3>The shape of the other 353</h3>
+  <p>Bucketed by code, across 19 files and 16 distinct codes:</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Cluster</th><th class="num">Count</th><th>What it is, and what closes it</th></tr></thead>
+    <tbody>
+      <tr><td>TS2339 &mdash; property does not exist</td><td class="num">169</td><td>Fields assigned outside a constructor and never declared. Concentrated: 32 on <code>OrbitControls</code>, 26 on <code>Item</code>, 12 each on <code>Main</code> and <code>Element</code>, 11 on <code>Floorplan</code>. A declaration each</td></tr>
+      <tr><td>Strict-null family &mdash; TS2531/18046/18047</td><td class="num">75</td><td>The family that found real defects in P2 and has found J-5 here. Each needs reading, not annotating</td></tr>
+      <tr><td>TS2304 &mdash; cannot find name</td><td class="num">43</td><td>JSDoc naming <code>Wall</code> (10), <code>Floorplan</code> (5), <code>Room</code> (4), <code>Corner</code> (4) and eleven others with nothing importing the type. An <code>import('…')</code> in the comment</td></tr>
+      <tr><td>TS2322 / TS2769 / TS2345 &mdash; assignability</td><td class="num">42</td><td>Mixed. Some are genuine widening, some are three's overloads being stricter than r98's</td></tr>
+      <tr><td>TS2554 &mdash; wrong argument count</td><td class="num">13</td><td><strong>The same family as P2's preserved bugs.</strong> Each is a fix-or-pin decision, and pinning raises an asserted number</td></tr>
+      <tr><td>TS2551 and eight singletons</td><td class="num">13</td><td>Misspelled property, two <code>TS7014</code>, and one each of six others</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>Two of these clusters are the same fix applied twice. <strong>43 errors are about <code>OrbitControls</code> and <code>PointerLockControls</code></strong>, which since S5 are not vendored copies at all &mdash; they are 97-line and 204-line wrappers over <code>three/addons</code> that add the app's own fields (<code>needsUpdate</code>, the walk-through physics) and declare none of them. 16 of the 43 are inside the wrappers; the other 27 are elsewhere, mostly <code>main.js</code>, touching properties the wrapper owns. Declaring the added fields in one place closes all 43.</p>
+</section>
+
+<!-- ======================= 27 RISKS ======================= -->
+<section id="residual-risks">
+  <div class="sec-eyebrow">§ 27 · RISKS &amp; DEPENDENCIES</div>
+  <h2>What could go wrong</h2>
+  <p class="sec-sub">C1 and C2 are independent of each other. C1 is <em>not</em> internally independent &mdash; it has a strict order, and getting it wrong deletes a file something still names by literal. That ordering is the largest risk in this program.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Nº</th><th>Risk</th><th>Impact</th><th>Likelihood</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td>N-1</td><td><strong>A texture is retired before its literal is removed.</strong> Encoding <code>Ground_4K.jpg</code> deletes it; <code>skybox.js:116</code> still names it; the sky renders on a 404. This is J-2 fired rather than avoided</td><td><span class="chip crit">high</span></td><td><span class="chip warn">med</span></td><td>Ordering, and a test rather than a habit. J-2's fix is task 2 of C1 and the encode is task 3. A test greps <code>src/scripts</code> for <code>rooms/textures/</code> string literals and asserts every match is resolved at its point of use &mdash; so a future bypass fails the suite instead of waiting for the next retirement to expose it</td></tr>
+      <tr><td>N-2</td><td><strong>The spike says clones cannot share a compressed upload</strong>, and the refcount stops buying anything for these seven textures. <code>Texture.clone()</code> shares <code>.source</code>, which is what makes one decode serve many walls; a <code>CompressedTexture</code> keeps its data in <code>.mipmaps</code> and it is an open question whether two clones are one upload or two</td><td><span class="chip warn">med</span></td><td><span class="chip warn">med</span></td><td>The spike is task 4 and its output is a number, not an opinion: read <code>WebGLTextures.uploadTexture</code> for how a compressed texture is keyed, then count GPU allocations for two clones in the browser tier. If the answer is no, <strong>C1 stops after task 3 having banked 8.00 MB of the 11.67</strong> and the remaining 3.67 is re-costed against what per-surface uploads would actually weigh. M-16 carries both numbers for that reason</td></tr>
+      <tr><td>N-3</td><td><strong>The async contract is a public API break.</strong> <code>acquireTexture</code>, <code>releaseTexture</code>, <code>clearTextureCache</code> and <code>textureCacheStats</code> are re-exported from <code>blueprint.js:114</code>. An embedder can hold a handle</td><td><span class="chip crit">high</span></td><td><span class="chip">low</span></td><td>Keep the synchronous return. Whatever the internals become, <code>acquireTexture(url, onLoad)</code> must still hand back an object at call time and still accept the same two arguments &mdash; which is what keeps this a minor version rather than a major one. If the spike says that is impossible, the signature change goes in its own release with the break written down, and it is a decision to bring back here rather than to take inside a sprint</td></tr>
+      <tr><td>N-4</td><td><strong>A frame is drawn before the texture arrives</strong>, and the first frame of a design shows an untextured floor where it used to show a textured one. The synchronous handle exists precisely so that never happens</td><td><span class="chip warn">med</span></td><td><span class="chip warn">med</span></td><td>The pixel tier is the oracle and it already exists &mdash; P5's browser tests read whole frames, B4 added 25 rendered-frame measurements. C1 adds a first-frame case per changed surface. B5's own break-the-gate found the suite had never decoded a room texture at all, so this is coverage the program needs regardless of the outcome</td></tr>
+      <tr><td>N-5</td><td><strong>The corrected VRAM figure is read as a regression.</strong> 12.54 &rarr; 20.15 MB, in a program whose stated purpose is to lower it</td><td><span class="chip">low</span></td><td><span class="chip warn">med</span></td><td>It goes up in the same commit that explains why, the limit does not move, and B4's correction of this exact line is the precedent to cite. The CHANGELOG states the before-and-after of the measurement separately from the before-and-after of the tree</td></tr>
+      <tr><td>N-6</td><td><strong>A type annotation changes behaviour</strong>, or a cast hides the defect the checker found. L-5 restated, and J-5 is the evidence that the defects are real</td><td><span class="chip warn">med</span></td><td><span class="chip warn">med</span></td><td>P2's rule unchanged: fix or annotate, never cast away. The mechanism is already installed &mdash; <code>tests/type-coverage.test.js</code> asserts the suppression count at <code>&le; 4</code> and asserts the only file allowed to hold one. Any new pin fails that test until somebody raises the number deliberately and says why in the commit</td></tr>
+      <tr><td>N-7</td><td><strong>355 small edits across 19 files is a review nobody can do.</strong> The failure mode is not a bad change, it is a change nobody read</td><td><span class="chip warn">med</span></td><td><span class="chip crit">high</span></td><td>Commit per cluster, not per file, and land the clusters in the order §28 gives &mdash; each is one <code>git revert</code> from gone. The pragma goes on a file only once that file is at zero, so a half-finished cluster cannot land silently claiming protection it does not have</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Sequencing</h3>
+  <p><strong>Between the sprints: none.</strong> C1 is <code>public/</code>, <code>three/</code> and the budget tool; C2 is annotations and <code>tsconfig.json</code>. They can run in either order or together.</p>
+  <p><strong>Inside C1 the order is load-bearing</strong> and it is: correct the measurement, remove the literals, take the 8.00 MB, then spike the cache. Every step earns something on its own and every step is revertible without the next one, which is the property that lets C1 stop after task 3 if N-2 comes back badly.</p>
+  <p>There is one small overlap worth taking deliberately. <code>edge.js</code>, <code>floor.js</code> and <code>skybox.js</code> are three of the <strong>eleven files that already have zero errors and no pragma</strong>. C1 touches all three. Adding <code>// @ts-check</code> to them as it goes is C2's cheapest task done early, on exactly the files where C1 most wants a checker watching.</p>
+  <p><strong>If only one thing gets done: C1</strong>, and specifically C1 through task 3 &mdash; it is the only work here a user can feel, and 8.00 of the 11.67 MB needs no redesign of anything. <strong>If only one thing gets done and the tree has to be safer afterwards: C2's first two tasks</strong>, which are the ledger and J-5.</p>
+</section>
+
+<!-- ======================= 28 IMPLEMENTATION ======================= -->
+<section id="residual-sprints">
+  <div class="sec-eyebrow">§ 28 · IMPLEMENTATION</div>
+  <h2>Two sprints</h2>
+  <p class="sec-sub">C1 is ordered internally and can stop after any task with something banked. C2 is unordered after its first two and is the one to cut if time runs short, because by design it changes no behaviour except where the checker names a defect.</p>
+
+  <!-- ---------------- C1 ---------------- -->
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">C1</span>
+      <h3>The last of the texture memory</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip warn">J-1</span><span class="chip warn">J-2</span><span class="chip warn">J-3</span><span class="chip">1 week</span><span class="chip acc">no dependencies</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Take the 11.67 MB that B5 left, cheapest two-thirds first, and fix the measurement before changing the thing it measures. Put <code>Skybox</code> behind the resolver on the way, because the encode is a retirement and a retirement only reaches code that resolves.</p>
+
+    <div class="tw"><table>
+      <thead><tr><th>Scope</th><th>Excluded</th></tr></thead>
+      <tbody><tr>
+        <td>A VRAM budget that counts KTX2 · <code>Skybox</code> behind <code>AssetResolver</code> · KTX2 for its two textures · a spike on compressed-texture sharing · the cache contract if the spike says yes · retirement entries for every name that moves · a first-frame browser test per changed surface</td>
+        <td>The three files below the encoder's gate, 0.87 MB · re-encoding anything already KTX2 · a texture eviction policy · the RGBA8-fallback headroom in the budget limit · any change to <code>acquireTexture</code>'s <em>signature</em> &mdash; see N-3</td>
+      </tr></tbody>
+    </table></div>
+
+    <h4>Tasks</h4>
+    <ol>
+      <li><strong>Fix the measurement first, and let the number go up.</strong> <code>textureVram()</code> reads <code>.png</code>, <code>.jpg</code> and <code>.jpeg</code>; teach it <code>.ktx2</code>, counting at 1 bpp with the same 4/3 mip factor the rest of the function uses. <code>ktx2Dimensions()</code> already exists in <code>tools/encode-textures.mjs</code> and reads the header. Reported VRAM goes 12.54 &rarr; 20.15 MB, the limit does not move, and M-15 goes from 10 of 28 to 28 of 28. Doing this after the encode would let the sprint claim a saving the tool could not see</li>
+      <li><strong>Remove the two literals.</strong> <code>skybox.js:45</code> and <code>skybox.js:116</code> through <code>this.scene.runtime.assets.resolve(url).url</code>, the same call <code>Floor</code> and <code>Edge</code> already make. Add the test N-1 describes: every <code>rooms/textures/</code> literal in <code>src/scripts</code> is resolved at its point of use. That test is what makes this a fixed bypass rather than a fixed instance</li>
+      <li><strong>Take the 8.00 MB that needs no redesign.</strong> <code>setEnvironmentMap()</code> already builds its material inside the load callback and can hold a <code>CompressedTexture</code> as it stands; the ground path needs its material construction moved into the callback, which is a local edit in one file. Neither touches <code>texture_cache</code>. Encode both, retire both names the way <code>hardwood.png</code> was retired, and the sprint has banked 69% of the prize</li>
+      <li><strong>Spike the cache before redesigning it.</strong> One question, and it decides the rest: <em>does <code>CompressedTexture.clone()</code> share one GPU upload the way <code>Texture.clone()</code> shares <code>.source</code>?</em> Read <code>WebGLTextures.uploadTexture</code> for how a compressed texture is keyed, then count allocations for two clones in the browser tier. A yes means only the load path changes and the refcount survives intact. A no means the refcount buys nothing here, and the honest answer may be per-surface uploads &mdash; which is a number to produce, not a conclusion to assume</li>
+      <li><strong>Then the contract, if the spike earned it.</strong> The constraint from N-3 is hard: <code>acquireTexture(url, onLoad)</code> keeps its signature and keeps returning an object at call time. The manifest already records <code>codec</code> per entry, so the cache can know a URL is KTX2 <em>before</em> its first load lands and decide synchronously which kind of object to hand back &mdash; which is the seam that makes a same-signature change possible at all</li>
+      <li><strong>Retirement entries for every name that moves</strong>, and the <code>RETIRED</code> table's existing guard covers the rest: it throws if a target is missing or if a name is both live and retired. Seven names at most, five if the spike says stop</li>
+      <li><strong>A browser test that decodes a room texture.</strong> B5's break-the-gate found that removing <code>setKTX2Loader</code> left all 54 browser tests green, because the one model the suite loads has no texture in the library. The room textures are the surfaces a user actually looks at and the suite has never decoded one</li>
+    </ol>
+
+    <div class="gate">
+      <div class="g-head">RATIONALE · ALTERNATIVES · COMPATIBILITY</div>
+      <ul>
+        <li><strong>Why the order is the design.</strong> Every prior texture sprint could be reverted as a unit. This one cannot: task 3 deletes files that task 2 stops something from naming. Sequencing it as measure &rarr; unblock &rarr; earn &rarr; spike means each step is independently valuable and independently revertible, and the sprint can stop after any of them with a real number banked</li>
+        <li><strong>Alternative rejected &mdash; do the cache redesign first, as B5 scoped it.</strong> That is the 31% half and the risky half, and it puts the sprint's hardest work in front of its cheapest. It is also the order that produces nothing at all if the spike comes back badly</li>
+        <li><strong>Alternative rejected &mdash; leave <code>Skybox</code> on its own loader and just encode.</strong> Tempting, because <code>Skybox</code>'s loader works. It also means two textures that no manifest can redirect, which is the property J-2 is about; the next retirement would find them the same way this one did, only in production</li>
+        <li><strong>Alternative rejected &mdash; lower the VRAM limit to sit 5% over the new number.</strong> The headroom is the RGBA8 fallback and it is documented as such. Tightening it makes the budget fail on precisely the hardware compressed textures cannot help &mdash; and a ratchet that fires on the weakest device is a ratchet nobody will keep</li>
+        <li><strong>Compatibility.</strong> Every retired name keeps resolving, which is the hardwood shape and is asserted by <code>tests/asset-integrity.test.js</code>. <code>acquireTexture</code>'s signature and synchronous return are unchanged, so no embedder breaks. Designs saved before this sprint open after it</li>
+      </ul>
+    </div>
+
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE · OBSERVABILITY · DoD</div>
+      <ul>
+        <li><strong>M-15 = 28 of 28</strong>, proved the way J-3 was: drop a KTX2 into <code>public/</code>, and the budget moves</li>
+        <li><strong>M-16 = 11.40 MB</strong>, or 14.15 MB with the spike's refusal recorded next to it. Either number is acceptable; an unexplained one is not</li>
+        <li><strong>M-17 = 0</strong>, and it is a test, not a grep somebody remembered to run</li>
+        <li><strong>The pixel tier is unchanged for every surface touched</strong>, first frame included. A texture that cannot match ships uncompressed, per-asset rather than all-or-nothing &mdash; B1's rule, and it applied then too</li>
+        <li><strong>The VRAM budget limit is untouched</strong>, and the CHANGELOG says why a line in a program about lowering VRAM went up</li>
+        <li><strong>Rollback.</strong> Per task. Task 3 reverts by restoring two files and two manifest rows; task 5 reverts to the current cache wholesale</li>
+        <li><strong>DoD.</strong> Three tiers green · five pipeline <code>--check</code>s green · ten budgets green · <code>docs/architecture.md</code> corrected on both counts &mdash; the <code>Skybox</code> claim and the 8.75 MB &mdash; · CHANGELOG</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ---------------- C2 ---------------- -->
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">C2</span>
+      <h3>Type coverage: the library tier</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip">J-4</span><span class="chip warn">J-5</span><span class="chip">2 weeks</span><span class="chip acc">no dependencies</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Take the 355 to zero and put the pragma on all 55 files in <code>src/scripts</code>, so that <code>npm run typecheck</code> &mdash; not just the audit command &mdash; is what fails on a regression. Fix the defects the checker names on the way, starting with the one it has already named.</p>
+
+    <div class="tw"><table>
+      <thead><tr><th>Scope</th><th>Excluded</th></tr></thead>
+      <tbody><tr>
+        <td>355 errors across 19 files · <code>// @ts-check</code> on all 55 · the NOT YET ledger asserted the way CHECKED is · <code>slice(0, 7)</code> replaced with something that cannot silently mis-sum · J-5 and the 13 arity mismatches</td>
+        <td><code>strict: true</code> · converting anything to <code>.ts</code> · new suppressions without raising an asserted number · behavioural change beyond the defects the checker names · the four preserved bugs in <code>core/utils.js</code>, which are decisions and stay</td>
+      </tr></tbody>
+    </table></div>
+
+    <h4>Tasks</h4>
+    <ol>
+      <li><strong>The ledger first, because it is what will be wrong again otherwise.</strong> Delete the stale <code>src/app/main.js</code> row, assert the NOT YET itemisation against the tree the way CHECKED already is, and replace <code>itemised.slice(0, 7)</code> &mdash; a positional constant that mis-sums the moment somebody adds a CHECKED row &mdash; with a split on the two headings. This is the fifth drift; the fix is not another rule, it is the assertion the fourth drift was supposed to install and reached only half of</li>
+      <li><strong>J-5, and the 13 arity mismatches with it.</strong> The crash first, with a test that constructs the empty-floorplan case, because <code>RoofItem</code>'s constructor is on the path that adds a ceiling item. Then each TS2554: fix, or pin with <code>@ts-expect-error</code>, a docblock saying what depends on the broken behaviour, and a characterization test &mdash; P2's shape exactly. Pinning raises the asserted suppression count, which is the point of asserting it</li>
+      <li><strong>The 11 free files.</strong> <code>items/factory.js</code>, <code>items/metadata.js</code>, four <code>items/</code> subclasses, and <code>three/edge.js</code>, <code>floor.js</code>, <code>floorPlan.js</code>, <code>lights.js</code>, <code>skybox.js</code> have zero errors and no pragma. They are clean and unprotected. Adding the pragma costs one line each and proves the gate works before any real edit lands &mdash; and three of them are the files C1 is editing</li>
+      <li><strong>43 errors, one declaration site.</strong> Everything about <code>OrbitControls</code> and <code>PointerLockControls</code> is a field the app's own wrapper adds and never declares. Declare them on the wrappers; 16 errors inside those files and 27 elsewhere close together</li>
+      <li><strong>43 TS2304, one mechanism.</strong> JSDoc naming <code>Wall</code>, <code>Floorplan</code>, <code>Room</code>, <code>Corner</code> and eleven other types with nothing importing them. An <code>import('…')</code> in the comment, and the types come from where they are defined rather than being restated &mdash; B3's finding, which put its typedefs next to the data and not next to the consumer</li>
+      <li><strong>169 TS2339, by receiver rather than by file.</strong> 12 receiver types account for 146 of them. A field declared once closes every site that touches it, so the unit of work is the class, and the unit of commit is the receiver</li>
+      <li><strong>The strict-null family last, and read every one.</strong> 75 errors, and it is the family that found a defect in P2, another in B3, and J-5 here. This is the part that cannot be done quickly, which is why it goes after everything that can</li>
+      <li><strong>The pragma per file, as each reaches zero.</strong> Never before. A file carrying <code>// @ts-check</code> with errors in it fails the build for the next person, and a file at zero without one is protecting nothing</li>
+    </ol>
+
+    <div class="gate">
+      <div class="g-head">RATIONALE · ALTERNATIVES · COMPATIBILITY</div>
+      <ul>
+        <li><strong>Why now, when B3 said <code>main.js</code> was a sprint of its own.</strong> It still is &mdash; 108 errors, a quarter of the surface, in the most load-bearing file in the render path. What has changed is that the clusters are measured now: 43 of the 355 close at two declaration sites and 43 more at a comment mechanism, so the sprint is not 355 judgements. <code>main.js</code>'s 108 are 45 TS2339 and 50 strict-null, which is the same two clusters and no new kind of problem</li>
+        <li><strong>Alternative rejected &mdash; <code>checkJs: true</code> globally and suppress the remainder.</strong> B3's words, and they still hold: that converts 355 findings into 355 suppressions and calls it progress</li>
+        <li><strong>Alternative rejected &mdash; highest count first.</strong> <code>main.js</code> is the largest number and the worst place to learn the harness. The 11 free files and the two wrapper declarations are the same technique against no risk at all</li>
+        <li><strong>Alternative rejected &mdash; leave the library and raise the app's bar instead.</strong> <code>src/app</code> is at zero and fully opted in. There is no bar left to raise there, and the 355 are in the half an embedder actually links against</li>
+        <li><strong>Compatibility.</strong> Annotations and declarations, plus the defects the checker names. J-5 changes behaviour on purpose: a method that throws stops throwing. That is the only intended behavioural change in the sprint and it gets its own commit</li>
+      </ul>
+    </div>
+
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE · OBSERVABILITY · DoD</div>
+      <ul>
+        <li><strong>M-18 = 0 and M-19 = 55 of 55.</strong> The second is the one that holds; the first is a snapshot without it</li>
+        <li><strong>The ledger's NOT YET block is asserted against the tree</strong>, and a break confirms it: add a file with an error, watch the test fail</li>
+        <li><strong>Suppressions still <code>&le; 4</code></strong>, or higher with a commit that argues for each addition. The test is the mechanism and it is already installed</li>
+        <li><strong>J-5 has a test that fails before the fix</strong>, constructed rather than found, since no fixture has a design with no rooms and a ceiling item</li>
+        <li><strong>Coverage does not fall.</strong> Nothing here is meant to change behaviour, so the suite passing unchanged is the evidence &mdash; B3's standard, restated</li>
+        <li><strong>Rollback.</strong> Per cluster. Each commit is one receiver type or one mechanism, and reverting one leaves the rest standing</li>
+        <li><strong>DoD.</strong> Three tiers green · <code>tsconfig.json</code> ledger recounted, both blocks asserted · suppression count reported · CHANGELOG</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Sequence and effort</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Sprint</th><th>Work</th><th>Effort</th><th>Depends on</th><th>Metrics moved</th></tr></thead>
+    <tbody>
+      <tr><td><strong>C1</strong> <span class="chip acc">proposed</span></td><td>The last of the texture memory</td><td>1 week</td><td>—</td><td>M-15, M-16, M-17. Internally ordered; can stop after task 3 with 8.00 MB banked</td></tr>
+      <tr><td><strong>C2</strong> <span class="chip acc">proposed</span></td><td>Type coverage, library tier</td><td>2 weeks</td><td>—</td><td>M-18, M-19. Three of C1's files are also C2 task 3, and are worth doing during C1</td></tr>
+    </tbody>
+  </table></div>
+
+  <p style="margin-top:16px">Three weeks end to end, and the two do not wait on each other. What is different about this program is that it is the first with <strong>nothing named as deferred at the end of it</strong> &mdash; RM-002 left the type ledger, RM-003 left the payload, RM-004 left these two. If both sprints land, the backlog that has been handed forward since P2 is empty, and the next program will have to be about something somebody wants rather than about something somebody left.</p>
+</section>
+
+
 <footer>
   <p><strong>Method &mdash; RM-004.</strong> Three measurements against the working tree at <code>3cf1c24</code> on branch <code>amit</code>, all of them produced by running something rather than by reading code. <em>The payload</em> &mdash; every one of the 370 manifest entries read and gzipped at level 9, and every <code>.glb</code> walked chunk by chunk, splitting the BIN into buffer views an accessor points at, views an image points at, and the remainder, then a census of accessor <code>componentType</code> per attribute semantic and of index width against each primitive's <code>POSITION</code> count. <em>Wall identity</em> &mdash; three fixtures loaded, censused, round-tripped through <code>saveFloorplan()</code> and <code>loadFloorplan()</code> and intersected, plus a constructed two-walls-one-pair case run through the same round trip. <em>The type ledger</em> &mdash; <code>npx vue-tsc --noEmit --checkJs</code>, bucketed by area, by error code and by file. <strong>What was not run:</strong> no codec. Draco, meshopt and KTX2 are named throughout and none has been executed against this catalog, which is why M-12 carries no target and why B1's first task is the trial rather than its conclusion. Two repository inaccuracies were found and are recorded in §21 G-3 rather than fixed, since this is a planning pass: <code>tsconfig.json</code>'s SFC subtotal disagrees with the tree <em>and</em> with its own itemisation.</p>
   <p><strong>Sources &mdash; RM-004.</strong> <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_mesh_quantization/README.md">KHR_mesh_quantization</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_draco_mesh_compression/README.md">KHR_draco_mesh_compression</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_meshopt_compression/README.md">EXT_meshopt_compression</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_texture_basisu/README.md">KHR_texture_basisu</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/specification/2.0/README.md#binary-gltf-layout">glTF 2.0 &mdash; Binary glTF layout</a> &middot; <a href="https://threejs.org/docs/#examples/en/loaders/DRACOLoader">three.js &mdash; DRACOLoader</a> &middot; <a href="https://threejs.org/docs/#examples/en/loaders/KTX2Loader">three.js &mdash; KTX2Loader</a> &middot; <a href="https://www.typescriptlang.org/tsconfig/#checkJs">TypeScript &mdash; checkJs</a></p>
-  <p>architect3d &middot; Delivery &amp; precision program RM-004 rev A &middot; <strong>delivered</strong>, all three sprints &middot; successor to hardening program RM-003</p>
+  <p><strong>Method &mdash; RM-005.</strong> Five measurements against the working tree at <code>5bfb795</code> on branch <code>amit</code>, all produced by running something. <em>The textures</em> &mdash; every <code>.png</code>, <code>.jpg</code> and <code>.jpeg</code> under <code>public/</code> outside the thumbnail directories read for its header dimensions and costed at four bytes per texel with the 4/3 mip factor, then each file attributed to the module that uploads it by grepping the three call sites in <code>three/</code>. <em>The budget hole</em> &mdash; an existing 669&times;1024 <code>.ktx2</code> copied into <code>public/rooms/textures/</code>, <code>tools/check-budget.mjs</code> run before and after, and the file removed; the line did not move. <em>The type tier</em> &mdash; <code>npx vue-tsc --noEmit --checkJs</code>, bucketed by directory, by file, by error code and by receiver type, cross-referenced against <code>grep -rl "@ts-check" src</code> to separate files that are clean from files that are protected. <em>The ledger</em> &mdash; the <code>"//"</code> block parsed the way <code>tests/type-coverage.test.js</code> parses it, its rows summed, and <code>git log -S</code> run on the stale row and the heading that contradicts it. <em>The crash</em> &mdash; <code>RoofItem.prototype.closestCeilingPoint</code> called against a floorplan stub returning no roof planes, and the <code>TypeError</code> caught and printed. <strong>What was not run:</strong> no encoder, and no renderer. The 8.75 MB C1 projects is the encoder's 1 bpp model applied to seven files, not an observed GPU figure &mdash; the same arithmetic that produced B5's 30.46 &rarr; 7.61 MB, whose disk half <em>was</em> measured at 0.459 and whose VRAM half was not. And the C1 spike's question &mdash; whether two <code>CompressedTexture</code> clones are one upload or two &mdash; is deliberately left open, because reading a signature is what produced the costing this program is correcting. Three repository inaccuracies were found and are recorded in §26 rather than fixed, since this is a planning pass: the <code>Skybox</code> claim in <code>tools/encode-textures.mjs</code> and <code>docs/architecture.md</code>, the KTX2 claim in <code>tools/budget.json</code>, and the stale NOT YET row in <code>tsconfig.json</code>.</p>
+  <p><strong>Sources &mdash; RM-005.</strong> <a href="https://threejs.org/docs/#api/en/textures/CompressedTexture">three.js &mdash; CompressedTexture</a> &middot; <a href="https://threejs.org/docs/#api/en/textures/Source">three.js &mdash; Source</a> &middot; <a href="https://github.com/KhronosGroup/KTX-Specification">KTX 2.0 container specification</a> &middot; <a href="https://www.typescriptlang.org/tsconfig/#checkJs">TypeScript &mdash; checkJs</a> &middot; <a href="https://www.typescriptlang.org/docs/handbook/jsdoc-supported-types.html">TypeScript &mdash; JSDoc reference</a></p>
+  <p>architect3d &middot; Delivery &amp; precision program RM-004 rev A &middot; <strong>delivered</strong>, all five sprints &middot; residual program RM-005 rev A &middot; <strong>proposed</strong>, two sprints &middot; successor to hardening program RM-003</p>
   <p class="credit">Created by <a href="https://amitukind.com" target="_blank" rel="noopener noreferrer">Amit Verma</a></p>
 </footer>
 
