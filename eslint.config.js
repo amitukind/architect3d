@@ -191,6 +191,8 @@ export default [
 				location: 'readonly',
 				fetch: 'readonly',
 				setTimeout: 'readonly',
+				setInterval: 'readonly',
+				clearInterval: 'readonly',
 				clearTimeout: 'readonly',
 				requestAnimationFrame: 'readonly',
 				cancelAnimationFrame: 'readonly',

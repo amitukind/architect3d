@@ -184,12 +184,33 @@ describe.each(LEGACY_MODEL_NAMES)('%s', (name) =>
 		expect(surfaceArea(converted)).toBeCloseTo(before, Math.max(0, 6 - Math.ceil(Math.log10(before || 1))));
 	});
 
-	it('keeps every vertex position', () =>
+	it('keeps every distinct vertex position', () =>
 	{
 		// Welding merges vertices that agree on position, normal and uv, so the
 		// set of positions is preserved even though the count and order are not.
-		// The fixture stores that set as a size and a hash; both must match.
-		expect(positionDigest(converted)).toEqual(legacy.positions);
+		//
+		// RM-004 B1 RETIRED THE HASH HALF OF THIS ASSERTION, deliberately, and it
+		// is the only expectation the sprint retired. The digest is a sha of every
+		// distinct position rounded to 3dp, and that is bit-exactness by another
+		// name: Draco moves the furthest vertex in this catalog by 0.38
+		// micrometres, which is four orders of magnitude inside the 5-micrometre
+		// tolerance the two assertions above apply - and still flips the hash the
+		// instant one vertex crosses a 3dp rounding boundary. No lossy codec
+		// satisfies it at any bit depth. At 30 bits it would pass on some models
+		// and not others, which is worse than failing honestly.
+		//
+		// `size` stays, and stays exact: it is the count of DISTINCT positions, so
+		// it catches quantization merging two vertices into one or splitting one
+		// into two - the change that would actually alter the surface. Together
+		// with the bounds, surface-area and triangle-count assertions around it,
+		// what survives is every geometric claim; what went is the fingerprint.
+		//
+		// The per-vertex guarantee did not disappear, it moved to where it can be
+		// stated as a number: tests/asset-encoding.test.js asserts authored ->
+		// encoded displacement against asset-pipeline/encoding-report.json. The
+		// chain is r98 -> authored, proven here, and authored -> shipped, proven
+		// there.
+		expect(positionDigest(converted).size).toBe(legacy.positions.size);
 	});
 
 	it('carries one material per material the source declared', () =>
@@ -239,11 +260,11 @@ describe('material translation', () =>
 		// The stock exporter writes metallic 0.5 / roughness 0.5, which makes every
 		// one of these visibly darker and glossier than the Lambert original.
 		const gltf = readGltfJson('cb-blue-block-60x96');
-		for (const material of gltf.materials)
+		gltf.materials.forEach((material, i) =>
 		{
-			expect(material.pbrMetallicRoughness.metallicFactor).toBe(0);
-			expect(material.pbrMetallicRoughness.roughnessFactor).toBe(1);
-		}
+			expect(pbrOf(gltf, i).metallicFactor).toBe(0);
+			expect(pbrOf(gltf, i).roughnessFactor).toBe(1);
+		});
 	});
 
 	it('passes the diffuse colour through untouched, everywhere it is declared', () =>
@@ -259,7 +280,7 @@ describe('material translation', () =>
 			const gltf = readGltfJson(name);
 			source.forEach((legacy, i) =>
 			{
-				const factor = gltf.materials[i].pbrMetallicRoughness.baseColorFactor;
+				const factor = pbrOf(gltf, i).baseColorFactor;
 				expect(factor.slice(0, 3), `${name} material ${i}`).toEqual(legacy.colorDiffuse || [1, 1, 1]);
 				expect(factor[3], `${name} material ${i} alpha`).toBe(legacy.transparency ?? 1);
 				if (legacy.colorDiffuse)
@@ -275,10 +296,10 @@ describe('material translation', () =>
 	{
 		const gltf = readGltfJson('ik-kivine_baked');
 		expect(gltf.images).toBeUndefined();
-		expect(gltf.materials[0].pbrMetallicRoughness.baseColorTexture).toBeUndefined();
+		expect(pbrOf(gltf, 0).baseColorTexture).toBeUndefined();
 		// The diffuse colour still carries, which is what the legacy path fell
 		// back to when the 404 came in.
-		expect(gltf.materials[0].pbrMetallicRoughness.baseColorFactor).toHaveLength(4);
+		expect(pbrOf(gltf, 0).baseColorFactor).toHaveLength(4);
 	});
 
 	it('points textures at the shared sidecar directory, not at models/js', () =>
@@ -552,4 +573,32 @@ function readGltfJson(name)
 	const buffer = readFileSync(join(CONVERTED_DIR, `${name}.glb`));
 	const jsonLength = buffer.readUInt32LE(12);
 	return JSON.parse(buffer.toString('utf8', 20, 20 + jsonLength));
+}
+
+/**
+ * A material's PBR block with the glTF 2.0 defaults filled in (RM-004 B1).
+ *
+ * The assertions below are about what a material MEANS, and a glTF reader
+ * applies these defaults before it means anything. Reading the raw JSON instead
+ * was testing the serializer, and it broke the moment one changed: B1's
+ * re-encode round-trips every file through glTF-Transform, which omits any
+ * field equal to its default, so `roughnessFactor: 1` and
+ * `baseColorFactor: [1,1,1,1]` simply stop being written. Identical material,
+ * absent key, `expected undefined to be 1`.
+ *
+ * Filling the defaults in is what the renderer does, so this is the stricter
+ * reading as well as the more robust one - it now also passes if some future
+ * tool writes the defaults back out explicitly.
+ *
+ * Defaults per the spec's material.pbrMetallicRoughness schema.
+ */
+function pbrOf(gltf, index)
+{
+	const pbr = (gltf.materials[index] || {}).pbrMetallicRoughness || {};
+	return {
+		baseColorFactor: pbr.baseColorFactor || [1, 1, 1, 1],
+		metallicFactor: pbr.metallicFactor === undefined ? 1 : pbr.metallicFactor,
+		roughnessFactor: pbr.roughnessFactor === undefined ? 1 : pbr.roughnessFactor,
+		baseColorTexture: pbr.baseColorTexture,
+	};
 }

@@ -116,40 +116,90 @@
     "served rather than bundled. See src/scripts/core/asset_manifest.js for why",
     "it is not in the library bundle: 17.6 KB gzipped would have gone straight",
     "into every consumer's download and through the IIFE ceiling A4 had just",
-    "tightened."
+    "tightened.",
+    "",
+    "RM-004 B1 moved five limits, four of them DOWN, and the direction is the whole",
+    "point. Draco-encoding the model catalog took public-total from 10.62 MB to 7.45",
+    "and demo-total from 17.22 to 14.39; public-largest fell from 1.30 MB to 844 KB",
+    "and is no longer a model at all but the Garden environment map, which is the",
+    "signal that the geometry third of the payload has stopped being the problem.",
+    "catalog-item-largest halved, 1.53 MB to 752 KB. Leaving the old ceilings would",
+    "have handed the next change 4 MB of slack it did not earn - the argument P6",
+    "made when it lowered three limits for the same reason.",
+    "",
+    "lib-esm-gzip went UP, 128,000 to 134,000, and it is the entry that has been",
+    "flagged as tight since A5 landed at 0.8% headroom. The A5 note predicted this:",
+    "'the next thing that adds a docblock to the library will trip it, which is what",
+    "a budget is for.' What tripped it was B1 adding decoderPath() and codecMix() to",
+    "the resolver and a codec field through the manifest - 26 bytes over. Raised to",
+    "4.5% headroom rather than to the next round number, and the property it guards",
+    "is unchanged: the externals config still keeps it nowhere near the ~423 KB a",
+    "bundled three would produce.",
+    "",
+    "decoder-total is new. public/draco/ is 250,876 bytes of WebAssembly and its",
+    "wrapper, vendored from three 0.185.1, and it is inside public-total already -",
+    "but it is the only thing in that tree that is machinery rather than content. It",
+    "changes when three is upgraded and at no other time, so a line that moves for",
+    "exactly one reason is worth more than a number buried in a 7 MB total. Also a",
+    "tripwire: three ships a 719 KB pure-JS decoder beside the WASM one, and a",
+    "refresh that copied the wrong directory would show up here immediately.",
+    "",
+    "texture-vram is the third KIND of budget in this file, after P6's per-file",
+    "ceiling and A5's per-catalog-item one, and it exists because B1 went looking",
+    "for the texture half of the payload and found the numbers are unrelated to the",
+    "ones already here. 202 images weigh 5.23 MB on disk and occupy 164 MB of GPU",
+    "memory once uploaded with mip chains, because an uploaded texel is four bytes",
+    "whatever the file compressed to. rooms/textures/Ground_4K.jpg is the case that",
+    "makes it concrete: 73.2 KB on disk, 16.88 MB in VRAM, 230x, and invisible to",
+    "every other line here. That is what a phone runs out of, not the download.",
+    "",
+    "It is a floor rather than an exact figure - a file whose header will not parse",
+    "is skipped, so the number can only under-report, which is the safe direction",
+    "for a ceiling to sit on. KTX2/Basis is the answer and B1 did not ship it: the",
+    "encoder needs KTX-Software binaries that are not installed here, and quoting a",
+    "published ratio instead of measuring one is the thing this program refuses to",
+    "do. The arithmetic that IS measurable says BC7/ETC2 would take 164 MB to 41."
   ],
   "budgets": {
     "demo-js-gzip": {
       "limit": 330000,
-      "measured": 320821
+      "measured": 327411
     },
     "demo-css-gzip": {
       "limit": 10000,
-      "measured": 7276
+      "measured": 7296
     },
     "demo-total": {
-      "limit": 19000000,
-      "measured": 18274637
+      "limit": 15800000,
+      "measured": 15085233
     },
     "lib-iife-gzip": {
       "limit": 239000,
-      "measured": 226130
+      "measured": 229767
     },
     "public-total": {
-      "limit": 11700000,
-      "measured": 11196436
+      "limit": 8200000,
+      "measured": 7809135
     },
     "lib-esm-gzip": {
-      "limit": 128000,
-      "measured": 120818
+      "limit": 134000,
+      "measured": 128026
     },
     "public-largest": {
-      "limit": 1450000,
-      "measured": 1364616
+      "limit": 910000,
+      "measured": 864047
     },
     "catalog-item-largest": {
-      "limit": 1690000,
-      "measured": 1608513
+      "limit": 810000,
+      "measured": 770006
+    },
+    "decoder-total": {
+      "limit": 264000,
+      "measured": 250876
+    },
+    "texture-vram": {
+      "limit": 180000000,
+      "measured": 172400000
     }
   }
 }

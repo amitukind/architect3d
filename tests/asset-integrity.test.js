@@ -323,7 +323,14 @@ describe('the asset manifest describes the tree it ships with (RM-003 A5)', () =
 		expect(MANIFEST_JSON.version).toBe(MANIFEST_VERSION);
 		expect(result.ok).toBe(true);
 		expect(result.manifest.count).toBe(Object.keys(MANIFEST_JSON.assets).length);
-		expect(result.manifest.totalBytes).toBeGreaterThan(10 * 1024 * 1024);
+		// A floor rather than a ceiling: `public-total` in tools/budget.json is the
+		// ceiling, and this exists so a manifest that parsed but came back nearly
+		// empty could not pass as a real one. RM-004 B1 moved it from 10 MB to 5:
+		// the tree was 10.62 MB and Draco took it to 7.39, so the old floor was
+		// asserting the payload had not been optimised. Kept well below the real
+		// figure for the same reason it was loose before - it is a smoke test for
+		// "did the manifest actually load", not a second budget.
+		expect(result.manifest.totalBytes).toBeGreaterThan(5 * 1024 * 1024);
 	});
 
 	it('resolves every URL a saved design names, through the resolver', () =>

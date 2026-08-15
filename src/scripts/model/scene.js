@@ -5,6 +5,7 @@ import {EventDispatcher, Color} from 'three';
 // the bundle carried three full engines.
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';
+import {DRACOLoader} from 'three/addons/loaders/DRACOLoader.js';
 import {Scene as ThreeScene, LoadingManager} from 'three';
 import {runtimeOf} from '../core/design_runtime.js';
 import {disposeMaterial} from '../core/resource_registry.js';
@@ -84,6 +85,30 @@ export class Scene extends EventDispatcher
 		this.gltfloader = new GLTFLoader(this.loadingManager);
 		this.objloader = new OBJLoader(this.loadingManager);
 		this.gltfloader.setCrossOrigin('');
+
+		/**
+		 * The Draco decoder for this scene (RM-004 B1).
+		 *
+		 * Every model in the catalog is `KHR_draco_mesh_compression` now, and
+		 * `GLTFLoader` throws on one unless a `DRACOLoader` is attached BEFORE the
+		 * parse - it cannot be supplied on demand once a compressed file has
+		 * arrived. So it is attached here, unconditionally, and the cost of that
+		 * is nothing until it decodes: `DRACOLoader` fetches its 73 KB of WASM and
+		 * starts its worker on the FIRST compressed mesh, not on construction. A
+		 * session that places no furniture never pays for it.
+		 *
+		 * The decoder path is resolved through the runtime's asset resolver rather
+		 * than hard-coded, so `?assetBase=` relocates the decoder alongside
+		 * everything else it relocates. A build that serves no decoder is not a
+		 * broken build - it is a build whose models are uncompressed, which is
+		 * every build before this sprint and any embedder shipping their own
+		 * catalog.
+		 *
+		 * @type {DRACOLoader}
+		 */
+		this.dracoLoader = new DRACOLoader(this.loadingManager);
+		this.dracoLoader.setDecoderPath(this.runtime.assets.decoderPath());
+		this.gltfloader.setDRACOLoader(this.dracoLoader);
 
 		/**
 		 * Optional loader override, used by tests to run the model layer without

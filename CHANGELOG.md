@@ -2,6 +2,103 @@
 
 ## [Unreleased]
 
+### Changed
+
+* **The model catalog is Draco-compressed, and no file changed its name.**
+  `public/models/` falls from 5.08 MB to 1.92 MB and the whole runtime tree
+  from 10.62 MB to 7.45 MB. A design saved before this names exactly the same
+  URLs and opens unchanged — what changed is what is *inside* the files, which
+  is the one kind of change the A5 manifest was built to allow. The largest
+  single asset in the tree is no longer a model at all: it is now the Garden
+  environment map at 844 KB, down from a 1.30 MB sofa.
+
+  Four codecs were measured over the whole catalog before one was chosen, raw
+  and gzipped, because transport already took 59.4% of the geometry and a
+  headline ratio against raw bytes is not a marginal win. Draco took served
+  geometry from 2.094 MB to 0.687 MB against meshopt's 1.256 MB, and its 73 KB
+  decoder is fetched once, lazily, on the first compressed mesh.
+
+* **13 of 165 models deliberately ship uncompressed.** `tools/encode-assets.mjs`
+  refuses to replace a model unless the triangle count is identical, the count
+  of distinct vertex positions is identical, and no vertex moved more than 5 µm.
+  Thirteen models trip one of those and keep their authored bytes. The worst
+  displacement among the 152 that passed is **0.38 µm** — four orders of
+  magnitude inside the gate — and every per-model measurement is committed to
+  `asset-pipeline/encoding-report.json`.
+
+* **One expectation was retired**, and only one: the position *hash* in
+  `model-conversion.test.js`. It is a sha of every distinct vertex rounded to
+  three decimals, which is bit-exactness under another name, and no lossy codec
+  satisfies it at any bit depth. The count of distinct positions stays and stays
+  exact; so do bounds, surface area and triangle count, all at the tolerances
+  they already had. The per-vertex guarantee moved to
+  `tests/asset-encoding.test.js`, where it can be stated as a number.
+
+* **Three material assertions now read through the glTF defaults** rather than
+  off the raw JSON. glTF-Transform omits any field equal to its default, so
+  `roughnessFactor: 1` simply stops being written; the material is identical and
+  the old assertion read `undefined`. Applying the spec defaults is what a
+  renderer does, so this is the stricter reading as well as the more durable
+  one.
+
+### Added
+
+* **`npm run encode`** and `npm run encode:check`, the same
+  committed-output, staleness-checked shape as `npm run manifest`. A checkout
+  builds and serves with no encoder installed; the glTF-Transform and Draco
+  packages are devDependencies and nothing at runtime imports them.
+
+* **A `codec` field on every manifest entry**, derived from the container's own
+  `extensionsRequired` rather than declared, and `resolver.codecMix()` /
+  `resolver.decoderPath()` beside it. "What is this build shipping" was
+  previously answerable only by someone holding a checkout.
+
+* **`tests/browser/draco-models.test.js`** — the first browser test in the
+  project that loads a real `.glb`. Every other one stubs the loader, which is
+  why the whole tier passed on the first run after the catalog was compressed
+  and that proved nothing. It asserts a compressed model decodes, that the frame
+  changes when it arrives, that the decoder is fetched from the resolver's path,
+  and that an uncompressed model still loads.
+
+* **Two new budgets.** `decoder-total` gives the vendored decoder its own line,
+  because it is machinery rather than content and moves only when three is
+  upgraded. `texture-vram` is the third *kind* of ceiling in the file: 202
+  images weighing 5.23 MB on disk occupy **164 MB** of GPU memory once uploaded
+  with mip chains, and `rooms/textures/Ground_4K.jpg` is 73 KB on disk against
+  16.9 MB in VRAM — a 230× ratio that no disk-based measurement can see.
+
+* **`dropBundledDraco()` in `vite.config.mjs`.** three's `DRACOLoader` points at
+  its own bundled decoders with `new URL(..., import.meta.url)`, which a bundler
+  reads as assets to emit — including a 719 KB pure-JS fallback for browsers
+  with no WebAssembly, which cannot run WebGL either. Importing the loader cost
+  **489 KB gzipped on the library IIFE** and 169 KB on the demo before this.
+  The plugin throws if it matches nothing, so a three upgrade that renames those
+  constants fails the build rather than silently restoring half a megabyte.
+
+### Compatibility
+
+Every saved design opens unchanged, and every asset URL resolves to the path it
+always did. Two narrower things did change, and are stated here rather than
+left to be discovered:
+
+* An embedder who supplies their own loader through `Scene.setItemLoader` now
+  receives compressed models from this project's catalog and needs a
+  `DRACOLoader` to read them. An embedder serving their own assets is
+  unaffected — `public/` is not in `package.json`'s `files` and never shipped
+  to them.
+* Anyone self-hosting this project's `public/` tree while running a pre-B1
+  build of the library will not decode the models. The decoder is in
+  `public/draco/`; the library build that knows to use it is this one.
+
+### Deferred
+
+KTX2/Basis for the texture half, with the case measured rather than asserted:
+transport takes only 4.4% of those 5.23 MB because they are already
+entropy-coded, and the real prize is the 164 MB of VRAM, which BC7/ETC2 would
+take to 41 MB. It is not in this release because the encoder needs
+KTX-Software binaries that are not installed here, and quoting a published
+ratio in place of a measurement is the one thing this programme does not do.
+
 ## [2.0.0] - 2026-08-15
 
 Everything built on top of the migration. 1.0.0 was the port; this is a rebuilt

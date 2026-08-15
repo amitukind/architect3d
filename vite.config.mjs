@@ -39,6 +39,56 @@ const ROOT = import.meta.dirname;
  * in src/ ever read, and the postcss plugin processed a stylesheet nothing
  * imported - both dropped rather than ported.
  */
+
+/**
+ * Stop the bundler shipping three's own copy of the Draco decoder (RM-004 B1).
+ *
+ * `three/examples/jsm/loaders/DRACOLoader.js` opens with five
+ * `new URL('../libs/draco/...', import.meta.url)` constants. Vite reads those as
+ * asset references and emits the files, which for this project means shipping a
+ * SECOND decoder nobody fetches - `public/draco/` already holds the one we
+ * serve, and `Scene` calls `setDecoderPath()`, which replaces all five paths
+ * before a single byte is decoded.
+ *
+ * The cost of not doing this is not marginal. Measured, on one import:
+ *
+ *     library IIFE   226.4 KB -> 715.9 KB gzipped   (+489.5)
+ *     demo JS        317.3 KB -> 486.7 KB gzipped   (+169.4)
+ *
+ * Most of it is `draco_decoder.js`, the 719 KB pure-JS fallback for browsers
+ * with no WebAssembly - a population this application does not have, since it
+ * needs WebGL. The IIFE has nowhere to put an emitted asset, so it inlines the
+ * lot; that is the 489 KB.
+ *
+ * The rewrite points the defaults at the copies we DO ship, so a consumer who
+ * never calls `setDecoderPath()` still resolves something real rather than an
+ * empty string. And it throws if it matches nothing: a three upgrade that
+ * renames these constants must fail the build loudly, not silently restore half
+ * a megabyte to every consumer.
+ */
+function dropBundledDraco()
+{
+	const PATTERN = /new URL\(\s*'\.\.\/libs\/draco\/(?:gltf\/)?([\w.]+)'\s*,\s*import\.meta\.url\s*\)\.toString\(\)/g;
+	return {
+		name: 'architect3d:drop-bundled-draco',
+		enforce: 'pre',
+		transform(code, id)
+		{
+			if (!id.includes('three/examples/jsm/loaders/DRACOLoader.js')) { return null; }
+			const rewritten = code.replace(PATTERN, (_, file) => JSON.stringify('draco/' + file));
+			if (rewritten === code)
+			{
+				throw new Error(
+					'architect3d:drop-bundled-draco matched nothing in DRACOLoader.js. three has ' +
+					'changed how it references its bundled decoder; re-check the pattern before ' +
+					'shipping, or half a megabyte comes back.',
+				);
+			}
+			return {code: rewritten, map: null};
+		},
+	};
+}
+
 export default defineConfig(({mode}) => {
 	const isLib = mode === 'lib';
 	const isLibEsm = mode === 'lib-esm';
@@ -46,6 +96,7 @@ export default defineConfig(({mode}) => {
 	if (isLib)
 	{
 		return {
+			plugins: [dropBundledDraco()],
 			build: {
 				outDir: 'dist',
 				emptyOutDir: true,
@@ -95,6 +146,10 @@ export default defineConfig(({mode}) => {
 	if (isLibEsm)
 	{
 		return {
+			// Harmless here - the ESM build externalises three entirely, so
+			// DRACOLoader never enters this bundle. Present so the three branches
+			// cannot drift, and so the upgrade tripwire fires wherever three moves.
+			plugins: [dropBundledDraco()],
 			build: {
 				outDir: 'dist',
 				// The IIFE build ran first and this must not delete it.
@@ -159,7 +214,7 @@ export default defineConfig(({mode}) => {
 		// of ours. The whole UI stack (Tailwind, Reka UI, lucide, VueUse) is a
 		// devDependency for the same reason: `files` in package.json publishes
 		// src/scripts alone, so nothing a consumer installs could import them.
-		plugins: [vue(), tailwind()],
+		plugins: [vue(), tailwind(), dropBundledDraco()],
 		server: {
 			port: 10001,
 			open: false,

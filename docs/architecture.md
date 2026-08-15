@@ -73,6 +73,37 @@ The library ships an identity resolver - every name to itself - and a manifest
 is a runtime input rather than a bundled table, because 370 entries is 58 kB
 nobody who serves their own assets should download.
 
+## Asset delivery
+
+The model catalog is compressed with `KHR_draco_mesh_compression`: 152 of 165
+`.glb` files, taking `public/models/` from 5.08 MB to 1.92 MB. What is in a file
+changed; what a file is *called* did not, which is the whole point — a design
+saved before the re-encode names the same URLs and opens unchanged.
+
+The other 13 models ship exactly as authored. `tools/encode-assets.mjs` gates
+every model on three things and can only ever fall back: no triangle may
+disappear, the count of distinct positions must not move, and no vertex may
+travel more than 5 µm. The worst that survived is **0.38 µm**. Each measurement
+is recorded in `asset-pipeline/encoding-report.json` and asserted by
+`tests/asset-encoding.test.js`, so the fidelity claim is checkable from a
+checkout without running the encoder.
+
+`Scene` attaches a `DRACOLoader` unconditionally, and that costs nothing until
+something needs it: three fetches the 73 KB decoder on the first compressed
+mesh, not at construction. The decoder path comes from
+`resolver.decoderPath()` — derived from the resolver's base, so `?assetBase=`
+relocates the decoder along with everything else rather than leaving it pinned
+to the origin.
+
+Two things worth knowing before changing any of this. `vite.config.mjs` carries
+a `dropBundledDraco()` plugin, because three's `DRACOLoader` references its own
+bundled decoders through `new URL(..., import.meta.url)` and a bundler reads
+those as assets to emit — 489 KB gzipped onto the library IIFE for a decoder
+nobody fetches. And the encoder hand-assembles its GLB output rather than using
+`writeBinary()`, which embeds external images: 21 models reference a texture,
+two of those are shared, and embedding would duplicate 933 KB while serving the
+same pixels twice.
+
 `dimensioning.js` converts between centimetres (what the model stores) and
 whatever unit the user picked. `render_profile.js` is the table of shading
 constants the 3D view reads — it lives here rather than in `three/` because the

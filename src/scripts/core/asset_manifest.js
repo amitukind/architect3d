@@ -29,6 +29,9 @@
  * - `hash` - subresource-integrity form, so it can be handed straight to
  *   `fetch(url, {integrity})`. Recorded, not enforced - see the resolver.
  * - `kind` - `model`, `model-texture`, `texture`, `thumbnail`, `environment`.
+ * - `codec` - how the bytes are packed, when that is not simply "as authored".
+ *   Absent means none, which is what every entry said before RM-004 B1 and what
+ *   an embedder's own manifest will say unless they compress too.
  *
  * ## It is not bundled, and that is deliberate
  *
@@ -48,6 +51,7 @@
  * @property {number} bytes
  * @property {?string} hash Subresource-integrity form, or null.
  * @property {string} kind
+ * @property {?string} codec Decoder required to read it, or null for none.
  */
 
 /** The schema version `tools/make-asset-manifest.mjs` writes. */
@@ -149,6 +153,7 @@ export class AssetManifest
 				bytes: typeof raw.bytes === 'number' ? raw.bytes : 0,
 				hash: typeof raw.hash === 'string' ? raw.hash : null,
 				kind: typeof raw.kind === 'string' ? raw.kind : 'asset',
+				codec: typeof raw.codec === 'string' && raw.codec ? raw.codec : null,
 			});
 		});
 

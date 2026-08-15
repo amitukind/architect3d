@@ -55,16 +55,63 @@ const EXCLUDED = new Set(['asset-manifest.json']);
  * catalogs and the save files already say. A `kind` that had to be maintained
  * by hand would drift from the tree the first time somebody added a model.
  *
+ * `decoder` is first because it is the one kind that is not content: it is the
+ * machinery RM-004 B1 needs to read the rest, and a consumer deciding what to
+ * prefetch must be able to tell it apart from a texture it would otherwise
+ * match by falling through.
+ *
  * @param {string} name A slash-separated path relative to public/.
  * @returns {string}
  */
 function kindOf(name)
 {
+	if (name.startsWith('draco/')) { return 'decoder'; }
 	if (/\.(glb|gltf)$/i.test(name)) { return 'model'; }
 	if (name.startsWith('models/thumbnails/')) { return 'thumbnail'; }
 	if (name.startsWith('rooms/textures/envs/')) { return 'environment'; }
 	if (name.startsWith('models/')) { return 'model-texture'; }
 	return 'texture';
+}
+
+/**
+ * What decoder a file needs, read from the file rather than declared.
+ *
+ * Same argument as `kindOf`: a codec column maintained by hand drifts from the
+ * tree the first time somebody re-encodes something, and this one has a much
+ * worse failure mode than a wrong `kind` - a consumer that trusts it and does
+ * not attach a decoder gets a model that will not open. So it is derived from
+ * the container's own `extensionsRequired`, which is the same thing the loader
+ * reads. RM-004 B1.
+ *
+ * @param {string} name
+ * @param {Buffer} bytes
+ * @returns {?string}
+ */
+function codecOf(name, bytes)
+{
+	if (!/\.glb$/i.test(name) || bytes.length < 20) { return null; }
+	if (bytes.readUInt32LE(0) !== 0x46546c67) { return null; }
+
+	let offset = 12;
+	while (offset + 8 <= bytes.length)
+	{
+		const length = bytes.readUInt32LE(offset);
+		const type = bytes.readUInt32LE(offset + 4);
+		if (type === 0x4e4f534a)
+		{
+			try
+			{
+				const json = JSON.parse(bytes.subarray(offset + 8, offset + 8 + length).toString('utf8'));
+				const required = json.extensionsRequired || [];
+				if (required.indexOf('KHR_draco_mesh_compression') !== -1) { return 'draco'; }
+				if (required.indexOf('EXT_meshopt_compression') !== -1) { return 'meshopt'; }
+			}
+			catch { return null; }
+			return null;
+		}
+		offset += 8 + length;
+	}
+	return null;
 }
 
 /** @param {string} directory @returns {string[]} absolute paths */
@@ -94,7 +141,7 @@ function sriHash(bytes)
 
 function build()
 {
-	/** @type {Record<string, {bytes: number, hash: string, kind: string}>} */
+	/** @type {Record<string, {bytes: number, hash: string, kind: string, codec?: string}>} */
 	const assets = {};
 
 	for (const path of walk(PUBLIC))
@@ -105,11 +152,17 @@ function build()
 			continue;
 		}
 		const bytes = readFileSync(path);
-		assets[name] = {
+		const entry = {
 			bytes: bytes.length,
 			hash: sriHash(bytes),
 			kind: kindOf(name),
 		};
+		// Omitted rather than written as null when there is none, for the same
+		// reason `url` is omitted when it equals the key: a generated file that
+		// states every default is a file nobody reads.
+		const codec = codecOf(name, bytes);
+		if (codec) { entry.codec = codec; }
+		assets[name] = entry;
 	}
 
 	const sorted = {};

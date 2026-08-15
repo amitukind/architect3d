@@ -228,6 +228,79 @@ function largestCatalogItem()
 	return worst ? {bytes: worst, note: name} : null;
 }
 
+
+/**
+ * What the texture set costs on the GPU, rather than on the wire (RM-004 B1).
+ *
+ * The third kind of blind spot this file has now found, and the same shape as
+ * the other two: a per-file ceiling could not see that 3.4 MB of a 15 MB tree
+ * was one photograph (P6), a per-tree ceiling could not see what placing one
+ * chair costs (A5), and neither of them can see this. An uploaded texture is
+ * four bytes per texel no matter how well the file compressed, so the disk
+ * figure and the memory figure are not related:
+ *
+ *     rooms/textures/Ground_4K.jpg     73.2 KB on disk     16.88 MB in VRAM
+ *     rooms/textures/envs/Garden.jpg  843.8 KB on disk     10.67 MB in VRAM
+ *
+ * The first is 230x its file size and is invisible to every other measurement
+ * here. 202 images weighing 5.23 MB occupy 164 MB once uploaded with mips, and
+ * that is the number a phone runs out of - not the download.
+ *
+ * Dimensions come from the PNG and JPEG headers directly; Node decodes neither
+ * and does not need to. A file whose header does not parse is skipped rather
+ * than guessed at, so this can only ever under-report - it is a floor on the
+ * real cost, which is the safe direction for a ceiling to be built on.
+ *
+ * The 4/3 factor is a full mip chain: 1 + 1/4 + 1/16 + ... converges to 4/3.
+ */
+function textureVram()
+{
+	const PIXEL = new Set(['.png', '.jpg', '.jpeg']);
+	let texels = 0;
+
+	const visit = (dir) =>
+	{
+		if (!existsSync(dir)) { return; }
+		for (const entry of readdirSync(dir, {withFileTypes: true}))
+		{
+			const path = join(dir, entry.name);
+			if (entry.isDirectory()) { visit(path); continue; }
+			if (!PIXEL.has(extname(entry.name).toLowerCase())) { continue; }
+			const size = pngSize(readFileSync(path)) || jpegSize(readFileSync(path));
+			if (size) { texels += size.w * size.h; }
+		}
+	};
+	visit('public');
+
+	return Math.round(texels * 4 * 4 / 3);
+}
+
+/** @param {Buffer} b */
+function pngSize(b)
+{
+	if (b.length < 24 || b.readUInt32BE(0) !== 0x89504e47) { return null; }
+	return {w: b.readUInt32BE(16), h: b.readUInt32BE(20)};
+}
+
+/** @param {Buffer} b */
+function jpegSize(b)
+{
+	if (b.length < 4 || b[0] !== 0xff || b[1] !== 0xd8) { return null; }
+	let i = 2;
+	while (i + 9 < b.length)
+	{
+		if (b[i] !== 0xff) { i++; continue; }
+		const marker = b[i + 1];
+		// SOF0..SOF15, excluding the four that are not frame headers.
+		if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc)
+		{
+			return {h: b.readUInt16BE(i + 5), w: b.readUInt16BE(i + 7)};
+		}
+		i += 2 + b.readUInt16BE(i + 2);
+	}
+	return null;
+}
+
 const MEASUREMENTS = [
 	{key: 'demo-js-gzip', label: 'Demo JS (gzip)', needs: 'build:demo',
 		measure: () => gzipBytes('dist-demo/assets', ['.js'])},
@@ -253,6 +326,16 @@ const MEASUREMENTS = [
 	// question neither of the others can answer.
 	{key: 'catalog-item-largest', label: 'Costliest catalog item', needs: null,
 		measure: () => largestCatalogItem()},
+	// The decoder RM-004 B1 added, given a line of its own rather than left to
+	// disappear into public-total. It is machinery, not content: it does not
+	// grow when somebody adds a chair, it changes only when three is upgraded,
+	// and it is the one file in the tree whose cost is charged to a session that
+	// opens any compressed model at all. A number that moves for exactly one
+	// reason belongs on its own line.
+	{key: 'decoder-total', label: 'Draco decoder', needs: null,
+		measure: () => treeBytes('public/draco')},
+	{key: 'texture-vram', label: 'Texture VRAM', needs: null,
+		measure: () => textureVram()},
 ];
 
 function human(bytes)

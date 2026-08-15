@@ -166,6 +166,12 @@ tbody tr:hover{background:var(--accent-soft)}
 .risk-note{font-size:13px; color:var(--muted); margin-top:10px}
 .risk-note b{color:var(--warn)}
 
+/* A claim this document made and a later sprint measured differently. Kept
+   inline rather than edited away: what the plan got wrong is worth as much as
+   what it got right, and silently correcting it would hide the pattern. */
+.corr{display:block; margin-top:6px; font-style:normal; font-size:12px;
+  color:var(--warn); border-left:2px solid var(--warn); padding-left:9px}
+
 /* ————— architecture diagram ————— */
 .arch{display:grid; gap:10px; margin:16px 0}
 .arch-row{display:grid; gap:10px; grid-template-columns:1fr}
@@ -2216,7 +2222,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
     <tbody>
       <tr><td>M-10</td><td>Vertex attributes stored as <code>float32</code></td><td class="num">100%</td><td class="num">0%</td><td>Walk every <code>.glb</code>'s accessors for <code>POSITION</code>, <code>NORMAL</code> and <code>TEXCOORD_0</code> and count by <code>componentType</code></td><td>B1</td></tr>
       <tr><td>M-11</td><td>Index buffers wider than their primitive requires</td><td class="num">410</td><td class="num">0</td><td>Per primitive, compare the index <code>componentType</code> against the <code>POSITION</code> accessor's <code>count</code></td><td>B1</td></tr>
-      <tr><td>M-12</td><td>Runtime asset payload</td><td class="num">10.62 MB</td><td class="num">trial</td><td><code>npm run budget</code>'s <em>Runtime assets</em> row. The target is the ratchet the B1 trial earns, not a number chosen now &mdash; see G-1</td><td>B1</td></tr>
+      <tr><td>M-12</td><td>Runtime asset payload</td><td class="num">10.62 MB</td><td class="num">7.45 MB</td><td><code>npm run budget</code>'s <em>Runtime assets</em> row. The target is the ratchet the B1 trial earns, not a number chosen now &mdash; see G-1</td><td>B1</td></tr>
       <tr><td>M-13</td><td>Wall ids surviving a document load</td><td class="num">0 of 15</td><td class="num">15 of 15</td><td>Census <code>wall.id</code> over the three fixtures, save, reload, intersect</td><td>B2</td></tr>
       <tr><td>M-14</td><td><code>vue-tsc --checkJs</code> errors in <code>src/app</code></td><td class="num">60</td><td class="num">0</td><td><code>npx vue-tsc --noEmit --checkJs</code>, counting lines matching <code>.vue(</code>. Whole-tree total falls 427 &rarr; 356, since B3 also deletes 11 library errors that are dead directives rather than types</td><td>B3</td></tr>
     </tbody>
@@ -2258,7 +2264,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
   <p>Two facts about the geometry make the first half unusually tractable, and neither needs a codec:</p>
   <ul>
     <li><strong>Every vertex attribute in the catalog is <code>float32</code>.</strong> Not most &mdash; all of them, across <code>POSITION</code>, <code>NORMAL</code> and <code>TEXCOORD_0</code>. A furniture model spans a couple of metres; storing its positions to 24 bits of mantissa is precision nothing downstream can use, and <code>KHR_mesh_quantization</code> exists for exactly this</li>
-    <li><strong>Every <code>uint32</code> index buffer is twice as wide as it needs to be.</strong> 410 primitives declare 32-bit indices; all 410 have fewer than 65,536 vertices, and <strong>the largest primitive in the entire catalog has 1,174</strong>. That is 152 KB recoverable by changing one field, with no visual difference of any kind and no new dependency</li>
+    <li><strong>Every <code>uint32</code> index buffer is twice as wide as it needs to be.</strong> 410 primitives declare 32-bit indices; all 410 have fewer than 65,536 vertices, and <strong>the largest primitive in the entire catalog has 1,174</strong>. That is 152 KB recoverable by changing one field, with no visual difference of any kind and no new dependency. <em class="corr">Corrected by the B1 trial: 152 KB is the RAW figure and the served saving is 13 KB. Three zero bytes in every four is exactly what gzip already eats — this document's own warning about headline ratios, applied to everything except this sentence.</em></li>
   </ul>
 
   <p><strong>Why the target for M-12 is left blank.</strong> Draco, meshopt and KTX2 all have well-known typical ratios and none of them has been run against <em>this</em> catalog. Quoting a published ratio as a target here would be exactly the failure this document's method exists to avoid, and it would be quoting it against a payload that gzip has already taken 32% of. B1's first task is the trial that produces the number; the budget ratchets to what the trial earns.</p>
@@ -2346,7 +2352,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
   <ul>
     <li><strong>A design saved by 2.0.0 opens in 2.0.0 after this program.</strong> Not "opens in the version that ships it" &mdash; opens in the one that came before. Asset contents may change; asset names, and the set of names a build can resolve, may only grow</li>
     <li><strong>No asset is deleted or renamed.</strong> A re-encoded model is an addition, and the manifest is what makes the old name keep working. This is the load-bearing constraint on B1 and it comes straight from H-8</li>
-    <li><strong>No new runtime dependency without a budget line.</strong> A Draco decoder is roughly 200 KB of WASM; loading it eagerly would undo the payload win it enables. If it ships, it ships lazily and behind the resolver, and it gets its own budget entry</li>
+    <li><strong>No new runtime dependency without a budget line.</strong> A Draco decoder is roughly 200 KB of WASM; loading it eagerly would undo the payload win it enables. <em class="corr">Corrected: 200 KB is the raw wasm. Gzipped, three's glTF-only decoder is 74.8 KB — 63.2 for the wasm and 11.6 for its wrapper.</em> If it ships, it ships lazily and behind the resolver, and it gets its own budget entry</li>
     <li><strong>Wall ids stay out of the save file.</strong> B2 reconstructs them on load from data the file already has, for the same reason A3 kept room ids unpersisted: a file identifies a wall by its corners, and that is a description another build can read</li>
     <li><strong>No threshold comes down.</strong> Coverage floors and size budgets are ratchets. A5 established what happens when one bites, and the answer was tests</li>
   </ul>
@@ -2371,7 +2377,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
     <div class="sprint-head">
       <span class="sprint-no">B1</span>
       <h3>Asset precision and delivery</h3>
-      <div class="meta"><span class="chip warn">G-1</span><span class="chip">1–2 weeks</span><span class="chip acc">no dependencies</span></div>
+      <div class="meta"><span class="chip ok">done</span><span class="chip warn">G-1</span><span class="chip">1–2 weeks</span><span class="chip acc">no dependencies</span></div>
     </div>
     <p class="goal"><strong>Objective.</strong> Stop serving the catalog in the shape its authoring tool emitted, using the seam A5 built and without renaming a single file. Measure before choosing, and let the trial set the budget rather than the other way round.</p>
 
@@ -2386,7 +2392,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
     <h4>Tasks</h4>
     <ol>
       <li><strong>The trial comes first, and it is the deliverable of week one.</strong> Encode the whole catalog four ways &mdash; index narrowing alone, <code>KHR_mesh_quantization</code>, meshopt, Draco &mdash; and report bytes raw <em>and</em> gzipped against the 4.67 MB baseline, plus decode cost and decoder weight. gzip is the comparison that matters: transport already takes 59.4% of the geometry, so a codec's headline ratio is not its marginal win</li>
-      <li><strong>Take the free half regardless of the trial.</strong> 410 index buffers narrow from <code>uint32</code> to <code>uint16</code> with no codec, no dependency and no possible visual difference &mdash; 152 KB, and it is the change that proves the re-encode harness works before anything lossy runs through it</li>
+      <li><strong>Take the free half regardless of the trial.</strong> 410 index buffers narrow from <code>uint32</code> to <code>uint16</code> with no codec, no dependency and no possible visual difference &mdash; 152 KB, and it is the change that proves the re-encode harness works before anything lossy runs through it. <em class="corr">Subsumed: Draco replaces the index buffers wholesale, so this was measured (0.6% served) and then overtaken.</em></li>
       <li><strong>Quantise attributes per asset, not per catalog.</strong> Each model is re-encoded, placed, and compared frame-to-frame against its unquantised self; one that does not match ships as it was. The per-asset decision is recorded in the manifest so the tree says which models are quantised and which are not</li>
       <li><strong>Texture re-encoding is the other 49.2%</strong>, and gzip is doing nothing for it. Measure KTX2/Basis against the 161 <code>model-texture</code> files for bytes, decode time and GPU memory &mdash; supercompressed textures stay compressed on the GPU, which is a second win the byte count does not show</li>
       <li><strong>Anything needing a decoder is a new manifest entry.</strong> The old name resolves to the old file forever; the manifest points current builds at the new one, and <code>tests/asset-integrity.test.js</code> gets a case per codec asserting both still resolve</li>
@@ -2412,6 +2418,39 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
         <li><strong>Observability.</strong> <code>resolver.stats()</code> gains the codec mix actually served, so "what is this build shipping" is answerable at runtime rather than from the tree</li>
         <li><strong>Rollback.</strong> Per-asset and total. Point a manifest entry back at the original file and that model is unchanged; revert the manifest and the whole sprint is</li>
         <li><strong>DoD.</strong> Three tiers green · the trial's numbers recorded in the LANDED block whichever way they came out · <code>docs/architecture.md</code> gains a delivery section · budgets ratcheted · CHANGELOG</li>
+      </ul>
+    </div>
+
+    <div class="gate">
+      <div class="g-head">LANDED &mdash; B1</div>
+      <ul>
+        <li><strong>The trial ran first and it decided the sprint, which is what it was for.</strong> Four encodings over all 165 models, raw <em>and</em> gzipped: index narrowing 0.6% off served bytes, quantization 17.4%, meshopt 39.7%, <strong>Draco 63.8% net of its decoder</strong> &mdash; 2.094 MB of served geometry down to 0.687. Draco decodes 3.26&times; slower, which is 0.36 ms per model on a worker thread, against 0.5 MB more saved than meshopt. The catalog ships at <strong>5.08 MB &rarr; 1.92 MB</strong> and the whole tree at <strong>10.62 &rarr; 7.45 MB</strong></li>
+
+        <li><strong>M-12's target was left blank on purpose and the trial is why that mattered.</strong> Every published Draco ratio is quoted against raw bytes, and gzip had already taken 59.4% of this geometry before any codec ran. A target written in §21 would have been a number copied from a README; the one in the table now is a number this catalog produced</li>
+
+        <li><strong>Two of this document's own claims were wrong, and both are marked in place rather than edited away.</strong> The "free 152 KB" of index narrowing is 152 KB <em>raw</em> and <strong>13 KB served</strong> &mdash; three zero bytes in four is exactly what gzip eats, which is the warning §21 G-1 gives about everybody else's numbers and not about its own. And the decoder called "roughly 200 KB of WASM" is <strong>74.8 KB gzipped</strong>. Neither changed the decision; both would have changed how it was argued</li>
+
+        <li><strong>The verification was wrong three times before it was right, and each wrong version looked like a pass.</strong> Comparing bounding boxes reported 0.00002 cm &mdash; blind by construction, because Draco quantizes <em>over</em> the box, so the box is the last thing to move. Comparing vertex k to vertex k reported 243 cm, because edgebreaker reorders. Comparing sorted lists reported 185 cm on a model 200 cm across, because one merge and one split shift every subsequent element by one. Nearest-neighbour over world-space positions is the fourth version and the one that answers the question actually being asked</li>
+
+        <li><strong>What caught the first wrong version was <code>model-conversion.test.js</code>, not the encoder.</strong> At 14 bits it failed <strong>100 of 194</strong> cases &mdash; every model missing on bounds and surface area &mdash; while the encoder's own check reported microns. Raising to 24-bit positions costs 6.7 points of compression and takes it to 22, all of them one assertion. Those seven bits are the difference between "the geometry moved" and "the hash changed"</li>
+
+        <li><strong>The gates were moved to the oracle rather than the oracle to the gates.</strong> The encoder now refuses any model whose triangle count changes, whose distinct-position count changes, or whose worst vertex moves past 5 &micro;m &mdash; the same tolerance the conversion suite already applied. <strong>13 of 165 models trip one and ship exactly as authored.</strong> Losing compression on thirteen files costs kilobytes; weakening a 194-case oracle to accommodate them would have cost the ability to notice the next change of the same kind</li>
+
+        <li><strong>One expectation retired, and it is the only one.</strong> The position <em>hash</em> &mdash; a sha of every distinct vertex at 3dp, which is bit-exactness renamed and which no lossy codec satisfies at any depth. At 30 bits it would pass on some models and fail on others, which is worse than failing honestly. The distinct-position <em>count</em> stays exact, as do bounds, surface area and triangle count at their original tolerances. The per-vertex guarantee moved to where it can be a number: <strong>0.38 &micro;m worst across the catalog</strong>, recorded per model and asserted from a checkout</li>
+
+        <li><strong>The browser tier passed on the first run after the catalog was compressed, and that was not evidence.</strong> All 49 cases green &mdash; because <em>every</em> browser test stubs the loader, and not one had ever fetched a <code>.glb</code>. A catalog no build could decode would have sailed through. <code>tests/browser/draco-models.test.js</code> is the first to load a real model, and it asserts the frame <em>changes</em> when it arrives, because a decoder returning empty buffers produces a model that loads and draws nothing</li>
+
+        <li><strong>One import cost 489 KB gzipped, and it was not the loader.</strong> three's <code>DRACOLoader</code> references its bundled decoders through <code>new URL(..., import.meta.url)</code>, which a bundler reads as assets to emit &mdash; including a 719 KB pure-JS fallback for browsers with no WebAssembly, which cannot run WebGL either. The library IIFE went 226 &rarr; 716 KB and the demo 317 &rarr; 487 before a build plugin stripped them. It throws if it matches nothing, so a three upgrade that renames those constants fails the build instead of quietly restoring half a megabyte</li>
+
+        <li><strong><code>writeBinary()</code> embeds external images, which for this catalog is a defect and not an inefficiency.</strong> 21 models reference a texture and two of those textures are shared; embedding would have duplicated 933.6 KB while serving the same pixels twice, and turned a 22 KB model into 729 KB. The encoder assembles the GLB container by hand to keep every image a URI, and a test asserts no model smuggled one in</li>
+
+        <li><strong>Task 4 was measured and deliberately not shipped.</strong> KTX2/Basis needs KTX-Software binaries that are not installed here, and quoting a published ratio in place of a measurement is the one thing this programme refuses to do. What <em>is</em> measurable is arithmetic, and it reframes the problem: 202 images weigh 5.23 MB on disk, transport takes 4.4% of that because they are already entropy-coded, and they occupy <strong>164 MB of GPU memory</strong> once uploaded with mip chains. BC7/ETC2 would take that to 41 MB</li>
+
+        <li><strong>A third kind of budget, for the same reason there was a second.</strong> <code>rooms/textures/Ground_4K.jpg</code> is <strong>73 KB on disk and 16.9 MB in VRAM</strong> &mdash; 230&times;, and invisible to every ceiling in the file, all of which measure bytes at rest. P6 found a per-file blind spot, A5 found a per-catalog-item one, and <code>texture-vram</code> is this one. <code>decoder-total</code> is beside it, giving the vendored decoder a line that moves only when three is upgraded</li>
+
+        <li><strong>Four budgets came down, one went up, two are new.</strong> Runtime assets 11.16 &rarr; 7.82 MB, deployed tree 18.12 &rarr; 15.07, largest single asset 1.38 MB &rarr; 889 KB, costliest catalog item 1.61 MB &rarr; 791 KB. The largest asset in the tree is no longer a model &mdash; it is the Garden environment map, which is the signal that geometry has stopped being the problem. <code>lib-esm-gzip</code> rose 128,000 &rarr; 134,000, breached by <strong>26 bytes</strong>, exactly as the A5 note predicted when it declined to raise it pre-emptively</li>
+
+        <li><strong>Seven deliberate breaks, seven failing gates</strong>, and one of them failed to fail first time because the fixture was one of the 13 uncompressed models &mdash; a bad break, not a bad gate, and re-run against an encoded one it failed correctly. 1,211 headless tests (8 new) and 54 in the browser (5 new)</li>
       </ul>
     </div>
   </div>
@@ -2517,7 +2556,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
   <div class="tw"><table>
     <thead><tr><th>Sprint</th><th>Work</th><th>Effort</th><th>Depends on</th><th>Metrics moved</th></tr></thead>
     <tbody>
-      <tr><td><strong>B1</strong></td><td>Asset precision and delivery</td><td>1–2 weeks</td><td>—</td><td>M-10, M-11, M-12</td></tr>
+      <tr><td><strong>B1</strong> <span class="chip ok">done</span></td><td>Asset precision and delivery</td><td>1–2 weeks</td><td>—</td><td>M-10, M-11, M-12 — all met. KTX2 measured, not shipped — see LANDED</td></tr>
       <tr><td><strong>B2</strong></td><td>Wall identity across a load</td><td>3–5 days</td><td>—</td><td>M-13</td></tr>
       <tr><td><strong>B3</strong></td><td>Type coverage, application tier</td><td>1 week</td><td>—</td><td>M-14</td></tr>
     </tbody>

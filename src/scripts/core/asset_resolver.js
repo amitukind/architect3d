@@ -49,6 +49,7 @@ import {AssetManifest} from './asset_manifest.js';
  * @property {number} bytes Zero when unknown.
  * @property {?string} hash
  * @property {string} kind
+ * @property {?string} codec Decoder required to read it, or null for none.
  * @property {boolean} known Whether the manifest declares this name. Always
  *           false when there is no manifest, which is why `missing()` is the
  *           question to ask rather than this one.
@@ -59,6 +60,8 @@ import {AssetManifest} from './asset_manifest.js';
  * @property {boolean} manifested Whether a manifest is loaded at all.
  * @property {number} assets How many names the manifest declares.
  * @property {string} base
+ * @property {Object<string, number>} codecs How many entries declare each codec.
+ * @property {string} decoderPath Where a Draco decoder would be fetched from.
  * @property {number} resolutions
  * @property {number} misses Names asked for that a loaded manifest did not have.
  * @property {number} preloaded How many were warmed.
@@ -145,12 +148,12 @@ export class AssetResolver
 			}
 			var plain = this._base + name;
 			this._countWarm(plain);
-			return {name: name, url: plain, bytes: 0, hash: null, kind: 'asset', known: false};
+			return {name: name, url: plain, bytes: 0, hash: null, kind: 'asset', codec: null, known: false};
 		}
 
 		var url = this._base + entry.url;
 		this._countWarm(url);
-		return {name: name, url: url, bytes: entry.bytes, hash: entry.hash, kind: entry.kind, known: true};
+		return {name: name, url: url, bytes: entry.bytes, hash: entry.hash, kind: entry.kind, codec: entry.codec, known: true};
 	}
 
 	/** @param {string} url */
@@ -270,6 +273,49 @@ export class AssetResolver
 		return {requested: requested, bytes: bytes, skipped: skipped};
 	}
 
+	/**
+	 * Where the Draco decoder is served from (RM-004 B1).
+	 *
+	 * Derived from the base rather than configured separately, because a
+	 * deployment that moves its assets moves its decoder with them - one of them
+	 * relocating without the other is a broken build that nothing would catch
+	 * until a model failed to decode. `?assetBase=` therefore reaches the decoder
+	 * for free, which is the whole reason this is a method on the resolver rather
+	 * than a constant in the model layer.
+	 *
+	 * Trailing slash included: `DRACOLoader.setDecoderPath()` concatenates rather
+	 * than joins, so the caller owns the separator.
+	 *
+	 * @returns {string}
+	 */
+	decoderPath()
+	{
+		return this._base + 'draco/';
+	}
+
+	/**
+	 * How many manifest entries declare each codec (RM-004 B1).
+	 *
+	 * "What is this build actually shipping" was a question only the tree could
+	 * answer before, and only to somebody holding a checkout. A resolver knows
+	 * it, so a running page can report it.
+	 *
+	 * @returns {Object<string, number>}
+	 */
+	codecMix()
+	{
+		/** @type {Object<string, number>} */
+		var mix = {};
+		var names = this.manifest.names();
+		for (var i = 0; i < names.length; i++)
+		{
+			var entry = this.manifest.entry(names[i]);
+			var codec = (entry && entry.codec) || 'none';
+			mix[codec] = (mix[codec] || 0) + 1;
+		}
+		return mix;
+	}
+
 	/** @returns {ResolverStats} */
 	stats()
 	{
@@ -277,6 +323,8 @@ export class AssetResolver
 			manifested: this.manifested,
 			assets: this.manifest.count,
 			base: this._base,
+			codecs: this.codecMix(),
+			decoderPath: this.decoderPath(),
 			resolutions: this._stats.resolutions,
 			misses: this._stats.misses,
 			preloaded: this._stats.preloaded,
