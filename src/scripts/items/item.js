@@ -1,4 +1,5 @@
-import {Mesh, Matrix4, Vector2, Vector3, BoxHelper, MeshBasicMaterial, AdditiveBlending} from 'three';
+// @ts-check
+import {Mesh, Matrix4, Object3D, Vector2, Vector3, Box3, BoxHelper, MeshBasicMaterial, AdditiveBlending} from 'three';
 import {CanvasTexture, PlaneGeometry, DoubleSide, SRGBColorSpace} from 'three';
 import {Color} from 'three';
 import {Utils} from '../core/utils.js';
@@ -19,11 +20,68 @@ import {Dimensioning} from '../core/dimensioning.js';
  * @typedef {import('three').BufferGeometry} BufferGeometry
  * @typedef {import('three').Material} Material
  * @typedef {import('../model/model.js').Model} Model
+ *
+ * `color`, `emissive` and `texture` are not on `Material` - they belong to the
+ * concrete subclasses - and this class reads all three off whatever a glTF
+ * happened to supply. Optional, because a `MeshBasicMaterial` has no
+ * `emissive` and the code already checks before touching it (RM-005 C2).
+ *
+ * @typedef {import('three').Material & {color?: any, emissive?: any, texture?: any}} ColorableMaterial
  */
 /**
  * An Item is an abstract entity for all things placed in the scene, e.g. at
  * walls or on the floor.
  */
+/**
+ * The materials of a mesh, as an array, or null when it carries a single one.
+ *
+ * `Mesh.material` is `Material | Material[]` and `Item` has always handled both
+ * - every colour path branches on `this.material.length`. Only the TYPE was
+ * missing, and reading `.length` or `.color` off the union was 16 of this
+ * file's errors (RM-005 C2).
+ *
+ * The test is `Array.isArray(m) && m.length`, which is exactly what
+ * `material.length` evaluated to: a single material has no `length` and is
+ * falsy, an array of one has length 1 and is truthy. Written out so the
+ * equivalence is checkable rather than assumed.
+ *
+ * ## Why these are functions and not methods
+ *
+ * Because `getMetaData` is exercised by calling it on a hand-built object -
+ * `Item.prototype.getMetaData.call({material: [...], ...})` - which is a
+ * deliberate testing style in `tests/items-and-scene.test.js` and a good one:
+ * it pins the save-file contract without building a scene. Methods added a
+ * dependency on `this` that a stub does not have, and eight tests said so
+ * immediately. A pure function of the material has no such dependency, and is
+ * the honest shape for something that reads one argument.
+ *
+ * @param {Material|Material[]} material
+ * @returns {?ColorableMaterial[]}
+ */
+function multiMaterial(material)
+{
+	return (Array.isArray(material) && material.length)
+		? /** @type {ColorableMaterial[]} */ (material)
+		: null;
+}
+
+/**
+ * The single material, or the first of several.
+ *
+ * `color`, `emissive` and `texture` live on the concrete material classes
+ * rather than on `Material`, so even a narrowed union does not have them -
+ * hence `ColorableMaterial`, which names the three this file reads and leaves
+ * them optional, because a `MeshBasicMaterial` has no `emissive` and the code
+ * already checks.
+ *
+ * @param {Material|Material[]} material
+ * @returns {ColorableMaterial}
+ */
+function singleMaterial(material)
+{
+	return /** @type {ColorableMaterial} */ (Array.isArray(material) ? material[0] : material);
+}
+
 export class Item extends Mesh
 {
 	/**
@@ -86,6 +144,7 @@ export class Item extends Mesh
 		this.designId = (metadata && metadata.designId) ? metadata.designId : Utils.guide();
 
 		/** */
+		/** @type {?Mesh} The red halo shown by showError(); replaced on each use. */
 		this.errorGlow = new Mesh();
 		/** */
 		this.hover = false;
@@ -116,6 +175,7 @@ export class Item extends Mesh
 		this.dragOffset = new Vector3();
 		/** */
 		this.halfSize = new Vector3(0,0,0);
+		/** @type {?BoxHelper} Built by init(), released by dispose(). */
 		this.bhelper = null;
 
 		this.scene = this.model.scene;
@@ -134,12 +194,14 @@ export class Item extends Mesh
 		this.material = material;
 		// center in its boundingbox
 		this.geometry.computeBoundingBox();
-		this.geometry.applyMatrix4(new Matrix4().makeTranslation(- 0.5 * (this.geometry.boundingBox.max.x + this.geometry.boundingBox.min.x),- 0.5 * (this.geometry.boundingBox.max.y + this.geometry.boundingBox.min.y),- 0.5 * (this.geometry.boundingBox.max.z + this.geometry.boundingBox.min.z)));
+		var box = this.bounds();
+		this.geometry.applyMatrix4(new Matrix4().makeTranslation(- 0.5 * (box.max.x + box.min.x),- 0.5 * (box.max.y + box.min.y),- 0.5 * (box.max.z + box.min.z)));
 		this.geometry.computeBoundingBox();
 
-		if(!this.material.color)
+		var firstMaterial = singleMaterial(this.material);
+		if(!firstMaterial.color)
 		{
-			this.material.color = new Color('#FFFFFF');
+			firstMaterial.color = new Color('#FFFFFF');
 		}
 		this.wirematerial = new MeshBasicMaterial({color: 0x000000, wireframe: true});
 
@@ -172,7 +234,7 @@ export class Item extends Mesh
 		this.receiveShadow = false;
 
 		this.originalmaterial = material;
-		this.texture = this.material.texture;
+		this.texture = singleMaterial(this.material).texture;
 
 		this.position_set = false;
 		if (position)
@@ -235,7 +297,8 @@ export class Item extends Mesh
 				// file has a colour in every slot, because that is what the old
 				// writer emitted, and every one of them is applied exactly as
 				// before. Nothing anyone has saved changes appearance.
-				if(this.material.length)
+				var slotMaterials = multiMaterial(this.material);
+				if(slotMaterials)
 				{
 					for (var i=0;i<this.metadata.materialColors.length;i++)
 					{
@@ -243,13 +306,13 @@ export class Item extends Mesh
 						{
 							continue;
 						}
-						this.material[i].color = new Color(this.metadata.materialColors[i]);
+						slotMaterials[i].color = new Color(this.metadata.materialColors[i]);
 						this._pickedColorSlots.add(i);
 					}
 				}
 				else if(this.metadata.materialColors[0] != null)
 				{
-					this.material.color = new Color(this.metadata.materialColors[0]);
+					singleMaterial(this.material).color = new Color(this.metadata.materialColors[0]);
 					this._pickedColorSlots.add(0);
 				}
 			}
@@ -324,10 +387,49 @@ export class Item extends Mesh
 		this.material = (flag)? this.wirematerial : this.originalmaterial;
 	}
 
-	/** */
-	remove()
+	/**
+	 * Take this item out of the design - or, given arguments, detach children.
+	 *
+	 * ## The shadowing RM-003 A0 found and deferred
+	 *
+	 * `Item extends Mesh`, and this method used to be `remove()` with no
+	 * parameters, meaning "take me out of the design". `Object3D.remove(child)`
+	 * means something entirely different, so detaching a child of an item - one
+	 * of its two dimension-label planes, say - through the ordinary call
+	 * re-entered item removal and recursed until the stack gave out.
+	 *
+	 * A0 wrote that up in `core/resource_registry.js`, worked around it there by
+	 * going through `Object3D.prototype.remove`, and called the shadowing itself
+	 * "a genuine hazard... but `Item.remove()` is public API, so renaming it is a
+	 * breaking change and belongs in its own change rather than in A0".
+	 *
+	 * ## Why it is fixed here rather than deferred again
+	 *
+	 * Because it stopped being a judgement call and became a type error. TS2416:
+	 * this property "is not assignable to the same property in base type Mesh",
+	 * which is the checker describing A0's paragraph. RM-005 C2 fixes the defects
+	 * the checker names, and this is one.
+	 *
+	 * Nothing is renamed, so nothing breaks. `remove()` with no arguments does
+	 * exactly what it did, which is the only form anything calls - the two
+	 * application call sites, the `WallItem` listener, and the inspector. What
+	 * changes is the form that was already broken: `remove(child)` now detaches
+	 * the child instead of recursing, which is what a caller passing an argument
+	 * has always been asking for.
+	 *
+	 * @param {...import('three').Object3D} objects Children to detach. Passing
+	 *        none means "remove me from the design".
+	 * @returns {this}
+	 */
+	remove(...objects)
 	{
+		if (objects.length)
+		{
+			Object3D.prototype.remove.apply(this, objects);
+			return this;
+		}
 		this.scene.removeItem(this);
+		return this;
 	}
 
 	/** */
@@ -364,11 +466,12 @@ export class Item extends Mesh
 	getMaterialColor(index)
 	{
 		index = (index)? index : 0;
-		if(this.material.length)
+		var materials = multiMaterial(this.material);
+		if(materials)
 		{
-			return '#'+this.material[index].color.getHexString();
+			return '#'+materials[index].color.getHexString();
 		}
-		return '#'+this.material.color.getHexString();
+		return '#'+singleMaterial(this.material).color.getHexString();
 	}
 
 	// Always send an hexadecimal string value for color - ex. '#FFFFFF'
@@ -410,14 +513,15 @@ export class Item extends Mesh
 	setMaterialColor(color, index)
 	{
 		var c = new Color(color);
-		if(this.material.length)
+		var materials = multiMaterial(this.material);
+		if(materials)
 		{
 			index = (index) ? index : 0;
-			this.material[index].color = c;
+			materials[index].color = c;
 			this._pickedColorSlots.add(index);
 			return;
 		}
-		this.material.color = c;
+		singleMaterial(this.material).color = c;
 		this._pickedColorSlots.add(0);
 	}
 
@@ -615,19 +719,24 @@ export class Item extends Mesh
 			// materials include a MeshBasicMaterial - the wireframe and pick
 			// helpers, or anything a glTF declares unlit - would throw here on
 			// hover, so the property is checked rather than assumed.
-			if(this.material.length)
+			var glowing = multiMaterial(this.material);
+			if(glowing)
 			{
-				this.material.forEach((material) => {
+				glowing.forEach((material) => {
 					if(material.emissive)
 					{
 						material.emissive.setHex(hex);
 					}
 				});
 			}
-			else if(this.material.emissive)
+			else
 			{
-				this.material.emissive.setHex(hex);
-				this.material.emissive = new Color(hex);
+				var only = singleMaterial(this.material);
+				if(only.emissive)
+				{
+					only.emissive.setHex(hex);
+					only.emissive = new Color(hex);
+				}
 			}
 		}
 
@@ -652,7 +761,9 @@ export class Item extends Mesh
 	{
 		this.setScale(1, 1, 1);
 		this.selected = true;
-		this.bhelper.visible = true;
+		// `bhelper` exists between init() and dispose(); selecting outside that
+		// window is a caller error rather than something to crash on (RM-005 C2).
+		if (this.bhelper) { this.bhelper.visible = true; }
 		this.canvasPlaneWH.visible = this.canvasPlaneWD.visible = true;
 		this.updateHighlight();
 	}
@@ -661,7 +772,7 @@ export class Item extends Mesh
 	setUnselected()
 	{
 		this.selected = false;
-		this.bhelper.visible = false;
+		if (this.bhelper) { this.bhelper.visible = false; }
 		this.canvasPlaneWH.visible = this.canvasPlaneWD.visible = false;
 		this.updateHighlight();
 	}
@@ -759,9 +870,45 @@ export class Item extends Mesh
 	 * Returns an array of planes to use other than the ground plane for passing
 	 * intersection to clickPressed and clickDragged
 	 */
+	/**
+	 * Planes to intersect against besides the ground plane.
+	 *
+	 * @returns {Array<Object>} Empty here; subclasses return wall or roof planes.
+	 *          Typed loosely on purpose - `WallItem` returns the model's wall
+	 *          edge planes and `RoofItem` its roof planes, and pinning either
+	 *          shape on the base would make the override an error rather than an
+	 *          override (RM-005 C2).
+	 */
 	customIntersectionPlanes()
 	{
 		return [];
+	}
+
+	/**
+	 * The geometry's bounding box, which this class guarantees exists.
+	 *
+	 * `BufferGeometry.boundingBox` is null until something computes it, and
+	 * three never does it for you - so every one of the dozen reads across
+	 * `items/` was a possibly-null, and every one of them was also correct,
+	 * because the constructor computes it on the line after it assigns the
+	 * geometry (RM-005 C2).
+	 *
+	 * A method rather than a dozen guards, and it recomputes rather than
+	 * asserting: if the invariant is ever broken - a subclass replacing
+	 * `geometry` after construction, say - the caller gets a real box instead of
+	 * a TypeError. The `|| new Box3()` after it is unreachable, since
+	 * `computeBoundingBox()` always assigns one; an empty box is the honest
+	 * answer for a geometry with nothing in it.
+	 *
+	 * @returns {Box3}
+	 */
+	bounds()
+	{
+		if (!this.geometry.boundingBox)
+		{
+			this.geometry.computeBoundingBox();
+		}
+		return this.geometry.boundingBox || new Box3();
 	}
 
 	/**
@@ -826,7 +973,9 @@ export class Item extends Mesh
 			this.errorGlow = this.createGlow(this.errorColor, 0.8, true);
 			this.scene.add(this.errorGlow);
 		}
-		this.errorGlow.position.copy(vec3);
+		// Null only between dispose() and a rebuild; showError on a disposed item
+		// is a caller error, not a crash (RM-005 C2).
+		if (this.errorGlow) { this.errorGlow.position.copy(vec3); }
 	}
 
 	/** */
@@ -849,7 +998,7 @@ export class Item extends Mesh
 	objectHalfSize()
 	{
     this.geometry.computeBoundingBox();
-    var objectBox = this.geometry.boundingBox.clone();
+    var objectBox = this.bounds().clone();
 		return objectBox.max.clone().sub(objectBox.min).divideScalar(2);
 	}
 
@@ -895,7 +1044,8 @@ export class Item extends Mesh
 
 		if(this._pickedColorSlots.size)
 		{
-			var slots = this.material.length ? this.material.length : 1;
+			var saved = multiMaterial(this.material);
+			var slots = saved ? saved.length : 1;
 			matattribs = [];
 			for (var i = 0; i < slots; i++)
 			{
@@ -904,7 +1054,7 @@ export class Item extends Mesh
 					matattribs.push(null);
 					continue;
 				}
-				var material = scope.material.length ? scope.material[i] : scope.material;
+				var material = saved ? saved[i] : singleMaterial(scope.material);
 				matattribs.push('#'+material.color.getHexString());
 			}
 		}

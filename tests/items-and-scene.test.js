@@ -1243,6 +1243,29 @@ describe('RoofItem on a design with no ceiling (RM-005 C2, J-5)', () =>
 		expect(where).not.toBe(item.position);
 	});
 
+	it('has a sibling in WallItem, found the same way', () =>
+	{
+		// `WallItem.closestWallEdge()` returns null when `wallEdges()` is empty -
+		// the loop never runs and there is nothing to be nearest to - and
+		// `placeInRoom` handed it straight to `changeWallEdge`, which dereferences
+		// it on its first line. Adding a wall item before drawing a wall.
+		//
+		// Same shape as J-5, named by the same checker, and neither had a test
+		// because no fixture is empty enough to hit either.
+		const item = {
+			model: {floorplan: {wallEdges: () => []}},
+			position: new three.Vector3(1, 2, 3),
+			position_set: false,
+			closestWallEdge: WallItem.prototype.closestWallEdge,
+			// Present so a regression fails LOUDLY rather than by another missing
+			// method: if placeInRoom stops guarding, it reaches this and throws on
+			// `wallEdge.wall`, which is the original defect.
+			changeWallEdge: WallItem.prototype.changeWallEdge,
+		};
+		expect(WallItem.prototype.closestWallEdge.call(item)).toBe(null);
+		expect(() => WallItem.prototype.placeInRoom.call(item)).not.toThrow();
+	});
+
 	it('still prefers a real ceiling when there is one', () =>
 	{
 		// The fix must not have turned the normal path into the fallback. One roof

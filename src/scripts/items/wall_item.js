@@ -1,8 +1,11 @@
+// @ts-check
 import {Vector2, Vector3} from 'three';
 import {EVENT_DELETED} from '../core/events.js';
 import {Utils} from '../core/utils.js';
 import {Item} from './item.js';
 
+
+/** @typedef {import('../model/half_edge.js').HalfEdge} HalfEdge */
 /**
  * A Wall Item is an entity to be placed related to a wall.
  */
@@ -72,11 +75,14 @@ export class WallItem extends Item
 	}
 
 	/** Get the closet wall edge.
-	 * @returns The wall edge.
+	 * @returns {?HalfEdge} The nearest wall edge, or null when the design has no
+	 * walls at all - `wallEdges()` is empty, the loop never runs, and there is
+	 * nothing to be nearest to.
 	 */
 	closestWallEdge()
 	{
 		var wallEdges = this.model.floorplan.wallEdges();
+		/** @type {?HalfEdge} */
 		var wallEdge = null;
 		var minDistance = null;
 		var itemX = this.position.x;
@@ -133,9 +139,10 @@ export class WallItem extends Item
 	/** */
 	updateSize()
 	{
-		this.wallOffsetScalar = (this.geometry.boundingBox.max.z - this.geometry.boundingBox.min.z) * this.scale.z / 2.0;
-		this.sizeX = (this.geometry.boundingBox.max.x - this.geometry.boundingBox.min.x) * this.scale.x;
-		this.sizeY = (this.geometry.boundingBox.max.y - this.geometry.boundingBox.min.y) * this.scale.y;
+		var box = this.bounds();
+		this.wallOffsetScalar = (box.max.z - box.min.z) * this.scale.z / 2.0;
+		this.sizeX = (box.max.x - box.min.x) * this.scale.x;
+		this.sizeY = (box.max.y - box.min.y) * this.scale.y;
 	}
 
 	/** */
@@ -143,7 +150,8 @@ export class WallItem extends Item
 	{
 		if (this.boundToFloor)
 		{
-			this.position.y = 0.5 * (this.geometry.boundingBox.max.y - this.geometry.boundingBox.min.y) * this.scale.y + 0.01;
+			var box = this.bounds();
+			this.position.y = 0.5 * (box.max.y - box.min.y) * this.scale.y + 0.01;
 		}
 		this.updateSize();
 		this.redrawWall();
@@ -164,6 +172,18 @@ export class WallItem extends Item
 	placeInRoom()
 	{
 		var closestWallEdge = this.closestWallEdge();
+		// Null on a design with no walls, and `changeWallEdge` dereferences it on
+		// its first line - so adding a wall item before drawing a wall was a
+		// TypeError, the same shape as the RoofItem crash RM-005 C2 fixed one file
+		// over (J-5). Both were named by the checker and neither had a test.
+		//
+		// Doing nothing is the honest answer: the item keeps the position it was
+		// created with and attaches to a wall the next time one is nearby, which
+		// is what `placeInRoom` is for.
+		if (!closestWallEdge)
+		{
+			return;
+		}
 		this.changeWallEdge(closestWallEdge);
 		this.updateSize();
 
@@ -280,7 +300,8 @@ export class WallItem extends Item
 
 		if (this.boundToFloor)
 		{
-			vec3.y = 0.5 * (this.geometry.boundingBox.max.y - this.geometry.boundingBox.min.y) * this.scale.y + 0.01;
+			var box = this.bounds();
+			vec3.y = 0.5 * (box.max.y - box.min.y) * this.scale.y + 0.01;
 		}
 		else
 		{

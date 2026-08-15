@@ -1,6 +1,19 @@
+// @ts-check
 import {Item} from './item.js';
 import {Matrix4, Triangle, Plane, Vector3} from 'three';
 import {faceIndices} from '../core/geometry_builders.js';
+
+/**
+ * What `roofContainsPoint` reports about one roof mesh.
+ *
+ * @typedef {Object} RoofResult
+ * @property {number} distance
+ * @property {boolean} contains
+ * @property {?Vector3} point Where the point projects onto the roof plane, or
+ *           null if no triangle was closer than the running best.
+ * @property {?Vector3} closestPoint The nearest point on the last triangle
+ *           examined, or null if the mesh had no triangles.
+ */
 /**
  * A Floor Item is an entity to be placed related to a floor.
  */
@@ -14,7 +27,8 @@ export class RoofItem extends Item
 		this._freePosition = false;
 		if(this.geometry)
 		{
-			this.geometry.applyMatrix4(new Matrix4().makeTranslation(-0.5 * (this.geometry.boundingBox.max.x + this.geometry.boundingBox.min.x), -0.5 * (this.geometry.boundingBox.max.y - this.geometry.boundingBox.min.y),-0.5 * (this.geometry.boundingBox.max.z + this.geometry.boundingBox.min.z)));
+			var box = this.bounds();
+			this.geometry.applyMatrix4(new Matrix4().makeTranslation(-0.5 * (box.max.x + box.min.x), -0.5 * (box.max.y - box.min.y),-0.5 * (box.max.z + box.min.z)));
 			this.geometry.computeBoundingBox();
 		}
 		this.halfSize = this.objectHalfSize();
@@ -35,7 +49,13 @@ export class RoofItem extends Item
 	roofContainsPoint(roof, forpoint)
 	{
 			var g = roof.geometry;
+			// Typed, because an object literal takes its field types from its
+			// initialisers - so `point: null` declared the field AS null and every
+			// assignment below was an error (RM-005 C2). The same shape appears in
+			// closestCeilingPoint, and both are documented by RoofResult.
+			/** @type {RoofResult} */
 			var result = {distance: Number.MAX_VALUE, contains: false, point: null, closestPoint: null};
+			/** @type {?Vector3} */
 			var closestPoint = null;
 			// Geometry.faces/.vertices are gone; the same triangles now come out
 			// of the index and position attributes.
@@ -65,7 +85,9 @@ export class RoofItem extends Item
 					}
 			}
 			//No good result so return the closest point of the last triangle in this roof mesh
-			if(result.point == null)
+			// `closestPoint` is null when the mesh has no faces at all, which is the
+			// same emptiness J-5 found one level up.
+			if(result.point == null && closestPoint)
 			{
 				result.closestPoint = closestPoint.clone();
 			}
@@ -77,7 +99,9 @@ export class RoofItem extends Item
 	{
 		var roofs = this.model.floorplan.roofPlanes();
 		var roof;
+		/** @type {{distance: number, point: ?Vector3}} */
 		var globalResult = {distance: Number.MAX_VALUE, point: null};
+		/** @type {?RoofResult} */
 		var result = null;
 		for (var i=0;i< roofs.length; i++)
 		{
@@ -111,7 +135,7 @@ export class RoofItem extends Item
 				// position is a no-op, so the item lands wherever it was placed and
 				// the user moves it - which is what `FloorItem.isValidPosition` already
 				// does when it cannot find a room to be in.
-				if(result == null)
+				if(result == null || result.closestPoint == null)
 				{
 						return this.position.clone();
 				}
