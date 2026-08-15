@@ -2,6 +2,33 @@
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-08-15
+
+The texture half of the payload, finished. 2.1.0 capped five oversized images
+and took GPU memory from a corrected 104.67 MB to 43.00; this transcodes the
+catalog's model textures to KTX2 and takes it to **12.54 MB** — 88% below where
+the programme started, and 12% of what the tree was measured at before any of
+it. The deployed tree is 5.32 MB against 10.68 at 2.0.0.
+
+**Minor, on the same terms as 2.1.0.** Every export behaves as it did and every
+saved design opens unchanged, including one naming a texture that has now been
+renamed twice. The single narrower change is in *Compatibility*: the containers
+declare `KHR_texture_basisu` as required, so an embedder supplying their own
+loader needs a KTX2 loader as well as the Draco one 2.1.0 asked for.
+
+Two findings are worth more than the megabytes. **An architectural objection
+recorded in 2.1.0 was wrong**, and reading three's source rather than its
+signature is what showed it — `detectSupport` never retains the renderer it is
+handed, so nothing had to be coupled to one. And **a deliberate break that
+failed to fail invalidated a conclusion already drawn**: 54 green browser tests
+were cited as proof that KTX2 rendering worked, and they had never decoded a
+texture at all. Both are written up in full rather than quietly fixed.
+
+Verified at `e6541a8` from a clean detached worktree, `npm ci` from the
+lockfile, before anything was dated: typecheck clean, lint 0 errors, five
+pipeline `--check`s green, **1,251 headless tests in 30 files and 57 browser
+tests in 10**, ten budgets green.
+
 ### Changed
 
 * **The catalog's model textures are KTX2/ETC1S, and GPU memory fell another
