@@ -2,6 +2,39 @@
 
 ## [Unreleased]
 
+### Fixed
+
+* **A selected wall stays selected when you undo.** Selection resolves a wall
+  by id, and every load destroyed the walls and handed out fresh ones — so an
+  undo silently dropped whatever wall you had selected, and there was no way to
+  ask for it back. Wall ids are reconstructed from the corner pair the file
+  already records, so nothing was added to the save format and a file written
+  before this change loads with exactly the ids one written after it would.
+
+  Two rules, and either alone is wrong. The pair is **sorted**, so a wall
+  recorded `b → a` is the same wall as one recorded `a → b`. And it carries an
+  **ordinal**, so two walls spanning one corner pair do not collide — which
+  `Floorplan.newWall` does not prevent and which survives a round trip. Neither
+  case appears in any fixture, so both are constructed tests written before the
+  change.
+
+* **Windows and doors survive an undo.** RM-003 A3 excluded anything wall-bound
+  from item preservation, because it held a `HalfEdge` that a load destroyed and
+  A3 had no way to find the same face afterwards. `HalfEdge.id` is
+  `${wall.id}:front|back`, so stable wall ids made it findable, and
+  `Model.newRoom` now notes which face a bound item is on before the floorplan
+  goes and puts it back on that face — not merely on the nearest one, which is
+  the same answer everywhere except where two walls meet. An undo of a corner
+  move now reloads **nothing at all**, where it used to reload every window.
+
+* **A leaked listener per wall re-bind.** `WallItem.changeWallEdge` declared its
+  `EVENT_DELETED` handler as a fresh closure on every call and then removed *the
+  new one* from the old wall — detaching a function that had never been
+  attached, and leaving the previous one subscribed forever. It now holds one
+  reference, which is also what made the fix above possible: the item used to
+  die during a load by its own hand, because `reset()` fires `EVENT_DELETED` on
+  every wall and the handler removed the item before it could be re-bound.
+
 ### Changed
 
 * **The model catalog is Draco-compressed, and no file changed its name.**
@@ -26,7 +59,13 @@
   magnitude inside the gate — and every per-model measurement is committed to
   `asset-pipeline/encoding-report.json`.
 
-* **One expectation was retired**, and only one: the position *hash* in
+* **One expectation was retired in B2**, deliberately: `history-and-selection.test.js`
+  asserted that a wall-bound item *reloads* across a restore and comes back as a
+  different object. That was A3 pinning its own carve-out, and its note said so.
+  It now asserts what replaced it — nothing reloads, the same object comes back,
+  and it is on the face it was on rather than merely on a face that exists.
+
+* **One expectation was retired in B1**, and only one: the position *hash* in
   `model-conversion.test.js`. It is a sha of every distinct vertex rounded to
   three decimals, which is bit-exactness under another name, and no lossy codec
   satisfies it at any bit depth. The count of distinct positions stays and stays

@@ -37,7 +37,7 @@ import {Model} from '../src/scripts/model/model.js';
 import {Main} from '../src/scripts/three/main.js';
 import {EVENT_ITEM_LOADING, EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED} from '../src/scripts/core/events.js';
 import {createBlueprintStore} from '../src/app/composables/useBlueprint.js';
-import {useSelection, SELECTION_ITEM, SELECTION_WALL, SELECTION_ROOM_2D} from '../src/app/composables/useSelection.js';
+import {useSelection, SELECTION_ITEM, SELECTION_WALL, SELECTION_WALL_2D, SELECTION_ROOM_2D} from '../src/app/composables/useSelection.js';
 import {useHistory} from '../src/app/composables/useHistory.js';
 import {resetAll, stubItemLoader} from './helpers/harness.js';
 import {installCanvas2D, installPointerApis, installResizeObserver} from './helpers/dom.js';
@@ -260,14 +260,20 @@ describe('restoring a snapshot keeps the furniture it already has (M-8)', () =>
 		expect(model.scene.getItems()).toHaveLength(3);
 	});
 
-	it('reloads a wall-bound item, and leaves it bound to a wall that exists', () =>
+	it('keeps a wall-bound item too, and rebinds it to the same face', () =>
 	{
-		// The carve-out, and the property it protects. A WallItem holds a
-		// `currentWallEdge`, and every load destroys and rebuilds the whole
-		// floorplan - so keeping one across a restore would leave it pointing at a
-		// HalfEdge that no longer exists, and it would try to detach from that
-		// edge when it was eventually removed. Wall-bound items reload; everything
-		// else reconciles.
+		// A3 pinned the opposite of this, and the expectation was RETIRED
+		// deliberately by RM-004 B2 rather than found to be wrong. A3's version
+		// asserted one load and a different object, because a WallItem holds a
+		// `currentWallEdge`, every load destroys the floorplan, and A3 had no way
+		// to find the same face again afterwards - its note said so, and said the
+		// fix needed wall ids that survive a load.
+		//
+		// B2 is that fix, so the carve-out went and this asserts what replaced it:
+		// nothing reloads, and the item comes back on the FACE it was on rather
+		// than merely on some face that exists. The second half is the one worth
+		// having - "nearest wall" and "the wall it was on" are the same answer
+		// almost everywhere, and differ exactly where two walls meet.
 		const window = {
 			id: undefined, item_name: 'window', item_type: 2, model_url: 'w.glb', format: 'gltf',
 			xpos: 200, ypos: 100, zpos: 0, rotation: 0,
@@ -276,20 +282,57 @@ describe('restoring a snapshot keeps the furniture it already has (M-8)', () =>
 		model.loadSerialized(design(furniture().concat([window])));
 		const wallItem = model.scene.getItems().find((item) => item.boundToFloorplan);
 		expect(wallItem).toBeTruthy();
+		expect(wallItem.currentWallEdge).toBeTruthy();
+		const edgeId = wallItem.currentWallEdge.id;
 		const before = model.exportSerialized();
 
 		const corner = model.floorplan.getCorners()[0];
 		corner.move(corner.x - 20, corner.y - 20);
 		const loads = countLoads(model.scene, () => {model.loadSerialized(before);});
 
-		// One load: the wall item. The three free-standing ones were kept.
-		expect(loads).toBe(1);
+		// Nothing reloads now - not the three free-standing items and not the
+		// window. M-8 was already zero for furniture; this is the carve-out closing.
+		expect(loads).toBe(0);
+
 		const restored = model.scene.getItems().find((item) => item.boundToFloorplan);
-		expect(restored).not.toBe(wallItem);
-		if (restored.currentWallEdge)
-		{
-			expect(model.floorplan.wallEdges()).toContain(restored.currentWallEdge);
-		}
+		expect(restored).toBe(wallItem);
+		expect(restored.currentWallEdge).toBeTruthy();
+		// The edge object is new - the old one was destroyed with the floorplan -
+		// and it answers to the same name, which is the whole mechanism.
+		expect(restored.currentWallEdge.id).toBe(edgeId);
+		expect(model.floorplan.wallEdges()).toContain(restored.currentWallEdge);
+		// And the wall knows about it, or it would not be drawn on it. Which of the
+		// two lists depends on `addToWall`: an InWallItem cuts a hole and lives in
+		// `items`, a WallItem hangs on the surface and lives in `onItems`.
+		const attached = restored.addToWall
+			? restored.currentWallEdge.wall.items
+			: restored.currentWallEdge.wall.onItems;
+		expect(attached).toContain(restored);
+	});
+
+	it('removes a wall-bound item when its wall is deleted', () =>
+	{
+		// Also found by a break that FAILED TO FAIL. B2 rewrote the EVENT_DELETED
+		// subscription in `changeWallEdge` - it used to build a fresh closure on
+		// every call and then remove the NEW one off the old wall, so each re-bind
+		// leaked a listener and nothing could detach an item without destroying it.
+		// Replacing it with one held reference is what let a bound item survive a
+		// load. Nothing in the suite noticed when the handler was stubbed out
+		// entirely, which means the behaviour it implements had no coverage at all:
+		// delete a wall and the window in it must go with it.
+		const window = {
+			id: undefined, item_name: 'window', item_type: 2, model_url: 'w.glb', format: 'gltf',
+			xpos: 200, ypos: 100, zpos: 0, rotation: 0,
+			scale_x: 1, scale_y: 1, scale_z: 1, fixed: false,
+		};
+		model.loadSerialized(design(furniture().concat([window])));
+		const wallItem = model.scene.getItems().find((item) => item.boundToFloorplan);
+		expect(wallItem).toBeTruthy();
+		expect(wallItem.currentWallEdge).toBeTruthy();
+
+		wallItem.currentWallEdge.wall.remove();
+
+		expect(model.scene.getItems()).not.toContain(wallItem);
 	});
 
 	it('keeps every LOADING matched by exactly one LOADED', () =>
@@ -420,6 +463,58 @@ describe('the selection survives an edit', () =>
 		model.loadSerialized(before);
 
 		expect(app.selection.selection.value.object).toBe(item);
+
+		app.teardown();
+	});
+
+	it('keeps a selected wall selected across an undo (RM-004 B2)', () =>
+	{
+		// A3 could assert this across a re-derivation and not across a load, and
+		// the difference was the whole of G-2: `update()` rebuilds the half edges
+		// from the same walls, so `wall.id` was still there to match on, while a
+		// load destroyed every wall and `newWall` handed out fresh guids. The
+		// selection resolver looks a wall up BY ID, so an undo silently dropped
+		// whatever the user had selected.
+		const app = mountApp();
+		const model = app.blueprint.model;
+		const wall = model.floorplan.getWalls()[0];
+		app.selection.select(SELECTION_WALL_2D, wall);
+		const before = model.exportSerialized();
+
+		const corner = model.floorplan.getCorners()[2];
+		corner.move(corner.x + 40, corner.y + 40);
+		model.loadSerialized(before);
+
+		const after = app.selection.selection.value;
+		expect(after).not.toBeNull();
+		// A different Wall object - every load builds new ones - answering to the
+		// same name, which is what the resolver needs and all it needs.
+		expect(after.object).not.toBe(wall);
+		expect(after.object.id).toBe(wall.id);
+
+		app.teardown();
+	});
+
+	it('keeps a selected wall FACE selected across an undo (RM-004 B2)', () =>
+	{
+		// The 3D view selects a HalfEdge rather than a Wall - two different things
+		// behind one selection kind, as A3 found. Its id is `${wall.id}:front`, so
+		// it inherits this for free, and asserting it separately is what proves
+		// that rather than assuming it.
+		const app = mountApp();
+		const model = app.blueprint.model;
+		const face = model.floorplan.wallEdges()[0];
+		app.selection.select(SELECTION_WALL, face);
+		const before = model.exportSerialized();
+
+		const corner = model.floorplan.getCorners()[2];
+		corner.move(corner.x + 40, corner.y + 40);
+		model.loadSerialized(before);
+
+		const after = app.selection.selection.value;
+		expect(after).not.toBeNull();
+		expect(after.object).not.toBe(face);
+		expect(after.object.id).toBe(face.id);
 
 		app.teardown();
 	});

@@ -13,6 +13,23 @@ export class WallItem extends Item
 		super(model, metadata, geometry, material, position, rotation, scale);
 		/** The currently applied wall edge. */
 		this.currentWallEdge = null;
+
+		/**
+		 * One listener, held so it can be taken off again (RM-004 B2).
+		 *
+		 * `changeWallEdge` used to declare this as a fresh closure on every call
+		 * and then `removeEventListener` the NEW one off the old wall - removing a
+		 * function that had never been added, and leaving the previous closure
+		 * subscribed. Every re-bind leaked one, and there was no reference anywhere
+		 * that could detach the item from a wall without destroying the item.
+		 *
+		 * B2 needs exactly that: a wall-bound item now survives a document load,
+		 * and the way it used to die was its own subscription - `reset()` fires
+		 * EVENT_DELETED on every wall, this handler ran, and the item removed
+		 * itself before it could be re-bound. Bound once here so `releaseWall()`
+		 * can undo it.
+		 */
+		this._onWallDeleted = (event) => {this.remove(event.item);};
 		/* TODO:
          This caused a huge headache.
          HalfEdges get destroyed/created every time floorplan is edited.
@@ -120,7 +137,8 @@ export class WallItem extends Item
 
 	/** */
 	/**
-	 * Wall-bound, so it cannot be kept across a document load. See
+	 * Wall-bound: this item holds a `HalfEdge`. Since RM-004 B2 that is a fact to
+	 * be handled on load rather than a reason to discard the item. See
 	 * {@link Item#boundToFloorplan}.
 	 * @returns {boolean}
 	 */
@@ -164,34 +182,42 @@ export class WallItem extends Item
 	}
 
 	/** */
+	/**
+	 * Let go of the wall this item is on, without destroying the item.
+	 *
+	 * The detach half of `changeWallEdge`, split out because `Model.newRoom`
+	 * needs it on its own: a document load destroys every wall, and an item still
+	 * subscribed to EVENT_DELETED removes itself when that happens. Calling this
+	 * first is what lets the item be re-bound afterwards instead of reloaded.
+	 *
+	 * Safe to call when unbound, and idempotent - it is also the first thing
+	 * `changeWallEdge` does.
+	 */
+	releaseWall()
+	{
+		if (this.currentWallEdge == null)
+		{
+			return;
+		}
+
+		if (this.addToWall)
+		{
+			Utils.removeValue(this.currentWallEdge.wall.items, this);
+			this.redrawWall();
+		}
+		else
+		{
+			Utils.removeValue(this.currentWallEdge.wall.onItems, this);
+		}
+
+		this.currentWallEdge.wall.removeEventListener(EVENT_DELETED, this._onWallDeleted);
+		this.currentWallEdge = null;
+	}
+
 	changeWallEdge(wallEdge)
 	{
-		if (this.currentWallEdge != null)
-		{
-			if (this.addToWall)
-			{
-				Utils.removeValue(this.currentWallEdge.wall.items, this);
-				this.redrawWall();
-			}
-			else
-			{
-				Utils.removeValue(this.currentWallEdge.wall.onItems, this);
-			}
-		}
-
-		var scope = this;
-
-		function __remove(event)
-		{
-			scope.remove(event.item);
-		}
-
-		// handle subscription to wall being removed
-		if (this.currentWallEdge != null)
-		{
-			this.currentWallEdge.wall.removeEventListener(EVENT_DELETED, __remove);
-		}
-		wallEdge.wall.addEventListener(EVENT_DELETED, __remove);
+		this.releaseWall();
+		wallEdge.wall.addEventListener(EVENT_DELETED, this._onWallDeleted);
 
 		// find angle between wall normals
 		var normal2 = new Vector2();

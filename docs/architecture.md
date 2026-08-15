@@ -171,7 +171,7 @@ Getting this wrong is how a room loses its name, so it is worth the table:
 | Entity | Identity | Persisted | Survives |
 |---|---|---|---|
 | `Corner` | `id`, assigned | yes, it is the file's key | everything |
-| `Wall` | `id`, assigned | no — a file names its two corners | edits, not a load |
+| `Wall` | `id`, **reconstructed** from the corner pair on load | no — a file names its two corners | everything |
 | `Room` | `id`, assigned, **inherited** by the room that continues it | no | edits, not a load |
 | `HalfEdge` | `wall.id` + side, derived | no | whatever its wall does |
 | `Item` | `designId`, assigned | **yes** | everything |
@@ -187,17 +187,34 @@ makes drawing a wall through a room keep its name. The rule has a floor under
 it: two rooms sharing a single corner touch at a point and are not the same
 room.
 
+**A `Wall`'s is derived on load, not stored** (RM-004 B2). `core/wall_identity.js`
+sorts the two corner ids and appends `#n` for the second and subsequent walls
+spanning the same pair, counting in file order. Sorting is what makes a wall
+recorded `b → a` the same wall as one recorded `a → b`; the ordinal is what stops
+two walls between one pair sharing an identity — which `newWall()` does not
+prevent, and which survives a round trip. Neither rule alone is enough, and the
+same argument as `Room` applies to why nothing is written to the file: a file
+describes a wall by its corners, and that is a description any build can read.
+
+`HalfEdge` gets this for free, since its id is `${wall.id}:front|back` — which
+is what lets a wall-bound item find its face again after a load, and is why
+windows and doors stopped reloading on undo.
+
 **An `Item`'s is called `designId`, not `id`,** because `Item extends Mesh` and
 three defines `Object3D.id` as a non-writable number of its own. It is also the
 only one written into the save file, because an item has nothing else to be
 described by — two identical chairs at the same place are two chairs — and
 because undo needs both sides to name the same item.
 
-::: warning Ids are per-session, except an item's
-`Floorplan.reset()` destroys every wall and room, and a load rebuilds them with
-fresh ids. So a wall id is stable across editing and **not** across opening a
-document — including undo, which is a document load. Anything holding a wall id
-across a restore has to re-resolve it; `useSelection` does.
+::: warning A room id is per-session; a wall id is not, any more
+`Floorplan.reset()` destroys every wall and room, and a load rebuilds them. A
+**room** therefore gets a fresh id on every load, so anything holding one across
+a restore has to re-resolve it — `useSelection` does.
+
+A **wall** used to behave the same way and no longer does: RM-004 B2 reconstructs
+its id from data the file already carries, so it is the same before and after.
+That is what makes wall selection survive an undo, and it is worth knowing which
+of the two you are relying on.
 :::
 
 `document.js` is what a `.blueprint3d` file has to satisfy before any of this

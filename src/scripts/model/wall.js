@@ -24,8 +24,15 @@ export class Wall extends EventDispatcher
 	 * Constructs a new wall.
 	 * @param start Start corner.
 	 * @param end End corner.
+	 * @param {?Object} [aa] Curve control point, or null for a straight wall.
+	 * @param {?Object} [bb] Curve control point, or null for a straight wall.
+	 * @param {string} [id] An assigned identity. Omitted for a wall an EDITING
+	 *        action creates, which gets a fresh one; supplied by
+	 *        `Floorplan.loadFloorplan`, which derives it from the corner pair the
+	 *        file already records. Same shape as `Floorplan.newCorner`'s optional
+	 *        id, and for the same reason.
 	 */
-	constructor(start, end, aa, bb)
+	constructor(start, end, aa, bb, id)
 	{
 		super();
 		this.start = start;
@@ -83,9 +90,14 @@ export class Wall extends EventDispatcher
 		 * file records and what a reader of an old file has. This is the handle
 		 * everything in memory should use.
 		 *
+		 * RM-004 B2 made it survive a document load as well as an edit, by letting
+		 * the load path supply one. A wall created by drawing still gets a fresh
+		 * guid here - it has no file to be named by, and two walls drawn between
+		 * the same corners in one session must still differ.
+		 *
 		 * @type {string}
 		 */
-		this.id = Utils.guide();
+		this.id = id || Utils.guide();
 
 		this.start.attachStart(this);
 		this.end.attachEnd(this);

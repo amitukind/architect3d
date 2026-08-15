@@ -14,6 +14,7 @@ import {resolveRuntime} from '../core/design_runtime.js';
 import {HalfEdge} from './half_edge.js';
 import {Corner} from './corner.js';
 import {Wall} from './wall.js';
+import {deriveWallIds} from '../core/wall_identity.js';
 import {Room} from './room.js';
 
 /** */
@@ -371,10 +372,10 @@ export class Floorplan extends EventDispatcher
 	 *            end The end corner.
 	 * @returns {Wall} The new wall.
 	 */
-	newWall(start, end, a, b)
+	newWall(start, end, a, b, id)
 	{
 		var scope = this;
-		var wall = new Wall(start, end, a, b);
+		var wall = new Wall(start, end, a, b, id);
 		
 		this.walls.push(wall);
 		wall.addEventListener(EVENT_DELETED, function(o){scope.removeWall(o.item);});
@@ -833,8 +834,15 @@ export class Floorplan extends EventDispatcher
 			}
 		}
 		var scope = this;
-		floorplan.walls.forEach((wall) => {
-			var newWall = scope.newWall(corners[wall.corner1], corners[wall.corner2]);
+		// Identity is reconstructed here rather than assigned in the constructor
+		// (RM-004 B2). Derived from the corner pair the file already carries, so a
+		// file written before this change loads with the same ids as one written
+		// after, and nothing was added to the save format. Computed for the whole
+		// run up front because the ordinal that disambiguates two walls on one
+		// pair depends on the records around it, not on the record alone.
+		var wallIds = deriveWallIds(floorplan.walls);
+		floorplan.walls.forEach((wall, wallIndex) => {
+			var newWall = scope.newWall(corners[wall.corner1], corners[wall.corner2], undefined, undefined, wallIds[wallIndex]);
 			
 			if (wall.frontTexture)
 			{

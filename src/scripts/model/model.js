@@ -313,7 +313,7 @@ export class Model extends EventDispatcher
 		var live = new Map();
 		this.scene.getItems().forEach(function (item)
 		{
-			if (item.designId && !item.boundToFloorplan)
+			if (item.designId)
 			{
 				live.set(item.designId, item);
 			}
@@ -349,7 +349,57 @@ export class Model extends EventDispatcher
 			}
 		});
 
+		// A wall-bound item survives a load now (RM-004 B2), and this is the whole
+		// of what that took: note which face it is on BEFORE the floorplan is
+		// destroyed, so it can be pointed at the same face afterwards.
+		//
+		// `HalfEdge.id` is `${wall.id}:front|back` and A3's note beside it said it
+		// was stable "because Wall.id is now stable" - true within a session and
+		// not across a load, which is exactly the sentence B2 makes true. The edge
+		// objects themselves do not survive; their names do.
+		/** @type {Map<Object, string>} */
+		var boundTo = new Map();
+		kept.forEach(function (item)
+		{
+			if (item.boundToFloorplan && item.currentWallEdge)
+			{
+				boundTo.set(item, item.currentWallEdge.id);
+				// Let go BEFORE the reset, or the item does not survive to be
+				// re-bound: `reset()` fires EVENT_DELETED on every wall and a still-
+				// subscribed item removes itself. That was the mechanism A3's
+				// carve-out note described, and detaching first is the whole of what
+				// it took to lift it.
+				item.releaseWall();
+			}
+		});
+
 		this.floorplan.loadFloorplan(floorplan, reason);
+
+		if (boundTo.size)
+		{
+			var edgesById = new Map();
+			this.floorplan.wallEdges().forEach(function (edge) {edgesById.set(edge.id, edge);});
+
+			boundTo.forEach(function (edgeId, item)
+			{
+				// Fall back to geometry when the wall is simply gone - the document
+				// being loaded may not have it. `closestWallEdge()` is what places a
+				// freshly created wall item and is the right answer here too; what it
+				// is not is a substitute for the id, because "nearest" and "the one it
+				// was on" differ wherever two walls meet.
+				var edge = edgesById.get(edgeId) || item.closestWallEdge();
+				if (edge)
+				{
+					item.changeWallEdge(edge);
+				}
+				else
+				{
+					// No walls at all. Nothing to bind to, so it cannot be kept.
+					scope.scene.removeItem(item);
+					kept.delete(item.designId);
+				}
+			});
+		}
 
 		incoming.forEach((item) => {
 			var existing = item.id ? kept.get(item.id) : null;

@@ -2223,7 +2223,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
       <tr><td>M-10</td><td>Vertex attributes stored as <code>float32</code></td><td class="num">100%</td><td class="num">0%</td><td>Walk every <code>.glb</code>'s accessors for <code>POSITION</code>, <code>NORMAL</code> and <code>TEXCOORD_0</code> and count by <code>componentType</code></td><td>B1</td></tr>
       <tr><td>M-11</td><td>Index buffers wider than their primitive requires</td><td class="num">410</td><td class="num">0</td><td>Per primitive, compare the index <code>componentType</code> against the <code>POSITION</code> accessor's <code>count</code></td><td>B1</td></tr>
       <tr><td>M-12</td><td>Runtime asset payload</td><td class="num">10.62 MB</td><td class="num">7.45 MB</td><td><code>npm run budget</code>'s <em>Runtime assets</em> row. The target is the ratchet the B1 trial earns, not a number chosen now &mdash; see G-1</td><td>B1</td></tr>
-      <tr><td>M-13</td><td>Wall ids surviving a document load</td><td class="num">0 of 15</td><td class="num">15 of 15</td><td>Census <code>wall.id</code> over the three fixtures, save, reload, intersect</td><td>B2</td></tr>
+      <tr><td>M-13</td><td>Wall ids surviving a document load</td><td class="num">0 of 15</td><td class="num">15 of 15 <span class="chip ok">met</span></td><td>Census <code>wall.id</code> over the three fixtures, save, reload, intersect</td><td>B2</td></tr>
       <tr><td>M-14</td><td><code>vue-tsc --checkJs</code> errors in <code>src/app</code></td><td class="num">60</td><td class="num">0</td><td><code>npx vue-tsc --noEmit --checkJs</code>, counting lines matching <code>.vue(</code>. Whole-tree total falls 427 &rarr; 356, since B3 also deletes 11 library errors that are dead directives rather than types</td><td>B3</td></tr>
     </tbody>
   </table></div>
@@ -2460,7 +2460,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
     <div class="sprint-head">
       <span class="sprint-no">B2</span>
       <h3>Wall identity across a document load</h3>
-      <div class="meta"><span class="chip warn">G-2</span><span class="chip">3–5 days</span><span class="chip acc">no dependencies</span></div>
+      <div class="meta"><span class="chip ok">done</span><span class="chip warn">G-2</span><span class="chip">3–5 days</span><span class="chip acc">no dependencies</span></div>
     </div>
     <p class="goal"><strong>Objective.</strong> Reconstruct a wall's id on load from the corner pair the file already contains, so that wall selection survives an undo and wall-bound items stop reloading &mdash; the two consequences A3 named when it deferred this.</p>
 
@@ -2499,6 +2499,29 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
         <li><strong>Wall-bound items no longer reload on undo</strong>, closing A3's stated carve-out</li>
         <li><strong>Rollback.</strong> One function on the load path; reverting it restores <code>Utils.guide()</code> per wall and nothing else moves</li>
         <li><strong>DoD.</strong> Three tiers green · <code>docs/architecture.md</code>'s identity section gains walls · <code>docs/save-format.md</code> records that wall ids are reconstructed and not stored · CHANGELOG</li>
+      </ul>
+    </div>
+
+    <div class="gate">
+      <div class="g-head">LANDED &mdash; B2</div>
+      <ul>
+        <li><strong>M-13 = 15 of 15</strong>, by the same census that measured it at zero, plus the property an undo actually needs: two floorplans loaded from one file name their walls identically. The id is <code>wall:&lt;lo&gt;~&lt;hi&gt;</code>, sorted, with <code>#n</code> for the second and subsequent walls on a pair. Nothing was added to the save format &mdash; the seed was already in the file, which is what made this three days rather than a format migration</li>
+
+        <li><strong>The tests were written first and 8 of 10 failed, which is the point; the 2 that passed are the interesting ones.</strong> "Two walls between one pair get different ids" passed <em>vacuously</em> against random guids, and had to keep passing afterwards &mdash; the same shape as A0's borrowed-mesh guard, green from the start and meaningful only at the end</li>
+
+        <li><strong>A3's blocker was real, and it was not the one A3 named.</strong> The note said lifting the wall-bound-item carve-out needed wall ids that survive a load. It did, and that turned out to be the easy half: with stable ids the item still vanished, because <code>reset()</code> fires <code>EVENT_DELETED</code> on every wall and the item's own handler removed it before it could be re-bound. <strong>The item was killing itself on the way through</strong>, which is exactly the sentence A3's note gestured at without locating</li>
+
+        <li><strong>A leaked listener, found while fixing that.</strong> <code>changeWallEdge</code> declared its handler as a fresh closure per call and then removed <em>the new one</em> from the old wall &mdash; detaching a function that had never been attached and leaving the previous one subscribed. Every re-bind leaked one, and there was no reference anywhere that could detach an item from a wall without destroying it. One held reference fixes the leak and is what makes <code>releaseWall()</code> possible; they are the same fix</li>
+
+        <li><strong>Undo now reloads nothing at all.</strong> A3 got M-8 to zero for free-standing furniture and a window still reloaded on every restore. It does not now, and it comes back on the <em>face</em> it was on rather than the nearest one &mdash; the same answer everywhere except where two walls meet, which is where a window actually sits</li>
+
+        <li><strong>Seven deliberate breaks, and two of them failed to fail.</strong> Both were real gaps rather than bad breaks. Numbering the ordinal by position in the FILE instead of per pair still produces unique, deterministic, round-trip-stable ids &mdash; and silently renames every wall whenever one is inserted before it, so adding a wall in one corner of a design would move the selection off a wall in the other. And stubbing the <code>EVENT_DELETED</code> handler to a no-op broke nothing, because <em>nothing in the suite asserted that deleting a wall removes the window in it</em>. Two tests now cover what the breaks walked through</li>
+
+        <li><strong>One expectation retired, deliberately.</strong> A3's test asserted that a wall-bound item reloads and comes back as a different object &mdash; A3 pinning its own carve-out, and its note said as much. It asserts the replacement now: nothing reloads, the same object returns, and the wall lists it. Which list depends on <code>addToWall</code>: an <code>InWallItem</code> cuts a hole and lives in <code>items</code>, a <code>WallItem</code> hangs on the surface and lives in <code>onItems</code> &mdash; a distinction the first version of the assertion got wrong</li>
+
+        <li><strong>A wall id still is not written to the file, and that is the A3 argument unchanged.</strong> A file identifies a wall by its corners and that is a description any build can read; an id assigned by one build would mean nothing to another, and an id that died with the wall could not be brought back by drawing it again. <code>docs/save-format.md</code> gives the derivation rule so a third-party reader can reproduce it</li>
+
+        <li><strong>1,225 headless tests (16 new), coverage 79.65 / 68.37 / 78.34 / 79.63.</strong> No threshold crossed a whole number, so none moved. No browser test was needed or added: this is a model-layer change with no pixels in it</li>
       </ul>
     </div>
   </div>
@@ -2557,7 +2580,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
     <thead><tr><th>Sprint</th><th>Work</th><th>Effort</th><th>Depends on</th><th>Metrics moved</th></tr></thead>
     <tbody>
       <tr><td><strong>B1</strong> <span class="chip ok">done</span></td><td>Asset precision and delivery</td><td>1–2 weeks</td><td>—</td><td>M-10, M-11, M-12 — all met. KTX2 measured, not shipped — see LANDED</td></tr>
-      <tr><td><strong>B2</strong></td><td>Wall identity across a load</td><td>3–5 days</td><td>—</td><td>M-13</td></tr>
+      <tr><td><strong>B2</strong> <span class="chip ok">done</span></td><td>Wall identity across a load</td><td>3–5 days</td><td>—</td><td>M-13 — met, 15 of 15. A3's carve-out lifted and a listener leak with it</td></tr>
       <tr><td><strong>B3</strong></td><td>Type coverage, application tier</td><td>1 week</td><td>—</td><td>M-14</td></tr>
     </tbody>
   </table></div>

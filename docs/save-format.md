@@ -76,6 +76,32 @@ An array. Each wall names the two corners it spans:
 `a` and `b` are centimetres, like everything else in a 2.0.0 file. They always
 were, which in 0.0.2a made them disagree with the corners.
 
+**A wall has no `id` field, and will not get one.** In memory it has an
+identity, and since RM-004 B2 that identity survives a load — but it is
+*reconstructed* from `corner1` and `corner2` rather than stored, so nothing was
+added to the format and a file written before B2 loads with exactly the ids a
+file written after it would.
+
+The rule, if you are writing a reader of your own: sort the two corner ids, and
+append `#n` for the second and subsequent walls that span the same pair, counting
+in file order.
+
+```
+wall:0438a3a5-…~3c885e88-…        the usual case
+wall:0438a3a5-…~3c885e88-…#1      a second wall between the same two corners
+```
+
+Sorting is what makes a wall recorded as `b → a` the same wall as one recorded
+`a → b`; the suffix is what keeps two walls spanning one pair from sharing an
+identity, which nothing in the format forbids and which
+`Floorplan.newWall` does not guard against.
+
+This follows the same reasoning as room identity in RM-003 A3, and for the same
+reason: a file identifies a wall by its corners, and that is a description any
+build can read. An id assigned by one build and written down would mean nothing
+to another, and an id that died with the wall could not be brought back by
+drawing it again.
+
 ### `rooms`
 
 Rooms are derived from the wall graph, not stored, so this holds only the

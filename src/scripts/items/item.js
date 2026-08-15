@@ -706,12 +706,14 @@ export class Item extends Mesh
 	 * then try to detach from it when it was eventually removed.
 	 *
 	 * A free-standing item holds nothing but coordinates, so it survives. That is
-	 * the majority of furniture and all of what M-8 measures; a window reloads,
-	 * exactly as everything did before.
+	 * the majority of furniture and all of what M-8 measures.
 	 *
-	 * Lifting the exclusion needs wall ids that survive a save and load, which
-	 * they do not - `Floorplan.reset()` destroys every wall and `newWall` assigns
-	 * fresh ids - so it is a follow-up rather than an oversight.
+	 * RM-004 B2 lifted the exclusion rather than the flag. Wall ids survive a load
+	 * now, so `HalfEdge.id` does too, and `Model.newRoom` notes which face a bound
+	 * item is on before the floorplan is destroyed and points it at the same face
+	 * afterwards. This getter still answers true for anything wall-bound, because
+	 * it is a true statement about the item - what changed is that holding a
+	 * reference into the graph is no longer a reason to throw the item away.
 	 *
 	 * @returns {boolean}
 	 */
