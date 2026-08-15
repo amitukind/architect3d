@@ -67,7 +67,14 @@ function kindOf(name)
 {
 	if (name.startsWith('draco/')) { return 'decoder'; }
 	if (/\.(glb|gltf)$/i.test(name)) { return 'model'; }
-	if (name.startsWith('models/thumbnails/')) { return 'thumbnail'; }
+	// Any thumbnails directory, not just models/thumbnails/. RM-004 B4 found the
+	// narrower test mislabelling 148 files: `models/thumbnails_new/` (142, every
+	// one an `image` in catalog.json) fell through to `model-texture`, and
+	// `rooms/thumbnails/` (6, the texture picker's) to `texture`. Both are DOM
+	// `<img>` sources that never reach the GPU, and calling them textures made
+	// every consumer that branches on kind wrong about them - including B1's
+	// texture-vram budget, which was measuring 60 MB of memory nothing uploads.
+	if (/(^|\/)thumbnails(_new)?\//.test(name)) { return 'thumbnail'; }
 	if (name.startsWith('rooms/textures/envs/')) { return 'environment'; }
 	if (name.startsWith('models/')) { return 'model-texture'; }
 	return 'texture';

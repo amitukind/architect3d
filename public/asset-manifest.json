@@ -1237,712 +1237,712 @@
 		"models/thumbnails_new/SimpleCabinet.png": {
 			"bytes": 29360,
 			"hash": "sha256-ovSGbd2VKkStAaLFkj2f8vYWTd4tae9qUwLOIGcAJ24=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/bathroomCabinet.png": {
 			"bytes": 1261,
 			"hash": "sha256-1e5Oy3ACSmpR93rOaN/jB/9qPNpjJtV5q0zCCpFfOXM=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/bathroomCabinetDrawer.png": {
 			"bytes": 3457,
 			"hash": "sha256-iBYG7X4ZBnIHBl7aFbo0/k52FqVEUM180nTUlhNzRf8=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/bathroomMirror.png": {
 			"bytes": 3191,
 			"hash": "sha256-Loitr5rS+m4xtrySW3K9xarWLsgbpjP9pEfVqqL5C6A=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/bathroomSink.png": {
 			"bytes": 4491,
 			"hash": "sha256-K50vGdNaj6Pf+XKqfSGISxNErdqrbwcXLQVWo1cxZQE=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/bathroomSinkSquare.png": {
 			"bytes": 3595,
 			"hash": "sha256-kU8TQaRM+hq8dFKIWN77eqjCY/oGW9WBTraP4IrbjRo=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/bathtub.png": {
 			"bytes": 2035,
 			"hash": "sha256-ZwkPvYV6AEJ54C7uy8IE+h1DPm7dJCelkgDNf5BW1Lk=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/bear.png": {
 			"bytes": 7809,
 			"hash": "sha256-j43RCNS/mf3SduIIfWWtuaILcIOJ1xAjR/k3NQ9ZCjQ=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/bedBunk.png": {
 			"bytes": 10656,
 			"hash": "sha256-W/UiG4vQKVGkWIUTaQtieExU3IIbtT0m8FcXctp0bVI=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/bedDouble.png": {
 			"bytes": 5448,
 			"hash": "sha256-yIk3b7e5bFkqn//qV2Zktd94gPM0wpsx+HOTbAO6e78=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/bedSingle.png": {
 			"bytes": 5275,
 			"hash": "sha256-8MDq12ufeTLtS0vI6W6LqkoMn3GX5eqDeDCaL11lA6c=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/bench.png": {
 			"bytes": 4728,
 			"hash": "sha256-Un5tSTdyUv/Vsr3JIBHQSEf7no9Y1VEUGs2z+jfBN7I=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/benchCushion.png": {
 			"bytes": 4926,
 			"hash": "sha256-oLZiDxYvRTvksLuY/xvkzt/oxOS25T3wC05x5rRu714=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/benchCushionLow.png": {
 			"bytes": 3610,
 			"hash": "sha256-y59E1j4z73LuO4MgFnCRtgqpRf528LUIvDcPjIJdEbw=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/bookcaseClosed.png": {
 			"bytes": 9245,
 			"hash": "sha256-U9CJDKAH3yCU+faSE/av+BodzZZQH0qTcERMHtOLVaM=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/bookcaseClosedDoors.png": {
 			"bytes": 4016,
 			"hash": "sha256-5q+pvspBqf4w518WYfMTjjBePje1noCI6fO+/eFv1kA=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/bookcaseClosedWide.png": {
 			"bytes": 9677,
 			"hash": "sha256-pB5rHXPiR5sIiW/lUn9miOFIK+NJhZOewWvR5wxm/rU=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/bookcaseOpen.png": {
 			"bytes": 6953,
 			"hash": "sha256-4V34HKgEoO+1HN2YIpJm9BgKbEV319IHKWhE0wZOU70=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/bookcaseOpenLow.png": {
 			"bytes": 3976,
 			"hash": "sha256-mMDt99sq7UI58USFLGmQH9jv7ubOyCgzFCEQr5vEWxU=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/books.png": {
 			"bytes": 2086,
 			"hash": "sha256-RnbRDAUCW+2DmAdI+BzADtvMHacbagAvvpJpMk+KESc=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/cabinetBed.png": {
 			"bytes": 2829,
 			"hash": "sha256-bXWowk1i0dvcDvsyz64xfZpuhfAla2jbzz6iLeIyQkg=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/cabinetBedDrawer.png": {
 			"bytes": 3331,
 			"hash": "sha256-gtlYaEu3/e1QE2nYP2rgQIJx/mcgaUWpjtNcqR3ktYc=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/cabinetBedDrawerTable.png": {
 			"bytes": 2701,
 			"hash": "sha256-h4SErNGmrDP52UMKcCqkfr9I/ZZAvHMT1mpObCEenKA=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/cabinetTelevision.png": {
 			"bytes": 4886,
 			"hash": "sha256-f3hHioXGzx8GGz25qwWT8ePFuUgmYAblhZzSiFxJF+g=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/cabinetTelevisionDoors.png": {
 			"bytes": 4257,
 			"hash": "sha256-ItMB/Pn5IYNk3ukMe5AmiGKOHEOXsuIGO0pGL86mLnI=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/cardboardBoxClosed.png": {
 			"bytes": 1670,
 			"hash": "sha256-MuQrVerbEPZVU40pDohkn+OXurgk11UES/48jbxeuVA=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/cardboardBoxOpen.png": {
 			"bytes": 2612,
 			"hash": "sha256-WWX4cBMU15rPWIX82hpw3+cMOg57eAMomPgpQA7MIl4=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/ceilingFan.png": {
 			"bytes": 2614,
 			"hash": "sha256-5Fzkg+4/ddJB/sGVL8xjT8XNJVZCeYgZveAAP5Ib+V4=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/chair.png": {
 			"bytes": 3914,
 			"hash": "sha256-UpWwpKssQhd9reF9lkGyB4mOe5JUaH9ZPq9dzQF4fPc=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/chairCushion.png": {
 			"bytes": 3995,
 			"hash": "sha256-P3YjTFbSVYO/JMQXsCoUhFw+VHQThbvD9IeAsy4qXj4=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/chairDesk.png": {
 			"bytes": 7051,
 			"hash": "sha256-cRHe7e7iP6f7xZ09jwiZxe3ltmpX1WDeMNnFsIzFGJg=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/chairModernCushion.png": {
 			"bytes": 3162,
 			"hash": "sha256-lOKTeporrfpevEOmNux86UrZgOzEtIPKSdNQraVuFcg=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/chairModernFrameCushion.png": {
 			"bytes": 3020,
 			"hash": "sha256-18baTEMgd0F0VkqL7rlv2fL2hXiRGEKJYCA77TIyRRE=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/chairRounded.png": {
 			"bytes": 4687,
 			"hash": "sha256-mCaNYk7ZIPeBw3iO0TXLkIxeA0g4NLBo+F/T3ZnQ3eo=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/coatRack.png": {
 			"bytes": 4918,
 			"hash": "sha256-HoLcGEMK3GpgyZSiJHXNYHrAiJL6qhP6GnYyxBtc3oI=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/coatRackStanding.png": {
 			"bytes": 4706,
 			"hash": "sha256-NdtVrA2XsOpyyf64Ep11WC5muplG+Z9/4KR3b73Lxts=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/computerKeyboard.png": {
 			"bytes": 1349,
 			"hash": "sha256-pFrp1O94+TXIgMpfLQg5hz0miVRRHdwRR6fGaRUUmKM=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/computerMouse.png": {
 			"bytes": 1090,
 			"hash": "sha256-A9LpoiEcDFymDl+JggSlOZ97zblpubFmAY5JGp2Fn/s=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/computerScreen.png": {
 			"bytes": 3108,
 			"hash": "sha256-4+Vp6j7wfDxh1b1jErAsO3rK9pM4TFnctpS8BGWnxQE=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/desk.png": {
 			"bytes": 4895,
 			"hash": "sha256-BMel6oX3fkwqsaG0moWJS1byTF6+RE1N87D65grs66Y=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/deskCorner.png": {
 			"bytes": 5381,
 			"hash": "sha256-KlbeHXWTgv+L1omE4HU4Kx4VoXwUx9FiFCmZ6RCL3V0=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/doorway.png": {
 			"bytes": 5930,
 			"hash": "sha256-90nAbEFlNvg3htV3Y7NTUpmn2jDC6RN7Mi7BUBL3QNs=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/doorwayFront.png": {
 			"bytes": 3984,
 			"hash": "sha256-RSGUqlvGkpvWMJSFSAESgQbT7xKzxWeCm0tsCoRNJxs=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/doorwayOpen.png": {
 			"bytes": 1529,
 			"hash": "sha256-3DH6AraGQnQ1J5rnFWJLFuijtsZcLtTjwX9rKm/qICc=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/dryer.png": {
 			"bytes": 3363,
 			"hash": "sha256-YTEoZEuSS+DwkO4LC30cL1KTvxNXXVJ5MifRUNUt0g4=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/floorCorner.png": {
 			"bytes": 970,
 			"hash": "sha256-butlctm56NEQjj2RX1FqFhLSnyFsWyMO8uTHaU50EFI=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/floorCornerRound.png": {
 			"bytes": 1012,
 			"hash": "sha256-dcgSmbAuWqNKIBeKr8fQaXBHwQdOHJSfkAhzaXQy2mI=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/floorFull.png": {
 			"bytes": 935,
 			"hash": "sha256-+D0gKq7TQsaoqIjwi0UmrYbXrpRc5Mt3YdxnkWPXtZY=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/floorHalf.png": {
 			"bytes": 943,
 			"hash": "sha256-TtDNBo6ch56EeNpqLlXqqpeb9RR2U1MTLGapbzePhrs=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/hoodLarge.png": {
 			"bytes": 2311,
 			"hash": "sha256-oYve8Zm59SWYgYIb5t1wyAb3kyDutCe8+GxRcNvmiOU=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/hoodModern.png": {
 			"bytes": 2810,
 			"hash": "sha256-S500/jzFowjrMr1hPiCzDhTf+crG+gMFh9j909LzXug=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/kitchenBar.png": {
 			"bytes": 2066,
 			"hash": "sha256-DLrq1AyrvfVW9dz4pup2my64MmaafjbTpzLCgLkUFuc=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/kitchenBarEnd.png": {
 			"bytes": 2598,
 			"hash": "sha256-g7GoYqzGdhJYG4QAtfnB3lA7AWRPeveDBCWYImzBeto=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/kitchenBlender.png": {
 			"bytes": 2946,
 			"hash": "sha256-6AyE7CfCyCIiFF/8J10vXyYo2XFLkX15j2oxTwUmB9g=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/kitchenCabinet.png": {
 			"bytes": 3538,
 			"hash": "sha256-bi1Ua+gRnCogYiEsxH/s9k3gfKPbtQkk4NInV4yZQZo=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/kitchenCabinetCornerInner.png": {
 			"bytes": 2767,
 			"hash": "sha256-05/LM8CVheP8EKOBnjGq/o9rDEbXRiEAMfifdCfBv40=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/kitchenCabinetCornerRound.png": {
 			"bytes": 4678,
 			"hash": "sha256-N2nBXghmUSliYFgQgRkLzCumC0FHY5qMRz435pnYhiw=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/kitchenCabinetDrawer.png": {
 			"bytes": 4186,
 			"hash": "sha256-f3bN7Cql6qga0o7TnQocHnaV49dKJahzWYlpFwXv6JQ=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/kitchenCabinetUpper.png": {
 			"bytes": 1769,
 			"hash": "sha256-Sy1VcHu/3fUzrhCnx7KUAuckmeLYtTrP490NIVU4Iew=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/kitchenCabinetUpperCorner.png": {
 			"bytes": 5105,
 			"hash": "sha256-r83B8M5a+PZobfTrDIl+syfMC73tRucbt56hMJExigQ=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/kitchenCabinetUpperDouble.png": {
 			"bytes": 2501,
 			"hash": "sha256-wcrtI4dOuJrBGRyFd5H7k6pjBZrdKKs7B2bB5u0bczo=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/kitchenCabinetUpperLow.png": {
 			"bytes": 2022,
 			"hash": "sha256-IbBi0zxv2C1FEz4CnXaUHzgyKIUimbLpc4208iSlo70=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/kitchenCoffeeMachine.png": {
 			"bytes": 2777,
 			"hash": "sha256-av74/+mVyggK0Hfq6nXpm+6EMP9IZhhtb4VKX+Zm1g8=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/kitchenFridge.png": {
 			"bytes": 3024,
 			"hash": "sha256-65y8UIwE8THuCnYWb+jvjXlIgUoC3AT6hUz/Xf/MoGk=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/kitchenFridgeBuiltIn.png": {
 			"bytes": 3691,
 			"hash": "sha256-yowlRNfH6o2YvUjPLz3Rydi2E2Z+o0Coth6bY4yoQOE=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/kitchenFridgeLarge.png": {
 			"bytes": 5401,
 			"hash": "sha256-7JhooOdnNyL8LQCzd0ZXEpQf4qLRvTb5DEe4VA+xEMk=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/kitchenFridgeSmall.png": {
 			"bytes": 2857,
 			"hash": "sha256-WDu2sN/5+4ViA9UMXRum7sRuDK4nbfRBe8vHpMMW7Oo=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/kitchenMicrowave.png": {
 			"bytes": 2239,
 			"hash": "sha256-qM42TU4CJI+eY8kjwJM3EYaCh+8gpOmgv1mY+P6jDp0=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/kitchenSink.png": {
 			"bytes": 3954,
 			"hash": "sha256-VMp1Fxq/LCYkO40TJZEpHU4E1dcJuv/NihS3WNa/vgU=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/kitchenStove.png": {
 			"bytes": 4684,
 			"hash": "sha256-ftz2TpFmBJ0d0NMXydrAgZPL15QEWhV5Z2w4JqNr5Ko=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/kitchenStoveElectric.png": {
 			"bytes": 4395,
 			"hash": "sha256-YqyYfMFNRQXH3sbySIh6lu3A4dQOIfjzSSjzkvoA2ho=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/lampRoundFloor.png": {
 			"bytes": 2801,
 			"hash": "sha256-P0n+aaq/PJU2cJA/J3nXuoSuy89pB4A0umCpKkGF8JU=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/lampRoundTable.png": {
 			"bytes": 2827,
 			"hash": "sha256-O4IFEdRdxKEVaBdBtizzy5SR4SNEcpYu2sO5uZXtK+Q=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/lampSquareCeiling.png": {
 			"bytes": 1634,
 			"hash": "sha256-uatOY0FVpcHnkrcei3VvQMXK5o6ZUVBr3EHsyA4aM3Y=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/lampSquareFloor.png": {
 			"bytes": 1663,
 			"hash": "sha256-mtCBuEJHQyo2rH12ptg1jgxJYatZ5sZgRWkrWYZrUZo=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/lampSquareTable.png": {
 			"bytes": 1825,
 			"hash": "sha256-z3Tkn2M5k3CekEYYUmWVwRpOeFIokkCmD3hO0QAzhFc=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/lampWall.png": {
 			"bytes": 1691,
 			"hash": "sha256-q02Fr/KIwcHTlY4wMPhX0ED0scxkvANWU6r3MWWE7ws=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/laptop.png": {
 			"bytes": 2695,
 			"hash": "sha256-yeHBCj2u/brnp67zgmXh/bxhTWZ+1bQOd5iE8iPuUVw=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/loungeChair.png": {
 			"bytes": 5359,
 			"hash": "sha256-WGGb6opoLLlsn5jWmbWdDi9hkQ85V0M1QoJJvURxC/o=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/loungeChairRelax.png": {
 			"bytes": 6362,
 			"hash": "sha256-bsTdIrmPQL56gcNpOhX7YbLB8tkYDBj0+qdlOqWUbfw=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/loungeDesignChair.png": {
 			"bytes": 5242,
 			"hash": "sha256-/3K1TlQu0K7bPD29XZWPzg4be2fL/ZNXieSm5xpvT6E=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/loungeDesignSofa.png": {
 			"bytes": 4989,
 			"hash": "sha256-vpKbFvDVLoH9gIsNYydmknN4GOoO04MNnSt9UHwh0kY=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/loungeDesignSofaCorner.png": {
 			"bytes": 5161,
 			"hash": "sha256-qbq0zf3GRprT6NQZBBCrG6X95f3WHJxTJ+WzX99E3CY=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/loungeSofa.png": {
 			"bytes": 5470,
 			"hash": "sha256-6qs9pD+XXkZUM2KWOHeMSbjpccoZDAP+BOWsMrIAE40=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/loungeSofaCorner.png": {
 			"bytes": 6335,
 			"hash": "sha256-jhJtD8XztM1W+c31h7h2j8Y6ubN0/4PCncPehb1FYSg=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/loungeSofaLong.png": {
 			"bytes": 6336,
 			"hash": "sha256-yIJf+uQm30ksiWSAZoDGu40p1YifEnun2831z6qH+pg=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/loungeSofaOttoman.png": {
 			"bytes": 2620,
 			"hash": "sha256-KH7M7M8qepja+kpF30YvC1EQgpLRD+ruANPzIi1TknM=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/nopreview.png": {
 			"bytes": 11006,
 			"hash": "sha256-Wt0edy19CNNTBohnW/Qzycb5f/xxeZEU25ZKwJ1DOVQ=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/paneling.png": {
 			"bytes": 3120,
 			"hash": "sha256-MF9jEU3VeXhakgLd9aIAg/oljNXquHm/kf2MglN+HDw=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/pillow.png": {
 			"bytes": 2725,
 			"hash": "sha256-c8bSVeBIjL1wF5N7ct8/848YYZjwFv0zUi4yzSdpt5g=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/pillowBlue.png": {
 			"bytes": 1815,
 			"hash": "sha256-jF+P/uGrp07Xp6FzOYs5PV5T7qGEsOHM35/nmvHixDc=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/pillowBlueLong.png": {
 			"bytes": 2549,
 			"hash": "sha256-0+B3JHdkoY/IrFfNd1AuXg+e6V152OPm1faIMv2nOUo=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/pillowLong.png": {
 			"bytes": 2584,
 			"hash": "sha256-g7kJdc7phkoqsKVg5twYEPUvGN8rZ6k2I6351K7OzDo=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/plantSmall1.png": {
 			"bytes": 2056,
 			"hash": "sha256-8H/reI6zkJ6SFgwoNeuuTLzwhVt/E6AuYMEMCjtbGik=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/plantSmall2.png": {
 			"bytes": 2022,
 			"hash": "sha256-AwTIshcz4BVHVo2xW5ivNw8Pn7cYG6aOMY0obCiUfxo=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/plantSmall3.png": {
 			"bytes": 2087,
 			"hash": "sha256-+p70Uh93undIvxUGaGqCZ0hU2cFuGAwSdpVrTvJEMjI=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/pottedPlant.png": {
 			"bytes": 5876,
 			"hash": "sha256-87JpxMM0TCKpxC9VQSPuD4Ubx8z/8/OGNvOQC69d5po=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/radio.png": {
 			"bytes": 3031,
 			"hash": "sha256-2eHw97dTMGwqfcCUWgsMTOHfua7dCc2Dv4GAmEcneY8=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/rugDoormat.png": {
 			"bytes": 967,
 			"hash": "sha256-O2N6GchAVGXbqjD6tzTqboPrYTEsqm36Tmqtej3Jlvw=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/rugRectangle.png": {
 			"bytes": 885,
 			"hash": "sha256-YiBUrVxQCIqbHBeS+87OCd7FrZ7RZvUR+esbXFtVRPo=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/rugRound.png": {
 			"bytes": 1177,
 			"hash": "sha256-ZELl0BUt5ZMn49QJIEOqOBvVu3wlNo41HcXfIaXJabI=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/rugRounded.png": {
 			"bytes": 1148,
 			"hash": "sha256-2nDe28jPKr8pnVpheQ+3L9fkp6lfZK+CWT1S2rYUV+w=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/rugSquare.png": {
 			"bytes": 906,
 			"hash": "sha256-LLCIelLzj+exTdquJQ73TaWYL9syijN9aAfpZ0WfZ/Y=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/shower.png": {
 			"bytes": 5929,
 			"hash": "sha256-m8dT0ggznt4BrMzp7ZDasUZCjrg276ChTJRH76r2c2I=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/showerRound.png": {
 			"bytes": 6995,
 			"hash": "sha256-h9W8K090zzRJnxN4RW+v7jLrr8xL/Yg5MHaqoEjMkY8=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/sideTable.png": {
 			"bytes": 3547,
 			"hash": "sha256-cQ1U0yRAHtcmNl0Im3aLmFag+sJgxjF6f0z0cCmHIqs=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/sideTableDrawers.png": {
 			"bytes": 4585,
 			"hash": "sha256-uPQYKe7He6/sICQKb0xon4muhdx9FITtssPFDxYtBzY=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/speaker.png": {
 			"bytes": 3209,
 			"hash": "sha256-64VZp5lZuQjPVv/cu6vNOSoMC2C9a8gSNiT/G9LlX9k=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/speakerSmall.png": {
 			"bytes": 2776,
 			"hash": "sha256-CU4wvTrjJ2BGp8WudfKteV8YjCtNXPeV+ff7u2c8nbg=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/stairs.png": {
 			"bytes": 11666,
 			"hash": "sha256-15z2wyCZnTFBwSt2eD/hHb5HauY8Qxma6j5KGMXm2Uk=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/stairsCorner.png": {
 			"bytes": 11949,
 			"hash": "sha256-VKWHxEsTY21lxiYiJdPw51kTho5bLcy0k3sWdJ2In/Y=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/stairsOpen.png": {
 			"bytes": 16002,
 			"hash": "sha256-Yvcx3L9gGURPUnSkzPsPNYMmflApy6MhEbDzHvQjZ5Q=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/stairsOpenSingle.png": {
 			"bytes": 9999,
 			"hash": "sha256-kPlgMPm++690lHZ30ifWRuXvJbZ+O04cCn7x1U6h9io=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/stoolBar.png": {
 			"bytes": 3496,
 			"hash": "sha256-nTDoDmwvThVFzbvVMPQVQt/tgOTBNV0/+cWBMrb+dxc=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/stoolBarSquare.png": {
 			"bytes": 2915,
 			"hash": "sha256-5QHFjioOhSUBo+QqK087md/5naPGbqQwHlyQ9ziBj3o=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/table.png": {
 			"bytes": 3692,
 			"hash": "sha256-OsdNvalwMJ/sqMZD4kkqZBTbyo5MVAhCudVHQ3iQ5+I=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/tableCloth.png": {
 			"bytes": 4109,
 			"hash": "sha256-vVUcgCVcHz86W/z/xt2/0eV/Pa0alWHnonAZ94kvnjs=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/tableCoffee.png": {
 			"bytes": 2867,
 			"hash": "sha256-j+C9oRPW92XzjkQgWOCgm6zw3vgU6FlB9fa8BH0uLEg=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/tableCoffeeGlass.png": {
 			"bytes": 2912,
 			"hash": "sha256-RuffzNRd7+FifqbUin6rrWZRBFsGCn2seMaVnxFA0Wg=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/tableCoffeeGlassSquare.png": {
 			"bytes": 2648,
 			"hash": "sha256-hGWiy07UE373f3HGm27ERapnHIU2lYcg3PiJHcCY9Ss=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/tableCoffeeSquare.png": {
 			"bytes": 2555,
 			"hash": "sha256-1UvF0H1M7XXxibUxQQs1KW4eiRVqGcwL+XSXxbivQJs=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/tableCross.png": {
 			"bytes": 8702,
 			"hash": "sha256-QUXUGaFtx7ovqf++0aNKPdObreR38YzLE1T3yhXpmAM=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/tableCrossCloth.png": {
 			"bytes": 8938,
 			"hash": "sha256-q9KP2sHI3YPduEtcceAyVlyXyLUgEwQ0Ab+0VtTDXbY=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/tableGlass.png": {
 			"bytes": 3948,
 			"hash": "sha256-oJws7Jevck5p2nE1+klYdLJBpeWAV+rBC33tzJSW92A=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/tableRound.png": {
 			"bytes": 2540,
 			"hash": "sha256-UWUTPumr90p4kUSyfUb6XZfK37y6tJClzQEU6Q4tOkQ=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/televisionAntenna.png": {
 			"bytes": 2358,
 			"hash": "sha256-GZLJ4QlEV1nwqCc9zwpTdIlbKYcZ7FrDIoghi5ltMTA=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/televisionModern.png": {
 			"bytes": 1827,
 			"hash": "sha256-SS0SBMIqq3jvClQ1oFSrcWq7hcUk6iCYNs9i3u2C5eQ=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/televisionVintage.png": {
 			"bytes": 3426,
 			"hash": "sha256-4BQG9qHKBYjTaPk1O0YsmS0mJODQ7ek/k63aBASnv0Y=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/toaster.png": {
 			"bytes": 1904,
 			"hash": "sha256-zjCUPyCGQ4aXodN8jB+13LNMqv52i3bSUv7gRip20NQ=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/toilet.png": {
 			"bytes": 5694,
 			"hash": "sha256-0t84vGD+m86gk++aFg2EM+FZvQ5JGEHLwSBpbDV4UoM=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/toiletSquare.png": {
 			"bytes": 5543,
 			"hash": "sha256-/F6A/uiRJaQxKQ3x/R5/v8y20xF3MBz7l7+tZ4L8EXs=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/trashcan.png": {
 			"bytes": 2253,
 			"hash": "sha256-4kxa3BCqs8LDazbhARePmD9pzq2KfCyWypOZGVAWXl0=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/wall.png": {
 			"bytes": 1025,
 			"hash": "sha256-zCN8D+HuaVZUazJPoB87RPToYe7l5wbK3+cT1fkYz5s=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/wallCorner.png": {
 			"bytes": 1002,
 			"hash": "sha256-Id7x1eCGPbRd2vURIDHWOcD+GmXaHSqv+q3rI0+g33Q=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/wallCornerRond.png": {
 			"bytes": 1021,
 			"hash": "sha256-+dU3XMmKqXkLf2EKHHb6god8d3bDSe3bkCL8tTo0Kb0=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/wallDoorway.png": {
 			"bytes": 2432,
 			"hash": "sha256-fJnyU7/4h2mb6cl2AjHvuiRujAiJBHX5ttJ+q6kg5qM=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/wallDoorwayWide.png": {
 			"bytes": 2293,
 			"hash": "sha256-4aFTUpc6fdSczMemkD8JWFVOWv0c5Q7k/h2n7vvBqkY=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/wallHalf.png": {
 			"bytes": 1004,
 			"hash": "sha256-BDDuuUdXgmT8vkJo0CrA4m0jXsn+wpaRzcCjEG/SPiE=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/wallWindow.png": {
 			"bytes": 4004,
 			"hash": "sha256-IWsB6wUU4DopCdllEhAVD4gPjiibC6KH8BtRBiVlISQ=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/wallWindowSlide.png": {
 			"bytes": 4951,
 			"hash": "sha256-uwMcBia57YYU3QQTe2UlteMDPqYMH2+eYO+XbK5B/ZU=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/washer.png": {
 			"bytes": 6031,
 			"hash": "sha256-OtiplWsCocNjNnmkbpsyMZ3lvakFkie85lv5yMzQX+E=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"models/thumbnails_new/washerDryerStacked.png": {
 			"bytes": 9219,
 			"hash": "sha256-VYI2XSVu4oH9zPzcIOJBa3hM3aArjgUughQ+U+gzsZw=",
-			"kind": "model-texture"
+			"kind": "thumbnail"
 		},
 		"rooms/textures/Ground_4K.jpg": {
 			"bytes": 74964,
@@ -1992,32 +1992,32 @@
 		"rooms/thumbnails/thumbnail_hardwood.jpg": {
 			"bytes": 29450,
 			"hash": "sha256-cL8T+SONOwI3eV3mo/rPdcp0tjD3V6BeleortCn8kow=",
-			"kind": "texture"
+			"kind": "thumbnail"
 		},
 		"rooms/thumbnails/thumbnail_light_brick.jpg": {
 			"bytes": 53261,
 			"hash": "sha256-nhR6N99IWHhUYyfc9RVV9uHNvUmrBDRvhtT32HcwxvA=",
-			"kind": "texture"
+			"kind": "thumbnail"
 		},
 		"rooms/thumbnails/thumbnail_light_fine_wood.jpg": {
 			"bytes": 29687,
 			"hash": "sha256-wulpRdruK9mG2VwY3RWtpY0KeSR8OxGpGFZOUjf2EL0=",
-			"kind": "texture"
+			"kind": "thumbnail"
 		},
 		"rooms/thumbnails/thumbnail_marbletiles.jpg": {
 			"bytes": 21717,
 			"hash": "sha256-VSB3yAbsTmLrgYveQS6eoRejANxnRHuao22IDUcYlzw=",
-			"kind": "texture"
+			"kind": "thumbnail"
 		},
 		"rooms/thumbnails/thumbnail_wallmap.png": {
 			"bytes": 242,
 			"hash": "sha256-o0Wx0kT+q6qSpDlSBaVA6K3xTqcPeCD/CmcaankuKJ4=",
-			"kind": "texture"
+			"kind": "thumbnail"
 		},
 		"rooms/thumbnails/thumbnail_wallmap_yellow.png": {
 			"bytes": 1005,
 			"hash": "sha256-oJHN6x+/NI5NwquZMwIsCs7s+Q705gmm8fntfxmCWgw=",
-			"kind": "texture"
+			"kind": "thumbnail"
 		}
 	}
 }

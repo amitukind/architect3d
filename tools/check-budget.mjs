@@ -243,8 +243,13 @@ function largestCatalogItem()
  *     rooms/textures/envs/Garden.jpg  843.8 KB on disk     10.67 MB in VRAM
  *
  * The first is 230x its file size and is invisible to every other measurement
- * here. 202 images weighing 5.23 MB occupy 164 MB once uploaded with mips, and
- * that is the number a phone runs out of - not the download.
+ * here. That is the number a phone runs out of, not the download.
+ *
+ * B1 stated it as 164 MB over 202 images and that was wrong twice over: 174 of
+ * those images are DOM thumbnails the GPU never sees, and the manifest's `kind`
+ * was itself mislabelling 148 of them. Corrected, it is **28 textures holding
+ * 104.67 MB** - which is a smaller number and a much better one, because it is
+ * about things that actually get uploaded. Five of the 28 are 80 MB of it.
  *
  * Dimensions come from the PNG and JPEG headers directly; Node decodes neither
  * and does not need to. A file whose header does not parse is skipped rather
@@ -264,6 +269,13 @@ function textureVram()
 		for (const entry of readdirSync(dir, {withFileTypes: true}))
 		{
 			const path = join(dir, entry.name);
+			// Thumbnails are `<img :src>` in the catalog drawer and the texture
+			// picker. The browser decodes them, lazily and only the visible ones,
+			// and they never become a WebGL texture - so counting them here was
+			// measuring 59.74 MB of GPU memory that no GPU is asked for. B1 got
+			// this wrong because the manifest's own `kind` was wrong about 148
+			// files; both are fixed, and this is the half that changes the number.
+			if (/(^|\/)thumbnails(_new)?$/.test(path)) { continue; }
 			if (entry.isDirectory()) { visit(path); continue; }
 			if (!PIXEL.has(extname(entry.name).toLowerCase())) { continue; }
 			const size = pngSize(readFileSync(path)) || jpegSize(readFileSync(path));

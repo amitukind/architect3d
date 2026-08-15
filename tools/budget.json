@@ -158,32 +158,44 @@
     "for a ceiling to sit on. KTX2/Basis is the answer and B1 did not ship it: the",
     "encoder needs KTX-Software binaries that are not installed here, and quoting a",
     "published ratio instead of measuring one is the thing this program refuses to",
-    "do. The arithmetic that IS measurable says BC7/ETC2 would take 164 MB to 41."
+    "do. The arithmetic that IS measurable says BC7/ETC2 would take 164 MB to 41.",
+    "",
+    "RM-004 B4 corrected texture-vram rather than moving it: the measurement was",
+    "wrong, not merely loose. B1 counted every image in public/ and got 164 MB.",
+    "174 of those 202 images are DOM thumbnails - `<img :src>` in the catalog",
+    "drawer and the texture picker - which the browser decodes lazily and never",
+    "uploads. Worse, the manifest's own `kind` was mislabelling 148 of them, so",
+    "anything branching on kind was wrong about them too; both are fixed.",
+    "",
+    "The honest figure is 28 textures holding 104.67 MB, and five of those 28 are",
+    "80 MB of it. The limit comes down 171.66 -> 109.90 MB to sit 5% over the real",
+    "number instead of 64% over a wrong one. A ceiling with 39% headroom is not a",
+    "ceiling."
   ],
   "budgets": {
     "demo-js-gzip": {
       "limit": 330000,
-      "measured": 327411
+      "measured": 327730
     },
     "demo-css-gzip": {
       "limit": 10000,
-      "measured": 7296
+      "measured": 7306
     },
     "demo-total": {
       "limit": 15800000,
-      "measured": 15085233
+      "measured": 15107482
     },
     "lib-iife-gzip": {
       "limit": 239000,
-      "measured": 229767
+      "measured": 230051
     },
     "public-total": {
       "limit": 8200000,
-      "measured": 7809135
+      "measured": 7808579
     },
     "lib-esm-gzip": {
       "limit": 134000,
-      "measured": 128026
+      "measured": 130519
     },
     "public-largest": {
       "limit": 910000,
@@ -195,11 +207,11 @@
     },
     "decoder-total": {
       "limit": 264000,
-      "measured": 250876
+      "measured": 252673
     },
     "texture-vram": {
-      "limit": 180000000,
-      "measured": 172400000
+      "limit": 115240821,
+      "measured": 109753163
     }
   }
 }
