@@ -13,6 +13,19 @@ export const EVENT_GLTF_READY = 'GLTF_READY_EVENT';
 export const EVENT_ITEM_LOADING = 'ITEM_LOADING_EVENT';
 export const EVENT_ITEM_LOADED = 'ITEM_LOADED_EVENT';
 export const EVENT_ITEM_REMOVED = 'ITEM_REMOVED_EVENT';
+/**
+ * An item finished being dragged or rotated in the 3D view.
+ *
+ * Added for undo. Nothing else marks the end of a direct manipulation: the
+ * Controller mutates the item's position on every pointermove and sets
+ * `scene.needsUpdate` so a frame is drawn, but the scene has no "and now it has
+ * settled" signal - so a history stack listening only to what exists would
+ * either record a hundred entries for one drag or none at all.
+ *
+ * Dispatched by Controller on the DRAGGING and ROTATING exits, which are the
+ * two states a pointer-up can leave. Carries the item on `.item`.
+ */
+export const EVENT_ITEM_MOVE_FINISH = 'ITEM_MOVE_FINISH_EVENT';
 export const EVENT_ITEM_SELECTED = 'ITEM_SELECTED_EVENT';
 export const EVENT_ITEM_UNSELECTED = 'ITEM_UNSELECTED_EVENT';
 

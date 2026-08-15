@@ -1,5 +1,5 @@
-import {Mesh, Matrix4, Vector2, Vector3, BoxGeometry, BoxHelper, Box3, MeshBasicMaterial, MeshStandardMaterial, AdditiveBlending} from 'three';
-import {CanvasTexture, PlaneGeometry, DoubleSide} from 'three';
+import {Mesh, Matrix4, Vector2, Vector3, BoxHelper, MeshBasicMaterial, AdditiveBlending} from 'three';
+import {CanvasTexture, PlaneGeometry, DoubleSide, SRGBColorSpace} from 'three';
 import {Color} from 'three';
 import {Utils} from '../core/utils.js';
 import {Dimensioning} from '../core/dimensioning.js';
@@ -13,22 +13,25 @@ export class Item extends Mesh
 	/**
 	 * Constructs an item.
 	 *
-	 * @param model
-	 *            TODO
-	 * @param metadata
-	 *            TODO
-	 * @param geometry
-	 *            TODO
-	 * @param material
-	 *            TODO
-	 * @param position
-	 *            TODO
-	 * @param rotation
-	 *            TODO
-	 * @param scale
-	 *            TODO
+	 * Called by Scene's loader callback once a model file has been fetched and
+	 * flattened - see `Scene.setItemLoader`. The geometry and materials arrive
+	 * already merged into a single BufferGeometry with material groups
+	 * (core/geometry_merge.js), whatever format they were loaded from.
+	 *
+	 * @param {Model} model The owning model; `model.scene` is where this lands.
+	 * @param {Object} metadata `{itemName, itemType, format, modelUrl,
+	 *        resizable, materialColors}`, as remapped from the save file by
+	 *        Model.newRoom.
+	 * @param {BufferGeometry} geometry The merged geometry. Re-centred on its
+	 *        own bounding box here, so callers need not.
+	 * @param {(Material|Material[])} material One material, or one per group.
+	 * @param {Vector3} [position] Where to put it. Omitted for a fresh drop,
+	 *        which is positioned later by the placement logic.
+	 * @param {number} [rotation] Y rotation in radians.
+	 * @param {Vector3} [scale] Applied through setScale, so the label canvases
+	 *        and the pick box follow.
 	 */
-	constructor(model, metadata, geometry, material, position, rotation, scale, isgltf=false)
+	constructor(model, metadata, geometry, material, position, rotation, scale)
 	{
 		super();
 
@@ -46,7 +49,14 @@ export class Item extends Mesh
 		/** */
 		this.error = false;
 		/** */
-		this.emissiveColor = 0x444444;
+		// Re-picked in S8, from 0x444444, to hold the hover highlight at the same
+		// strength it has always had. This value is never read back or
+		// serialized - setHex() writes it onto material.emissive and nothing
+		// round-trips it - so it is purely how bright a hovered item glows.
+		// Under the S4 freeze 0x444444 reached the shader as linear 0.2667; with
+		// colour management on the same literal decodes to 0.0578, which is a
+		// highlight 4.6x dimmer and easy to miss. 0x8d8d8d decodes to 0.2664.
+		this.emissiveColor = 0x8d8d8d;
 		/** Does this object affect other floor items */
 		this.obstructFloorMoves = true;
 		/** */
@@ -64,25 +74,21 @@ export class Item extends Mesh
 		this.scene = this.model.scene;
 		this._freePosition = true;
 
-		if(!isgltf)
-		{
-				this.geometry = geometry;
-				this.material = material;
-				// center in its boundingbox
-				this.geometry.computeBoundingBox();
-				this.geometry.applyMatrix(new Matrix4().makeTranslation(- 0.5 * (this.geometry.boundingBox.max.x + this.geometry.boundingBox.min.x),- 0.5 * (this.geometry.boundingBox.max.y + this.geometry.boundingBox.min.y),- 0.5 * (this.geometry.boundingBox.max.z + this.geometry.boundingBox.min.z)));
-				this.geometry.computeBoundingBox();
-		}
-		else
-		{
-				var objectBox = new Box3();
-				objectBox.setFromObject(geometry);
-				var hsize = objectBox.max.clone().sub(objectBox.min).multiplyScalar(0.5);
-				this.geometry = new BoxGeometry(hsize.x*0.5, hsize.y*0.5, hsize.z*0.5);
-				this.material =  new MeshStandardMaterial({color: 0x000000, wireframe: true, visible:false});
-				this.geometry.computeBoundingBox();
-				this.add(geometry);
-		}
+		// Removed with the `isgltf` flag: a second construction path that wrapped
+		// the loaded object in an invisible wireframe BoxGeometry and added it as
+		// a child. It predated the merge pipeline (S3), and by the time that
+		// landed nothing could reach it - Scene's loader callback declares
+		// `(geometry, materials)` and both of its call sites pass the merged pair,
+		// so the flag defaulted to false on every item ever built. It was also
+		// wrong by then: it left `this.material` as the invisible box's material,
+		// which is what setMaterialColor would have painted and getMetaData
+		// serialized.
+		this.geometry = geometry;
+		this.material = material;
+		// center in its boundingbox
+		this.geometry.computeBoundingBox();
+		this.geometry.applyMatrix4(new Matrix4().makeTranslation(- 0.5 * (this.geometry.boundingBox.max.x + this.geometry.boundingBox.min.x),- 0.5 * (this.geometry.boundingBox.max.y + this.geometry.boundingBox.min.y),- 0.5 * (this.geometry.boundingBox.max.z + this.geometry.boundingBox.min.z)));
+		this.geometry.computeBoundingBox();
 
 		if(!this.material.color)
 		{
@@ -91,6 +97,27 @@ export class Item extends Mesh
 		this.wirematerial = new MeshBasicMaterial({color: 0x000000, wireframe: true});
 
 		this.errorColor = 0xff0000;
+
+		/**
+		 * Which material slots carry a colour somebody chose, as opposed to the
+		 * colour the model shipped with.
+		 *
+		 * getMetaData() used to write every material's colour into the save file
+		 * on every save. That turned "what this model looks like" into persisted
+		 * user data, and it is why a design saved before S8 reloads darker than it
+		 * was authored: for a glTF model the value came from `baseColorFactor`, a
+		 * raw linear float, and the frozen pipeline quantised it straight to bytes
+		 * that the managed pipeline now reads as sRGB. The field could not be
+		 * cleaned up because nothing could tell an authored colour from a chosen
+		 * one - they were written identically.
+		 *
+		 * This is what tells them apart. A slot lands here when setMaterialColor
+		 * puts a colour in it, or when a save file supplies one; anything else is
+		 * the model's own and is not the save file's business.
+		 *
+		 * @type {Set<number>}
+		 */
+		this._pickedColorSlots = new Set();
 
 		this.resizable = metadata.resizable;
 
@@ -114,6 +141,11 @@ export class Item extends Mesh
 
 		this.canvascontextWH = this.canvasWH.getContext('2d');
 		this.canvasTextureWH = new CanvasTexture(this.canvasWH);
+		// A 2D canvas paints in sRGB, so say so (S8). Affects the label card's
+		// translucent backing and the glyph antialiasing; the pure-black and
+		// pure-red ink is unmoved, since 0 and 255 are the fixed points of the
+		// transfer function.
+		this.canvasTextureWH.colorSpace = SRGBColorSpace;
 		this.canvasMaterialWH = new MeshBasicMaterial({map:this.canvasTextureWH, side: DoubleSide, transparent:true});
 		this.canvasPlaneWH = new Mesh(new PlaneGeometry(this.getWidth(), this.getHeight(), 1, 1), this.canvasMaterialWH);
 		this.canvasPlaneWH.scale.set(1, 1, 1);
@@ -125,6 +157,7 @@ export class Item extends Mesh
 
 		this.canvascontextWD = this.canvasWD.getContext('2d');
 		this.canvasTextureWD = new CanvasTexture(this.canvasWD);
+		this.canvasTextureWD.colorSpace = SRGBColorSpace;
 		this.canvasMaterialWD = new MeshBasicMaterial({map:this.canvasTextureWD, side: DoubleSide, transparent:true});
 		this.canvasPlaneWD = new Mesh(new PlaneGeometry(this.getWidth(), this.getDepth(), 1, 1), this.canvasMaterialWD);
 		this.canvasPlaneWD.rotateX(-Math.PI * 0.5);
@@ -150,16 +183,27 @@ export class Item extends Mesh
 		{
 			if(this.metadata.materialColors.length)
 			{
+				// A null entry means "this slot was never picked, use the model's
+				// own colour" - the sparse form save format 2.0.0 writes. A 0.0.2a
+				// file has a colour in every slot, because that is what the old
+				// writer emitted, and every one of them is applied exactly as
+				// before. Nothing anyone has saved changes appearance.
 				if(this.material.length)
 				{
 					for (var i=0;i<this.metadata.materialColors.length;i++)
 					{
+						if(this.metadata.materialColors[i] == null)
+						{
+							continue;
+						}
 						this.material[i].color = new Color(this.metadata.materialColors[i]);
+						this._pickedColorSlots.add(i);
 					}
 				}
-				else
+				else if(this.metadata.materialColors[0] != null)
 				{
 					this.material.color = new Color(this.metadata.materialColors[0]);
+					this._pickedColorSlots.add(0);
 				}
 			}
 		}
@@ -281,6 +325,41 @@ export class Item extends Mesh
 	}
 
 	// Always send an hexadecimal string value for color - ex. '#FFFFFF'
+	/**
+	 * Set one material's colour from a CSS hex string.
+	 *
+	 * ## The working-space convention, pinned in S8
+	 *
+	 * Hex in, hex out, and the hex is always **sRGB** - the space the value was
+	 * picked in, and the space `<input type="color">` hands over. `new Color(hex)`
+	 * decodes it into the linear working space and `getHexString()` encodes it
+	 * back, so `new Color('#' + item.getMaterialColor(i).slice(1))` returns the
+	 * same eight bits it started with. That round trip is byte-exact and, worth
+	 * knowing, was byte-exact under the S4 freeze too - both halves moved
+	 * together. It is not evidence the pipeline is right, which is why the tests
+	 * assert the linear value a Color holds rather than the hex it prints.
+	 *
+	 * ## Why this records the slot
+	 *
+	 * See `_pickedColorSlots` in the constructor. `getMetaData()` used to write
+	 * every material's colour on every save, which is what made a design saved
+	 * before S8 reload darker than it was authored - the value came from
+	 * `baseColorFactor`, a raw linear float, and the managed pipeline reads it as
+	 * sRGB. That could not be cleaned up while an authored colour and a chosen
+	 * one were written identically. Recording the slot here is what separates
+	 * them, so a save file carries choices and nothing else.
+	 *
+	 * Old files are still read exactly as they were written, and there is
+	 * deliberately no re-interpretation of their values: nothing in a 0.0.2a file
+	 * says whether a given colour is the model's or the user's, so converting
+	 * them wholesale would correct the first and corrupt the second. What changes
+	 * is that the ambiguity stops being created. Anyone whose pre-S8 furniture
+	 * loads too dark can re-pick the colour once, and the file it saves will say
+	 * exactly what they meant.
+	 *
+	 * @param {string} color A CSS hex string, interpreted as sRGB.
+	 * @param {number} index Which material, for a multi-material item.
+	 */
 	setMaterialColor(color, index)
 	{
 		var c = new Color(color);
@@ -288,9 +367,11 @@ export class Item extends Mesh
 		{
 			index = (index) ? index : 0;
 			this.material[index].color = c;
+			this._pickedColorSlots.add(index);
 			return;
 		}
 		this.material.color = c;
+		this._pickedColorSlots.add(0);
 	}
 
 	/** */
@@ -306,7 +387,6 @@ export class Item extends Mesh
 			this.bhelper.update();
 		}
 
-//		this.updateCanvasTexture(canvas, context, material, w, h);
 		this.updateCanvasTexture(this.canvasWH, this.canvascontextWH, this.canvasMaterialWH, this.getWidth(), this.getHeight(), 'w:', 'h:');
 		this.updateCanvasTexture(this.canvasWD, this.canvascontextWD, this.canvasMaterialWD, this.getWidth(), this.getDepth(), 'w:', 'd:');
 
@@ -390,15 +470,20 @@ export class Item extends Mesh
 		var hex = on ? this.emissiveColor : 0x000000;
 		if(this.material)
 		{
+			// Only the lit materials carry an emissive channel. A model whose
+			// materials include a MeshBasicMaterial - the wireframe and pick
+			// helpers, or anything a glTF declares unlit - would throw here on
+			// hover, so the property is checked rather than assumed.
 			if(this.material.length)
 			{
 				this.material.forEach((material) => {
-					// TODO_Ekki emissive doesn't exist anymore?
-					material.emissive.setHex(hex);
-					this.material.emissive = new Color(hex);
+					if(material.emissive)
+					{
+						material.emissive.setHex(hex);
+					}
 				});
 			}
-			else
+			else if(this.material.emissive)
 			{
 				this.material.emissive.setHex(hex);
 				this.material.emissive = new Color(hex);
@@ -520,7 +605,6 @@ export class Item extends Mesh
 		var c4 = new Vector3(-halfSize.x, 0, halfSize.z);
 
 		var transform = new Matrix4();
-		// console.log(this.rotation.y);
 		transform.makeRotationY(this.rotation.y); // + Math.PI/2)
 
 		c1.applyMatrix4(transform);
@@ -533,10 +617,7 @@ export class Item extends Mesh
 		c3.add(position);
 		c4.add(position);
 
-		// halfSize.applyMatrix4(transform);
 
-		// var min = position.clone().sub(halfSize);
-		// var max = position.clone().add(halfSize);
 
 		var corners = [{ x: c1.x, y: c1.z },{ x: c2.x, y: c2.z },{ x: c3.x, y: c3.z },{ x: c4.x, y: c4.z }];
 		return corners;
@@ -574,8 +655,6 @@ export class Item extends Mesh
 	/** */
 	objectHalfSize()
 	{
-		// var objectBox = new Box3();
-		// objectBox.setFromObject(this);
     this.geometry.computeBoundingBox();
     var objectBox = this.geometry.boundingBox.clone();
 		return objectBox.max.clone().sub(objectBox.min).divideScalar(2);
@@ -595,25 +674,54 @@ export class Item extends Mesh
 	}
 
 
+	/**
+	 * The item's record in a save file.
+	 *
+	 * `material_colors` is sparse as of save format 2.0.0: an entry is a hex
+	 * string only for a slot somebody actually chose a colour for, and `null`
+	 * everywhere else, meaning "the model's own". The key is omitted entirely
+	 * when nothing was chosen, which is the common case - most items are placed
+	 * from the catalog and never recoloured.
+	 *
+	 * A full array of every material's colour is what 0.0.2a wrote, and it is
+	 * why furniture in a pre-S8 design reloads too dark. See `_pickedColorSlots`
+	 * in the constructor for the whole story. The sparse form is still read by
+	 * the same loop that reads the dense one, so an old file needs no special
+	 * case: it simply has no nulls in it.
+	 *
+	 * @returns {Object} The serialized item.
+	 */
 	getMetaData()
 	{
-		var matattribs = [];
-		if(this.material.length)
-		{
-			this.material.forEach((mat)=>{
-				matattribs.push('#'+mat.color.getHexString());
-			});
+		var scope = this;
+		var matattribs = null;
 
-		}
-		else
+		if(this._pickedColorSlots.size)
 		{
-			matattribs.push('#'+this.material.color.getHexString());
+			var slots = this.material.length ? this.material.length : 1;
+			matattribs = [];
+			for (var i = 0; i < slots; i++)
+			{
+				if(!scope._pickedColorSlots.has(i))
+				{
+					matattribs.push(null);
+					continue;
+				}
+				var material = scope.material.length ? scope.material[i] : scope.material;
+				matattribs.push('#'+material.color.getHexString());
+			}
 		}
-		return {item_name: this.metadata.itemName,
+
+		var data = {item_name: this.metadata.itemName,
 			item_type: this.metadata.itemType, format: this.metadata.format, model_url: this.metadata.modelUrl,
 			xpos: this.position.x, ypos: this.position.y, zpos: this.position.z,
 			rotation: this.rotation.y,
-			scale_x: this.scale.x, scale_y: this.scale.y,scale_z: this.scale.z,fixed: this.fixed,
-			material_colors: matattribs};
+			scale_x: this.scale.x, scale_y: this.scale.y,scale_z: this.scale.z,fixed: this.fixed};
+
+		if(matattribs)
+		{
+			data.material_colors = matattribs;
+		}
+		return data;
 	}
 }

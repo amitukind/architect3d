@@ -1,9 +1,14 @@
-import {EventDispatcher, JSONLoader, Color} from 'three';
-import {Geometry} from 'three';
-import GLTFLoader from 'three-gltf-loader';
-import OBJLoader from '@calvinscofield/three-objloader';
+import {EventDispatcher, Color} from 'three';
+// three's own addons since S4, replacing the three-gltf-loader and
+// @calvinscofield/three-objloader repacks. Each of those bundled its own copy
+// of three (r105 and r94), so `instanceof` silently failed across the seam and
+// the bundle carried three full engines.
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';
 import {Scene as ThreeScene} from 'three';
 import {Utils} from '../core/utils.js';
+import {mergeMeshes} from '../core/geometry_merge.js';
+import {resolveModelUrl} from '../core/legacy_models.js';
 import {Factory} from '../items/factory.js';
 import {EVENT_ITEM_LOADING, EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED} from '../core/events.js';
 
@@ -23,25 +28,30 @@ export class Scene extends EventDispatcher
 		this.model = model;
 		this.textureDir = textureDir;
 
-//		var grid = new GridHelper(4000, 200);
 
 		this.scene = new ThreeScene();
 		this.scene.background = new Color(0xffffff);
-//		this.scene.fog = new Fog(0xFAFAFA, 0.001, 6000);
 		this.items = [];
 		this.needsUpdate = false;
 		// init item loader
-		this.loader = new JSONLoader();
-		this.loader.setCrossOrigin('');
-
 		this.gltfloader = new GLTFLoader();
 		this.objloader = new OBJLoader();
 		this.gltfloader.setCrossOrigin('');
 
+		/**
+		 * Optional loader override, used by tests to run the model layer without
+		 * network I/O (the loaders above are the data layer's only environment
+		 * dependency). When set, addItem() calls this instead of the real loader:
+		 *
+		 *   setItemLoader((fileName, metadata, onLoad) => onLoad(geometry, materials))
+		 *
+		 * Null in production, where the format-based dispatch below is used.
+		 */
+		this.itemLoader = null;
+
 		this.itemLoadingCallbacks = null;
 		this.itemLoadedCallbacks = null;
 		this.itemRemovedCallbacks = null;
-//		this.add(grid);
 
 	}
 
@@ -89,7 +99,6 @@ export class Scene extends EventDispatcher
 	/** Removes all items. */
 	clearItems()
 	{
-		// var items_copy = this.items ;
 		var scope = this;
 		this.items.forEach((item) => {
 			scope.removeItem(item, true);
@@ -107,7 +116,6 @@ export class Scene extends EventDispatcher
 		keepInList = keepInList || false;
 		// use this for item meshes
 		this.dispatchEvent({type: EVENT_ITEM_REMOVED, item:item});
-		//this.itemRemovedCallbacks.fire(item);
 		item.removed();
 		this.scene.remove(item);
 		if (!keepInList)
@@ -121,6 +129,21 @@ export class Scene extends EventDispatcher
 		this.items.forEach((item)=>{
 			item.switchWireframe(flag);
 		});
+	}
+
+	/**
+	 * Override how item models are fetched. The data layer's only network
+	 * dependency lives in addItem(); supplying a loader here makes the whole
+	 * model layer runnable headlessly (vitest, Node) and lets an embedder
+	 * supply its own asset pipeline.
+	 * @param {?function(string, Object, function(Object, Array))} fn
+	 *        Receives (fileName, metadata, onLoad) and must call
+	 *        onLoad(geometry, materials). Pass null to restore the built-in
+	 *        format-based loaders.
+	 */
+	setItemLoader(fn)
+	{
+		this.itemLoader = (typeof fn === 'function') ? fn : null;
 	}
 
 	/**
@@ -143,24 +166,25 @@ export class Scene extends EventDispatcher
 		
 		var scope = this;
 
-		function addToMaterials(materials, newmaterial)
+		// Designs saved before S3 name models in the retired three.js JSON
+		// format. Rewriting here rather than in Model.newRoom covers every way an
+		// item can be created, and mutating metadata means the item carries the
+		// new URL into its next save - so a file needs the shim exactly once.
+		var resolved = resolveModelUrl(fileName, metadata.format);
+		fileName = resolved.url;
+		metadata.format = resolved.format;
+		if (resolved.converted)
 		{
-			for(var i=0;i<materials.length;i++)
-			{
-				var mat = materials[i];
-				if(mat.name == newmaterial.name)
-				{
-					return [materials, i];
-				}
-			}
-			materials.push(newmaterial);
-			return [materials, materials.length-1];
+			// modelUrl is what Item.getMetaData() writes back out, so updating it
+			// here is what makes the next save glb-native. A design therefore needs
+			// the shim exactly once, however many times it is opened.
+			metadata.modelUrl = fileName;
+			metadata.legacyConverted = true;
 		}
 
-		var loaderCallback = function (geometry, materials, isgltf=false)
+		var loaderCallback = function (geometry, materials)
 		{
-//			var item = new (Factory.getClass(itemType))(scope.model, metadata, geometry, new MeshFaceMaterial(materials), position, rotation, scale);
-			var item = new (Factory.getClass(itemType))(scope.model, metadata, geometry, materials, position, rotation, scale, isgltf);
+			var item = new (Factory.getClass(itemType))(scope.model, metadata, geometry, materials, position, rotation, scale);
 			item.fixed = fixed || false;
 			scope.items.push(item);
 			scope.add(item);
@@ -174,91 +198,32 @@ export class Scene extends EventDispatcher
 		};
 		var gltfCallback = function(gltfModel)
 		{
-			var newmaterials = [];
-			var newGeometry = new Geometry();
-
-			gltfModel.scene.traverse(function (child) {
-				if(child.type == 'Mesh')
-				{
-					var materialindices = [];
-					if(child.material.length)
-					{
-						for (var k=0;k<child.material.length;k++)
-						{
-							var newItems = addToMaterials(newmaterials, child.material[k]);
-							newmaterials = newItems[0];
-							materialindices.push(newItems[1]);
-						}
-					}
-					else
-					{
-						newItems = addToMaterials(newmaterials, child.material);//materials.push(child.material);
-						newmaterials = newItems[0];
-						materialindices.push(newItems[1]);
-					}
-
-					if(child.geometry.isBufferGeometry)
-					{
-						var tGeometry = new Geometry().fromBufferGeometry(child.geometry);
-						tGeometry.faces.forEach((face)=>{
-//							face.materialIndex = face.materialIndex + newmaterials.length;
-							face.materialIndex = materialindices[face.materialIndex];
-						});
-						child.updateMatrix();
-						newGeometry.merge(tGeometry, child.matrix);
-					}
-					else
-					{
-						child.geometry.faces.forEach((face)=>{
-//							face.materialIndex = face.materialIndex + newmaterials.length;
-							face.materialIndex = materialindices[face.materialIndex];
-						});
-						child.updateMatrix();
-						newGeometry.mergeMesh(child);
-					}
-				}
-			});
-			loaderCallback(newGeometry, newmaterials);
-			// loaderCallback(gltfModel.scene, newmaterials, true);
+			// S3 built a restoreLegacyTextureEncoding() here, undoing GLTFLoader's
+			// sRGB tagging on the 25 converted models so they matched a renderer
+			// that was deliberately not colour-managed. S8 made the renderer
+			// colour-managed, so the shim is gone and GLTFLoader's tagging stands.
+			//
+			// It also removes an inconsistency the freeze created: the catalog
+			// lists all 25 as .glb, so a chair placed from the palette already
+			// rendered differently from the same chair restored out of an old save
+			// - only the restored one carried the legacyConverted flag. They agree
+			// again now. metadata.legacyConverted is still written, since the URL
+			// shim reports through it.
+			var merged = mergeMeshes(gltfModel.scene);
+			loaderCallback(merged.geometry, merged.materials);
 		};
-
 
 		var objCallback = function(object)
 		{
-			var materials = [];
-			var newGeometry = new Geometry();
-			object.traverse(function (child)
-			{
-				if(child.type == 'Mesh')
-				{
-					if(child.material.length)
-					{
-						materials = materials.concat(child.material);
-					}
-					else
-					{
-						materials.push(child.material);
-					}
-					if(child.geometry.isBufferGeometry)
-					{
-						var tGeometry = new Geometry().fromBufferGeometry(child.geometry);
-						child.updateMatrix();
-						newGeometry.merge(tGeometry, child.matrix);
-					}
-					else
-					{
-						child.updateMatrix();
-						newGeometry.mergeMesh(child);
-					}
-				}
-			});
-			loaderCallback(newGeometry, materials);
+			var merged = mergeMeshes(object);
+			loaderCallback(merged.geometry, merged.materials);
 		};
 
 		this.dispatchEvent({type:EVENT_ITEM_LOADING});
-		if(!metadata.format)
+		if(this.itemLoader)
 		{
-			this.loader.load(fileName, loaderCallback, undefined); // third parameter is undefined - TODO_Ekki
+			// Test/embedding seam - see this.itemLoader in the constructor.
+			this.itemLoader(fileName, metadata, loaderCallback);
 		}
 		else if(metadata.format == 'gltf')
 		{
@@ -268,5 +233,30 @@ export class Scene extends EventDispatcher
 		{
 			this.objloader.load(fileName, objCallback, null, null);
 		}
+		else
+		{
+			// Formatless means the retired three.js JSON format, whose loader S4
+			// removed along with r98. resolveModelUrl rewrites every name the
+			// shipped library ever used, so reaching this means a design references
+			// a model that was never part of it.
+			//
+			// Counted and reported rather than ignored: the alternative is an item
+			// that dispatched EVENT_ITEM_LOADING and then never resolves, which
+			// leaves an embedder's spinner up forever with nothing in the console.
+			Scene.unloadableItemCount++;
+			console.error(`Cannot load "${fileName}": the retired three.js JSON model format has no loader as of three r185. Convert the model with tools/convert-legacy-json.mjs and add it to LEGACY_MODEL_MAP, or give the item metadata a "gltf" or "obj" format.`);
+			this.dispatchEvent({type:EVENT_ITEM_LOADED, item: null});
+		}
 	}
 }
+
+/**
+ * Items a design asked for that no loader in this build can open.
+ *
+ * Replaces S3's legacyJsonLoadCount, which existed to prove the retired
+ * JSONLoader was never entered before S4 deleted it. The branch is gone; what
+ * is worth counting now is the failure that took its place, so an embedder can
+ * assert on it and the exit gate stays checkable. Zero for the shipped catalog.
+ */
+Scene.unloadableItemCount = 0;
+

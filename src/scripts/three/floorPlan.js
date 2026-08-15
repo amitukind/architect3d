@@ -15,7 +15,6 @@ export class Floorplan3D extends EventDispatcher
 		this.floors = [];
 		this.edges = [];
 		var scope = this;
-		// floorPlan.fireOnUpdatedRooms(redraw);
 		this.updatedroomsevent = () => {scope.redraw();};
 		this.floorplan.addEventListener(EVENT_UPDATED, this.updatedroomsevent);
 	}

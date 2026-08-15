@@ -1,0 +1,673 @@
+{
+	"generator": "tools/convert-legacy-json.mjs",
+	"models": [
+		{
+			"source": "bd-shalebedside-smoke_baked.js",
+			"sourceBytes": 51787,
+			"materials": 1,
+			"primitives": 1,
+			"triangles": 808,
+			"sourceVertices": 2424,
+			"weldedVertices": 871,
+			"textures": [
+				"bd-shalebedside-smoke_baked.png"
+			],
+			"bounds": {
+				"min": [
+					-26.149999618530273,
+					5.092700234854419e-7,
+					-23.699199676513672
+				],
+				"max": [
+					26.149999618530273,
+					52.31050109863281,
+					23.699199676513672
+				]
+			},
+			"output": "bd-shalebedside-smoke_baked.glb",
+			"outputBytes": 34256
+		},
+		{
+			"source": "BlakeAvenuejoshuatreecheftable.js",
+			"sourceBytes": 40965,
+			"materials": 2,
+			"primitives": 2,
+			"triangles": 580,
+			"sourceVertices": 1740,
+			"weldedVertices": 328,
+			"textures": [
+				"ps_7.jpg"
+			],
+			"bounds": {
+				"min": [
+					-94.3396224975586,
+					-0.35544654726982117,
+					-53.183963775634766
+				],
+				"max": [
+					94.3396224975586,
+					79.12956237792969,
+					51.68458938598633
+				]
+			},
+			"output": "BlakeAvenuejoshuatreecheftable.glb",
+			"outputBytes": 16452
+		},
+		{
+			"source": "cb-archnight-white_baked.js",
+			"sourceBytes": 105387,
+			"materials": 1,
+			"primitives": 1,
+			"triangles": 1564,
+			"sourceVertices": 4692,
+			"weldedVertices": 1480,
+			"textures": [
+				"cb-archnight-white_baked.png"
+			],
+			"bounds": {
+				"min": [
+					-30.47879981994629,
+					0.0000011571800087040174,
+					-22.856800079345703
+				],
+				"max": [
+					30.47879981994629,
+					62.31880187988281,
+					22.856700897216797
+				]
+			},
+			"output": "cb-archnight-white_baked.glb",
+			"outputBytes": 58272
+		},
+		{
+			"source": "cb-blue-block-60x96.js",
+			"sourceBytes": 1652,
+			"materials": 1,
+			"primitives": 1,
+			"triangles": 12,
+			"sourceVertices": 36,
+			"weldedVertices": 20,
+			"textures": [
+				"b_cb-blue-block60x96.png"
+			],
+			"bounds": {
+				"min": [
+					-76.19999694824219,
+					-0.25000500679016113,
+					-121.91999816894531
+				],
+				"max": [
+					76.19999694824219,
+					0.25000500679016113,
+					121.91999816894531
+				]
+			},
+			"output": "cb-blue-block-60x96.glb",
+			"outputBytes": 2200
+		},
+		{
+			"source": "cb-clapboard_baked.js",
+			"sourceBytes": 327989,
+			"materials": 1,
+			"primitives": 1,
+			"triangles": 5118,
+			"sourceVertices": 15354,
+			"weldedVertices": 3803,
+			"textures": [
+				"cb-clapboard_baked.png"
+			],
+			"bounds": {
+				"min": [
+					-76.19999694824219,
+					0.000004912079930363689,
+					-25.399999618530273
+				],
+				"max": [
+					76.19999694824219,
+					135.77999877929688,
+					25.399999618530273
+				]
+			},
+			"output": "cb-clapboard_baked.glb",
+			"outputBytes": 153912
+		},
+		{
+			"source": "cb-kendallbookcasewalnut_baked.js",
+			"sourceBytes": 25265,
+			"materials": 1,
+			"primitives": 1,
+			"triangles": 362,
+			"sourceVertices": 1086,
+			"weldedVertices": 483,
+			"textures": [
+				"cb-kendallbookcasewalnut_baked.png"
+			],
+			"bounds": {
+				"min": [
+					-36.13199996948242,
+					-6.823830176472256e-7,
+					-19.093399047851562
+				],
+				"max": [
+					36.13199996948242,
+					184.35299682617188,
+					19.093399047851562
+				]
+			},
+			"output": "cb-kendallbookcasewalnut_baked.glb",
+			"outputBytes": 19172
+		},
+		{
+			"source": "cb-moore_baked.js",
+			"sourceBytes": 246070,
+			"materials": 1,
+			"primitives": 1,
+			"triangles": 4322,
+			"sourceVertices": 12966,
+			"weldedVertices": 3004,
+			"textures": [],
+			"bounds": {
+				"min": [
+					-76.37950134277344,
+					0.000001074729993888468,
+					-24.587099075317383
+				],
+				"max": [
+					76.37950134277344,
+					160.3939971923828,
+					24.587099075317383
+				]
+			},
+			"output": "cb-moore_baked.glb",
+			"outputBytes": 123304
+		},
+		{
+			"source": "cb-rochelle-gray_baked.js",
+			"sourceBytes": 807149,
+			"materials": 1,
+			"primitives": 1,
+			"triangles": 12648,
+			"sourceVertices": 37944,
+			"weldedVertices": 7798,
+			"textures": [
+				"cb-rochelle-gray_baked.png"
+			],
+			"bounds": {
+				"min": [
+					-108.5999984741211,
+					0.000001523579953754961,
+					-47.20920181274414
+				],
+				"max": [
+					108.5999984741211,
+					85.09020233154297,
+					47.20920181274414
+				]
+			},
+			"output": "cb-rochelle-gray_baked.glb",
+			"outputBytes": 326944
+		},
+		{
+			"source": "cb-scholartable_baked.js",
+			"sourceBytes": 18148,
+			"materials": 1,
+			"primitives": 1,
+			"triangles": 220,
+			"sourceVertices": 660,
+			"weldedVertices": 304,
+			"textures": [
+				"cb-scholartable_baked.png"
+			],
+			"bounds": {
+				"min": [
+					-53.04209899902344,
+					-0.0000017918499679581146,
+					-52.75149917602539
+				],
+				"max": [
+					53.04209899902344,
+					76.15789794921875,
+					52.75149917602539
+				]
+			},
+			"output": "cb-scholartable_baked.glb",
+			"outputBytes": 12552
+		},
+		{
+			"source": "cb-tecs_baked.js",
+			"sourceBytes": 24822,
+			"materials": 1,
+			"primitives": 1,
+			"triangles": 396,
+			"sourceVertices": 1188,
+			"weldedVertices": 516,
+			"textures": [
+				"cb-tecs_baked.png"
+			],
+			"bounds": {
+				"min": [
+					-22.79490089416504,
+					-0.0000023771499400027096,
+					-55.684898376464844
+				],
+				"max": [
+					22.79490089416504,
+					45.849700927734375,
+					55.684898376464844
+				]
+			},
+			"output": "cb-tecs_baked.glb",
+			"outputBytes": 20368
+		},
+		{
+			"source": "closed-door28x80_baked.js",
+			"sourceBytes": 117047,
+			"materials": 1,
+			"primitives": 1,
+			"triangles": 1386,
+			"sourceVertices": 4158,
+			"weldedVertices": 1816,
+			"textures": [
+				"closed-door28x80_baked.png"
+			],
+			"bounds": {
+				"min": [
+					-48.54999923706055,
+					-4.402139950343553e-7,
+					-4.017789840698242
+				],
+				"max": [
+					48.54999923706055,
+					221.5800018310547,
+					4.017789840698242
+				]
+			},
+			"output": "closed-door28x80_baked.glb",
+			"outputBytes": 67944
+		},
+		{
+			"source": "DWR_MATERA_DRESSER2.js",
+			"sourceBytes": 42187,
+			"materials": 2,
+			"primitives": 1,
+			"triangles": 460,
+			"sourceVertices": 1380,
+			"weldedVertices": 601,
+			"textures": [
+				"walnut-marin.jpg"
+			],
+			"bounds": {
+				"min": [
+					7.219110021144254e-14,
+					-0.000003721509983733995,
+					-85.13829803466797
+				],
+				"max": [
+					50.44060134887695,
+					115.56999969482422,
+					-1.070229991326048e-13
+				]
+			},
+			"output": "DWR_MATERA_DRESSER2.glb",
+			"outputBytes": 23700
+		},
+		{
+			"source": "gus-churchchair-whiteoak.js",
+			"sourceBytes": 221146,
+			"materials": 13,
+			"primitives": 13,
+			"triangles": 2801,
+			"sourceVertices": 8403,
+			"weldedVertices": 2350,
+			"textures": [
+				"oak_wood.jpg"
+			],
+			"bounds": {
+				"min": [
+					-22.942228317260742,
+					-0.000004230257218296174,
+					-28.687143325805664
+				],
+				"max": [
+					22.942228317260742,
+					78.9548568725586,
+					22.67662811279297
+				]
+			},
+			"output": "gus-churchchair-whiteoak.glb",
+			"outputBytes": 104528
+		},
+		{
+			"source": "GUSossingtonendtable.js",
+			"sourceBytes": 28468,
+			"materials": 6,
+			"primitives": 6,
+			"triangles": 396,
+			"sourceVertices": 1188,
+			"weldedVertices": 454,
+			"textures": [
+				"oak_wood.jpg"
+			],
+			"bounds": {
+				"min": [
+					-25.406494140625,
+					-0.33957013487815857,
+					-25.386646270751953
+				],
+				"max": [
+					25.406494140625,
+					46.07652282714844,
+					26.032377243041992
+				]
+			},
+			"output": "GUSossingtonendtable.glb",
+			"outputBytes": 22936
+		},
+		{
+			"source": "ik_nordli_full.js",
+			"sourceBytes": 2941120,
+			"materials": 3,
+			"primitives": 3,
+			"triangles": 15032,
+			"sourceVertices": 45096,
+			"weldedVertices": 39720,
+			"textures": [
+				"white_wood.jpg"
+			],
+			"bounds": {
+				"min": [
+					-71.06919860839844,
+					-50,
+					-99.17179870605469
+				],
+				"max": [
+					68.93080139160156,
+					50,
+					100.8280029296875
+				]
+			},
+			"output": "ik_nordli_full.glb",
+			"outputBytes": 1364616
+		},
+		{
+			"source": "ik-ekero-blue_baked.js",
+			"sourceBytes": 117519,
+			"materials": 1,
+			"primitives": 1,
+			"triangles": 1784,
+			"sourceVertices": 5352,
+			"weldedVertices": 1310,
+			"textures": [
+				"ik-ekero-blue_baked.png"
+			],
+			"bounds": {
+				"min": [
+					-35,
+					-7.402579740301007e-7,
+					-36.5
+				],
+				"max": [
+					35,
+					75,
+					36.5
+				]
+			},
+			"output": "ik-ekero-blue_baked.glb",
+			"outputBytes": 54056
+		},
+		{
+			"source": "ik-ekero-orange_baked.js",
+			"sourceBytes": 118344,
+			"materials": 1,
+			"primitives": 1,
+			"triangles": 1784,
+			"sourceVertices": 5352,
+			"weldedVertices": 1310,
+			"textures": [
+				"ik-ekero-orange_baked.png"
+			],
+			"bounds": {
+				"min": [
+					-35.00740051269531,
+					-0.000001460139969822194,
+					-36.535499572753906
+				],
+				"max": [
+					35.00740051269531,
+					75.00469970703125,
+					36.535499572753906
+				]
+			},
+			"output": "ik-ekero-orange_baked.glb",
+			"outputBytes": 54140
+		},
+		{
+			"source": "ik-kivine_baked.js",
+			"sourceBytes": 177344,
+			"materials": 1,
+			"primitives": 1,
+			"triangles": 2848,
+			"sourceVertices": 8544,
+			"weldedVertices": 2224,
+			"textures": [],
+			"bounds": {
+				"min": [
+					-60,
+					0.0000012296500244701747,
+					-28.5
+				],
+				"max": [
+					60,
+					190,
+					28.5
+				]
+			},
+			"output": "ik-kivine_baked.glb",
+			"outputBytes": 89428
+		},
+		{
+			"source": "ik-stockholmcoffee-brown.js",
+			"sourceBytes": 82960,
+			"materials": 19,
+			"primitives": 12,
+			"triangles": 756,
+			"sourceVertices": 2268,
+			"weldedVertices": 1148,
+			"textures": [
+				"grey-brown_wood.jpg"
+			],
+			"bounds": {
+				"min": [
+					-77.51366424560547,
+					-0.00000214374995266553,
+					-63.559322357177734
+				],
+				"max": [
+					103.17510223388672,
+					48.029659271240234,
+					-3.0168750286102295
+				]
+			},
+			"output": "ik-stockholmcoffee-brown.glb",
+			"outputBytes": 54560
+		},
+		{
+			"source": "nyc-poster2.js",
+			"sourceBytes": 1761,
+			"materials": 1,
+			"primitives": 1,
+			"triangles": 12,
+			"sourceVertices": 36,
+			"weldedVertices": 8,
+			"textures": [
+				"nyc2.jpg"
+			],
+			"bounds": {
+				"min": [
+					-35.5600700378418,
+					-41.16941833496094,
+					-3.6859538555145264
+				],
+				"max": [
+					35.5600700378418,
+					55.35090255737305,
+					-1.1784530878067017
+				]
+			},
+			"output": "nyc-poster2.glb",
+			"outputBytes": 1796
+		},
+		{
+			"source": "open_door.js",
+			"sourceBytes": 44650,
+			"materials": 1,
+			"primitives": 1,
+			"triangles": 764,
+			"sourceVertices": 2292,
+			"weldedVertices": 1410,
+			"textures": [],
+			"bounds": {
+				"min": [
+					-48.54999923706055,
+					-5.955420192549354e-7,
+					-3.8122398853302
+				],
+				"max": [
+					48.54999923706055,
+					221.5800018310547,
+					3.8122200965881348
+				]
+			},
+			"output": "open_door.glb",
+			"outputBytes": 50928
+		},
+		{
+			"source": "ore-3legged-white_baked.js",
+			"sourceBytes": 388644,
+			"materials": 1,
+			"primitives": 1,
+			"triangles": 5496,
+			"sourceVertices": 16488,
+			"weldedVertices": 3920,
+			"textures": [
+				"ore-3legged-white_baked.png"
+			],
+			"bounds": {
+				"min": [
+					-22.19890022277832,
+					0.000004113110207981663,
+					-28.875600814819336
+				],
+				"max": [
+					22.19890022277832,
+					144.3280029296875,
+					28.875600814819336
+				]
+			},
+			"output": "ore-3legged-white_baked.glb",
+			"outputBytes": 159944
+		},
+		{
+			"source": "we-crosby2piece-greenbaked.js",
+			"sourceBytes": 496154,
+			"materials": 1,
+			"primitives": 1,
+			"triangles": 8216,
+			"sourceVertices": 24648,
+			"weldedVertices": 5564,
+			"textures": [],
+			"bounds": {
+				"min": [
+					-118.2959976196289,
+					8.465160021842166e-7,
+					-76.59110260009766
+				],
+				"max": [
+					118.2959976196289,
+					90.74909973144531,
+					76.59110260009766
+				]
+			},
+			"output": "we-crosby2piece-greenbaked.glb",
+			"outputBytes": 228608
+		},
+		{
+			"source": "we-narrow6white_baked.js",
+			"sourceBytes": 205873,
+			"materials": 1,
+			"primitives": 1,
+			"triangles": 3156,
+			"sourceVertices": 9468,
+			"weldedVertices": 2992,
+			"textures": [
+				"we-narrow6white_baked.png"
+			],
+			"bounds": {
+				"min": [
+					-76.19999694824219,
+					0.000004707670086645521,
+					-25.839799880981445
+				],
+				"max": [
+					76.19999694824219,
+					71.2239990234375,
+					25.839799880981445
+				]
+			},
+			"output": "we-narrow6white_baked.glb",
+			"outputBytes": 116196
+		},
+		{
+			"source": "whitewindow.js",
+			"sourceBytes": 101497,
+			"materials": 12,
+			"primitives": 15,
+			"triangles": 1006,
+			"sourceVertices": 3018,
+			"weldedVertices": 1402,
+			"textures": [
+				"white_wood.jpg"
+			],
+			"bounds": {
+				"min": [
+					-6.693000320634468e-11,
+					-0.4483410120010376,
+					-48.63563919067383
+				],
+				"max": [
+					123.07691955566406,
+					170.0246124267578,
+					-33.88589859008789
+				]
+			},
+			"output": "whitewindow.glb",
+			"outputBytes": 64824
+		}
+	],
+	"missingTextures": [
+		{
+			"texture": "cb-moore_baked.png",
+			"models": [
+				"cb-moore_baked.js"
+			]
+		},
+		{
+			"texture": "ik-kivine_baked.png",
+			"models": [
+				"ik-kivine_baked.js"
+			]
+		},
+		{
+			"texture": "pine_wood_coloured.jpg",
+			"models": [
+				"BlakeAvenuejoshuatreecheftable.js"
+			]
+		},
+		{
+			"texture": "we-crosby2piece-green_baked.png",
+			"models": [
+				"we-crosby2piece-greenbaked.js"
+			]
+		}
+	]
+}

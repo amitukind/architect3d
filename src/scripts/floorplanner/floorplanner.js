@@ -1,14 +1,13 @@
-import $ from 'jquery';
 import {EventDispatcher, Vector2} from 'three';
 import {cmPerPixel, pixelsPerCm, Dimensioning} from '../core/dimensioning.js';
 import {configDimUnit, snapTolerance, Configuration} from '../core/configuration.js';
-//import {gridSpacing} from '../core/configuration.js';
 import {EVENT_MODE_RESET, EVENT_LOADED} from '../core/events.js';
 import {EVENT_CORNER_ATTRIBUTES_CHANGED, EVENT_WALL_ATTRIBUTES_CHANGED, EVENT_ROOM_ATTRIBUTES_CHANGED} from '../core/events.js';
 import {EVENT_CORNER_2D_HOVER, EVENT_WALL_2D_HOVER, EVENT_ROOM_2D_HOVER} from '../core/events.js';
 import {EVENT_CORNER_2D_CLICKED, EVENT_ROOM_2D_CLICKED, EVENT_WALL_2D_CLICKED} from '../core/events.js';
 import {EVENT_CORNER_2D_DOUBLE_CLICKED, EVENT_ROOM_2D_DOUBLE_CLICKED, EVENT_WALL_2D_DOUBLE_CLICKED} from '../core/events.js';
 import {EVENT_NOTHING_CLICKED} from '../core/events.js';
+import {resolveElement} from '../core/dom.js';
 import {FloorplannerView2D, floorplannerModes} from './floorplanner_view.js';
 
 /** how much will we move a corner to make a wall axis aligned (cm) */
@@ -19,7 +18,11 @@ import {FloorplannerView2D, floorplannerModes} from './floorplanner_view.js';
 */
 export class Floorplanner2D extends EventDispatcher
 {
-	/** */
+	/**
+	 * @param {(HTMLCanvasElement|string)} canvas The canvas to draw into, or its
+	 * element id. The id form is the deprecated back-compat path.
+	 * @param {Floorplan} floorplan
+	 */
 	constructor(canvas, floorplan)
 	{
 		super();
@@ -56,9 +59,7 @@ export class Floorplanner2D extends EventDispatcher
 		this.lastNode = null;
 		/** */
 		this.wallWidth = 0;
-		/** */
-		this.modeResetCallbacks = null;
-		
+
 		/** */
 		this.mouseDown = false;
 		/** */
@@ -76,18 +77,17 @@ export class Floorplanner2D extends EventDispatcher
 		/** mouse position at last click */
 		this.lastY = 0;
 
-		this.canvas = canvas;
+		this.canvasElement = resolveElement(canvas, 'floorplanner canvas');
+		/** Kept for back-compat: callers used to read `.canvas` as an element id. */
+		this.canvas = (typeof canvas === 'string') ? canvas : this.canvasElement.id;
 		this.floorplan = floorplan;
-		this.canvasElement = $('#' + canvas);
-		this.view = new FloorplannerView2D(this.floorplan, this, canvas);
+		this.view = new FloorplannerView2D(this.floorplan, this, this.canvasElement);
+		this._disposed = false;
 
-		//		var cmPerFoot = cmPerFoot;
-		//		var pixelsPerFoot = pixelsPerFoot;
 		this.cmPerPixel = cmPerPixel;
 		this.pixelsPerCm = pixelsPerCm;
 		
 		this.wallWidth = Dimensioning.cmToPixel(Configuration.getNumericValue('wallThickness'));
-//		this.wallWidth = 10.0 * this.pixelsPerCm;
 		this.gridsnapmode = false;
 		this.shiftkey = false;
 		// Initialization:
@@ -95,23 +95,91 @@ export class Floorplanner2D extends EventDispatcher
 		this.setMode(floorplannerModes.MOVE);
 
 		var scope = this;
-		this.canvasElement.bind('touchstart mousedown', (event) => {scope.mousedown(event);});
-		this.canvasElement.bind('touchmove mousemove', (event) => {scope.mousemove(event);});
-		this.canvasElement.bind('touchend mouseup', (event) => {scope.mouseup(event);});
-		this.canvasElement.bind('mouseleave', (event) => {scope.mouseleave(event);});
-		this.canvasElement.bind('dblclick', (event) => {scope.doubleclick(event);});
 
-		document.addEventListener('keyup', function(event){scope.keyUp(event)});
-		document.addEventListener('keydown', function(event){scope.keyDown(event)});
-		floorplan.addEventListener(EVENT_LOADED, function(){scope.reset();});
-		
-		function updateView()
+		// One pointer stream instead of the old touch* + mouse* pairs. Registered
+		// non-passive because the touch path calls preventDefault() to stop the
+		// page scrolling out from under a drag; touch-action does the same job for
+		// gestures the browser would otherwise claim before a listener ever runs.
+		this._pointerOptions = {passive: false};
+		this._pointerDownEvent = (event) => {scope.mousedown(event);};
+		this._pointerMoveEvent = (event) => {scope.mousemove(event);};
+		this._pointerUpEvent = (event) => {scope.mouseup(event);};
+		this._pointerLeaveEvent = (event) => {scope.mouseleave(event);};
+		this._doubleClickEvent = (event) => {scope.doubleclick(event);};
+		this._keyUpEvent = (event) => {scope.keyUp(event);};
+		this._keyDownEvent = (event) => {scope.keyDown(event);};
+		this._floorplanLoadedEvent = () => {scope.reset();};
+		this._updateViewEvent = () => {scope.view.draw();};
+
+		this._previousTouchAction = this.canvasElement.style.touchAction;
+		this.canvasElement.style.touchAction = 'none';
+
+		this.canvasElement.addEventListener('pointerdown', this._pointerDownEvent, this._pointerOptions);
+		this.canvasElement.addEventListener('pointermove', this._pointerMoveEvent, this._pointerOptions);
+		this.canvasElement.addEventListener('pointerup', this._pointerUpEvent, this._pointerOptions);
+		this.canvasElement.addEventListener('pointerleave', this._pointerLeaveEvent, this._pointerOptions);
+		// A cancelled pointer (the browser took the gesture, the pen left range)
+		// would otherwise leave mouseDown stuck true and the plan panning forever.
+		this.canvasElement.addEventListener('pointercancel', this._pointerLeaveEvent, this._pointerOptions);
+		this.canvasElement.addEventListener('dblclick', this._doubleClickEvent, this._pointerOptions);
+
+		document.addEventListener('keyup', this._keyUpEvent);
+		document.addEventListener('keydown', this._keyDownEvent);
+		floorplan.addEventListener(EVENT_LOADED, this._floorplanLoadedEvent);
+		floorplan.addEventListener(EVENT_CORNER_ATTRIBUTES_CHANGED, this._updateViewEvent);
+		floorplan.addEventListener(EVENT_WALL_ATTRIBUTES_CHANGED, this._updateViewEvent);
+		floorplan.addEventListener(EVENT_ROOM_ATTRIBUTES_CHANGED, this._updateViewEvent);
+	}
+
+	/**
+	 * Detach everything this instance attached: canvas pointer listeners, the two
+	 * document key listeners, the four floorplan listeners, and the view (which
+	 * owns the window/ResizeObserver listeners and the carbon sheet). Safe to call
+	 * more than once.
+	 */
+	dispose()
+	{
+		if (this._disposed)
 		{
-			scope.view.draw();
+			return;
 		}
-		floorplan.addEventListener(EVENT_CORNER_ATTRIBUTES_CHANGED, updateView);
-		floorplan.addEventListener(EVENT_WALL_ATTRIBUTES_CHANGED, updateView);
-		floorplan.addEventListener(EVENT_ROOM_ATTRIBUTES_CHANGED, updateView);
+		this._disposed = true;
+
+		this.canvasElement.removeEventListener('pointerdown', this._pointerDownEvent, this._pointerOptions);
+		this.canvasElement.removeEventListener('pointermove', this._pointerMoveEvent, this._pointerOptions);
+		this.canvasElement.removeEventListener('pointerup', this._pointerUpEvent, this._pointerOptions);
+		this.canvasElement.removeEventListener('pointerleave', this._pointerLeaveEvent, this._pointerOptions);
+		this.canvasElement.removeEventListener('pointercancel', this._pointerLeaveEvent, this._pointerOptions);
+		this.canvasElement.removeEventListener('dblclick', this._doubleClickEvent, this._pointerOptions);
+		this.canvasElement.style.touchAction = this._previousTouchAction;
+
+		document.removeEventListener('keyup', this._keyUpEvent);
+		document.removeEventListener('keydown', this._keyDownEvent);
+
+		this.floorplan.removeEventListener(EVENT_LOADED, this._floorplanLoadedEvent);
+		this.floorplan.removeEventListener(EVENT_CORNER_ATTRIBUTES_CHANGED, this._updateViewEvent);
+		this.floorplan.removeEventListener(EVENT_WALL_ATTRIBUTES_CHANGED, this._updateViewEvent);
+		this.floorplan.removeEventListener(EVENT_ROOM_ATTRIBUTES_CHANGED, this._updateViewEvent);
+
+		this.view.dispose();
+
+		this.activeWall = null;
+		this.activeCorner = null;
+		this.activeRoom = null;
+		this._clickedWall = null;
+		this._clickedWallControl = null;
+		this._clickedCorner = null;
+		this._clickedRoom = null;
+		this.lastNode = null;
+	}
+
+	/**
+	 * Everything but a mouse gets the old touch treatment: the pointer position
+	 * seeds the pan origin on press, and moves suppress the browser's own scroll.
+	 */
+	_isTouchLike(event)
+	{
+		return !!(event && event.pointerType && event.pointerType !== 'mouse');
 	}
 	
 	get selectedCorner()
@@ -244,8 +312,6 @@ export class Floorplanner2D extends EventDispatcher
 			this.targetY = Math.floor(this.targetY / Configuration.getNumericValue(snapTolerance)) * Configuration.getNumericValue(snapTolerance);
 			
 			//The below will not work, the snapTolerance is necessary for X, Y axis snapping, where as grid snapping is for snapping to grid lines
-//			this.targetX = Math.floor(this.targetX / Configuration.getNumericValue(gridSpacing)) * Configuration.getNumericValue(gridSpacing);
-//			this.targetY = Math.floor(this.targetY / Configuration.getNumericValue(gridSpacing)) * Configuration.getNumericValue(gridSpacing);
 		}
 
 		this.view.draw();
@@ -256,14 +322,12 @@ export class Floorplanner2D extends EventDispatcher
 	{
 		this.mouseDown = true;
 		this.mouseMoved = false;
-		if(event.touches)
+		if(this._isTouchLike(event))
 		{
-//			event.stopPropagation();
-//			event.preventDefault();
-			this.rawMouseX = event.touches[0].clientX;
-			this.rawMouseY = event.touches[0].clientY;
-			//The below line is very important for touch events to work
-			event = event.touches[0];
+			// A touch arrives with no preceding move, so seed the pan origin from
+			// the press itself. With a mouse the last pointermove already did.
+			this.rawMouseX = event.clientX;
+			this.rawMouseY = event.clientY;
 		}
 
 		this.lastX = this.rawMouseX;
@@ -284,16 +348,13 @@ export class Floorplanner2D extends EventDispatcher
 			else
 			{
 				//Continue the mode of deleting walls, this is necessary for deleting multiple walls
-				//				this.setMode(floorplannerModes.MOVE);
 			}
 		}
 		
-		this.mouseX = Dimensioning.pixelToCm((event.clientX - this.canvasElement.offset().left)) + Dimensioning.pixelToCm(this.originX);
-		this.mouseY = Dimensioning.pixelToCm((event.clientY - this.canvasElement.offset().top)) + Dimensioning.pixelToCm(this.originY);		
-		
-//		this.mouseX = (event.clientX - this.canvasElement.offset().left)  * this.cmPerPixel + this.originX * this.cmPerPixel;
-//		this.mouseY = (event.clientY - this.canvasElement.offset().top) * this.cmPerPixel + this.originY * this.cmPerPixel;
-		
+		var bounds = this.canvasElement.getBoundingClientRect();
+		this.mouseX = Dimensioning.pixelToCm((event.clientX - bounds.left)) + Dimensioning.pixelToCm(this.originX);
+		this.mouseY = Dimensioning.pixelToCm((event.clientY - bounds.top)) + Dimensioning.pixelToCm(this.originY);
+
 		if(this._clickedWall)
 		{
 			this._clickedWallControl = this.floorplan.overlappedControlPoint(this._clickedWall, this.mouseX, this.mouseY);
@@ -351,24 +412,20 @@ export class Floorplanner2D extends EventDispatcher
 	mousemove(event)
 	{
 		this.mouseMoved = true;
-		
-		if(event.touches)
+
+		if(this._isTouchLike(event))
 		{
 			event.stopPropagation();
 			event.preventDefault();
-			event = event.touches[0];
 		}
-		
+
 		// update mouse
 		this.rawMouseX = event.clientX;
 		this.rawMouseY = event.clientY;
 
-		
-		this.mouseX = Dimensioning.pixelToCm(event.clientX - this.canvasElement.offset().left) + Dimensioning.pixelToCm(this.originX);
-		this.mouseY = Dimensioning.pixelToCm(event.clientY - this.canvasElement.offset().top) + Dimensioning.pixelToCm(this.originY);
-		
-//		this.mouseX = (event.clientX - this.canvasElement.offset().left)  * this.cmPerPixel + this.originX * this.cmPerPixel;
-//		this.mouseY = (event.clientY - this.canvasElement.offset().top) * this.cmPerPixel + this.originY * this.cmPerPixel;
+		var bounds = this.canvasElement.getBoundingClientRect();
+		this.mouseX = Dimensioning.pixelToCm(event.clientX - bounds.left) + Dimensioning.pixelToCm(this.originX);
+		this.mouseY = Dimensioning.pixelToCm(event.clientY - bounds.top) + Dimensioning.pixelToCm(this.originY);
 
 
 		// update target (snapped position of actual mouse)
@@ -431,7 +488,6 @@ export class Floorplanner2D extends EventDispatcher
 //		else if (this.mouseDown && (this.activeCorner==null) && (this.activeWall==null) && (this._clickedWallControl == null))
 //		else if (this.mouseDown && (!this._clickedCorner) && (!this._clickedWall) && (this._clickedWallControl == null))
 		{
-//			console.log('PANNING :: ', this.activeCorner, this.activeWall);
 			this.originX += (this.lastX - this.rawMouseX);
 			this.originY += (this.lastY - this.rawMouseY);
 			this.unScaledOriginX += (this.lastX - this.rawMouseX) * (1 / Configuration.getNumericValue('scale'));
@@ -442,7 +498,6 @@ export class Floorplanner2D extends EventDispatcher
 		}
 		// dragging
 		if (this.mode == floorplannerModes.MOVE && this.mouseDown)
-//		if (this.mode == floorplannerModes.MOVE && this.mouseDown && (this._clickedCorner || this._clickedWall || this._clickedWallControl != null))
 		{
 			if(this._clickedWallControl != null)
 			{
@@ -464,8 +519,6 @@ export class Floorplanner2D extends EventDispatcher
 			{
 				if(this.gridsnapmode || Configuration.getNumericValue('snapToGrid'))
 				{
-//					var mx = (Math.abs(this.mouseX - this.activeCorner.x) < Configuration.getNumericValue(snapTolerance)) ? this.activeCorner.x : this.mouseX;
-//					var my = (Math.abs(this.mouseY - this.activeCorner.y) < Configuration.getNumericValue(snapTolerance)) ? this.activeCorner.y : this.mouseY;
 					
 					mx = Math.floor(this.mouseX / Configuration.getNumericValue(snapTolerance)) * Configuration.getNumericValue(snapTolerance);
 					my = Math.floor(this.mouseY / Configuration.getNumericValue(snapTolerance)) * Configuration.getNumericValue(snapTolerance);
@@ -476,10 +529,6 @@ export class Floorplanner2D extends EventDispatcher
 				{
 					this.activeCorner.move(this.mouseX, this.mouseY);
 				}
-//				if(this.shiftkey)
-//				{
-//					this.activeCorner.snapToAxis(Configuration.getNumericValue(snapTolerance));
-//				}
 			}
 			else if (this.activeWall)
 			{
@@ -497,7 +546,6 @@ export class Floorplanner2D extends EventDispatcher
 				}
 				
 				
-//				this.activeWall.relativeMove((this.rawMouseX - this.lastX) * this.cmPerPixel, (this.rawMouseY - this.lastY) * this.cmPerPixel);
 				if(this.gridsnapmode || Configuration.getNumericValue('snapToGrid'))
 				{
 					this.activeWall.snapToAxis(Configuration.getNumericValue(snapTolerance));
@@ -513,11 +561,6 @@ export class Floorplanner2D extends EventDispatcher
 	mouseup(/*event*/)
 	{
 		this.mouseDown = false;
-//		if(event.touches)
-//		{
-//			event.stopPropagation();
-//			event.preventDefault();
-//		}
 		// drawing
 		if (this.mode == floorplannerModes.DRAW && !this.mouseMoved)
 		{
@@ -566,12 +609,30 @@ export class Floorplanner2D extends EventDispatcher
 	mouseleave()
 	{
 		this.mouseDown = false;
-		// scope.setMode(scope.modes.MOVE);
 	}
 	
 	__updateInteractiveElements()
 	{
 		
+	}
+
+	/**
+	 * Redraw the 2D view.
+	 *
+	 * Added in S6. The library redraws itself on every event that changes the
+	 * plan, so this is only for the cases where something *outside* the plan
+	 * changed what a drawn plan should look like - the display unit, the grid
+	 * spacing, the zoom scale, the wall-measurement flags. All of those live in
+	 * Configuration, which dispatches nothing.
+	 *
+	 * It exists because the legacy demo reached through to `floorplanner.view.draw()`
+	 * in five places (app.js:198, 315, 321, 700, 719) and the Vue app is not
+	 * allowed to: `view` is an implementation detail that S7's inspectors would
+	 * otherwise pin in place.
+	 */
+	redraw()
+	{
+		this.view.draw();
 	}
 
 	/** */
@@ -596,16 +657,17 @@ export class Floorplanner2D extends EventDispatcher
 		this.lastNode = null;
 		this.mode = mode;
 		this.dispatchEvent({type:EVENT_MODE_RESET, mode: mode});
-		// this.modeResetCallbacks.fire(mode);
 		this.updateTarget();
 	}
 
 	/** Sets the origin so that floorplan is centered */
 	resetOrigin()
 	{
-		var centerX = this.canvasElement.innerWidth() / 2.0;
-		var centerY = this.canvasElement.innerHeight() / 2.0;
-		
+		// The view owns the canvas' CSS size; the backing bitmap is DPR-scaled and
+		// must not be used for layout maths.
+		var centerX = this.view.canvasWidth / 2.0;
+		var centerY = this.view.canvasHeight / 2.0;
+
 		var centerFloorplan = this.floorplan.getCenter();		
 		this.originX = Dimensioning.cmToPixel(centerFloorplan.x) - centerX;
 		this.originY = Dimensioning.cmToPixel(centerFloorplan.z) - centerY;
@@ -613,14 +675,12 @@ export class Floorplanner2D extends EventDispatcher
 		this.unScaledOriginX = Dimensioning.cmToPixel(centerFloorplan.x, false) - centerX;
 		this.unScaledOriginY = Dimensioning.cmToPixel(centerFloorplan.z, false) - centerY;
 		
-//		this.originX = centerFloorplan.x * this.pixelsPerCm - centerX;
-//		this.originY = centerFloorplan.z * this.pixelsPerCm - centerY;
 	}
 	
 	zoom ()
-	{	
-		var centerX = this.canvasElement.innerWidth() / 2.0;
-		var centerY = this.canvasElement.innerHeight() / 2.0;
+	{
+		var centerX = this.view.canvasWidth / 2.0;
+		var centerY = this.view.canvasHeight / 2.0;
 		var originScreen = new Vector2(centerX, centerY);
 		var currentPan = new Vector2(this.unScaledOriginX+centerX, this.unScaledOriginY+centerY);
 		currentPan = currentPan.multiplyScalar(Configuration.getNumericValue('scale')).sub(originScreen);
@@ -633,13 +693,11 @@ export class Floorplanner2D extends EventDispatcher
 	convertX(x)
 	{
 		return Dimensioning.cmToPixel(x - Dimensioning.pixelToCm(this.originX));
-//		return (x - (this.originX * this.cmPerPixel)) * this.pixelsPerCm;
 	}
 
 	/** Convert from THREEjs coords to canvas coords. */
 	convertY(y)
 	{
 		return Dimensioning.cmToPixel(y - Dimensioning.pixelToCm(this.originY));
-//		return (y - (this.originY * this.cmPerPixel)) * this.pixelsPerCm;
 	}
 }

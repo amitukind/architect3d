@@ -1,0 +1,114 @@
+# Deploy the application and the documentation site to GitHub Pages.
+#
+# Replaces `gitpush.sh`, which pushed the checked-in build/ directory to a
+# gh-pages branch with `git subtree push`. That published a prebuilt bundle
+# nobody could reproduce, and it needed a human to remember to run it. This
+# builds from source on a clean runner instead, and there is no gh-pages branch
+# any more: Pages serves the artifact this workflow uploads.
+#
+# BRANCH POLICY (deliberate, to conserve Actions minutes and storage):
+#   - Runs ONLY on pushes to `master`.
+#   - Does NOT run on `dev`, on the `amit` working branch, or anywhere else.
+#   - Can be started by hand from the Actions tab (workflow_dispatch).
+#
+# Narrower than ci.yml on purpose. CI proves `dev` is healthy; a deploy from
+# `dev` would overwrite the published site with work in progress, and Pages has
+# exactly one live deployment.
+#
+# BEFORE THE FIRST RUN: set Settings -> Pages -> Build and deployment -> Source
+# to "GitHub Actions". Until that is done this workflow fails at the
+# configure-pages step, which is the intended failure - it means Pages is still
+# wired to the old branch-based publish.
+name: Deploy
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+# Never deploy two commits at once, and never cancel a deploy half-published -
+# unlike CI, where cancelling the older run is free.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build site
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Test
+        # The deploy does not trust CI to have run on this commit - a push to
+        # master can arrive by a route that never touched dev.
+        run: npm test
+
+      - name: Build the application
+        # --base carries the repository sub-path into the hashed asset URLs.
+        # It does NOT affect the model and texture URLs: those are bare
+        # relative strings composed at runtime, and they resolve against the
+        # page. See the comment in index.html.
+        run: npm run build:demo -- --base=/${{ github.event.repository.name }}/
+
+      - name: Build the documentation
+        env:
+          DOCS_BASE: /${{ github.event.repository.name }}/docs/
+        run: npm run docs:build
+
+      - name: Assemble the site
+        # The application at the root, the docs one level down. .nojekyll stops
+        # Pages running the artifact through Jekyll, which would drop every
+        # path beginning with an underscore - VitePress emits none today, but
+        # the failure mode is a silent 404 rather than a build error.
+        run: |
+          mv docs/.vitepress/dist dist-demo/docs
+          touch dist-demo/.nojekyll
+
+      - name: Report what is being published
+        run: |
+          echo "### Deploy contents" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          du -sh dist-demo >> "$GITHUB_STEP_SUMMARY"
+          du -sh dist-demo/* >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist-demo
+
+  deploy:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

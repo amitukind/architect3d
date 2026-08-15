@@ -6,9 +6,9 @@ import {WallItem} from './wall_item.js';
 /** */
 export class InWallItem extends WallItem
 {
-	constructor(model, metadata, geometry, material, position, rotation, scale, isgltf=false)
+	constructor(model, metadata, geometry, material, position, rotation, scale)
 	{
-		super(model, metadata, geometry, material, position, rotation, scale, isgltf);
+		super(model, metadata, geometry, material, position, rotation, scale);
 		this.addToWall = true;
 	}
 

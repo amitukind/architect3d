@@ -1,0 +1,132 @@
+{
+  "floorplan": {
+    "version": "2.0.0",
+    "units": "cm",
+    "corners": {
+      "3d20e9da-9ccc-ed4e-0ca1-db145c690d98": {
+        "x": 0,
+        "y": 0,
+        "elevation": 250
+      },
+      "119bfbe3-f909-8800-73ac-8c3f9ae3c704": {
+        "x": 600,
+        "y": 0,
+        "elevation": 250
+      },
+      "c7a16b07-795f-da26-5cca-7b441789bfc7": {
+        "x": 600,
+        "y": 450,
+        "elevation": 250
+      },
+      "d58e5bad-2dc9-fb54-1f3f-746c74d11ba6": {
+        "x": 0,
+        "y": 450,
+        "elevation": 250
+      }
+    },
+    "walls": [
+      {
+        "corner1": "3d20e9da-9ccc-ed4e-0ca1-db145c690d98",
+        "corner2": "119bfbe3-f909-8800-73ac-8c3f9ae3c704",
+        "frontTexture": {
+          "url": "rooms/textures/wallmap.png",
+          "stretch": true,
+          "scale": 0
+        },
+        "backTexture": {
+          "url": "rooms/textures/wallmap.png",
+          "stretch": true,
+          "scale": 0
+        },
+        "wallType": "CURVED",
+        "a": {
+          "x": 212.13203435596427,
+          "y": 212.13203435596424
+        },
+        "b": {
+          "x": 387.86796564403573,
+          "y": 212.13203435596427
+        }
+      },
+      {
+        "corner1": "119bfbe3-f909-8800-73ac-8c3f9ae3c704",
+        "corner2": "c7a16b07-795f-da26-5cca-7b441789bfc7",
+        "frontTexture": {
+          "url": "rooms/textures/wallmap.png",
+          "stretch": true,
+          "scale": 0
+        },
+        "backTexture": {
+          "url": "rooms/textures/wallmap.png",
+          "stretch": true,
+          "scale": 0
+        },
+        "wallType": "STRAIGHT",
+        "a": {
+          "x": 440.90097423302683,
+          "y": 159.0990257669732
+        },
+        "b": {
+          "x": 440.9009742330268,
+          "y": 290.90097423302683
+        }
+      },
+      {
+        "corner1": "c7a16b07-795f-da26-5cca-7b441789bfc7",
+        "corner2": "d58e5bad-2dc9-fb54-1f3f-746c74d11ba6",
+        "frontTexture": {
+          "url": "rooms/textures/wallmap.png",
+          "stretch": true,
+          "scale": 0
+        },
+        "backTexture": {
+          "url": "rooms/textures/wallmap.png",
+          "stretch": true,
+          "scale": 0
+        },
+        "wallType": "CURVED",
+        "a": {
+          "x": 387.86796564403573,
+          "y": 237.86796564403576
+        },
+        "b": {
+          "x": 212.13203435596424,
+          "y": 237.86796564403573
+        }
+      },
+      {
+        "corner1": "d58e5bad-2dc9-fb54-1f3f-746c74d11ba6",
+        "corner2": "3d20e9da-9ccc-ed4e-0ca1-db145c690d98",
+        "frontTexture": {
+          "url": "rooms/textures/wallmap.png",
+          "stretch": true,
+          "scale": 0
+        },
+        "backTexture": {
+          "url": "rooms/textures/wallmap.png",
+          "stretch": true,
+          "scale": 0
+        },
+        "wallType": "STRAIGHT",
+        "a": {
+          "x": 159.09902576697317,
+          "y": 290.9009742330268
+        },
+        "b": {
+          "x": 159.0990257669732,
+          "y": 159.09902576697317
+        }
+      }
+    ],
+    "rooms": {
+      "3d20e9da-9ccc-ed4e-0ca1-db145c690d98,119bfbe3-f909-8800-73ac-8c3f9ae3c704,c7a16b07-795f-da26-5cca-7b441789bfc7,d58e5bad-2dc9-fb54-1f3f-746c74d11ba6": {
+        "name": "Curved Hall"
+      }
+    },
+    "wallTextures": [],
+    "floorTextures": {},
+    "newFloorTextures": {},
+    "carbonSheet": {}
+  },
+  "items": []
+}

@@ -2,3 +2,18 @@ node_modules/
 gitpush.sh~
 /.babelrc~
 *.blend1
+.vscode/
+
+# Test tooling output. tests/fixtures/*.blueprint3d ARE committed on purpose -
+# they are the frozen migration baseline (regenerate with `npm run fixtures`).
+coverage/
+.vitest/
+
+# Vite output. dist/ is the library bundle, dist-demo/ the deployed application.
+dist/
+dist-demo/
+tools/parity/
+
+# VitePress output and its build cache.
+docs/.vitepress/dist/
+docs/.vitepress/cache/

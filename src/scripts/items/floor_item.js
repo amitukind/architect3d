@@ -7,9 +7,9 @@ import {Utils} from '../core/utils.js';
  */
 export class FloorItem extends Item
 {
-	constructor(model, metadata, geometry, material, position, rotation, scale, isgltf=false)
+	constructor(model, metadata, geometry, material, position, rotation, scale)
 	{
-		super(model, metadata, geometry, material, position, rotation, scale, isgltf);
+		super(model, metadata, geometry, material, position, rotation, scale);
 		this._freePosition = false;
 	}
 
@@ -44,7 +44,6 @@ export class FloorItem extends Item
 		{
 			this.hideError();
 			vec3.y = this.position.y; // keep it on the floor!
-//			this.position.copy(vec3);
 			super.moveToPosition(vec3);
 		}
 	}
@@ -67,7 +66,6 @@ export class FloorItem extends Item
 		{
 			//We do not want to check if the object is in room or not
 			//It is upto the user to place it anywhere he/she wants however
-//			return false;
 			return true;
 		}
 
@@ -81,7 +79,6 @@ export class FloorItem extends Item
               }
               if (!utils.polygonOutsidePolygon(corners, objects[i].getCorners('x', 'z')) ||
                   utils.polygonPolygonIntersect(corners, objects[i].getCorners('x', 'z'))) {
-                  //console.log('object not outside other objects');
                   return false;
               }
           }

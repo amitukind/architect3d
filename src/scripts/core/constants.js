@@ -1,4 +1,4 @@
-import Enum from 'es6-enum';
+import Enum from './enum.js';
 
 export const VIEW_TOP = 'topview';
 export const VIEW_FRONT = 'frontview';

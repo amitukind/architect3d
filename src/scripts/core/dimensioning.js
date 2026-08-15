@@ -1,19 +1,10 @@
 import {Configuration, configDimUnit} from './configuration.js';
-/** Dimensioning in Inch. */
-export const dimInch = 'inch';
+import {dimInch, dimFeetAndInch, dimMeter, dimCentiMeter, dimMilliMeter, dimensioningOptions} from './units.js';
 
-/** Dimensioning in Inch. */
-export const dimFeetAndInch = 'feetAndInch';
-
-/** Dimensioning in Meter. */
-export const dimMeter = 'm';
-
-/** Dimensioning in Centi Meter. */
-export const dimCentiMeter = 'cm';
-
-/** Dimensioning in Milli Meter. */
-export const dimMilliMeter = 'mm';
-
+// Unit names live in the leaf module units.js so that configuration.js can
+// read dimCentiMeter without importing this file (see units.js). They are
+// re-exported here unchanged so every existing import site keeps working.
+export {dimInch, dimFeetAndInch, dimMeter, dimCentiMeter, dimMilliMeter, dimensioningOptions};
 
 export const decimals = 1000;
 
@@ -21,8 +12,6 @@ export const cmPerFoot = 30.48;
 export const pixelsPerFoot = 15.0;
 export const cmPerPixel = cmPerFoot * (1.0 / pixelsPerFoot);
 export const pixelsPerCm = 1.0 / cmPerPixel;
-
-export const dimensioningOptions = [dimInch, dimFeetAndInch, dimMeter, dimCentiMeter, dimMilliMeter];
 
 
 /** Dimensioning functions. */

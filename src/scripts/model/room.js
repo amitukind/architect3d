@@ -1,9 +1,7 @@
 import {EVENT_CHANGED, EVENT_ROOM_ATTRIBUTES_CHANGED} from '../core/events.js';
 import {Region} from '../core/utils.js';
-import {EventDispatcher, Vector2, Vector3, Face3, Geometry, Shape, ShapeGeometry, Mesh, MeshBasicMaterial, DoubleSide, Box3} from 'three';
-
-//import { grahamScan2 } from '@thi.ng/geom-hull';
-//import * as concaveman from 'concaveman';
+import {EventDispatcher, Vector2, Vector3, Shape, ShapeGeometry, Mesh, MeshBasicMaterial, DoubleSide, Box3} from 'three';
+import {triangleFanGeometry} from '../core/geometry_builders.js';
 
 import {WallTypes} from '../core/constants.js';
 
@@ -132,7 +130,6 @@ export class Room extends EventDispatcher
 		var uuid = this.getUuid();
 		this.floorplan.setFloorTexture(uuid, textureUrl, textureScale);
 		this.dispatchEvent({type:EVENT_CHANGED, item: this});
-//		this.floorChangeCallbacks.fire();
 	}
 
 	generateRoofPlane()
@@ -145,17 +142,8 @@ export class Room extends EventDispatcher
 			}
 		}
 		// setup texture
-		var geometry = new Geometry();
-
-		this.corners.forEach((corner) => {
-			var vertex = new Vector3(corner.x,corner.elevation, corner.y);
-			geometry.vertices.push(vertex);
-		});
-		for (var i=2;i<geometry.vertices.length;i++)
-		{
-			var face = new Face3(0, i-1, i);
-			geometry.faces.push(face);
-		}
+		var points = this.corners.map((corner) => new Vector3(corner.x, corner.elevation, corner.y));
+		var geometry = triangleFanGeometry(points);
 		this.roofPlane = new Mesh(geometry, new MeshBasicMaterial({side: DoubleSide, visible:false}));
 		this.roofPlane.room = this;
 	}
@@ -177,7 +165,11 @@ export class Room extends EventDispatcher
 		this.floorPlane.room = this; // js monkey patch
 
 		var b3 = new Box3();
-		b3.setFromObject(this.floorPlane);
+		// precise: since r140 setFromObject expands the object's own bounding box
+		// by default, which for a rotated mesh is looser than the r98 result.
+		// These bounds feed item snapping, so the drift would be a silent
+		// placement change.
+		b3.setFromObject(this.floorPlane, true);
 		this.min = b3.min.clone();
 		this.max = b3.max.clone();
 		this.center = this.max.clone().sub(this.min).multiplyScalar(0.5).add(this.min);
@@ -286,124 +278,8 @@ export class Room extends EventDispatcher
 		this.dispatchEvent({type:EVENT_ROOM_ATTRIBUTES_CHANGED, item:this, info:{from: oldarea, to: this.area}});
 	}
 	
-	updateArea2()
-	{
-		var scope = this;
-		var isComplexRoom = false;
-		var oldarea = this.area;
-		var points = [];
-		var N = 0;
-		var area = 0;
-		this.areaCenter = new Vector2();
-		this._polygonPoints = [];
-		
-		//The below makes this routine too slow
-//		this.updateWalls();
-//		this.updateInteriorCorners();
-//		this.generatePlane();
-//		this.generateRoofPlane();
-		
-		
-		for(var i=0;i<this.corners.length;i++)
-		{
-			var firstCorner = this.corners[i];
-			var secondCorner = this.corners[(i + 1) % this.corners.length];
-			var wall = firstCorner.wallToOrFrom(secondCorner);
-			isComplexRoom |= (wall.wallType == WallTypes.CURVED);
-		}
-		
-		var inext, a, b, ax_by, ay_bx, delta;
-		if(!isComplexRoom)
-		{
-			this.corners.forEach((corner) => {
-				var co = new Vector2(corner.x,corner.y);
-				scope.areaCenter.add(co);
-				points.push(co);
-			});
-			this.areaCenter.multiplyScalar(1.0 / points.length);
-			for (i=0;i<points.length;i++)
-			{
-				inext = (i+1 ) % points.length;
-				a = points[i];
-				b = points[inext];
-				ax_by = (a.x * b.y);
-				ay_bx = (a.y * b.x);
-				delta = ax_by - ay_bx;
-				area += delta;
-			}
-			this.area = Math.abs(area) * 0.5;
-			this._polygonPoints = points;
-			this.dispatchEvent({type:EVENT_ROOM_ATTRIBUTES_CHANGED, item:this, info:{from: oldarea, to: this.area}});
-			return;
-		}
-		
-		
-//		this.corners.forEach((corner) => {
-//			var co = new Vector2(corner.x,corner.y);
-//			this.areaCenter.add(co);
-//			points.push(co);
-//		});
-		
-		N = this.corners.length;
-		
-		for(i=0;i<this.corners.length;i++)
-		{
-			firstCorner = this.corners[i];
-			secondCorner = this.corners[(i + 1) % this.corners.length];
-			wall = firstCorner.wallToOrFrom(secondCorner);
-			this.areaCenter.add(firstCorner.location);
-			
-			if(wall != null)
-			{
-				if(wall.wallType == WallTypes.CURVED)
-				{
-					points.push(firstCorner.location);
-					var LUT = wall.bezier.getLUT(20);
-					for(var j=1;j<LUT.length-1;j++)
-					{ 
-						var p = LUT[j];
-						p = new Vector2(p.x, p.y);
-						points.push(p);
-					}
-				}
-				else
-				{
-					points.push(firstCorner.location);
-				}
-			}
-			else
-			{
-				points.push(firstCorner.location);
-			}
-		}
-
-		this.areaCenter.multiplyScalar(1.0 / N);
-		
-		var indicesAndAngles = Utils.getCyclicOrder(points, this.areaCenter);
-		points = indicesAndAngles['points'];
-		
-		for (i=0;i<points.length;i++)
-		{
-			inext = (i+1 ) % points.length;
-			a = points[i];
-			b = points[inext];
-			//Another irregular polygon method based on the url below
-			//https://www.mathsisfun.com/geometry/area-irregular-polygons.html
-//			var width = a.x - b.x;
-//			var height = (a.y + b.y) * 0.5;
-//			var delta = Math.abs(width * height);
-			ax_by = (a.x * b.y);
-			ay_bx = (a.y * b.x);
-			delta = ax_by - ay_bx;
-			area += delta;
-		}
-		this._polygonPoints = points;
-		this.area = Math.abs(area) * 0.5;
-//		if we are using the method in url https://www.mathsisfun.com/geometry/area-irregular-polygons.html 
-//		then we dont have to multiply the area by 0.5;
-//		this.area = Math.abs(area);
-		this.dispatchEvent({type:EVENT_ROOM_ATTRIBUTES_CHANGED, item:this, info:{from: oldarea, to: this.area}});
-	}
+	// Removed in S1: updateArea2(), an alternative area algorithm with no
+	// callers anywhere in the repo. updateArea() above is the live one.
 
 	hasAllCornersById(ids)
 	{

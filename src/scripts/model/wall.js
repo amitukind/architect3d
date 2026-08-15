@@ -1,5 +1,9 @@
 import {EventDispatcher, Vector2} from 'three';
-import Bezier from 'bezier-js';
+// bezier-js v3+ is ESM and exports Bezier as a NAMED export; v2 was a default
+// export. Upgraded in S1 (2.4.0 -> 6.x); the APIs this file uses - the 8-scalar
+// constructor, .points mutation + .update(), .length(), .get(t), .project(p)
+// and .intersects(line) - are unchanged across that jump.
+import {Bezier} from 'bezier-js';
 import {WallTypes} from '../core/constants.js';
 import {EVENT_ACTION,EVENT_MOVED,EVENT_DELETED} from '../core/events.js';
 import {Configuration,configWallThickness,configWallHeight} from '../core/configuration.js';
@@ -100,38 +104,33 @@ export class Wall extends EventDispatcher
 		this.height = Configuration.getNumericValue(configWallHeight);
 
 		/** Actions to be applied after movement. */
-		this.moved_callbacks = null;
 
 		/** Actions to be applied on removal. */
-		this.deleted_callbacks = null;
 
 		/** Actions to be applied explicitly. */
-		this.action_callbacks = null;
 		
-//		this.start.addEventListener(EVENT_MOVED, ()=>{
-//			scope.updateControlVectors();
-//		});
-//		this.end.addEventListener(EVENT_MOVED, ()=>{
-//			scope.updateControlVectors();
-//		});
+		// One handler per wall, held on the instance. Before S2 this method built a
+		// fresh closure on every call, so removeEventListener could never match the
+		// function that was registered and listeners only ever accumulated - and
+		// setEnd had its add and remove the wrong way round on top of that, leaving
+		// the wall deaf to the corner it had just been attached to.
+		this._cornerMovedEvent = () => {this.updateControlVectors();};
 		this.addCornerMoveListener(this.start);
 		this.addCornerMoveListener(this.end);
 	}
-	
+
 	addCornerMoveListener(corner, remove=false)
 	{
-		var scope = this;
-		function moved()
+		if(!corner)
 		{
-			scope.updateControlVectors();
-		}
-		
-		if(remove)
-		{
-			corner.removeEventListener(EVENT_MOVED, moved);
 			return;
 		}
-		corner.addEventListener(EVENT_MOVED, moved);
+		if(remove)
+		{
+			corner.removeEventListener(EVENT_MOVED, this._cornerMovedEvent);
+			return;
+		}
+		corner.addEventListener(EVENT_MOVED, this._cornerMovedEvent);
 	}
 	
 	get a()
@@ -193,8 +192,6 @@ export class Wall extends EventDispatcher
 		{
 			(this.getStart() != null) ? this.getStart().floorplan.update(false) : (this.getEnd() != null) ? this.getEnd().floorplan.update(false) : false;
 		}		
-//		this._a_vector = this._a.clone().sub(this.start.location);
-//		this._b_vector = this._b.clone().sub(this.start.location);
 	}
 
 	getUuid()
@@ -216,30 +213,18 @@ export class Wall extends EventDispatcher
 		this.end.snapToAxis(tolerance);
 	}
 
-	fireOnMove(func)
-	{
-		this.moved_callbacks.add(func);
-	}
 
-	fireOnDelete(func)
-	{
-		this.deleted_callbacks.add(func);
-	}
 
-	dontFireOnDelete(func)
-	{
-		this.deleted_callbacks.remove(func);
-	}
 
-	fireOnAction(func)
-	{
-		this.action_callbacks.add(func);
-	}
+
+	// Removed in S1: the fireOnMove / fireOnDelete / dontFireOnDelete /
+	// fireOnAction registrars. Each called .add() or .remove() on a null
+	// field, so any call was a guaranteed TypeError; nothing called them.
+	// fireAction() below is live - it dispatches a real EVENT_ACTION.
 
 	fireAction(action)
 	{
 		this.dispatchEvent({type:EVENT_ACTION, action: action});
-		//this.action_callbacks.fire(action);
 	}
 
 	relativeMove(dx, dy)
@@ -247,8 +232,6 @@ export class Wall extends EventDispatcher
 		this.start.relativeMove(dx, dy);
 		this.end.relativeMove(dx, dy);
 		
-//		this.a = this.start.location.clone().add(this._a_vector);
-//		this.b = this.start.location.clone().add(this._b_vector);
 		
 		this.updateControlVectors();
 		
@@ -263,15 +246,11 @@ export class Wall extends EventDispatcher
 	{
 		if (this.frontEdge)
 		{
-//			this.frontEdge.dispatchEvent({type: EVENT_REDRAW});
 			this.frontEdge.dispatchRedrawEvent();
-			//this.frontEdge.redrawCallbacks.fire();
 		}
 		if (this.backEdge)
 		{
-//			this.backEdge.dispatchEvent({type: EVENT_REDRAW});
 			this.backEdge.dispatchRedrawEvent();
-			//this.backEdge.redrawCallbacks.fire();
 		}
 	}
 	
@@ -281,6 +260,22 @@ export class Wall extends EventDispatcher
 		{
 			var vector = this.getEnd().location.clone().sub(this.getStart().location);
 			var currentLength = this.wallLength();
+
+			// A zero-length wall has no direction to resize along: changeInLength
+			// is Infinity and every coordinate derived from it is NaN.
+			//
+			// This used to be harmless by accident. three r98 built vectors with
+			// `this.x = x || 0`, which turned NaN back into 0 on the next clone(),
+			// so the corner simply never moved. r125 replaced that with default
+			// parameters, NaN now survives, and the corner - plus every wall and
+			// room touching it - is corrupted beyond recovery. The S0
+			// characterization test flagged this as a migration tripwire; this is
+			// the guard it asked for, and it keeps the old outcome: no movement.
+			if(currentLength === 0)
+			{
+				return;
+			}
+
 			var changeInLength = value / currentLength;
 			
 			var neighboursCountStart = (this.getStart().adjacentCorners().length == 1);
@@ -315,8 +310,6 @@ export class Wall extends EventDispatcher
 			
 			this.updateAttachedRooms();
 			
-//			vector = vector.multiplyScalar(changeInLength).add(this.getStart().location);
-//			this.getEnd().move(vector.x, vector.y);
 		}
 	}
 	
@@ -421,15 +414,18 @@ export class Wall extends EventDispatcher
 	{
 		this.start.detachWall(this);
 		this.end.detachWall(this);
+		// A removed wall must stop listening to corners that outlive it, or the
+		// floorplan keeps a deleted wall alive through their listener lists.
+		this.addCornerMoveListener(this.start, true);
+		this.addCornerMoveListener(this.end, true);
 		this.dispatchEvent({type:EVENT_DELETED, item: this});
-		//this.deleted_callbacks.fire(this);
 	}
 
 	setStart(corner)
 	{
 		this.start.detachWall(this);
 		this.addCornerMoveListener(this.start, true);
-		
+
 		corner.attachStart(this);
 		this.start = corner;
 		this.addCornerMoveListener(this.start);
@@ -438,13 +434,12 @@ export class Wall extends EventDispatcher
 
 	setEnd(corner)
 	{
-		
 		this.end.detachWall(this);
-		this.addCornerMoveListener(this.end);
-		
+		this.addCornerMoveListener(this.end, true);
+
 		corner.attachEnd(this);
 		this.end = corner;
-		this.addCornerMoveListener(this.end, true);
+		this.addCornerMoveListener(this.end);
 		this.fireMoved();
 	}
 

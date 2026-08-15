@@ -1,6 +1,5 @@
-//import $ from 'jquery';
 import {EventDispatcher, Vector2, Vector3, Mesh, PlaneGeometry, MeshBasicMaterial, Raycaster } from 'three';
-import {EVENT_ITEM_REMOVED, EVENT_ITEM_LOADED} from '../core/events.js';
+import {EVENT_ITEM_REMOVED, EVENT_ITEM_LOADED, EVENT_ITEM_MOVE_FINISH} from '../core/events.js';
 import { Utils } from '../core/utils.js';
 
 export const states = {UNSELECTED: 0, SELECTED: 1, DRAGGING: 2, ROTATING: 3,  ROTATING_FREE: 4, PANNING: 5};
@@ -9,6 +8,15 @@ export const states = {UNSELECTED: 0, SELECTED: 1, DRAGGING: 2, ROTATING: 3,  RO
 // the 3d scene
 export class Controller extends EventDispatcher
 {
+	/**
+	 * @param {Main} three
+	 * @param {Model} model
+	 * @param {Camera} camera
+	 * @param {HTMLElement} element The viewer container. Pointer listeners are
+	 * attached here.
+	 * @param {OrbitControls} controls
+	 * @param {HUD} hud
+	 */
 	constructor(three, model, camera, element, controls, hud)
 	{
 		super();
@@ -36,6 +44,7 @@ export class Controller extends EventDispatcher
 
 		this.state = states.UNSELECTED;
 		this.needsUpdate = true;
+		this._disposed = false;
 
 		var scope = this;
 		this.itemremovedevent = (o) => {scope.itemRemoved(o.item);};
@@ -44,24 +53,72 @@ export class Controller extends EventDispatcher
 		this.mousedownevent = (event)=> {scope.mouseDownEvent(event);};
 		this.mouseupevent = (event)=> {scope.mouseUpEvent(event);};
 		this.mousemoveevent = (event)=> {scope.mouseMoveEvent(event);};
+		// Non-passive: both handlers call preventDefault().
+		this._pointerOptions = {passive: false};
 		this.init();
 	}
 
 
 	init()
 	{
+		// One pointer stream replaces the old 'touchstart mousedown' style pairs.
+		this.element.addEventListener('pointerdown', this.mousedownevent, this._pointerOptions);
+		this.element.addEventListener('pointermove', this.mousemoveevent, this._pointerOptions);
+		this.element.addEventListener('pointerup', this.mouseupevent, this._pointerOptions);
+		// The touch path never bound touchcancel, so an interrupted drag used to
+		// strand the state machine in DRAGGING with the orbit controls disabled.
+		this.element.addEventListener('pointercancel', this.mouseupevent, this._pointerOptions);
 
-//		this.element.mousedown(this.mousedownevent);
-//		this.element.mouseup(this.mouseupevent);
-//		this.element.mousemove(this.mousemoveevent);
-
-		this.element.bind('touchstart mousedown', this.mousedownevent);
-		this.element.bind('touchmove mousemove', this.mousemoveevent);
-		this.element.bind('touchend mouseup', this.mouseupevent);
+		// Stands in for the preventDefault() the mouse path can no longer do (see
+		// mouseDownEvent): stops a drag across the viewer from selecting text or
+		// starting a native image drag.
+		this._previousUserSelect = this.element.style.userSelect;
+		this.element.style.userSelect = 'none';
 
 		this.scene.addEventListener(EVENT_ITEM_REMOVED, this.itemremovedevent);
 		this.scene.addEventListener(EVENT_ITEM_LOADED, this.itemloadedevent);
 		this.setGroundPlane();
+	}
+
+	/**
+	 * Detach the pointer and scene listeners and drop the ground plane out of the
+	 * scene. Safe to call more than once.
+	 */
+	dispose()
+	{
+		if (this._disposed)
+		{
+			return;
+		}
+		this._disposed = true;
+		this.enabled = false;
+
+		this.element.removeEventListener('pointerdown', this.mousedownevent, this._pointerOptions);
+		this.element.removeEventListener('pointermove', this.mousemoveevent, this._pointerOptions);
+		this.element.removeEventListener('pointerup', this.mouseupevent, this._pointerOptions);
+		this.element.removeEventListener('pointercancel', this.mouseupevent, this._pointerOptions);
+		this.element.style.userSelect = this._previousUserSelect;
+
+		this.scene.removeEventListener(EVENT_ITEM_REMOVED, this.itemremovedevent);
+		this.scene.removeEventListener(EVENT_ITEM_LOADED, this.itemloadedevent);
+
+		if (this.plane)
+		{
+			this.scene.remove(this.plane);
+			this.plane.geometry.dispose();
+			this.plane.material.dispose();
+			this.plane = null;
+		}
+
+		this.intersectedObject = null;
+		this.mouseoverObject = null;
+		this.selectedObject = null;
+	}
+
+	/** Everything but a mouse needs the position seeding the old touch path did. */
+	_isTouchLike(event)
+	{
+		return !!(event && event.pointerType && event.pointerType !== 'mouse');
 	}
 
 	itemRemoved(item)
@@ -149,7 +206,6 @@ export class Controller extends EventDispatcher
 			if (wallIntersects.length > 0)
 			{
 				var wall = wallIntersects[0].object.edge;
-				// three.wallClicked.fire(wall);
 				this.three.wallIsClicked(wall);
 				return;
 			}
@@ -160,11 +216,9 @@ export class Controller extends EventDispatcher
 			if (floorIntersects.length > 0)
 			{
 				var room = floorIntersects[0].object.room;
-				// this.three.floorClicked.fire(room);
 				this.three.floorIsClicked(room);
 				return;
 			}
-			// three.nothingClicked.fire();
 			this.three.nothingIsClicked();
 		}
 	}
@@ -179,18 +233,29 @@ export class Controller extends EventDispatcher
 	{
 		if (this.enabled)
 		{
-			event.preventDefault();
+			// Only for touch and pen. Canceling a pointer event while the pointer
+			// is down suppresses the compatibility mouse events, and orbitcontrols.js
+			// is still driven by mousedown/mousemove - preventing them here would
+			// kill orbit, pan and zoom. The selection and native-drag suppression
+			// the old mousedown preventDefault() bought us is done declaratively in
+			// init() instead, with user-select. (S5 moves the controls to pointer
+			// events, at which point this can simply become preventDefault.)
+			if (this._isTouchLike(event))
+			{
+				event.preventDefault();
+			}
 
 			this.mouseMoved = false;
 			this.mouseDown = true;
 
-			if(event.touches)
+			if(this._isTouchLike(event))
 			{
-				//In case if this is a touch device do the necessary to click and drag items
-				this.mouse.x = event.touches[0].clientX;
-				this.mouse.y = event.touches[0].clientY;
-				this.alternateMouse.x = event.touches[0].clientX;
-				this.alternateMouse.y = event.touches[0].clientY;
+				// A touch arrives with no preceding move, so there is no hover state
+				// to select from - resolve what is under the finger right now.
+				this.mouse.x = event.clientX;
+				this.mouse.y = event.clientY;
+				this.alternateMouse.x = event.clientX;
+				this.alternateMouse.y = event.clientY;
 				this.updateIntersections();
 				this.checkWallsAndFloors();
 			}
@@ -235,21 +300,18 @@ export class Controller extends EventDispatcher
 	{
 		if (this.enabled)
 		{
-			event.preventDefault();
+			// See mouseDownEvent: canceling this for a mouse would starve
+			// orbitcontrols.js of the compatibility mousemove it drags on.
+			if (this._isTouchLike(event))
+			{
+				event.preventDefault();
+			}
 			this.mouseMoved = true;
 
 			this.mouse.x = event.clientX;
 			this.mouse.y = event.clientY;
 			this.alternateMouse.x = event.clientX;
 			this.alternateMouse.y = event.clientY;
-
-			if(event.touches)
-			{
-				this.mouse.x = event.touches[0].clientX;
-				this.mouse.y = event.touches[0].clientY;
-				this.alternateMouse.x = event.touches[0].clientX;
-				this.alternateMouse.y = event.touches[0].clientY;
-			}
 
 			if (!this.mouseDown)
 			{
@@ -286,6 +348,7 @@ export class Controller extends EventDispatcher
 			case states.DRAGGING:
 				this.selectedObject.clickReleased();
 				this.switchState(states.SELECTED);
+				this.itemMoveFinished();
 				break;
 			case states.ROTATING:
 				if (!this.mouseMoved) {
@@ -293,6 +356,7 @@ export class Controller extends EventDispatcher
 				}
 				else {
 					this.switchState(states.SELECTED);
+					this.itemMoveFinished();
 				}
 				break;
 			case states.UNSELECTED:
@@ -310,6 +374,26 @@ export class Controller extends EventDispatcher
 			case states.ROTATING_FREE:
 				break;
 			}
+		}
+	}
+
+	/**
+	 * Announce that a direct manipulation has settled.
+	 *
+	 * Dispatched on the *scene*, not on the Controller, because the scene is
+	 * where an application already listens for item lifecycle events - a
+	 * consumer that wants to know an item moved should not also have to reach
+	 * through Main into the Controller to find out.
+	 *
+	 * Only fired when the pointer actually moved. A click that selects an item
+	 * and releases without dragging passes through DRAGGING in some paths, and a
+	 * selection is not an edit.
+	 */
+	itemMoveFinished()
+	{
+		if (this.mouseMoved && this.selectedObject)
+		{
+			this.scene.dispatchEvent({type: EVENT_ITEM_MOVE_FINISH, item: this.selectedObject});
 		}
 	}
 
@@ -434,12 +518,21 @@ export class Controller extends EventDispatcher
 		}
 	}
 
-	// sets coords to -1 to 1
+	/**
+	 * Viewport pixel coordinates to normalized device coordinates (-1..1).
+	 *
+	 * Divides by the viewer's own measured size instead of the window's. The old
+	 * form assumed the viewer ran from its left/top margin all the way to the
+	 * bottom-right of the window, so picking silently drifted for any embedder
+	 * that did not give it the whole page. Identical arithmetic when it does.
+	 */
 	normalizeVector2(vec2)
 	{
 		var retVec = new Vector2();
-		retVec.x = ((vec2.x - this.three.widthMargin) / (window.innerWidth - this.three.widthMargin)) * 2 - 1;
-		retVec.y = -((vec2.y - this.three.heightMargin) / (window.innerHeight - this.three.heightMargin)) * 2 + 1;
+		var width = this.three.elementWidth || 1;
+		var height = this.three.elementHeight || 1;
+		retVec.x = ((vec2.x - this.three.widthMargin) / width) * 2 - 1;
+		retVec.y = -((vec2.y - this.three.heightMargin) / height) * 2 + 1;
 		return retVec;
 	}
 
@@ -465,19 +558,22 @@ export class Controller extends EventDispatcher
 
 	// filter by normals will only return objects facing the camera
 	// objects can be an array of objects or a single object
-	getIntersections(vec2, objects, filterByNormals, onlyVisible, recursive, linePrecision)
+	getIntersections(vec2, objects, filterByNormals, onlyVisible, recursive)
 	{
 		var vector = this.mouseToVec3(vec2);
 		onlyVisible = onlyVisible || false;
 		filterByNormals = filterByNormals || false;
 		recursive = recursive || false;
-		linePrecision = linePrecision || 20;
 
 		var direction = vector.sub(this.camera.position).normalize();
-		var raycaster = new Raycaster(this.camera.position, direction);
-		raycaster.linePrecision = linePrecision;
 
-		raycaster = new Raycaster();
+		// There was a `linePrecision` parameter here, defaulting to 20, and it
+		// never reached a raycaster: the old code built one with it, then
+		// immediately replaced the whole instance with a fresh Raycaster before
+		// casting, so line picking has always used three's default threshold. The
+		// property was removed in r127 (params.Line.threshold now) and no caller
+		// in this codebase ever passed the argument, so both are gone.
+		var raycaster = new Raycaster();
 		raycaster.setFromCamera( this.normalizeVector2(this.alternateMouse), this.camera );
 
 		var intersections;
@@ -519,13 +615,11 @@ export class Controller extends EventDispatcher
 		{
 			this.selectedObject = object;
 			this.selectedObject.setSelected();
-// three.itemSelectedCallbacks.fire(object);
 			this.three.itemIsSelected(object);
 		}
 		else
 		{
 			this.selectedObject = null;
-// three.itemUnselectedCallbacks.fire();
 			this.three.itemIsUnselected();
 		}
 		this.needsUpdate = true;
