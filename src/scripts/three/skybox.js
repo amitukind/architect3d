@@ -2,6 +2,29 @@ import {EventDispatcher, PlaneGeometry, SphereGeometry, MeshBasicMaterial, Shade
 import {RepeatWrapping, Fog} from 'three';
 import {renderProfile, isStudio} from '../core/render_profile.js';
 
+/**
+ * The two textures this module owns, named rather than written at the call
+ * (RM-005 C1 · J-2).
+ *
+ * Both were string literals passed straight to `TextureLoader.load()`, which
+ * made them the only two textures in the viewer that never went through
+ * `AssetResolver` - `Floor` and `Edge` resolve every one of theirs. That
+ * indirection is the whole of RM-003 A5: a logical name in a document, a
+ * physical URL at runtime. It is also the mechanism a RETIREMENT runs on, which
+ * is what made this a blocker rather than a tidy-up. `rooms/textures/hardwood.png`
+ * is not on disk and every design naming it still opens, because the manifest
+ * points the old name at the new file and `Floor` asks. Nothing asked for these.
+ *
+ * It cost nothing until now because B4 downscaled in place - a name that does
+ * not move needs no reference rewriting - so both files were rewritten under
+ * these literals and the bypass never showed. C1 encodes them to KTX2, which
+ * moves the names, and a bypass is invisible right up to the change that needs it.
+ *
+ * Constants beside the class rather than inline, matching `LIGHT_MAP_URL` in
+ * `edge.js`, so `tests/asset-integrity.test.js` can assert there are no others.
+ */
+const GROUND_URL = 'rooms/textures/Ground_4K.jpg';
+const ENVIRONMENT_URL = 'rooms/textures/envs/Garden.jpg';
 
 /**
  * Whether the ground plane gets the mirror-blend reflector.
@@ -42,7 +65,10 @@ export class Skybox extends EventDispatcher
 	 */
 		this.renderProfile = profile || renderProfile;
 		
-		this.defaultEnvironment = 'rooms/textures/envs/Garden.jpg';
+		// The logical name, not a URL. `setEnvironmentMap` resolves it, so an
+		// embedder may still set this to a name of their own and have the manifest
+		// apply to it - which is the behaviour it should always have had.
+		this.defaultEnvironment = ENVIRONMENT_URL;
 		this.useEnvironment = false;
 		this.topColor = this.renderProfile.skyTopColor;//0xe9e9e9; //0xf9f9f9;//0x565e63
 		this.bottomColor = this.renderProfile.skyBottomColor;//0xD8ECF9
@@ -113,7 +139,7 @@ export class Skybox extends EventDispatcher
 		// local, and `Material.dispose()` in three does not touch the material's
 		// maps - so the ground photograph, the largest single texture the viewer
 		// loads, was leaked once per viewer built.
-		var groundT = new TextureLoader().load('rooms/textures/Ground_4K.jpg', function(){});
+		var groundT = new TextureLoader().load(this.resolveAsset(GROUND_URL), function(){});
 		this.groundTex = groundT;
 		// A photograph of gravel (S8).
 		groundT.colorSpace = SRGBColorSpace;
@@ -245,6 +271,29 @@ export class Skybox extends EventDispatcher
 	}
 	
 	/**
+	 * A logical asset name as the URL to actually fetch (RM-005 C1).
+	 *
+	 * The same call `Floor` makes at `floor.js:115` and `Edge` at `edge.js:94`
+	 * and `:297`, reached the same way `threeScene()` reaches the real scene:
+	 * by duck-typing what was handed to the constructor. `scene` is the model's
+	 * `Scene` wrapper when `Main` builds this, and a plain THREE.Scene when a
+	 * caller builds it themselves - only the first carries a runtime, and this
+	 * class has never been allowed to require one.
+	 *
+	 * With no runtime the name is its own URL, which is what an `AssetResolver`
+	 * with no manifest returns anyway. So the fallback is not a degraded path,
+	 * it is the same answer arrived at without the lookup.
+	 *
+	 * @param {string} name A logical asset name, e.g. `rooms/textures/x.jpg`.
+	 * @returns {string}
+	 */
+	resolveAsset(name)
+	{
+		var runtime = this.scene && this.scene.runtime;
+		return (runtime && runtime.assets) ? runtime.assets.resolve(name).url : name;
+	}
+
+	/**
 	 * The real THREE.Scene behind whatever was handed to the constructor.
 	 *
 	 * `scene` has always been duck-typed here as "something with add and remove",
@@ -303,7 +352,10 @@ export class Skybox extends EventDispatcher
 	setEnvironmentMap(url)
 	{
 		var scope = this;
-		scope.texture.load(url, function (t)
+		// Resolved here rather than at the call, so every caller gets the
+		// indirection: `toggleEnvironment` passing `defaultEnvironment`, and an
+		// embedder passing a name of their own.
+		scope.texture.load(scope.resolveAsset(url), function (t)
 		{
 			// The environment photograph, decoded on the way in so the shader's
 			// #include <colorspace_fragment> has linear values to encode (S8).

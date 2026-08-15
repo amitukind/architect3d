@@ -581,3 +581,144 @@ describe('the VRAM budget can see every format the tree uploads (RM-005 C1)', ()
 		expect(textureVram(PUBLIC)).toBe(recorded.budgets['texture-vram'].measured);
 	});
 });
+
+/**
+ * M-17: every texture the library fetches has passed through the resolver.
+ *
+ * ## The bypass this closes
+ *
+ * `Skybox` fetched two textures by string literal - the ground photograph and
+ * the environment map - straight into `TextureLoader.load()`. They were the only
+ * two in the viewer that never reached `AssetResolver`, and together they are
+ * 8.00 MB of GPU memory, the largest single share of what RM-005 C1 set out to
+ * compress.
+ *
+ * The resolver is not a convenience. It is the mechanism a RETIREMENT runs on:
+ * `rooms/textures/hardwood.png` is not on disk, and every saved design naming it
+ * still opens, because the manifest points the old name at the new file and
+ * `Floor` asks. Code that does not ask cannot be redirected, so its assets can
+ * never be renamed, re-encoded or moved - which is precisely the operation C1
+ * needed to perform on those two files.
+ *
+ * ## Why this is a test and not a fixed instance
+ *
+ * The bypass survived three programs because it cost nothing to have. B4
+ * downscaled every oversized texture IN PLACE - same filename, new contents -
+ * so both files were rewritten underneath these literals and nothing noticed. A
+ * bypass is invisible until the first change that moves a name, and the next
+ * person adding a texture has no reason to know any of this. So the rule is
+ * asserted rather than written down: the tree currently holds exactly five
+ * texture-path literals and every one of them is accounted for below.
+ */
+describe('every texture the library fetches goes through the resolver (RM-005 C1)', () =>
+{
+	/** A quoted path into public/, for the formats that get uploaded or loaded. */
+	const LITERAL = /(['"])((?:rooms|models)\/[A-Za-z0-9_./-]*\.(?:png|jpg|jpeg|ktx2|glb|gltf))\1/g;
+
+	/** Source lines only - a path named in a docblock is documentation, not a fetch. */
+	function codeLines(path)
+	{
+		return readFileSync(path, 'utf8').split('\n')
+			.map((line, index) => ({line, number: index + 1}))
+			.filter(({line}) => !/^\s*(\*|\/\/|\/\*)/.test(line));
+	}
+
+	const sources = walk(join(ROOT, 'src/scripts')).filter((path) => path.endsWith('.js'));
+
+	it('hands no loader a bare asset path', () =>
+	{
+		// The defect shape exactly: `new TextureLoader().load('rooms/textures/…')`.
+		// Whatever else a file does with a name, it may not fetch one it has not
+		// resolved, and this is the form that reads as harmless while doing it.
+		const direct = [];
+		for (const path of sources)
+		{
+			for (const {line, number} of codeLines(path))
+			{
+				if (/\.load\(\s*['"](?:rooms|models)\//.test(line))
+				{
+					direct.push(`${path.slice(ROOT.length + 1)}:${number}`);
+				}
+			}
+		}
+
+		expect(direct, `these fetch an asset without resolving it first:\n  ${direct.join('\n  ')}`).toEqual([]);
+	});
+
+	it('resolves the argument of every fetch it makes', () =>
+	{
+		// ## The first version of this asserted the wrong thing, and a break found it
+		//
+		// It asked, per file, "does this file mention `resolveAsset` or
+		// `assets.resolve` anywhere?" Removing BOTH resolve calls from `skybox.js`
+		// left it green - because the file still DECLARES `resolveAsset(name)`, and
+		// a declaration matches the same regex a call does. The check was satisfied
+		// by the existence of the tool rather than by its use, which is the same
+		// failure shape as the bypass it was written to catch.
+		//
+		// So it asserts the argument now, not the file. Two forms are accepted, and
+		// they are the two the tree actually uses: the resolve happens AT the call
+		// (`skybox.js`, `floor.js`, `edge.js`), or it happens into a local that the
+		// call then passes (`scene.js:498` binds `physicalUrl`, used at `:525`).
+		// A bare constant is neither, which is what `Skybox` was doing.
+		// `texture_cache.js` is the fetch PRIMITIVE, not a fetch site: its contract
+		// is that a caller hands it a physical URL, and all three callers resolve
+		// before they do. Exempting it is a statement about that contract, so the
+		// list is asserted below rather than left as a filter nobody re-reads.
+		const PRIMITIVES = ['src/scripts/three/texture_cache.js'];
+		const FETCH = /(?:\.load|acquireTexture)\s*\(\s*([^,)]*)/g;
+		const unresolved = [];
+
+		expect(PRIMITIVES.filter((path) => existsSync(join(ROOT, path)))).toEqual(PRIMITIVES);
+
+		for (const path of sources)
+		{
+			const relative = path.slice(ROOT.length + 1).split(sep).join('/');
+			if (PRIMITIVES.includes(relative)) { continue; }
+			const text = readFileSync(path, 'utf8');
+			for (const {line, number} of codeLines(path))
+			{
+				// A declaration is not a call. The previous version of this test was
+				// fooled by exactly this distinction one commit ago.
+				if (/^\s*(export\s+)?function\s/.test(line)) { continue; }
+				for (const match of line.matchAll(FETCH))
+				{
+					const argument = match[1].trim();
+					if (!argument || /resolve/.test(argument)) { continue; }
+					// An identifier this file binds from a resolve is resolved too.
+					const binding = /^[A-Za-z_$][\w$]*$/.test(argument)
+						&& new RegExp(`\\b${argument}\\s*=[^;]*resolve`).test(text);
+					if (binding) { continue; }
+					unresolved.push(`${relative}:${number}  ${argument}`);
+				}
+			}
+		}
+
+		expect(unresolved, `these fetch something the manifest cannot redirect:\n  ${unresolved.join('\n  ')}`)
+			.toEqual([]);
+	});
+
+	it('accounts for every literal in the library, so a new one is a decision', () =>
+	{
+		// A census, not a ceiling. Five today; adding a sixth fails here and makes
+		// somebody say which of the two shapes above it is. That is cheap to
+		// satisfy honestly and impossible to satisfy by accident, which is the
+		// property the previous three programs did not have.
+		const found = [];
+		for (const path of sources)
+		{
+			for (const {line} of codeLines(path))
+			{
+				for (const match of line.matchAll(LITERAL)) { found.push(match[2]); }
+			}
+		}
+
+		expect(found.sort()).toEqual([
+			'rooms/textures/Ground_4K.jpg',
+			'rooms/textures/envs/Garden.jpg',
+			'rooms/textures/hardwood.jpg',
+			'rooms/textures/wallmap.png',
+			'rooms/textures/walllightmap.png',
+		].sort());
+	});
+});
