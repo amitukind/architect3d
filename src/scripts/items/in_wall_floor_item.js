@@ -1,3 +1,4 @@
+// @ts-check
 import {InWallItem} from './in_wall_item.js';
 
 /** */

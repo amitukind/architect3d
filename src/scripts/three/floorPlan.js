@@ -1,3 +1,4 @@
+// @ts-check
 import {EventDispatcher} from 'three';
 import {EVENT_CHANGESET} from '../core/events.js';
 import {CHANGE_TOPOLOGY, CHANGE_GEOMETRY} from '../core/change_set.js';

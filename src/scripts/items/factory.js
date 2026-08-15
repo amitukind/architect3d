@@ -1,3 +1,4 @@
+// @ts-check
 import {Item} from './item.js';
 import {FloorItem} from './floor_item.js';
 import {WallItem} from './wall_item.js';

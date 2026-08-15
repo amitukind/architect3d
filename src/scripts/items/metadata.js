@@ -1,3 +1,4 @@
+// @ts-check
 /** Meta data for items. */
 export class Metadata 
 {

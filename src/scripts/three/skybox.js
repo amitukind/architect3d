@@ -1,3 +1,4 @@
+// @ts-check
 import {EventDispatcher, PlaneGeometry, SphereGeometry, MeshBasicMaterial, ShaderMaterial, Mesh, TextureLoader, Color, DoubleSide, SRGBColorSpace} from 'three';
 import {RepeatWrapping, Fog} from 'three';
 import {KTX2Loader} from 'three/addons/loaders/KTX2Loader.js';

@@ -1,3 +1,4 @@
+// @ts-check
 import {EventDispatcher, Scene as ThreeScene, BufferAttribute, BufferGeometry, Vector3, LineBasicMaterial, CylinderGeometry, MeshBasicMaterial, Mesh, SphereGeometry, Object3D, LineSegments} from 'three';
 
 import {EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED} from '../core/events.js';

@@ -1,3 +1,4 @@
+// @ts-check
 import {EventDispatcher, HemisphereLight, DirectionalLight, Vector3} from 'three';
 import {EVENT_UPDATED} from '../core/events.js';
 import {renderProfile, isStudio} from '../core/render_profile.js';

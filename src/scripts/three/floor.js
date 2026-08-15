@@ -1,3 +1,4 @@
+// @ts-check
 import {EventDispatcher, RepeatWrapping, MeshBasicMaterial, MeshPhongMaterial, MeshStandardMaterial, FrontSide, DoubleSide, Vector2, Vector3, Shape, ShapeGeometry, Mesh, SRGBColorSpace} from 'three';
 import {triangleFanGeometry} from '../core/geometry_builders.js';
 import {EVENT_CHANGED} from '../core/events.js';

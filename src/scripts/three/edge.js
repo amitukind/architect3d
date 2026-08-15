@@ -1,3 +1,4 @@
+// @ts-check
 import {EventDispatcher, RepeatWrapping, BufferAttribute, Vector2, Vector3, MeshBasicMaterial, MeshStandardMaterial, FrontSide, DoubleSide, BackSide, Shape, Path, ShapeGeometry, Mesh, SRGBColorSpace} from 'three';
 import {Utils} from '../core/utils.js';
 import {triangleFanGeometry} from '../core/geometry_builders.js';
