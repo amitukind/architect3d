@@ -61,7 +61,7 @@ function ledgerCeiling()
 
 function treeErrors()
 {
-	let output = '';
+	let output;
 	try
 	{
 		output = execFileSync('npx', ['vue-tsc', '--noEmit', '--checkJs'], {cwd: ROOT, encoding: 'utf8'});
