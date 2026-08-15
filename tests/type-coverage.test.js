@@ -80,6 +80,18 @@ describe('every area that reached zero stays opted in (RM-004 B3)', () =>
 		expect(persistence.filter((file) => !has(file))).toEqual([]);
 	});
 
+	it('the whole of src/scripts is checked (RM-005 C2)', () =>
+	{
+		// The state C2 reached, asserted so it is a floor rather than a moment.
+		// B3 took src/app to zero and pinned it this way; the library tier is the
+		// other half, and it took four programs to get here - 355 errors, four
+		// wrong JSDoc types, three dead methods and a devDependency nobody had
+		// installed. Adding an unchecked file to src/scripts now fails here.
+		const library = walk(join(ROOT, 'src/scripts'), /\.js$/);
+		expect(library.length).toBeGreaterThan(50);
+		expect(library.filter((file) => !has(file))).toEqual([]);
+	});
+
 	it('the public entry point is checked', () =>
 	{
 		expect(has('src/scripts/blueprint.js')).toBe(true);

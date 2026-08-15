@@ -1,6 +1,6 @@
 // @ts-check
 import {OrbitControls as OrbitControlsAddon} from 'three/addons/controls/OrbitControls.js';
-import {EVENT_CAMERA_MOVED} from '../core/events.js';
+import {EVENT_CAMERA_MOVED, EVENT_CAMERA_ACTIVE_STATUS} from '../core/events.js';
 
 
 /**
@@ -58,6 +58,22 @@ export class OrbitControls extends OrbitControlsAddon
 		 * Starts true so the first frame is always drawn, matching the fork.
 		 */
 		this.needsUpdate = true;
+
+		var scope = this;
+		/**
+		 * Announce that the active camera changed.
+		 *
+		 * `Main` fires this at four points - a view switch, a clipping change, an
+		 * orthographic toggle and entering first person - and `Edge` listens for
+		 * it to re-evaluate which way each wall face is turned. Like
+		 * `EVENT_CAMERA_MOVED` above it is this class's own event and not one of
+		 * three's, so the map does not know the string; the cast lives here, once,
+		 * rather than at each of the four call sites (RM-005 C2).
+		 */
+		this.signalCameraActive = function ()
+		{
+			scope.dispatchEvent(/** @type {any} */ ({type: EVENT_CAMERA_ACTIVE_STATUS}));
+		};
 
 		this._cameraMoved = () =>
 		{
