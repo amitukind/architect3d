@@ -56,10 +56,18 @@ function dimensions(bytes)
 	return null;
 }
 
+// Live GPU textures only: a manifest key is a logical name, and a RETIRED one
+// points at a file under a different name. Reading the key directly is an
+// ENOENT, and following it would count the same file twice.
 const gpuTextures = Object.entries(manifest.assets)
-	.filter(([, entry]) => GPU_KINDS.has(entry.kind))
+	.filter(([name, entry]) => GPU_KINDS.has(entry.kind) && (!entry.url || entry.url === name))
 	.map(([name]) => name)
 	.sort();
+
+/** Every retired name, with the live file it resolves to. */
+const retired = Object.entries(manifest.assets)
+	.filter(([name, entry]) => entry.url && entry.url !== name)
+	.map(([name, entry]) => [name, entry.url]);
 
 /** A solid RGBA raster. @returns {import('../tools/resize-textures.mjs').Raster} */
 function solid(width, height, [r, g, b, a])
@@ -90,6 +98,19 @@ describe('the committed tree is under the cap (RM-004 B4)', () =>
 			}
 		}
 		expect(over).toEqual([]);
+	});
+
+	it('every retired name resolves to a file that is there', () =>
+	{
+		// The indirection A5 built, exercised. A retired name has no file of its
+		// own by definition, so the only thing that keeps a saved design working
+		// is that its `url` lands somewhere real.
+		expect(retired.length).toBeGreaterThan(0);
+		for (const [name, url] of retired)
+		{
+			expect(existsSync(join(PUBLIC, name)), `${name} is retired but a file of that name exists`).toBe(false);
+			expect(existsSync(join(PUBLIC, url)), `${name} retires to ${url}, which is not there`).toBe(true);
+		}
 	});
 
 	it('the report describes files that exist and still match', () =>

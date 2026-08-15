@@ -127,6 +127,17 @@ environment map is free below 512px; the two dark wood grains carry a real
 trade for 61.67 MB, and it is written down so the judgement can be revisited
 rather than reconstructed.
 
+A logical name can outlive its file. `rooms/textures/hardwood.png` was
+re-encoded as JPEG and no longer exists under that name, but it is the default
+room texture and is written into every design that kept the default floor — so
+the manifest carries a **retired** entry pointing it at `hardwood.jpg`. That is
+the `url` field in `asset_manifest.js` doing the job it was added for, and it is
+the mechanism that makes "an asset URL in a document is a name, not an address"
+true rather than merely stated. Retirements are declared in
+`tools/make-asset-manifest.mjs`, which refuses to build if one points at a file
+that is not there. Rename a room texture only with a retirement; do not delete a
+name.
+
 KTX2/Basis would have taken 78.50 MB instead of 61.67, and was declined —
 mostly because of the `.glb` indirection above, and because `KTX2Loader`
 requires a renderer that `texture_cache` deliberately does not hold. The

@@ -496,9 +496,17 @@ export function capped(width, height)
 function main()
 {
 	const manifest = JSON.parse(readFileSync(MANIFEST_PATH, 'utf8'));
+	// Resolve through `url` before touching the filesystem. A manifest key is a
+	// LOGICAL name and A5's whole point is that it need not be where the file
+	// is; `rooms/textures/hardwood.png` is a retired name pointing at a .jpg,
+	// and reading the key directly is an ENOENT. Retired names are skipped
+	// rather than followed, because following one would process the same file
+	// twice - once under each name - and double-count its VRAM.
+	const seen = new Set();
 	const targets = Object.entries(manifest.assets)
-		.filter(([, entry]) => GPU_KINDS.has(entry.kind))
+		.filter(([name, entry]) => GPU_KINDS.has(entry.kind) && (!entry.url || entry.url === name))
 		.map(([name]) => name)
+		.filter((name) => !seen.has(name) && seen.add(name))
 		.sort();
 
 	const report = {cap: CAP, quality: JPEG_QUALITY, gates: GATES, textures: [], skipped: []};

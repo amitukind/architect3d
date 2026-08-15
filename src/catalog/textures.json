@@ -48,7 +48,7 @@
 		},
 		{
 			"name": "Hard Wood",
-			"url": "rooms/textures/hardwood.png",
+			"url": "rooms/textures/hardwood.jpg",
 			"thumbnail": "rooms/thumbnails/thumbnail_hardwood.jpg",
 			"stretch": false,
 			"scale": 300

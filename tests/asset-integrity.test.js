@@ -19,12 +19,28 @@
  * a `url` in them. Every plan any user has ever saved names a file under
  * `rooms/textures/` by path, so renaming one of those files breaks documents
  * that already exist - and nothing else in this repository would have noticed.
- * `hardwood.png` is 476 kB of photograph in a lossless container and is exactly
- * the file a compression pass wants to convert; it is left alone for this
- * reason, and this test is what will say so to the next person who tries.
  *
  * The fixtures under tests/fixtures are real saved designs, so they are the
  * corpus: if a URL in one of them stops resolving, the format broke.
+ *
+ * ## `hardwood.png`, and a constraint that was lifted rather than ignored
+ *
+ * This docblock used to end: "`hardwood.png` is 476 kB of photograph in a
+ * lossless container and is exactly the file a compression pass wants to
+ * convert; it is left alone for this reason, and this test is what will say so
+ * to the next person who tries."
+ *
+ * It has now been converted, and the warning was right when it was written. P6
+ * had no way to rename a file a saved design names, so "do not touch it" was
+ * the only safe answer available. RM-003 A5 then built the one that was
+ * missing: a manifest entry may carry a `url`, which makes a name in a document
+ * a NAME rather than an address. `rooms/textures/hardwood.png` is now a retired
+ * name pointing at `hardwood.jpg`, every design that records it still resolves,
+ * and `tools/make-asset-manifest.mjs` throws if the target ever goes away.
+ *
+ * The rule that replaces the warning is narrower and stronger: a file under
+ * `rooms/textures/` may be renamed **only** with a retirement entry, and the
+ * three assertions below are what enforce it. Do not delete a name; retire it.
  */
 import {describe, expect, it} from 'vitest';
 import {readFileSync, readdirSync, existsSync, statSync} from 'node:fs';
@@ -34,6 +50,7 @@ import {createHash} from 'node:crypto';
 import {resolveModelUrl} from '../src/scripts/core/legacy_models.js';
 import {AssetManifest, MANIFEST_VERSION} from '../src/scripts/core/asset_manifest.js';
 import {AssetResolver} from '../src/scripts/core/asset_resolver.js';
+import {defaultRoomTexture} from '../src/scripts/model/room.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC = join(ROOT, 'public');
@@ -110,8 +127,19 @@ describe('saved designs still resolve', () =>
 		const urls = fixtureUrls();
 		expect(urls.size).toBeGreaterThan(0);
 
+		// Two indirections, applied in order, and neither is optional. The shim
+		// rewrites a pre-S3 model path; the MANIFEST then maps a logical name to
+		// wherever the file actually is. `rooms/textures/hardwood.png` is named
+		// by rich-design.blueprint3d and no longer exists under that name - it
+		// retired to a .jpg - so checking the document's URL against the
+		// filesystem asks the wrong question. What a saved design is owed is not
+		// that its string still matches a path, but that it still RESOLVES.
+		const {manifest: liveManifest} = AssetManifest.parse(MANIFEST_JSON);
+		const liveResolver = new AssetResolver({manifest: liveManifest});
+		const physical = (url) => liveResolver.resolve(url).url;
+
 		const broken = [...urls.entries()]
-			.map(([url, where]) => [resolveModelUrl(url).url, url, where])
+			.map(([url, where]) => [physical(resolveModelUrl(url).url), url, where])
 			.filter(([resolved]) => !existsSync(join(PUBLIC, resolved)))
 			.map(([resolved, url, where]) => (resolved === url
 				? `${url}  (${where[0]})`
@@ -125,6 +153,11 @@ describe('saved designs still resolve', () =>
 		// The rule in compress-textures.mjs, asserted rather than left as a comment
 		// in the tool that implements it. `rooms/textures/envs/` is exempt: it holds
 		// the environment map, which no catalog offers and no design can name.
+		//
+		// Still asserted of P6 specifically, and deliberately not generalised to
+		// "nothing may ever move". P6 could not retire a name, so for P6 the rule
+		// really was absolute; a later pass CAN, and did. The scope of this test
+		// is that record, which is why it reads COMPRESSION rather than the tree.
 		const renamed = COMPRESSION.converted
 			.map((entry) => entry.from)
 			.filter((url) => url.startsWith('rooms/textures/') && !url.startsWith('rooms/textures/envs/'));
@@ -132,11 +165,28 @@ describe('saved designs still resolve', () =>
 		expect(renamed, 'these URLs appear in saved designs and must not move').toEqual([]);
 	});
 
-	it('the default room texture is still where room.js says it is', () =>
+	it('the default room texture resolves, under both the name it has and the one it had', () =>
 	{
-		// Its URL is written into every design that has a floor, so it is the single
-		// most load-bearing asset path in the project.
-		expect(existsSync(join(PUBLIC, 'rooms/textures/hardwood.png'))).toBe(true);
+		// The single most load-bearing asset path in the project: its URL is
+		// written into every design that has a floor.
+		//
+		// This used to assert `existsSync('rooms/textures/hardwood.png')`, which
+		// conflated two claims the way these assertions keep doing - that the
+		// default is reachable, and that it is reachable at one particular
+		// filename. Re-encoding it as JPEG made the second false and left the
+		// first exactly as true. What has to hold is that BOTH names resolve to
+		// something real: the current one because that is what new designs
+		// record, and the retired one because that is what every design written
+		// before now records.
+		const {manifest} = AssetManifest.parse(MANIFEST_JSON);
+		const resolver = new AssetResolver({manifest});
+
+		for (const name of [defaultRoomTexture.url, 'rooms/textures/hardwood.png'])
+		{
+			const resolution = resolver.resolve(name);
+			expect(resolution.known, `${name} is not in the manifest`).toBe(true);
+			expect(existsSync(join(PUBLIC, resolution.url)), `${name} -> ${resolution.url} is not there`).toBe(true);
+		}
 	});
 });
 
@@ -389,11 +439,22 @@ describe('the asset manifest describes the tree it ships with (RM-003 A5)', () =
 		const {manifest} = AssetManifest.parse(MANIFEST_JSON);
 		const resolver = new AssetResolver({manifest, base: 'https://cdn.example.com/a3d'});
 
+		// This example got sharper by accident. It used to show a base moving a
+		// name whose file sat at that same name, so `name` and the tail of `url`
+		// were identical and the test could not tell the two concepts apart.
+		// `hardwood.png` is now a RETIRED name, so the assertion below is the
+		// first place in the suite where the logical name and the physical file
+		// genuinely differ - which is what H-8 actually claims.
 		const name = 'rooms/textures/hardwood.png';
 		const resolution = resolver.resolve(name);
 		expect(resolution.name).toBe(name);
-		expect(resolution.url).toBe('https://cdn.example.com/a3d/rooms/textures/hardwood.png');
+		expect(resolution.url).toBe('https://cdn.example.com/a3d/rooms/textures/hardwood.jpg');
 		expect(resolution.known).toBe(true);
 		expect(resolution.hash).toMatch(/^sha256-/);
+
+		// And a live name still behaves the plain way, so the indirection is not
+		// quietly rewriting everything.
+		const live = resolver.resolve('rooms/textures/marbletiles.jpg');
+		expect(live.url).toBe('https://cdn.example.com/a3d/rooms/textures/marbletiles.jpg');
 	});
 });

@@ -10,7 +10,7 @@ import {Utils} from '../core/utils.js';
 import {HalfEdge} from './half_edge.js';
 
 /** Default texture to be used if nothing is provided. */
-export const defaultRoomTexture = {url: 'rooms/textures/hardwood.png', scale: 400};
+export const defaultRoomTexture = {url: 'rooms/textures/hardwood.jpg', scale: 400};
 
 /**
  * A Room is the combination of a Floorplan with a floor plane.

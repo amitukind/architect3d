@@ -2,6 +2,48 @@
 
 ## [Unreleased]
 
+### Changed
+
+* **The last opaque PNG on the GPU path is a JPEG, and the first retired asset
+  name went with it.** `rooms/textures/hardwood.png` was 476 KB for a 512×512
+  texture — 1.861 bytes per texel, nine times the density of any JPEG in the
+  catalog, and the largest file served once 2.1.0 capped the big ones. As JPEG
+  q95 it is **142 KB at 41.0 dB**, well over the 36 dB floor an earlier pass set.
+  Lossless was measured first and rejected: stripping its 18 KB of ICC and iTXt
+  metadata and re-deflating produces 564 KB, *larger* than the original.
+
+  The interesting half is the rename. This is the **default room texture**, so
+  its name is written into every design that kept the default floor, and an
+  earlier test said outright that this file must never move for that reason.
+  That warning was correct when written and is now obsolete: RM-003 A5 built the
+  indirection that was missing, and a manifest entry may carry a `url` saying
+  where the file actually is. `rooms/textures/hardwood.png` is now a **retired
+  name** resolving to `hardwood.jpg` — the first use of a seam A5 built and
+  nothing had needed. Every design that names the old path still opens.
+
+  `tools/make-asset-manifest.mjs` throws if a retired name's target is missing,
+  or if a name is both live and retired. The rule that replaces "never rename a
+  room texture" is narrower and stronger: rename only with a retirement entry.
+  **Do not delete a name; retire it.**
+
+* **Five places were treating a logical name as an address**, and the retirement
+  is what exposed them — the resizer, the cap test, the saved-design fixture
+  check, the default-texture check, and the demonstration of A5's own rule. Each
+  read `public/<manifest key>` directly, which is an `ENOENT` the moment a key
+  stops being a path. All five resolve before reading now.
+
+  The last of those is the one worth noting: the test demonstrating that "a base
+  moves every URL without touching the name" had been using `hardwood.png` as its
+  example, where name and file were identical — so it could not tell the two
+  concepts apart. It is now the first assertion in the suite where the logical
+  name and the physical file genuinely differ.
+
+* **Three more budget ceilings came down**: `public-total` 6.56 → 6.20 MB,
+  `demo-total` 14.22 → 13.86 MB, `public-largest` 513 → 330 KB. `public-largest`
+  has now changed target twice in two passes — Garden.jpg, then hardwood.png, now
+  `oak_wood.jpg` at 307 KB — and each time it named a different kind of problem
+  that no tree total would have surfaced.
+
 ## [2.1.0] - 2026-08-15
 
 RM-004, the third review programme, and the shortest of the three because it had
