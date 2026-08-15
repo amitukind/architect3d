@@ -1,0 +1,103 @@
+{
+	"note": [
+		"RM-005 C1 t5 pixel oracle: the five room textures that reach the GPU through",
+		"three/texture_cache.js, rendered from their authored file and from their",
+		"KTX2/ETC1S transcode through the same geometry, camera and sampler state at",
+		"1:1, and differenced in the framebuffer.",
+		"",
+		"THIS IS THE MEASUREMENT THAT ENDED THE SPRINT'S SECOND HALF.",
+		"",
+		"RM-004 B5 deferred these five - it said seven, but two of them turned out to",
+		"be Skybox's and never used the cache at all - on the grounds that",
+		"acquireTexture hands out a Texture clone synchronously and cannot hold a",
+		"CompressedTexture. C1 removed that obstacle: an empty CompressedTexture is",
+		"handed out and cloned exactly as before, and the decoded payload is adopted",
+		"into the master and every live clone when the transcode lands. It worked,",
+		"and tests/browser/gpu-memory.test.js proves the part that mattered - two",
+		"clones differing in repeat still cost one GPU upload.",
+		"",
+		"Then the oracle was pointed at the textures it had been built for, and four",
+		"of the five fail B4's 3.0 codec gate outright. Two fail by more than double.",
+		"",
+		"THE FIFTH IS THE INTERESTING ONE. walllightmap.png passes on absolute error -",
+		"RMS 1.269, nothing off by more than 8 - and fails on the measure that fits",
+		"it. It is a hand-painted greyscale vignette spanning bytes 232 to 253, so its",
+		"entire dynamic range is 21 levels. 1.269 is 6.0% of that range and its worst",
+		"pixel is 23.8% of it. Judged against its own content it is the MOST damaged",
+		"of the five: hardwood's 7.441 is 2.9% of a full-range image. An absolute gate",
+		"is the wrong instrument for a low-contrast texture, and this is the case that",
+		"shows it.",
+		"",
+		"THE QUALITY SWEEP, run before concluding, because B5 chose qualityLevel 128",
+		"out of a possible 255 and a gate failure at one setting is not a codec",
+		"verdict. It is: at maximum quality hardwood is still 1.8x the gate and",
+		"light_brick 2.8x, for nearly double the file. UASTC would fix it and runs",
+		"about 5.7x source on this catalog, against 320 KB of public-total headroom.",
+		"",
+		"SO THE CACHE CHANGE WAS REVERTED RATHER THAN SHIPPED. It is correct and it",
+		"was tested, and it has no consumer: every texture behind it refuses the only",
+		"codec the project can afford. Machinery with no consumer is a liability, and",
+		"the finding is worth more than the code - the blocker was never the binding",
+		"constraint. These are detailed, tiled room surfaces, and they would have",
+		"refused ETC1S with any cache at all.",
+		"",
+		"WHAT THIS RAISES ABOUT B5, and it is not settled here: B5 encoded 18 model",
+		"textures gating only on disk and VRAM, and never rendered one. If ETC1S is",
+		"this destructive on wood grain and brick at 512x512, some of those 18 are",
+		"likely degraded too. Re-measuring needs the sources, which are in git",
+		"history rather than in the tree. Recorded in the roadmap as a finding.",
+		"",
+		"Columns are absolute per-channel differences over RGB, 0-255. pctOver8 is",
+		"the share of channels differing by more than 8, which is roughly where a",
+		"difference stops being arithmetic and starts being visible."
+	],
+	"encoder": {"isUASTC": false, "qualityLevel": 128, "needSupercompression": true, "generateMipmap": true},
+	"gate": {"codecRms": 3.0, "source": "tools/resize-textures.mjs GATES"},
+	"measurements": [
+		{
+			"name": "rooms/textures/hardwood.jpg",
+			"pixels": "512x512",
+			"role": "the default room floor",
+			"rms": 7.441, "p95": 16, "p99": 24, "max": 66, "pctOver8": 19.881,
+			"verdict": "refused — 2.5x the gate"
+		},
+		{
+			"name": "rooms/textures/marbletiles.jpg",
+			"pixels": "512x512",
+			"role": "floor and wall, from the texture picker",
+			"rms": 5.532, "p95": 11, "p99": 15, "max": 35, "pctOver8": 11.776,
+			"verdict": "refused — 1.8x the gate"
+		},
+		{
+			"name": "rooms/textures/light_brick.jpg",
+			"pixels": "256x256",
+			"role": "wall, from the texture picker",
+			"rms": 10.171, "p95": 23, "p99": 35, "max": 90, "pctOver8": 25.754,
+			"verdict": "refused — 3.4x the gate, the worst in the tree"
+		},
+		{
+			"name": "rooms/textures/light_fine_wood.jpg",
+			"pixels": "256x256",
+			"role": "wall, from the texture picker",
+			"rms": 4.145, "p95": 8, "p99": 12, "max": 31, "pctOver8": 4.831,
+			"verdict": "refused — 1.4x the gate"
+		},
+		{
+			"name": "rooms/textures/walllightmap.png",
+			"pixels": "256x256",
+			"role": "the shared wall lightmap, spanning bytes 232-253",
+			"rms": 1.269, "p95": 2, "p99": 3, "max": 5, "pctOver8": 0,
+			"rmsAsShareOfOwnRange": 0.06,
+			"maxAsShareOfOwnRange": 0.238,
+			"verdict": "refused — passes on absolute error, 6.0% of its own 21-byte range"
+		}
+	],
+	"qualitySweep": [
+		{"name": "rooms/textures/hardwood.jpg", "qualityLevel": 128, "rms": 7.441, "max": 66, "pctOver8": 19.88, "bytes": 50176},
+		{"name": "rooms/textures/hardwood.jpg", "qualityLevel": 192, "rms": 6.169, "max": 66, "pctOver8": 14.38, "bytes": 69939},
+		{"name": "rooms/textures/hardwood.jpg", "qualityLevel": 255, "rms": 5.388, "max": 49, "pctOver8": 10.31, "bytes": 91341},
+		{"name": "rooms/textures/light_brick.jpg", "qualityLevel": 128, "rms": 10.171, "max": 90, "pctOver8": 25.75, "bytes": 14336},
+		{"name": "rooms/textures/light_brick.jpg", "qualityLevel": 192, "rms": 8.695, "max": 78, "pctOver8": 21.49, "bytes": 21094},
+		{"name": "rooms/textures/light_brick.jpg", "qualityLevel": 255, "rms": 8.484, "max": 78, "pctOver8": 20.33, "bytes": 26214}
+	]
+}

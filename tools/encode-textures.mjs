@@ -145,6 +145,60 @@ const SKYBOX_TEXTURES = new Set([
 ]);
 
 /**
+ * The five behind the texture cache, MEASURED AND REFUSED (RM-005 C1 t5).
+ *
+ * Listed here rather than in `REFUSED` because they are not in `SCOPE`, and the
+ * distinction is deliberate: the runtime cannot load a KTX2 for these, so a tool
+ * that could be talked into encoding them would produce files nothing can read.
+ * The numbers are what belongs in the tree, not the capability.
+ *
+ * C1 built the cache change B5 said was needed - an empty `CompressedTexture`
+ * handed out and cloned as before, with the decoded payload adopted into the
+ * master and every live clone when the transcode lands - and it worked. Then the
+ * oracle was pointed at the five textures it was built for:
+ *
+ *                          RMS    p95   p99   max   channels off by >8
+ *     hardwood.jpg        7.441    16    24    66   19.881%
+ *     marbletiles.jpg     5.532    11    15    35   11.776%
+ *     light_brick.jpg    10.171    23    35    90   25.754%
+ *     light_fine_wood.jpg 4.145     8    12    31    4.831%
+ *     walllightmap.png    1.269     2     3     5    0.000%
+ *
+ * Four fail B4's 3.0 codec gate outright, two of them by more than double. The
+ * fifth passes on absolute error and fails on the measure that fits it: it is a
+ * hand-painted vignette spanning bytes 232-253, so its whole dynamic range is 21
+ * levels, and an RMS of 1.269 is **6.0% of that range** with a worst pixel at
+ * 23.8%. Judged against its own content it is the most damaged of the five -
+ * hardwood's 7.441 is 2.9% of a full-range image.
+ *
+ * `qualityLevel` was swept before concluding, since B5 chose 128 out of 255:
+ *
+ *                   q128    q192    q255     disk at q255
+ *     hardwood      7.441   6.169   5.388    49 -> 89 KB
+ *     light_brick  10.171   8.695   8.484    14 -> 26 KB
+ *
+ * Still 1.8x and 2.8x the gate at maximum quality, for nearly double the file.
+ * ETC1S cannot carry this content at any setting, and UASTC - which could - runs
+ * about 5.7x source on this catalog against 320 KB of `public-total` headroom.
+ *
+ * So the finding is not that the cache blocked these textures. It is that the
+ * blocker was never the binding constraint: these are detailed, tiled room
+ * surfaces, and they would have refused ETC1S with any cache at all. The cache
+ * change was reverted rather than shipped, because machinery with no consumer is
+ * a liability - see `asset-pipeline/room-transcode-oracle.json` for the full
+ * measurement and the roadmap for what it means for the 18 textures B5 encoded
+ * without ever rendering one.
+ */
+// eslint-disable-next-line no-unused-vars -- a record, not a code path; see the docblock
+const REFUSED_ROOM_TEXTURES = [
+	'rooms/textures/hardwood.jpg',
+	'rooms/textures/marbletiles.jpg',
+	'rooms/textures/light_brick.jpg',
+	'rooms/textures/light_fine_wood.jpg',
+	'rooms/textures/walllightmap.png',
+];
+
+/**
  * Only the textures inside `.glb` containers, and this is the sprint's real
  * boundary rather than a convenience.
  *
