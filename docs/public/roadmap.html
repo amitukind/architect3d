@@ -228,6 +228,13 @@ footer .credit a:hover{text-decoration:underline}
   <a href="#hrisks">17 · Risks &amp; dependencies</a>
   <a href="#contract">18 · Compatibility &amp; non-goals</a>
   <a href="#asprints">19 · Sprints A0–A5</a>
+
+  <div class="toc-head mono" style="margin-top:22px">DELIVERY RM-004</div>
+  <a href="#delivery">20 · Executive summary</a>
+  <a href="#delivery-findings">21 · Decision log</a>
+  <a href="#delivery-risks">22 · Risks &amp; dependencies</a>
+  <a href="#delivery-compat">23 · Compatibility &amp; non-goals</a>
+  <a href="#delivery-sprints">24 · Sprints B1–B3</a>
 </nav>
 
 <main>
@@ -2157,6 +2164,372 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
   <p><strong>Method — RM-003.</strong> Full read of the library's resource, loading, change-propagation, identity, history, isolation and asset paths against the working tree at <code>fff1ebe</code> on branch <code>amit</code>, plus <code>README.md</code>, <code>CHANGELOG.md</code>, <code>package.json</code>, <code>vite.config.mjs</code>, <code>tsconfig.json</code>, <code>docs/architecture.md</code>, <code>docs/events.md</code>, <code>tests/README.md</code> and the RM-001/RM-002 sections above. The four findings marked <span class="chip acc">measured</span> were produced by running the library headlessly and counting — mesh churn per <code>update()</code>, <code>EVENT_UPDATED</code> per document open, the malformed-document corpus, and room identity across a wall split — not by reading the code. <code>renderer.info.memory</code>, <code>LoadingManager.abort()</code> and <code>FileLoader</code>'s <code>AbortSignal.any</code> composition were verified in the installed <code>three@0.185.1</code> rather than from documentation. Two documentation inaccuracies were found and are recorded in §16 H-1 rather than fixed, since this is a planning pass: <code>docs/architecture.md:71–74</code> and <code>blueprint.js:200–203</code> both state the model layer holds no GPU resources, and it holds three meshes per room and one per half-edge.</p>
   <p><strong>Sources — RM-003.</strong> <a href="https://threejs.org/manual/#en/cleanup">three.js — Cleanup (freeing resources)</a> · <a href="https://threejs.org/docs/#api/en/renderers/WebGLRenderer">WebGLRenderer.info</a> · <a href="https://threejs.org/docs/#api/en/loaders/managers/LoadingManager">LoadingManager</a> · <a href="https://threejs.org/docs/#examples/en/loaders/GLTFLoader">GLTFLoader</a> · <a href="https://github.com/KhronosGroup/glTF">glTF — Runtime 3D Asset Delivery</a> · <a href="https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria">MDN — Storage quotas and eviction criteria</a> · <a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API/Using_the_Web_Storage_API">MDN — Using the Web Storage API</a> · <a href="https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API">MDN — IndexedDB API</a> · <a href="https://vite.dev/guide/assets">Vite — Static asset handling</a></p>
   <p>architect3d · Architecture hardening program RM-003 rev A · <strong>delivered</strong>, all six sprints, released as 2.0.0 on 2026-08-15 · successor to redline RM-002</p>
+</footer>
+
+<!-- ===================================================================
+     RM-004 — DELIVERY & PRECISION PROGRAM (planning section)
+     Added after RM-003 shipped and 2.0.0 was cut. Three findings that
+     survived two hardening programs because none of them is a structural
+     defect: what is served, what is written down, and what is verified.
+     Planning only — no runtime code, test, dependency, build or CI change
+     accompanies this section.
+     =================================================================== -->
+
+<header class="sheet" id="delivery-sheet" style="margin-top:56px">
+  <div class="sheet-body">
+    <div class="eyebrow">DELIVERY &amp; PRECISION · DRAWING Nº RM-004</div>
+    <h1>Delivery &amp; Precision Program</h1>
+    <p class="lede">Three short sprints against what two hardening programs deliberately left alone. Every number below was <strong>produced by running something</strong> &mdash; the payload was parsed chunk by chunk, the wall identity was round-tripped through the save format, and the type ledger was recounted rather than quoted. Two of the three findings contradict what the repository currently says about itself.</p>
+  </div>
+  <div class="titleblock">
+    <div><div class="tb-k">PROJECT</div><div class="tb-v">architect3d</div></div>
+    <div><div class="tb-k">SUCCEEDS</div><div class="tb-v">RM-003 — all 8 findings landed</div></div>
+    <div><div class="tb-k">BRANCH</div><div class="tb-v">amit @ 3cf1c24 · v2.0.0</div></div>
+    <div><div class="tb-k">SCOPE</div><div class="tb-v">370 assets · 13.4k LOC lib · 29 SFCs</div></div>
+    <div><div class="tb-k">DATE</div><div class="tb-v">2026-08-15</div></div>
+    <div><div class="tb-k">REV</div><div class="tb-v">A · proposal</div></div>
+  </div>
+</header>
+
+<!-- ======================= 20 EXECUTIVE SUMMARY ======================= -->
+<section id="delivery">
+  <div class="sec-eyebrow">§ 20 · EXECUTIVE SUMMARY</div>
+  <h2>Three findings, and no theme underneath them</h2>
+  <p class="sec-sub">RM-002 had one: seven defects with real costs. RM-003 had one: nothing owned anything. This program has three findings with no common cause, and that is the most useful thing in this section &mdash; the structural work is done, and what is left is arithmetic.</p>
+
+  <div class="stats">
+    <div class="stat"><div class="v">100%</div><div class="k">of vertex attributes in the catalog are <code>float32</code>. Position, normal and UV, in all 165 <code>.glb</code> files, with no exceptions</div></div>
+    <div class="stat"><div class="v">410/410</div><div class="k">index buffers declared <code>uint32</code> whose primitive has fewer than 65,536 vertices. The largest in the catalog has <strong>1,174</strong></div></div>
+    <div class="stat"><div class="v">0/15</div><div class="k">wall ids that survive a document load, across three fixtures. <code>getUuid()</code> survives <strong>15/15</strong>, which is what makes the fix cheap</div></div>
+    <div class="stat"><div class="v">60</div><div class="k">typecheck errors in the SFCs. <code>tsconfig.json</code> says 53, and its own breakdown sums to 61</div></div>
+  </div>
+
+  <p><strong>Why these three and not others.</strong> Each was named as deferred by the program that found it, and each was deferred for a reason that has since expired. A5 put a manifest between the catalog and the network and said compression was out of scope <em>because the seam did not exist yet</em>; it exists now. A3 named the wall-id gap and said it wanted its own thinking rather than a corner of that sprint; this is that corner. And R-07's ledger has been a ratchet on paper since P2 &mdash; A2 recounted it once and found it had been wrong since before A1, which is exactly what has happened again.</p>
+
+  <p><strong>What this program is not.</strong> It is not a rewrite, it adds no architectural concept, and no sprint here depends on another. All three are independently shippable, independently revertible and independently skippable. §23's guardrails carry over unchanged from §18, and one is worth restating up front: <strong>a saved design must open in a build that predates this program</strong>, which is the constraint that decides most of B1's design.</p>
+
+  <h3>Architecture health metrics</h3>
+  <p>Continuing RM-003's numbering. Five rows, every one computable today by a command in the repository rather than by a judgement call. Two targets are deliberately left to a measured trial rather than guessed at here, and are marked as such.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Nº</th><th>Metric</th><th class="num">Today</th><th class="num">Target</th><th>How it is measured</th><th>Sprint</th></tr></thead>
+    <tbody>
+      <tr><td>M-10</td><td>Vertex attributes stored as <code>float32</code></td><td class="num">100%</td><td class="num">0%</td><td>Walk every <code>.glb</code>'s accessors for <code>POSITION</code>, <code>NORMAL</code> and <code>TEXCOORD_0</code> and count by <code>componentType</code></td><td>B1</td></tr>
+      <tr><td>M-11</td><td>Index buffers wider than their primitive requires</td><td class="num">410</td><td class="num">0</td><td>Per primitive, compare the index <code>componentType</code> against the <code>POSITION</code> accessor's <code>count</code></td><td>B1</td></tr>
+      <tr><td>M-12</td><td>Runtime asset payload</td><td class="num">10.62 MB</td><td class="num">trial</td><td><code>npm run budget</code>'s <em>Runtime assets</em> row. The target is the ratchet the B1 trial earns, not a number chosen now &mdash; see G-1</td><td>B1</td></tr>
+      <tr><td>M-13</td><td>Wall ids surviving a document load</td><td class="num">0 of 15</td><td class="num">15 of 15</td><td>Census <code>wall.id</code> over the three fixtures, save, reload, intersect</td><td>B2</td></tr>
+      <tr><td>M-14</td><td><code>vue-tsc --checkJs</code> errors in <code>src/app</code></td><td class="num">60</td><td class="num">0</td><td><code>npx vue-tsc --noEmit --checkJs</code>, counting lines matching <code>.vue(</code>. Whole-tree total falls 427 &rarr; 356, since B3 also deletes 11 library errors that are dead directives rather than types</td><td>B3</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ======================= 21 DECISION LOG ======================= -->
+<section id="delivery-findings">
+  <div class="sec-eyebrow">§ 21 · DECISION LOG</div>
+  <h2>Three findings, with the evidence</h2>
+  <p class="sec-sub">All three are marked <span class="chip acc">measured</span> because all three were produced by running something against the tree at <code>3cf1c24</code>. Where a number contradicts what the repository says about itself, both are given.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Nº</th><th>Finding</th><th>Severity</th><th>Where</th><th>Sprint</th></tr></thead>
+    <tbody>
+      <tr><td>G-1</td><td>The catalog is served in the shape it was authored in, and nothing decides otherwise</td><td><span class="chip warn">med</span></td><td><code>public/models/</code> · 370 manifest entries</td><td>B1</td></tr>
+      <tr><td>G-2</td><td>A wall's identity is stable in memory and absent from disk</td><td><span class="chip warn">med</span></td><td><code>model/wall.js:88</code> · <code>model/floorplan.js:374, 837</code></td><td>B2</td></tr>
+      <tr><td>G-3</td><td>The JSDoc names types that do not resolve, and the ledger counting them is wrong</td><td><span class="chip">low</span></td><td><code>tsconfig.json:58–68</code> · <code>three/main.js</code></td><td>B3</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>G-1 · The catalog is served as authored <span class="chip warn">med</span> <span class="chip acc">measured</span></h3>
+  <p>A5 gave every asset a logical name and a manifest that can point it somewhere else. Nothing yet uses that to change what is <em>in</em> the file. Parsing all 370 entries &mdash; and every <code>.glb</code> chunk by chunk, splitting the BIN into the buffer views an accessor points at, the ones an image points at, and the remainder &mdash; gives the composition:</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Kind</th><th class="num">Count</th><th class="num">Raw</th><th class="num">gzip −9</th><th class="num">gz/raw</th><th>What that ratio means</th></tr></thead>
+    <tbody>
+      <tr><td><code>model</code> (<code>.glb</code>/<code>.gltf</code>)</td><td class="num">168</td><td class="num">5.40 MB</td><td class="num">2.22 MB</td><td class="num">41.1%</td><td>Float arrays compress. Transport already takes more than half of this</td></tr>
+      <tr><td><code>model-texture</code></td><td class="num">161</td><td class="num">3.05 MB</td><td class="num">2.95 MB</td><td class="num">96.8%</td><td>PNG and JPEG are already entropy-coded. <strong>Transport takes 3.2%</strong></td></tr>
+      <tr><td><code>texture</code></td><td class="num">14</td><td class="num">0.94 MB</td><td class="num">0.82 MB</td><td class="num">87.3%</td><td>Same</td></tr>
+      <tr><td><code>environment</code></td><td class="num">1</td><td class="num">0.82 MB</td><td class="num">0.82 MB</td><td class="num">99.9%</td><td>Same, and it is one file</td></tr>
+      <tr><td><code>thumbnail</code></td><td class="num">26</td><td class="num">0.41 MB</td><td class="num">0.40 MB</td><td class="num">96.5%</td><td>Same</td></tr>
+      <tr><td><strong>Total</strong></td><td class="num">370</td><td class="num">10.62 MB</td><td class="num">7.21 MB</td><td class="num">67.9%</td><td></td></tr>
+    </tbody>
+  </table></div>
+
+  <p>Inside the 165 <code>.glb</code> files the split is <strong>4.67 MB of geometry, 0.41 MB of JSON, and zero embedded images</strong> &mdash; every texture in this catalog is an external file, which is what makes the two halves separable at all. So the payload is 44.0% geometry and 49.2% pixels, and <em>the two halves need opposite treatments</em>: geometry is already 59.4% compressed by transport and wants a format change to gain more, while pixels are 96.8% incompressible over the wire and are paid in full on every load.</p>
+
+  <p>Two facts about the geometry make the first half unusually tractable, and neither needs a codec:</p>
+  <ul>
+    <li><strong>Every vertex attribute in the catalog is <code>float32</code>.</strong> Not most &mdash; all of them, across <code>POSITION</code>, <code>NORMAL</code> and <code>TEXCOORD_0</code>. A furniture model spans a couple of metres; storing its positions to 24 bits of mantissa is precision nothing downstream can use, and <code>KHR_mesh_quantization</code> exists for exactly this</li>
+    <li><strong>Every <code>uint32</code> index buffer is twice as wide as it needs to be.</strong> 410 primitives declare 32-bit indices; all 410 have fewer than 65,536 vertices, and <strong>the largest primitive in the entire catalog has 1,174</strong>. That is 152 KB recoverable by changing one field, with no visual difference of any kind and no new dependency</li>
+  </ul>
+
+  <p><strong>Why the target for M-12 is left blank.</strong> Draco, meshopt and KTX2 all have well-known typical ratios and none of them has been run against <em>this</em> catalog. Quoting a published ratio as a target here would be exactly the failure this document's method exists to avoid, and it would be quoting it against a payload that gzip has already taken 32% of. B1's first task is the trial that produces the number; the budget ratchets to what the trial earns.</p>
+
+  <p class="risk-note"><b>The constraint that shapes this sprint.</b> A saved design names its models by URL, and A5's whole argument was that those URLs are a published contract. Changing a file's <em>contents</em> keeps that contract; changing its <em>name</em> or its <em>decoder requirement</em> does not. A build that ships a Draco-compressed <code>.glb</code> under the same name has silently made every older build unable to open documents that were saved before this program &mdash; the manifest's <code>kind</code> and a per-entry decoder hint are what keep that from happening, and they are the reason A5 built it.</p>
+
+  <h3>G-2 · Identity is stable in memory and absent from disk <span class="chip warn">med</span> <span class="chip acc">measured</span></h3>
+  <p>A3 gave a wall an assigned <code>id</code> (<code>wall.js:88</code>) and left <code>getUuid()</code> returning the derived corner pair, because that is what the save file records. Round-tripping three fixtures through <code>saveFloorplan()</code> and <code>loadFloorplan()</code> measures the gap exactly:</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Fixture</th><th class="num">Walls</th><th class="num"><code>wall.id</code> survives</th><th class="num"><code>getUuid()</code> survives</th><th class="num">Corner ids survive</th></tr></thead>
+    <tbody>
+      <tr><td><code>simple-room</code></td><td class="num">4</td><td class="num">0 / 4</td><td class="num">4 / 4</td><td class="num">8 / 8</td></tr>
+      <tr><td><code>curved-walls</code></td><td class="num">4</td><td class="num">0 / 4</td><td class="num">4 / 4</td><td class="num">8 / 8</td></tr>
+      <tr><td><code>rich-design</code></td><td class="num">7</td><td class="num">0 / 7</td><td class="num">7 / 7</td><td class="num">14 / 14</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>The second and third columns together are the finding. <strong>Nothing about a wall's identity survives, and everything needed to reconstruct it does</strong> &mdash; corner ids are persisted and come back intact, so the corner pair is a stable seed sitting in the file already. This is the same shape as A3's room-identity fix, where the old derived key became the seed of the new assigned id and a first open was a no-op.</p>
+
+  <p>The blocker A3 named is real, and it is worse than "two walls between one pair is conceivable". It is reachable through the ordinary API with no guard anywhere:</p>
+  <ul>
+    <li><code>Floorplan.newWall()</code> (<code>floorplan.js:374</code>) pushes a wall with <strong>no duplicate check</strong>. Calling it twice on the same pair produces two walls whose <code>getUuid()</code> is <em>the same string</em></li>
+    <li>It survives the save format. Two records written, two walls rebuilt, <strong>one distinct <code>getUuid()</code></strong> &mdash; because <code>loadFloorplan()</code> (<code>floorplan.js:837</code>) calls <code>newWall()</code> once per record and the guard it would need does not exist there either</li>
+    <li>Direction matters and must not. <code>newWall(a,b)</code> and <code>newWall(b,a)</code> give <code>getUuid()</code> values that <strong>differ as written and are equal when sorted</strong>. A seed that does not canonicalise gives the same wall two identities depending on which way it was drawn; a seed that only canonicalises collides on the duplicate case. It needs both: sort the pair, then add an ordinal</li>
+  </ul>
+
+  <p class="risk-note"><b>Not in any fixture.</b> None of the three fixtures contains a corner pair with two walls, so this collision has no coverage today and cannot be caught by extending the corpus. It needs a constructed case, and that case is the sprint's real test rather than an afterthought &mdash; the failure mode of getting it wrong is two walls that share an id, which is the collision A3 removed from rooms, reintroduced one layer down.</p>
+
+  <h3>G-3 · The JSDoc names types that do not resolve <span class="chip">low</span> <span class="chip acc">measured</span></h3>
+  <p>R-07's ledger in <code>tsconfig.json</code> is a ratchet with a recount rule, and A2 already caught it drifting once. Recounting it at <code>3cf1c24</code>: the headline is right and the breakdown is not.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Area</th><th class="num">Errors</th><th>What they are</th></tr></thead>
+    <tbody>
+      <tr><td><code>src/scripts/three</code></td><td class="num">148</td><td><strong>108 of them in <code>main.js</code> alone</strong> &mdash; a quarter of the whole surface in one file</td></tr>
+      <tr><td><code>src/scripts/model</code></td><td class="num">114</td><td>46 in <code>floorplan.js</code>, 20 in <code>corner.js</code>, 18 in <code>room.js</code></td></tr>
+      <tr><td><code>src/scripts/items</code></td><td class="num">63</td><td>31 in <code>item.js</code>. Includes 8 that are not type errors at all &mdash; see below</td></tr>
+      <tr><td><code>src/scripts/floorplanner</code></td><td class="num">41</td><td>18 in <code>floorplanner_view.js</code>, 15 in <code>floorplanner.js</code></td></tr>
+      <tr><td><code>src/app</code> SFCs</td><td class="num">60</td><td>28 in <code>components/</code>, 24 in <code>inspector/</code>, 8 in <code>App.vue</code> and siblings. <strong>The ledger says 53</strong></td></tr>
+      <tr><td><code>src/app/main.js</code></td><td class="num">1</td><td>The bootstrap, excluded from coverage too</td></tr>
+      <tr><td><strong>Total</strong></td><td class="num">427</td><td>Which the ledger has right</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>The ledger is wrong twice over, and in different directions: it states 53 SFC errors where there are 60, and <em>its own itemisation</em> &mdash; 28 plus 24 plus 9 &mdash; sums to 61, agreeing with neither. A ledger whose parts do not add up to its total is a comment, which is the thing A2's note said it must not become.</p>
+
+  <p>Two clusters in the 427 are not really type errors and are worth separating out, because they are deletions rather than annotations:</p>
+  <ul>
+    <li><strong>8 &times; TS6053 &mdash; files that do not exist.</strong> <code>items/in_wall_item.js</code> and <code>items/in_wall_floor_item.js</code> open with <code>/// &lt;reference path="../../lib/three.d.ts" /&gt;</code> and three more like it, pointing at <code>.ts</code> files from the pre-migration source that were never converted and are not in the tree. Dead directives, surviving because nothing resolved them until <code>--checkJs</code> did</li>
+    <li><strong>3 &times; TS1003 &mdash; JSDoc that does not parse.</strong> <code>floorplan.js</code> lines 254, 269 and 291 carry <code>@see &lt;https://threejs.org/...&gt;</code>, and the angle brackets make TypeScript expect an identifier. Three comments that are literally unparseable, fixed by removing two characters each</li>
+  </ul>
+
+  <p>The rest divide predictably: <strong>181 TS2339</strong> (property does not exist on type), <strong>43 TS2304</strong> (cannot find name &mdash; JSDoc referring to <code>Wall</code>, <code>Floorplan</code>, <code>Room</code>, <code>Corner</code> and <code>Mesh</code> with nothing importing those types), and <strong>109</strong> across TS2531/TS18046/TS18047, which are the strict-null family that found real defects in P2.</p>
+</section>
+
+<!-- ======================= 22 RISKS ======================= -->
+<section id="delivery-risks">
+  <div class="sec-eyebrow">§ 22 · RISKS &amp; DEPENDENCIES</div>
+  <h2>What could go wrong</h2>
+  <p class="sec-sub">Shorter than §17, and deliberately: no sprint here depends on another, so the sequencing risk that dominated RM-003 is absent. What remains is concentrated almost entirely in B1.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Nº</th><th>Risk</th><th>Impact</th><th>Likelihood</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td>L-1</td><td><strong>A re-encoded asset changes what is drawn.</strong> Quantisation is lossy by construction. Positions snapped to a 16-bit grid over the wrong bounding box, or normals oct-encoded badly, produce seams, faceting or a model that sits fractionally through the floor</td><td><span class="chip crit">high</span></td><td><span class="chip warn">med</span></td><td>The pixel tier is the oracle, and it already exists: P5's browser tests read whole frames back. Every re-encoded model is placed and compared frame-to-frame against the same model before re-encoding, and the per-model bounding box is asserted unchanged within a stated tolerance. A model that cannot pass ships unquantised &mdash; per-asset, not all-or-nothing</td></tr>
+      <tr><td>L-2</td><td><strong>A decoder requirement becomes a save-format break.</strong> A document saved today names a model by URL; if that URL later needs a Draco decoder the old build does not have, the document stops opening in it</td><td><span class="chip crit">high</span></td><td><span class="chip warn">med</span></td><td>This is what the A5 manifest was built for and it is a hard gate, not a guideline. Anything needing a decoder is a <em>new entry</em>, the old file stays, and the manifest points current builds at the new one. <code>tests/asset-integrity.test.js</code> checks the tree both directions and gets a case per codec</td></tr>
+      <tr><td>L-3</td><td><strong>The budget ratchets on a number the trial did not earn.</strong> Pressure to write down a good-looking figure before it is measured &mdash; the exact failure §21 G-1 declines to commit</td><td><span class="chip warn">med</span></td><td><span class="chip warn">med</span></td><td>M-12's target stays empty until the trial reports, and the trial is task 1 of B1 rather than its conclusion. The two metrics that <em>are</em> pinned (M-10, M-11) are arithmetic and cannot come out differently</td></tr>
+      <tr><td>L-4</td><td><strong>A wall id seeded from corners collides</strong>, giving two walls one identity &mdash; the room-identity defect A3 removed, reintroduced one layer down</td><td><span class="chip crit">high</span></td><td><span class="chip warn">med</span></td><td>Canonicalise the pair <em>and</em> carry an ordinal, and prove both halves: a wall drawn in reverse gets the same id, and two walls between one pair get different ones. Neither case is in any fixture, so both are constructed tests written before the change</td></tr>
+      <tr><td>L-5</td><td><strong>Type annotations change behaviour.</strong> Adding a type should be inert; adding a <em>cast</em> to silence an error can hide the defect the checker found</td><td><span class="chip warn">med</span></td><td><span class="chip warn">med</span></td><td>P2's rule, restated: an error is either fixed or annotated, never cast away. Any <code>@ts-ignore</code> or <code>as</code> carries a comment naming why, and the count of them is reported in the sprint's landing note so it cannot grow quietly</td></tr>
+      <tr><td>L-6</td><td><strong>Coverage floor blocks a sprint.</strong> A5 was the first time the ratchet bit rather than moved, and B1 adds tooling that is awkward to reach from a test</td><td><span class="chip">low</span></td><td><span class="chip warn">med</span></td><td>Unchanged from K-9, and A5 is the precedent: the floor did not move and the tests it forced were the right ones. Encoding tooling lives in <code>tools/</code>, which is outside the coverage include, so the exposure is smaller than A5's</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Sequencing</h3>
+  <p>There is none to speak of. B1, B2 and B3 touch disjoint parts of the tree &mdash; <code>public/</code> and <code>tools/</code>, the model layer, and annotations respectively &mdash; and can run in any order or in parallel. <strong>If only one thing gets done: B1</strong>, because it is the only one a user can feel. <strong>If only two: B1 and B2</strong>, because B3 changes no behaviour by design and is therefore the one that can always wait.</p>
+</section>
+
+<!-- ======================= 23 COMPATIBILITY ======================= -->
+<section id="delivery-compat">
+  <div class="sec-eyebrow">§ 23 · COMPATIBILITY &amp; NON-GOALS</div>
+  <h2>What must not change</h2>
+  <p class="sec-sub">§18's guardrails carry over verbatim and are not restated. What follows is what this program adds to them.</p>
+
+  <ul>
+    <li><strong>A design saved by 2.0.0 opens in 2.0.0 after this program.</strong> Not "opens in the version that ships it" &mdash; opens in the one that came before. Asset contents may change; asset names, and the set of names a build can resolve, may only grow</li>
+    <li><strong>No asset is deleted or renamed.</strong> A re-encoded model is an addition, and the manifest is what makes the old name keep working. This is the load-bearing constraint on B1 and it comes straight from H-8</li>
+    <li><strong>No new runtime dependency without a budget line.</strong> A Draco decoder is roughly 200 KB of WASM; loading it eagerly would undo the payload win it enables. If it ships, it ships lazily and behind the resolver, and it gets its own budget entry</li>
+    <li><strong>Wall ids stay out of the save file.</strong> B2 reconstructs them on load from data the file already has, for the same reason A3 kept room ids unpersisted: a file identifies a wall by its corners, and that is a description another build can read</li>
+    <li><strong>No threshold comes down.</strong> Coverage floors and size budgets are ratchets. A5 established what happens when one bites, and the answer was tests</li>
+  </ul>
+
+  <h3>Explicitly out of scope</h3>
+  <ul>
+    <li><strong>An asset pipeline anybody has to run to develop.</strong> Re-encoding is a deliberate, committed operation with its output in the tree, exactly as <code>make-asset-manifest.mjs</code> is. A checkout must build and run with no extra tooling installed</li>
+    <li><strong>The remaining 367 library type errors.</strong> B3 takes the SFC tier and the two deletion clusters. <code>three/main.js</code> alone is 108 errors and is a sprint of its own, if it is ever worth one</li>
+    <li><strong>A duplicate-wall guard in <code>newWall()</code>.</strong> B2 makes the collision <em>survivable</em>; deciding whether two walls between one pair should be preventable at all is a modelling question, not an identity one</li>
+    <li><strong>Progressive or streamed loading, and a service worker.</strong> Both are real answers to payload and neither is this program</li>
+  </ul>
+</section>
+
+<!-- ======================= 24 IMPLEMENTATION ======================= -->
+<section id="delivery-sprints">
+  <div class="sec-eyebrow">§ 24 · IMPLEMENTATION</div>
+  <h2>Three sprints</h2>
+  <p class="sec-sub">Each is independently shippable and independently revertible, and each fits in a single commit range. Effort assumes the same single-developer cadence as RM-003.</p>
+
+  <!-- ---------------- B1 ---------------- -->
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">B1</span>
+      <h3>Asset precision and delivery</h3>
+      <div class="meta"><span class="chip warn">G-1</span><span class="chip">1–2 weeks</span><span class="chip acc">no dependencies</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Stop serving the catalog in the shape its authoring tool emitted, using the seam A5 built and without renaming a single file. Measure before choosing, and let the trial set the budget rather than the other way round.</p>
+
+    <div class="tw"><table>
+      <thead><tr><th>Scope</th><th>Excluded</th></tr></thead>
+      <tbody><tr>
+        <td>A measured codec trial · index narrowing · attribute quantisation · texture re-encoding · manifest <code>kind</code> and decoder hints · a lazily-loaded decoder if the trial earns one · budget ratchet</td>
+        <td>Renaming or deleting any asset · a required build step · progressive loading · a service worker · the 3 <code>.gltf</code> files, which are 0.32 MB and a different container</td>
+      </tr></tbody>
+    </table></div>
+
+    <h4>Tasks</h4>
+    <ol>
+      <li><strong>The trial comes first, and it is the deliverable of week one.</strong> Encode the whole catalog four ways &mdash; index narrowing alone, <code>KHR_mesh_quantization</code>, meshopt, Draco &mdash; and report bytes raw <em>and</em> gzipped against the 4.67 MB baseline, plus decode cost and decoder weight. gzip is the comparison that matters: transport already takes 59.4% of the geometry, so a codec's headline ratio is not its marginal win</li>
+      <li><strong>Take the free half regardless of the trial.</strong> 410 index buffers narrow from <code>uint32</code> to <code>uint16</code> with no codec, no dependency and no possible visual difference &mdash; 152 KB, and it is the change that proves the re-encode harness works before anything lossy runs through it</li>
+      <li><strong>Quantise attributes per asset, not per catalog.</strong> Each model is re-encoded, placed, and compared frame-to-frame against its unquantised self; one that does not match ships as it was. The per-asset decision is recorded in the manifest so the tree says which models are quantised and which are not</li>
+      <li><strong>Texture re-encoding is the other 49.2%</strong>, and gzip is doing nothing for it. Measure KTX2/Basis against the 161 <code>model-texture</code> files for bytes, decode time and GPU memory &mdash; supercompressed textures stay compressed on the GPU, which is a second win the byte count does not show</li>
+      <li><strong>Anything needing a decoder is a new manifest entry.</strong> The old name resolves to the old file forever; the manifest points current builds at the new one, and <code>tests/asset-integrity.test.js</code> gets a case per codec asserting both still resolve</li>
+      <li><strong>Ratchet the budget to what was earned.</strong> <em>Runtime assets</em>, <em>Largest single asset</em> and <em>Costliest catalog item</em> all come down by the measured amount, and a decoder that ships gets a budget line of its own</li>
+    </ol>
+
+    <div class="gate">
+      <div class="g-head">RATIONALE · ALTERNATIVES · COMPATIBILITY</div>
+      <ul>
+        <li><strong>Why now.</strong> P6 deferred this and A5 deferred it again, both times for the same reason: there was no indirection between the name in a document and the file on disk, so changing an asset meant changing a save-format contract. A5 built that indirection. This is the first sprint where the deferral no longer applies</li>
+        <li><strong>Alternative rejected &mdash; compress everything with the best-looking codec.</strong> Draco has the best headline ratio and the worst decode cost, needs a 200 KB WASM decoder, and is measured against raw bytes in most published comparisons rather than against gzip. On a payload transport already halves, that comparison is not the one that matters</li>
+        <li><strong>Alternative rejected &mdash; a build-time pipeline.</strong> Re-encoding on every build makes a checkout depend on native tooling and makes the served bytes a function of who ran the build. The committed-output model is what <code>make-asset-manifest.mjs</code> already established</li>
+        <li><strong>Compatibility.</strong> No file is renamed or removed, so every existing document keeps resolving. A build with no manifest resolves every name to itself, unchanged since A5</li>
+      </ul>
+    </div>
+
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE · OBSERVABILITY · DoD</div>
+      <ul>
+        <li><strong>M-10 = 0% and M-11 = 0</strong>, both by walking the tree rather than by trusting the encoder's report</li>
+        <li><strong>Every re-encoded model matches its predecessor in the pixel tier</strong>, and its bounding box within a stated tolerance. A model that fails ships unquantised and the manifest says so</li>
+        <li><strong>A design saved before this sprint opens after it</strong>, byte-identical on re-save &mdash; the H-8 claim, re-asserted at the level of file contents</li>
+        <li><strong>Observability.</strong> <code>resolver.stats()</code> gains the codec mix actually served, so "what is this build shipping" is answerable at runtime rather than from the tree</li>
+        <li><strong>Rollback.</strong> Per-asset and total. Point a manifest entry back at the original file and that model is unchanged; revert the manifest and the whole sprint is</li>
+        <li><strong>DoD.</strong> Three tiers green · the trial's numbers recorded in the LANDED block whichever way they came out · <code>docs/architecture.md</code> gains a delivery section · budgets ratcheted · CHANGELOG</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ---------------- B2 ---------------- -->
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">B2</span>
+      <h3>Wall identity across a document load</h3>
+      <div class="meta"><span class="chip warn">G-2</span><span class="chip">3–5 days</span><span class="chip acc">no dependencies</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Reconstruct a wall's id on load from the corner pair the file already contains, so that wall selection survives an undo and wall-bound items stop reloading &mdash; the two consequences A3 named when it deferred this.</p>
+
+    <div class="tw"><table>
+      <thead><tr><th>Scope</th><th>Excluded</th></tr></thead>
+      <tbody><tr>
+        <td>A deterministic seed from the canonicalised corner pair plus an ordinal · reconstruction in <code>loadFloorplan()</code> · lifting A3's wall-bound-item carve-out · the two constructed collision tests</td>
+        <td>Writing wall ids into the save file · a duplicate-wall guard in <code>newWall()</code> · touching room identity, which A3 settled</td>
+      </tr></tbody>
+    </table></div>
+
+    <h4>Tasks</h4>
+    <ol>
+      <li><strong>Write the two collision tests first</strong>, because neither case exists in any fixture: a wall drawn <code>b&rarr;a</code> must get the same id as the same wall drawn <code>a&rarr;b</code>, and two walls between one pair must get different ids that are stable across a reload. Both fail before the change</li>
+      <li><strong>Seed from the sorted pair plus an ordinal.</strong> Sorting is what makes direction irrelevant; the ordinal is what makes the duplicate case survivable. The ordinal is the wall's position among the walls sharing that pair, in file order &mdash; which is stable across a round trip because <code>saveFloorplan()</code> writes <code>this.walls</code> in array order and <code>loadFloorplan()</code> rebuilds in file order. Worth checking rather than assuming: a wall missing a corner is <em>skipped</em> on save (<code>floorplan.js:682</code>), so the ordinal is stable among walls that survive, which is the only set it has to be stable across</li>
+      <li><strong>Reconstruct in <code>loadFloorplan()</code>, not in the <code>Wall</code> constructor.</strong> A wall built by an editing action keeps its <code>Utils.guide()</code>, exactly as today; only the load path derives. This is the A3 pattern &mdash; a first open is a no-op and nothing about editing changes</li>
+      <li><strong>Lift the wall-bound-item carve-out.</strong> A3 excluded <code>WallItem</code> from item preservation because a <code>HalfEdge</code> could not be found again after a load. With stable wall ids it can, and the exclusion is what M-8's carve-out was about</li>
+      <li><strong>Assert selection survives.</strong> Select a wall, undo an unrelated edit, and the inspector is still bound to the same wall &mdash; the user-visible half, and the one a person would report</li>
+    </ol>
+
+    <div class="gate">
+      <div class="g-head">RATIONALE · ALTERNATIVES · COMPATIBILITY</div>
+      <ul>
+        <li><strong>Why it is cheap.</strong> Because corner ids already survive a load, 15 out of 15 &mdash; the seed is sitting in the file and needs no format change. That measurement is what turns this from a save-format decision into a load-path one</li>
+        <li><strong>Alternative rejected &mdash; persist the wall id.</strong> It would work and it costs a format field. A3's argument holds: a file identifies a wall by its corners, an id assigned by one build means nothing to another, and an id that dies with the wall cannot be brought back by redrawing it</li>
+        <li><strong>Alternative rejected &mdash; sorted pair with no ordinal.</strong> Simpler, and it silently gives two walls one identity in the one case that matters. The collision is reachable through <code>newWall()</code> with no guard and it survives a round trip &mdash; measured, not assumed</li>
+        <li><strong>Compatibility.</strong> Purely additive to the load path. No save-format change, no public API change, and a document that has never seen this build opens identically</li>
+      </ul>
+    </div>
+
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE · OBSERVABILITY · DoD</div>
+      <ul>
+        <li><strong>M-13 = 15 of 15</strong> across the three fixtures, by the same census that measured it at zero</li>
+        <li><strong>Both collision cases pass</strong>, and both fail when the ordinal or the canonicalisation is removed &mdash; two of the sprint's deliberate breaks</li>
+        <li><strong>Wall-bound items no longer reload on undo</strong>, closing A3's stated carve-out</li>
+        <li><strong>Rollback.</strong> One function on the load path; reverting it restores <code>Utils.guide()</code> per wall and nothing else moves</li>
+        <li><strong>DoD.</strong> Three tiers green · <code>docs/architecture.md</code>'s identity section gains walls · <code>docs/save-format.md</code> records that wall ids are reconstructed and not stored · CHANGELOG</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ---------------- B3 ---------------- -->
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">B3</span>
+      <h3>Type coverage: the application tier</h3>
+      <div class="meta"><span class="chip">G-3</span><span class="chip">1 week</span><span class="chip acc">no dependencies</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Take the 60 errors in <code>src/app</code> to zero and delete the 11 that are not type errors at all, then fix the ledger that has now been wrong twice.</p>
+
+    <div class="tw"><table>
+      <thead><tr><th>Scope</th><th>Excluded</th></tr></thead>
+      <tbody><tr>
+        <td>60 SFC errors · 8 dead <code>/// &lt;reference&gt;</code> directives · 3 unparseable <code>@see</code> comments · the <code>tsconfig.json</code> ledger, recounted and with a rule that keeps it honest</td>
+        <td><code>three/main.js</code>'s 108, and the rest of the 367 · any behavioural change · <code>checkJs</code> globally</td>
+      </tr></tbody>
+    </table></div>
+
+    <h4>Tasks</h4>
+    <ol>
+      <li><strong>Delete the 11 non-errors first.</strong> Eight <code>/// &lt;reference path="....ts"&gt;</code> directives in two <code>items/</code> files pointing at files that do not exist, and three <code>@see &lt;url&gt;</code> comments whose angle brackets make the JSDoc unparseable. Pure removal, no annotation, and it takes the total to 416 before any real work starts</li>
+      <li><strong>Type the props that make a template checkable.</strong> The ledger already identifies the pattern &mdash; an untyped <code>v-for</code> prop leaves the whole template unverifiable, so typing the prop is what converts a cluster of errors into zero rather than one</li>
+      <li><strong>Fix, do not cast.</strong> The strict-null family found real defects in P2 and will again. Every <code>@ts-ignore</code> or <code>as</code> carries a reason and the count is reported in the landing note</li>
+      <li><strong>Add the pragma to every SFC that reaches zero</strong>, so the gate holds. An area that is clean and not opted in is not protected</li>
+      <li><strong>Rewrite the ledger with a recount rule.</strong> It has now drifted twice, and both times because it was edited rather than re-derived. Record the command that produces each number next to it, so the next sprint recomputes instead of incrementing</li>
+    </ol>
+
+    <div class="gate">
+      <div class="g-head">RATIONALE · ALTERNATIVES · COMPATIBILITY</div>
+      <ul>
+        <li><strong>Why the application tier and not the library.</strong> It is the smallest area that can go to <em>zero</em>, and a partial area cannot carry a pragma, which means it cannot be protected. The library's 367 do not have that property at any granularity short of a whole file</li>
+        <li><strong>Alternative rejected &mdash; start with <code>three/main.js</code>.</strong> 108 errors, a quarter of the surface, in the most load-bearing file in the render path. Highest count is not highest value when the risk of touching it is this asymmetric</li>
+        <li><strong>Alternative rejected &mdash; turn on <code>checkJs</code> globally and suppress.</strong> That converts 427 findings into 427 suppressions and calls it progress</li>
+        <li><strong>Compatibility.</strong> Annotations and deletions of dead directives. Nothing here changes what any code does, which is also why it is the sprint to cut if time runs short</li>
+      </ul>
+    </div>
+
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE · OBSERVABILITY · DoD</div>
+      <ul>
+        <li><strong>M-14 = 0.</strong> <code>npx vue-tsc --noEmit --checkJs</code> reports nothing under <code>src/app</code>, and the whole-tree total is 356</li>
+        <li><strong>Every SFC carries the pragma</strong>, so <code>npm run typecheck</code> &mdash; not just the audit command &mdash; would fail on a regression</li>
+        <li><strong>The ledger's parts sum to its total</strong>, and each number has the command that produced it written beside it</li>
+        <li><strong>Suppression count reported</strong>, and it is a number the next sprint can only lower</li>
+        <li><strong>Rollback.</strong> Annotations revert individually; nothing depends on anything else here</li>
+        <li><strong>DoD.</strong> Three tiers green · <code>tsconfig.json</code> ledger recounted with its rule · CHANGELOG</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Sequence and effort</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Sprint</th><th>Work</th><th>Effort</th><th>Depends on</th><th>Metrics moved</th></tr></thead>
+    <tbody>
+      <tr><td><strong>B1</strong></td><td>Asset precision and delivery</td><td>1–2 weeks</td><td>—</td><td>M-10, M-11, M-12</td></tr>
+      <tr><td><strong>B2</strong></td><td>Wall identity across a load</td><td>3–5 days</td><td>—</td><td>M-13</td></tr>
+      <tr><td><strong>B3</strong></td><td>Type coverage, application tier</td><td>1 week</td><td>—</td><td>M-14</td></tr>
+    </tbody>
+  </table></div>
+
+  <p style="margin-top:16px">Three to four weeks end to end, and less if they overlap, since nothing here waits on anything else. That independence is the difference between this program and the last two: RM-003 had a critical path because each sprint installed something the next one needed, and this one has three unrelated jobs that happened to be left over. <strong>If only one thing gets done: B1</strong> &mdash; it is the only one of the three a user can feel, and the seam it uses was built by a sprint that has already shipped.</p>
+</section>
+
+<footer>
+  <p><strong>Method &mdash; RM-004.</strong> Three measurements against the working tree at <code>3cf1c24</code> on branch <code>amit</code>, all of them produced by running something rather than by reading code. <em>The payload</em> &mdash; every one of the 370 manifest entries read and gzipped at level 9, and every <code>.glb</code> walked chunk by chunk, splitting the BIN into buffer views an accessor points at, views an image points at, and the remainder, then a census of accessor <code>componentType</code> per attribute semantic and of index width against each primitive's <code>POSITION</code> count. <em>Wall identity</em> &mdash; three fixtures loaded, censused, round-tripped through <code>saveFloorplan()</code> and <code>loadFloorplan()</code> and intersected, plus a constructed two-walls-one-pair case run through the same round trip. <em>The type ledger</em> &mdash; <code>npx vue-tsc --noEmit --checkJs</code>, bucketed by area, by error code and by file. <strong>What was not run:</strong> no codec. Draco, meshopt and KTX2 are named throughout and none has been executed against this catalog, which is why M-12 carries no target and why B1's first task is the trial rather than its conclusion. Two repository inaccuracies were found and are recorded in §21 G-3 rather than fixed, since this is a planning pass: <code>tsconfig.json</code>'s SFC subtotal disagrees with the tree <em>and</em> with its own itemisation.</p>
+  <p><strong>Sources &mdash; RM-004.</strong> <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_mesh_quantization/README.md">KHR_mesh_quantization</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_draco_mesh_compression/README.md">KHR_draco_mesh_compression</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_meshopt_compression/README.md">EXT_meshopt_compression</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_texture_basisu/README.md">KHR_texture_basisu</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/specification/2.0/README.md#binary-gltf-layout">glTF 2.0 &mdash; Binary glTF layout</a> &middot; <a href="https://threejs.org/docs/#examples/en/loaders/DRACOLoader">three.js &mdash; DRACOLoader</a> &middot; <a href="https://threejs.org/docs/#examples/en/loaders/KTX2Loader">three.js &mdash; KTX2Loader</a> &middot; <a href="https://www.typescriptlang.org/tsconfig/#checkJs">TypeScript &mdash; checkJs</a></p>
+  <p>architect3d &middot; Delivery &amp; precision program RM-004 rev A &middot; proposal, pending approval &middot; successor to hardening program RM-003</p>
   <p class="credit">Created by <a href="https://amitukind.com" target="_blank" rel="noopener noreferrer">Amit Verma</a></p>
 </footer>
 
