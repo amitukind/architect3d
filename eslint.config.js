@@ -63,6 +63,10 @@ export default [
 				prompt: 'readonly',
 				location: 'readonly',
 				ResizeObserver: 'readonly',
+				// Added by RM-005 C2. `resolveCanvas` checks `instanceof` rather than
+				// casting, so a caller handing the floorplanner a <div> gets a message
+				// naming the problem instead of `getContext is not a function`.
+				HTMLCanvasElement: 'readonly',
 				// Added by RM-003 A5. `fetch` is how the asset resolver warms the
 				// HTTP cache and how the application collects its manifest;
 				// `TextEncoder` is what makes a byte count a byte count rather than

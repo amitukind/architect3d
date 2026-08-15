@@ -1,3 +1,4 @@
+// @ts-check
 import {EventDispatcher, Vector2} from 'three';
 import {cmPerPixel, pixelsPerCm} from '../core/dimensioning.js';
 import {configDimUnit, snapTolerance} from '../core/configuration.js';
@@ -7,7 +8,7 @@ import {EVENT_CORNER_2D_HOVER, EVENT_WALL_2D_HOVER, EVENT_ROOM_2D_HOVER} from '.
 import {EVENT_CORNER_2D_CLICKED, EVENT_ROOM_2D_CLICKED, EVENT_WALL_2D_CLICKED} from '../core/events.js';
 import {EVENT_CORNER_2D_DOUBLE_CLICKED, EVENT_ROOM_2D_DOUBLE_CLICKED, EVENT_WALL_2D_DOUBLE_CLICKED} from '../core/events.js';
 import {EVENT_NOTHING_CLICKED} from '../core/events.js';
-import {resolveElement} from '../core/dom.js';
+import {resolveCanvas} from '../core/dom.js';
 import {FloorplannerView2D, floorplannerModes} from './floorplanner_view.js';
 
 
@@ -90,7 +91,7 @@ export class Floorplanner2D extends EventDispatcher
 		/** mouse position at last click */
 		this.lastY = 0;
 
-		this.canvasElement = resolveElement(canvas, 'floorplanner canvas');
+		this.canvasElement = resolveCanvas(canvas, 'floorplanner canvas');
 		/** Kept for back-compat: callers used to read `.canvas` as an element id. */
 		this.canvas = (typeof canvas === 'string') ? canvas : this.canvasElement.id;
 		this.floorplan = floorplan;
@@ -162,12 +163,17 @@ export class Floorplanner2D extends EventDispatcher
 		}
 		this._disposed = true;
 
-		this.canvasElement.removeEventListener('pointerdown', this._pointerDownEvent, this._pointerOptions);
-		this.canvasElement.removeEventListener('pointermove', this._pointerMoveEvent, this._pointerOptions);
-		this.canvasElement.removeEventListener('pointerup', this._pointerUpEvent, this._pointerOptions);
-		this.canvasElement.removeEventListener('pointerleave', this._pointerLeaveEvent, this._pointerOptions);
-		this.canvasElement.removeEventListener('pointercancel', this._pointerLeaveEvent, this._pointerOptions);
-		this.canvasElement.removeEventListener('dblclick', this._doubleClickEvent, this._pointerOptions);
+		// No options object on removal (RM-005 C2). `removeEventListener` matches
+		// on type, listener and `capture` only - `passive` is an addEventListener
+		// concept and is not part of the identity, so passing `{passive: false}`
+		// here was ignored at runtime and a TS2769 at build time. Both calls have
+		// capture false, so the pairing is unchanged.
+		this.canvasElement.removeEventListener('pointerdown', this._pointerDownEvent);
+		this.canvasElement.removeEventListener('pointermove', this._pointerMoveEvent);
+		this.canvasElement.removeEventListener('pointerup', this._pointerUpEvent);
+		this.canvasElement.removeEventListener('pointerleave', this._pointerLeaveEvent);
+		this.canvasElement.removeEventListener('pointercancel', this._pointerLeaveEvent);
+		this.canvasElement.removeEventListener('dblclick', this._doubleClickEvent);
 		this.canvasElement.style.touchAction = this._previousTouchAction;
 
 		document.removeEventListener('keyup', this._keyUpEvent);
@@ -399,7 +405,8 @@ export class Floorplanner2D extends EventDispatcher
 
 		if(this._clickedWall)
 		{
-			this._clickedWallControl = this.floorplan.overlappedControlPoint(this._clickedWall, this.mouseX, this.mouseY);
+			// `tolerance` is optional in all three of these and was not declared so.
+			this._clickedWallControl = this.floorplan.overlappedControlPoint(this._clickedWall, this.mouseX, this.mouseY, undefined);
 			if(this._clickedWallControl != null)
 			{
 				this.view.invalidate();
@@ -408,8 +415,8 @@ export class Floorplanner2D extends EventDispatcher
 		}
 		
 		
-		var mDownCorner = this.floorplan.overlappedCorner(this.mouseX, this.mouseY);
-		var mDownWall = this.floorplan.overlappedWall(this.mouseX, this.mouseY);
+		var mDownCorner = this.floorplan.overlappedCorner(this.mouseX, this.mouseY, undefined);
+		var mDownWall = this.floorplan.overlappedWall(this.mouseX, this.mouseY, undefined);
 		var mDownRoom = this.floorplan.overlappedRoom(this.mouseX, this.mouseY);
 		this._clickedWallControl = null;
 		
@@ -479,8 +486,8 @@ export class Floorplanner2D extends EventDispatcher
 		// update object target
 		if (this.mode != floorplannerModes.DRAW && !this.mouseDown)
 		{
-			var hoverCorner = this.floorplan.overlappedCorner(this.mouseX, this.mouseY);
-			var hoverWall = this.floorplan.overlappedWall(this.mouseX, this.mouseY);
+			var hoverCorner = this.floorplan.overlappedCorner(this.mouseX, this.mouseY, undefined);
+			var hoverWall = this.floorplan.overlappedWall(this.mouseX, this.mouseY, undefined);
 			var hoverRoom = this.floorplan.overlappedRoom(this.mouseX, this.mouseY);
 			var draw = false;			
 			
@@ -553,7 +560,9 @@ export class Floorplanner2D extends EventDispatcher
 				
 				this._clickedWallControl.x = mx;
 				this._clickedWallControl.y = my;
-				this._clickedWall.updateControlVectors();
+				// Guarded together: this branch only runs when a control point was
+				// grabbed, which means both were set by the same mousedown.
+				if (this._clickedWall) { this._clickedWall.updateControlVectors(); }
 				this.view.invalidate();
 				return;
 			}

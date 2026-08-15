@@ -1,10 +1,11 @@
+// @ts-check
 import {Vector2} from 'three';
 import {WallTypes} from '../core/constants.js';
 import {Utils} from '../core/utils.js';
 import {EVENT_UPDATED} from '../core/events.js';
 
 import {gridSpacing, configWallThickness} from '../core/configuration.js';
-import {resolveElement, measureViewport, pixelRatio} from '../core/dom.js';
+import {resolveCanvas, measureViewport, pixelRatio} from '../core/dom.js';
 import {CarbonSheet} from './carbonsheet.js';
 
 
@@ -211,10 +212,21 @@ export class FloorplannerView2D
 	 */
 	constructor(floorplan, viewmodel, canvas)
 	{
-		this.canvasElement = resolveElement(canvas, 'floorplanner canvas');
+		this.canvasElement = resolveCanvas(canvas, 'floorplanner canvas');
 		/** Kept for back-compat: callers used to read `.canvas` as an element id. */
 		this.canvas = (typeof canvas === 'string') ? canvas : this.canvasElement.id;
-		this.context = this.canvasElement.getContext('2d');
+		// Non-null by construction (RM-005 C2). `getContext('2d')` returns null
+		// only when the canvas already holds a context of another kind - a webgl
+		// one, say - which for this canvas is a programming error and not a state
+		// to draw around. Throwing here means the ~90 draw calls downstream do not
+		// each have to ask, and the message names the canvas rather than surfacing
+		// as `Cannot read properties of null` inside a render loop.
+		var context = this.canvasElement.getContext('2d');
+		if (!context)
+		{
+			throw new Error('architect3d: the floorplanner canvas already has a context that is not 2d.');
+		}
+		this.context = context;
 		this.floorplan = floorplan;
 		this.viewmodel = viewmodel;
 
@@ -223,6 +235,7 @@ export class FloorplannerView2D
 		this.canvasWidth = 0;
 		this.canvasHeight = 0;
 		this._pixelRatio = 1;
+		/** @type {?HTMLElement} The canvas's parent, measured for sizing. */
 		this._container = this.canvasElement.parentElement;
 		this._disposed = false;
 
@@ -817,6 +830,18 @@ export class FloorplannerView2D
 		
 	}
 
+	/**
+	 * @param {string} label
+	 * @param {number} x
+	 * @param {number} y
+	 * @param {?string} [textcolor] Null or absent means "use the theme".
+	 * @param {?string} [strokecolor] Same.
+	 * @param {string} [style]
+	 *
+	 * The two colour parameters default to `null` in the signature, which types
+	 * them AS null - so every caller passing a real colour was an error and the
+	 * two assignments below were too (RM-005 C2).
+	 */
 	drawTextLabel(label, x, y, textcolor=null, strokecolor=null, style='normal')
 	{
 		// Defaulting through the palette rather than in the signature: a default

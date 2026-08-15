@@ -188,7 +188,8 @@ export class Floorplan extends EventDispatcher
 		 * the 2D view
 		 * 
 		 * @property {CarbonSheet} _carbonSheet The carbonsheet instance
-		 * @type {Object}
+		 * @type {?CarbonSheet} Null in widget mode and headless, where there is
+		 * no 2D view to inject one.
 		 */
 		this._carbonSheet = null;
 	}
@@ -227,8 +228,9 @@ export class Floorplan extends EventDispatcher
 	}
 
 	/**
-	 * @param {CarbonSheet}
-	 *            val
+	 * @param {?CarbonSheet} val The sheet, or null to detach it - which
+	 * `FloorplannerView2D.dispose()` does. Another tag whose type sat on one
+	 * line and whose name sat on the next (RM-005 C2).
 	 */
 	set carbonSheet(val)
 	{
@@ -236,8 +238,8 @@ export class Floorplan extends EventDispatcher
 	}
 
 	/**
-	 * @return {CarbonSheet} _carbonSheet reference to the instance of
-	 *         {@link CarbonSheet}
+	 * @return {?CarbonSheet} reference to the instance of {@link CarbonSheet},
+	 *         or null in widget mode and headless use.
 	 */
 	get carbonSheet()
 	{
@@ -579,12 +581,9 @@ export class Floorplan extends EventDispatcher
 	 * Gets the Control of a Curved Wall overlapping the location x, y at a
 	 * tolerance.
 	 * 
-	 * @param {Number}
-	 *            x
-	 * @param {Number}
-	 *            y
-	 * @param {Number}
-	 *            tolerance
+	 * @param {number} x
+	 * @param {number} y
+	 * @param {number} [tolerance] Defaults to five times the plan tolerance.
 	 * @return {?Corner} The control point under x,y, or null.
 	 */
 	overlappedControlPoint(wall, x, y, tolerance)
@@ -606,12 +605,9 @@ export class Floorplan extends EventDispatcher
 	/**
 	 * Gets the Corner overlapping the location x, y at a tolerance.
 	 * 
-	 * @param {Number}
-	 *            x
-	 * @param {Number}
-	 *            y
-	 * @param {Number}
-	 *            tolerance
+	 * @param {number} x
+	 * @param {number} y
+	 * @param {number} [tolerance] Defaults to the plan tolerance.
 	 * @return {?Corner} The corner under x,y, or null.
 	 */
 	overlappedCorner(x, y, tolerance)
@@ -630,12 +626,9 @@ export class Floorplan extends EventDispatcher
 	/**
 	 * Gets the Wall overlapping the location x, y at a tolerance.
 	 * 
-	 * @param {Number}
-	 *            x
-	 * @param {Number}
-	 *            y
-	 * @param {Number}
-	 *            tolerance
+	 * @param {number} x
+	 * @param {number} y
+	 * @param {number} [tolerance] Defaults to the plan tolerance.
 	 * @return {?Wall} The wall under x,y, or null.
 	 */
 	overlappedWall(x, y, tolerance)

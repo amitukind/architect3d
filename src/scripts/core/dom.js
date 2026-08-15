@@ -92,7 +92,8 @@ export function elementBox(element)
  * measured anything. Hosts that give their container a real size get
  * container-driven sizing; hosts that do not get exactly the old behaviour.
  *
- * @param {Element} element
+ * @param {?Element} element The container, or null before one is attached -
+ * the body already handles that and returns the fallback size (RM-005 C2).
  * @param {number} fallbackWidth
  * @param {number} fallbackHeight
  * @returns {{width: number, height: number}}
@@ -116,4 +117,30 @@ export function pixelRatio()
 		return 1;
 	}
 	return Math.max(1, Math.min(window.devicePixelRatio, 4));
+}
+
+/**
+ * The same resolution, for a target the caller knows is a canvas.
+ *
+ * Three of `resolveElement`'s four call sites want a canvas and then read
+ * `getContext`, `width`, `height` and `style` off it - none of which are on
+ * `Element`, which is 14 of the floorplanner's type errors (RM-005 C2). The
+ * fourth, `Main`'s viewer container, is a div and keeps the general function.
+ *
+ * The check is `instanceof HTMLCanvasElement` rather than a cast, so a caller
+ * that hands a `<div id="floorplanner">` gets a message naming the problem
+ * instead of `getContext is not a function` several frames later.
+ *
+ * @param {(Element|string)} target
+ * @param {string} description Used in the error message when nothing matches.
+ * @returns {HTMLCanvasElement}
+ */
+export function resolveCanvas(target, description)
+{
+	var element = resolveElement(target, description);
+	if (!(element instanceof HTMLCanvasElement))
+	{
+		throw new Error('architect3d: ' + description + ' is not a <canvas>.');
+	}
+	return element;
 }
