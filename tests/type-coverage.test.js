@@ -141,12 +141,53 @@ describe('every area that reached zero stays opted in (RM-004 B3)', () =>
 			expect(walk(join(ROOT, directory), match).length, `${area} count is stale`).toBe(Number(claimed[1]));
 		}
 
-		// The itemisation has to sum to the total it sits under, which is the
-		// arithmetic A2 and B3 each found broken.
-		const itemised = [...note.matchAll(/^\s*(\d+)\s+src\/[\w./-]+/gm)]
-			.map((row) => Number(row[1]));
-		const sum = itemised.slice(0, 7).reduce((total, n) => total + n, 0);
-		expect(sum, 'the CHECKED itemisation does not sum to its own total').toBe(checkedTotal);
+		// ## Both blocks, and by heading rather than by position
+		//
+		// This used to sum `itemised.slice(0, 7)` - the first seven numbered rows,
+		// which happen to be the CHECKED ones. It was right by arithmetic accident:
+		// add one CHECKED area and the slice silently drops it and picks up the
+		// first NOT YET row instead, and the test goes on passing about as often as
+		// not. A constant that has to be edited whenever the data grows is the same
+		// species of bug as the ledger drift this file exists to catch.
+		//
+		// And it never looked at NOT YET at all, which is how the FIFTH drift got
+		// in - in `b596fd8`, the very commit that added this test. That commit
+		// wrote `NOT YET - 355`, explained in its own prose that `src/app/main.js`
+		// had gone to zero, and left the `1  src/app/main.js` row in place. Its
+		// rows summed to 356 under a heading saying 355, and nothing failed.
+		//
+		// The NOT YET total is still asserted as a CEILING elsewhere rather than
+		// pinned - improving the tree must not fail the build - but a ledger whose
+		// parts do not add up to its own stated total is a comment, and that is
+		// checkable without running the compiler.
+		// A block is its heading, then the indented rows, then a blank line. Read
+		// that way rather than by scanning for the next heading, because the thing
+		// after the rows is prose - the shell command that regenerates them - and
+		// prose is not a shape worth pattern-matching against.
+		const rowsUnder = (heading) =>
+		{
+			const start = note.indexOf(heading);
+			expect(start, `the ledger no longer has a ${heading} block`).toBeGreaterThan(-1);
+			/** @type {number[]} */
+			const rows = [];
+			for (const line of note.slice(start).split('\n').slice(1))
+			{
+				const row = /^\s*(\d+)\s+src\/[\w./-]+/.exec(line);
+				if (row) { rows.push(Number(row[1])); continue; }
+				if (rows.length && !line.trim()) { break; }
+			}
+			return rows;
+		};
+
+		const checkedRows = rowsUnder('CHECKED - ');
+		expect(checkedRows.length, 'the CHECKED block itemises nothing').toBeGreaterThan(0);
+		expect(checkedRows.reduce((total, n) => total + n, 0),
+			'the CHECKED itemisation does not sum to its own total').toBe(checkedTotal);
+
+		const notYetTotal = Number(/NOT YET - (\d+) errors/.exec(note)[1]);
+		const notYetRows = rowsUnder('NOT YET - ');
+		expect(notYetRows.reduce((total, n) => total + n, 0),
+			'the NOT YET itemisation does not sum to its own total').toBe(notYetTotal);
 	});
 
 	it('counts the suppressions, so they can only go down', () =>
