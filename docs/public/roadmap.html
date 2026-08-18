@@ -259,6 +259,12 @@ footer .credit a:hover{text-decoration:underline}
   <a href="#product-gaps">34 · Decision log</a>
   <a href="#product-programmes">35 · Programmes E–M &amp; effort</a>
   <a href="#product-risks">36 · Risks &amp; non-goals</a>
+
+  <div class="toc-head mono" style="margin-top:22px">PROGRAMME E RM-008</div>
+  <a href="#planprog">37 · Executive summary</a>
+  <a href="#plan-findings">38 · Decision log</a>
+  <a href="#plan-sprints">39 · Sprints E1–E4</a>
+  <a href="#plan-risks">40 · Risks &amp; compatibility</a>
 </nav>
 
 <main>
@@ -3363,7 +3369,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
     <li><strong>Two items placed, none on the plan.</strong> A chair and a bed were added from the catalog and selected in 3D, with their dimension labels drawn in the viewport and the status bar reading <em>2 items</em>. The plan beside them showed an empty room. This is the finding a first-time user makes in their first five minutes.</li>
     <li><strong>The split view does not re-frame.</strong> Zoom-to-fit runs once at mount, at full width; switching to Split leaves the plan half off the left edge and the 3D room cropped. Small, and the kind of thing that reads as broken.</li>
     <li><strong>Wall labels read <code>m:5m</code>.</strong> The prefix is the midline flag, and nobody outside this repository knows that.</li>
-    <li><strong>Selecting a wall in 3D highlights it on the plan and opens the surface picker</strong> &mdash; the cross-view selection is already right, and is what E1 builds the other direction on.</li>
+    <li><strong>Selecting a wall in 3D highlights it on the plan and opens the surface picker</strong> &mdash; the cross-view selection is already right, and is what E1 builds the other direction on.<span class="corr">Wrong, and corrected by RM-008 T-2 on 2026-08-18. A 3D wall click changes <strong>0 of 492,000</strong> plan pixels and a plan wall click changes <strong>0 of 432,000</strong> pixels of the 3D view; the highlight seen here was hover state left over from the previous shot, which clicked the plan. Only the inspector half is true. E1 therefore builds both directions, at 3 weeks rather than 2.5, and programme E is 7.5 weeks rather than 7.</span></li>
     <li><strong>The phone viewport is unusable, not merely cramped.</strong> The rail, the top bar and a 300 px inspector leave a 40 px plan at 10 % zoom. <em>Declined in rev B:</em> the audience is web desktop only, and the laptop end of that range &mdash; 1024&times;768, 1280&times;720, 1366&times;768 &mdash; was then measured and holds.</li>
     <li><strong>The console warns <em>Texture marked for update but no image data found</em> on every frame</strong> until the images land. Harmless, and a sign that a needsUpdate is being set on a clone before its source has decoded; worth one look under E1 rather than a finding of its own.</li>
   </ul>
@@ -3457,6 +3463,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
         <li><strong>M-24 &mdash; round trip.</strong> Per-wall thickness and height written by 3.x are read back exactly, and a 2.0.0 file loads with the configured defaults, byte-identical on re-save when nothing was set</li>
       </ul>
     </div>
+    <p class="corr">Re-estimated by RM-008 (the programme’s own drawing, 2026-08-18) at <strong>7.5 weeks</strong>, E1 at 3 rather than 2.5: cross-view selection turned out not to exist in either direction, not one (T-2). The figures above are rev B’s and stay as written; the programme total moves 42 → 42.5.</p>
   </div>
 
   <div class="sprint">
@@ -3656,6 +3663,243 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
 </section>
 
 
+<!-- ===================================================================
+ PROGRAMME E — DRAWING RM-008.
+ RM-007 above is the product roadmap and names eight programmes. This
+ is the first of their drawings: programme E, measured against the tree
+ of the day it starts, in the shape of RM-002 to RM-006. It corrects
+ one claim RM-007 made about this programme; see T-2.
+ =================================================================== -->
+
+<!-- ======================= 37 RM-008 EXECUTIVE SUMMARY ======================= -->
+<header class="sheet">
+  <div class="sheet-body">
+    <div class="eyebrow">PROGRAMME E · DRAWING Nº RM-008</div>
+    <h1>The plan is the product</h1>
+    <p class="lede">RM-007 put programme E first because the 2D plan is where a floor plan is made and this one is a wall editor. Measuring it before writing any of it found the reason underneath: <strong>the 2D view cannot see the furniture, because a <code>Floorplan</code> has no path to a <code>Scene</code></strong> &mdash; and that <strong>cross-view selection does not exist in either direction</strong>, which RM-007 said was half built. Four sprints, 7.5 weeks, and the first decision is a contract rather than a drawing routine.</p>
+  </div>
+  <div class="titleblock">
+    <div><div class="tb-k">PROJECT</div><div class="tb-v">architect3d</div></div>
+    <div><div class="tb-k">PARENT</div><div class="tb-v">RM-007 rev B · programme E</div></div>
+    <div><div class="tb-k">BRANCH</div><div class="tb-v">amit @ 1d53fc8</div></div>
+    <div><div class="tb-k">SCOPE</div><div class="tb-v">4 sprints · 7.5 wk · E1–E4</div></div>
+    <div><div class="tb-k">DATE</div><div class="tb-v">2026-08-18</div></div>
+    <div><div class="tb-k">REV</div><div class="tb-v">A · proposed</div></div>
+  </div>
+</header>
+
+<section id="planprog">
+  <div class="sec-eyebrow">§ 37 · EXECUTIVE SUMMARY</div>
+  <h2>What measuring the plan changed about the plan</h2>
+  <p class="sec-sub">Seven measurements against the tree at <code>1d53fc8</code>, five of them run in a real browser against the running library rather than read off the source. Two contradict something this document set already says, and one of those two is RM-007's, written the same day.</p>
+
+  <div class="stats">
+    <div class="stat"><div class="v">0 px</div><div class="k">change on the plan when a wall is clicked in 3D, and <strong>0 px</strong> change in 3D when a wall is clicked on the plan. Cross-view selection does not exist in either direction &mdash; RM-007 said it was already right one way</div></div>
+    <div class="stat"><div class="v">6 keys</div><div class="k">on a <code>Floorplan</code>: runtime, walls, corners, rooms, metaroomsdata, floorTextures. No <code>model</code>, no <code>scene</code>. The 2D view is handed exactly this object, so it cannot reach an item even in principle</div></div>
+    <div class="stat"><div class="v">0.79 ms</div><div class="k">to draw a 36-room, 144-wall plan <em>with</em> 150 item footprints &mdash; 4.7 % of a 16.7 ms frame. Furniture on the plan is not a performance question, and measuring it first is how that stops being an assumption</div></div>
+    <div class="stat"><div class="v">36&ndash;69 %</div><div class="k">statement coverage across the five files E touches &mdash; the least-covered in the library, against floors of 79/68/79/78. Every sprint here must carry its own tests or the ratchet breaks</div></div>
+  </div>
+
+  <p><strong>The finding that shapes the programme.</strong> <code>Floorplanner2D</code> is constructed with <code>this.model.floorplan</code> (<code>blueprint.js:234</code>), and a <code>Floorplan</code> holds walls, corners and rooms. Items live on <code>Model.scene</code>, and <code>Scene</code> knows its <code>Model</code> while <code>Floorplan</code> does not &mdash; the reference goes one way, deliberately, and it is the same one-way rule that keeps the model layer plain. So &ldquo;draw the furniture on the plan&rdquo; is not a drawing task with a lookup in front of it; it is a question about which object is allowed to know about which, and answering it wrongly is how a clean layer boundary is lost for a feature.</p>
+
+  <p><strong>The answer this programme takes is a projection, not a reference.</strong> <code>Model</code> already owns both halves and already dispatches a typed <code>ChangeSet</code> carrying <code>CHANGE_ITEMS</code> (RM-003 A2). E1 has <code>Model</code> publish a <em>plan projection</em> &mdash; a flat array of footprints, each one id, centre, half-extent, rotation, type and label, in centimetres &mdash; and has the 2D view subscribe to it. The view draws data it was given; nothing in <code>src/scripts/model</code> gains a back-reference; <code>Floorplanner2D</code>'s two-argument constructor keeps working, because the projection arrives by event and not by argument. It is also the shape that makes E1 testable headlessly: a projection can be asserted without a canvas, which the five files this programme touches badly need.</p>
+
+  <p><strong>The correction.</strong> RM-007 &sect; 33 recorded that selecting a wall in 3D highlights it on the plan, and called the cross-view selection &ldquo;already right&rdquo;. It is not: clicking a wall in the 3D pane changes <strong>zero</strong> pixels of the plan, and clicking one on the plan changes <strong>zero</strong> pixels of the 3D view. What that screenshot showed was hover state left over from an earlier click on the plan itself &mdash; the plan's <code>activeWall</code> is set by its own <code>mousemove</code> and by nothing else. The inspector is the only surface the two views share. E1 therefore builds both directions rather than one, which is why this drawing prices it at 3 weeks where RM-007 priced 2.5, and programme E at 7.5 where RM-007 priced 7.</p>
+
+  <p><strong>What is cheap, measured rather than hoped.</strong> The plan redraw is 0.112 ms for the default room and 0.593 ms for a 36-room, 144-wall plan &mdash; about 3.5 &micro;s a wall. Item footprints cost 0.032 ms for twenty, 0.082 for sixty and 0.197 for a hundred and fifty, so the worst case measured here is 0.79 ms a frame. The 2D path has been coalesced to one draw per animation frame since P6 &mdash; nineteen <code>invalidate()</code> call sites against six direct <code>draw()</code> &mdash; so E1 hooks <code>invalidate()</code> and inherits that. And the plan's entire output goes through <strong>77 raw canvas calls, 64 of them inside eight primitive and setup methods</strong>, with only two outliers (<code>drawCornerAngles</code>, 7; <code>drawOriginCrossHair</code>, 6). That is what makes E4's SVG export one week: implement eight primitives against a second backend, refactor two methods, and every existing drawing routine follows for free.</p>
+</section>
+
+<!-- ======================= 38 RM-008 DECISION LOG ======================= -->
+<section id="plan-findings">
+  <div class="sec-eyebrow">§ 38 · DECISION LOG</div>
+  <h2>Seven findings, five of them run in a browser</h2>
+  <p class="sec-sub">Each row was produced against <code>1d53fc8</code>. Where the method was a rendered comparison, the two screenshots were differenced pixel by pixel with a tolerance of 6 per channel rather than eyeballed &mdash; which is the specific mistake T-2 corrects.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Nº</th><th>Finding</th><th>Severity</th><th>Method</th><th>Sprint</th></tr></thead>
+    <tbody>
+      <tr><td style="white-space:nowrap">T-1</td><td>A <code>Floorplan</code> has no path to a <code>Scene</code>, so the 2D view cannot reach an item</td><td><span class="chip crit">shapes E1</span></td><td>constructed in-browser, keys read</td><td>E1</td></tr>
+      <tr><td style="white-space:nowrap">T-2</td><td>Cross-view selection does not exist in either direction &mdash; RM-007 said it did one way</td><td><span class="chip crit">correction</span></td><td>pixel diff, both directions</td><td>E1</td></tr>
+      <tr><td style="white-space:nowrap">T-3</td><td>The five files E touches are the least-covered in the library, at 36&ndash;69 % statements</td><td><span class="chip warn">med</span></td><td><code>coverage-summary.json</code></td><td>all four</td></tr>
+      <tr><td style="white-space:nowrap">T-4</td><td>Furniture on the plan is affordable: 0.79 ms for the worst case measured</td><td><span class="chip ok">clears E1</span></td><td>timed in-browser, 60 draws</td><td>E1</td></tr>
+      <tr><td style="white-space:nowrap">T-5</td><td>An SVG backend is eight primitives and two outlier methods, not a rewrite</td><td><span class="chip ok">clears E4</span></td><td>77 ctx calls attributed to methods</td><td>E4</td></tr>
+      <tr><td style="white-space:nowrap">T-6</td><td>The save path writes explicit literals, so a field not named in it is silently dropped on round trip</td><td><span class="chip warn">med</span></td><td><code>floorplan.js:723</code>, read</td><td>E2 · E3</td></tr>
+      <tr><td style="white-space:nowrap">T-7</td><td>Only <code>EVENT_ITEM_MOVE_FINISH</code> fires for a moved item; nothing fires during the drag</td><td><span class="chip">low</span></td><td><code>controller.js:451</code>, grep</td><td>E1</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>T-1 · The plan cannot see the furniture <span class="chip crit">shapes E1</span> <span class="chip acc">measured</span></h3>
+  <p>Constructed in a live page and read rather than inferred from the source: a <code>Floorplan</code>'s own properties are <code>runtime</code>, <code>walls</code>, <code>corners</code>, <code>rooms</code>, <code>metaroomsdata</code> and <code>floorTextures</code>. There is no <code>model</code> and no <code>scene</code>. <code>Model</code> has exactly two &mdash; <code>floorplan</code> and <code>scene</code> &mdash; and <code>Scene</code> carries <code>model</code>, so the reference runs scene&nbsp;&rarr;&nbsp;model&nbsp;&rarr;&nbsp;floorplan and never back. <code>BlueprintJS</code> hands the 2D view the floorplan alone.</p>
+  <p><strong>Three ways to close it, and why the third wins.</strong> Passing the <code>Model</code> into <code>Floorplanner2D</code> widens a public constructor and points the view at the whole document to read one list. Giving <code>Floorplan</code> a back-reference to <code>Model</code> puts the scene inside the layer whose whole discipline is that it holds plain data with no DOM and no GPU &mdash; and every test that builds a bare <code>Floorplan</code> would then be building half a document. The third is a <strong>projection</strong>: <code>Model</code> computes a footprint list and dispatches it on the <code>ChangeSet</code> it already sends for <code>CHANGE_ITEMS</code>; the view holds the last one it received and draws it. No new coupling, no constructor change, and the drawing code takes plain numbers &mdash; which is the only version of this that can be tested without a canvas.</p>
+
+  <h3>T-2 · Neither view tells the other anything <span class="chip crit">correction</span> <span class="chip acc">measured</span></h3>
+  <p>RM-007 &sect; 33 said: &ldquo;Selecting a wall in 3D highlights it on the plan and opens the surface picker &mdash; the cross-view selection is already right, and is what E1 builds the other direction on.&rdquo; The first half is wrong and the conclusion drawn from it is wrong.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Action</th><th>Other view, pixels changed</th><th>Inspector</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td>Click a wall in the 3D pane</td><td class="num"><strong>0</strong> of 492,000</td><td>opens &ldquo;Wall surface&rdquo;</td><td>plan unaffected</td></tr>
+      <tr><td>Click a wall on the plan</td><td class="num"><strong>0</strong> of 432,000</td><td>opens &ldquo;Wall&rdquo;</td><td>3D unaffected</td></tr>
+    </tbody>
+  </table></div>
+  <p><strong>How the mistake was made, since that is the reusable part.</strong> The RM-007 pass drove the application through fifteen states in one session and read the screenshots in order. Shot 13 clicked a wall on the plan; shot 14 clicked a wall in 3D. The plan showed a blue wall in both, and the blue in 14 was read as a response to the 3D click. It was the hover state from 13, still set: <code>Floorplanner2D.activeWall</code> is written by its own <code>mousemove</code> handler and cleared by nothing that a 3D click reaches. <em>A screenshot compared against a memory is not a measurement.</em> Both rows above come from differencing two images captured seconds apart in the same run, with everything else held still.</p>
+  <p>The consequence for the plan is small and worth stating plainly: E1 builds two directions rather than one, so it is priced at 3 weeks here against RM-007's 2.5, and programme E at 7.5 against 7. RM-007 keeps its figures with a correction note beside them rather than being rewritten.</p>
+
+  <h3>T-3 · E adds code to the least-covered files in the library <span class="chip warn">med</span> <span class="chip acc">measured</span></h3>
+  <div class="tw"><table>
+    <thead><tr><th>File</th><th class="num">Statements</th><th class="num">Branches</th><th class="num">Functions</th><th>Touched by</th></tr></thead>
+    <tbody>
+      <tr><td><code>items/floor_item.js</code></td><td class="num">36.00</td><td class="num">20.00</td><td class="num">60.00</td><td>E1</td></tr>
+      <tr><td><code>three/controller.js</code></td><td class="num">51.67</td><td class="num">35.97</td><td class="num">65.71</td><td>E1</td></tr>
+      <tr><td><code>floorplanner/floorplanner.js</code></td><td class="num">63.40</td><td class="num">43.24</td><td class="num">78.37</td><td>E1 · E2</td></tr>
+      <tr><td><code>items/item.js</code></td><td class="num">63.60</td><td class="num">44.26</td><td class="num">43.18</td><td>E1</td></tr>
+      <tr><td><code>floorplanner/floorplanner_view.js</code></td><td class="num">69.26</td><td class="num">63.47</td><td class="num">82.69</td><td>E1 · E3 · E4</td></tr>
+      <tr><td colspan="5" style="opacity:.7">Project floors: statements 79, branches 68, lines 79, functions 78. Current: 80.26 / 68.77 / 80.32 / 79.17 &mdash; branches sit 0.77 above the floor.</td></tr>
+    </tbody>
+  </table></div>
+  <p>Adding uncovered code to files already below the project average moves the aggregate down, and branches have 0.77 % of room. This is not an argument for raising the floors &mdash; they are ratchets and they move up only when a change earns it. It is the reason every sprint below carries its own test budget explicitly rather than as an afterthought, and the reason the projection in T-1 is worth building for its testability alone.</p>
+
+  <h3>T-4 · The cost is measured, and it is small <span class="chip ok">clears E1</span> <span class="chip acc">measured</span></h3>
+  <div class="tw"><table>
+    <thead><tr><th>Plan</th><th class="num">Walls</th><th class="num">Rooms</th><th class="num">ms / draw</th></tr></thead>
+    <tbody>
+      <tr><td>Default room</td><td class="num">4</td><td class="num">1</td><td class="num">0.112</td></tr>
+      <tr><td>Four rooms</td><td class="num">16</td><td class="num">4</td><td class="num">0.172</td></tr>
+      <tr><td>Sixteen rooms</td><td class="num">64</td><td class="num">16</td><td class="num">0.328</td></tr>
+      <tr><td>Thirty-six rooms</td><td class="num">144</td><td class="num">36</td><td class="num">0.593</td></tr>
+      <tr><td colspan="4" style="opacity:.7">Item footprints, drawn as a rotated rect, a facing tick and a label: 20 &rarr; 0.032 ms · 60 &rarr; 0.082 ms · 150 &rarr; 0.197 ms</td></tr>
+    </tbody>
+  </table></div>
+  <p>Sixty draws each, after a warm-up, in headless Chromium at 1200&times;800. The worst case anyone will hit &mdash; a 36-room plan with 150 items &mdash; is <strong>0.79 ms</strong>, or 4.7 % of a 16.7 ms frame. Every draw is already coalesced to one per animation frame (P6), so this is a per-frame cost and not a per-event one. <em>Measured before the sprint rather than after it</em>, because &ldquo;furniture on the plan will be too slow&rdquo; is the kind of objection that is cheap to answer now and expensive to answer once half the sprint is written.</p>
+
+  <h3>T-5 · The SVG backend is eight methods <span class="chip ok">clears E4</span> <span class="chip acc">measured</span></h3>
+  <p>Every mark the plan makes goes through the 2D context, and there are <strong>77</strong> such calls in <code>floorplanner_view.js</code>. Attributing each to its enclosing method: <strong>64 sit inside eight primitive and setup methods</strong> &mdash; <code>drawLine</code>, <code>drawCurvedLine</code>, <code>drawPolygon</code>, <code>drawPolygonCurved</code>, <code>drawCircle</code>, <code>drawTextLabel</code>, <code>drawBezierObject</code>, <code>drawGrid</code>, plus <code>draw</code>'s own clear and transform &mdash; and <strong>13 sit in two methods that reach past them</strong>: <code>drawCornerAngles</code> (7) and <code>drawOriginCrossHair</code> (6). So E4 is: define the primitive surface as an interface, implement it twice, and refactor exactly two methods onto it. The twelve <code>drawLine</code> callers, eight <code>drawTextLabel</code> callers and five <code>drawCircle</code> callers need no change at all.</p>
+
+  <h3>T-6 · A field the save path does not name is lost <span class="chip warn">med</span></h3>
+  <p><code>Floorplan.saveFloorplan</code> writes an object literal per corner and per wall &mdash; <code>{x, y, elevation}</code>, and the wall's own named set. Anything else on the object, and anything a third-party file carried in, is dropped on the next save; <code>DesignDocument.parse</code> does not reject unknown fields, it ignores them. Nothing is broken by this today, and it means E2's per-wall thickness and height and E3's annotations each need an explicit line in the writer as well as the reader. Named here so that &ldquo;the field is on the model&rdquo; is never mistaken for &ldquo;the field is saved&rdquo; &mdash; which is exactly the state per-wall thickness and height are in right now (RM-007 Q-9).</p>
+
+  <h3>T-7 · Nothing fires while an item is being dragged <span class="chip">low</span></h3>
+  <p>The only movement event for an item is <code>EVENT_ITEM_MOVE_FINISH</code>, dispatched once from <code>Controller.itemMoveFinished</code> when the pointer is released. A footprint on the plan would therefore jump to its new place on mouse-up rather than follow the drag. E1 makes the plan follow live by having the controller mark the projection dirty during a drag &mdash; not by adding a per-move event, which would put a dispatch inside a pointermove handler and is the shape RM-002 R-05 spent a sprint removing. The existing event stays the commit point for undo.</p>
+</section>
+
+<!-- ======================= 39 RM-008 SPRINTS ======================= -->
+<section id="plan-sprints">
+  <div class="sec-eyebrow">§ 39 · SPRINTS</div>
+  <h2>Four sprints, 7.5 weeks</h2>
+  <p class="sec-sub">Each carries its own acceptance, its own test budget &mdash; because of T-3 &mdash; and a rollback that is one revert. E1 is the only one with a new contract in it; E2 to E4 are additions on top of that contract and on top of what the plan already draws.</p>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">E1</span>
+      <h3>The plan shows the design</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip crit">T-1</span><span class="chip crit">T-2</span><span class="chip">T-4</span><span class="chip">T-7</span><span class="chip">3 wk</span><span class="chip acc">no dependencies</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Everything in the design visible on the plan, selectable there, and selection shared with the 3D view in both directions.</p>
+    <ul>
+      <li><strong>The plan projection.</strong> <code>Model</code> publishes a footprint list &mdash; id, centre, half-extent, rotation, item type, label, and the wall edge for a wall-bound item &mdash; in centimetres, on the <code>ChangeSet</code> it already dispatches for <code>CHANGE_ITEMS</code>. Nothing in the model layer gains a back-reference (T-1).</li>
+      <li><strong>Footprints drawn.</strong> A rotated rectangle with a facing tick and a name, at the plan's own scale; doors and windows drawn as openings in the wall run rather than as boxes on it; on-floor items (rugs) drawn under the rest.</li>
+      <li><strong>Hit-testing and handling.</strong> Pick, move and rotate an item on the plan, with the same grid and axis snapping walls already use, and the same undo entry a 3D move produces.</li>
+      <li><strong>Selection in both directions</strong> (T-2): a wall, room, corner or item selected in either view is highlighted in the other and shown in the inspector. One selection, two views.</li>
+      <li><strong>Live during a drag</strong> (T-7): the controller marks the projection dirty as an item moves, and the plan repaints on the frame it already had scheduled.</li>
+      <li><strong>Two repairs that belong here</strong>: re-frame the plan when the layout changes, so switching to Split does not leave it half off-screen; and drop the raw <code>m:</code> / <code>i:</code> / <code>e:</code> prefixes from wall labels, which are the wall-information flags and mean nothing to a reader.</li>
+    </ul>
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE · OBSERVABILITY · DoD</div>
+      <ul>
+        <li><strong>M-23 = parity.</strong> Items in the scene equals footprints in the projection, for every fixture design, asserted headlessly &mdash; and rasterised once in the browser tier beside the existing plan-canvas case</li>
+        <li><strong>M-32 = 0 px drift.</strong> Selecting an entity in one view changes the other view's pixels; the two directions asserted by the same pixel-diff method that produced T-2, so the measurement that caught the mistake is the one that guards it</li>
+        <li><strong>Frame budget.</strong> A 36-room, 150-item fixture draws in under 2 ms in the browser tier &mdash; 2.5&times; the 0.79 ms measured, so the gate fails on a regression rather than on noise</li>
+        <li><strong>Test budget.</strong> The projection is pure data, so it is tested without a canvas; <code>floorplanner_view.js</code> and <code>item.js</code> end the sprint no lower than they start (T-3)</li>
+        <li><strong>Rollback.</strong> One revert. No file-format change, no public signature change, no saved design affected</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">E2</span>
+      <h3>Drawing to a number</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip">Q-8</span><span class="chip">Q-9</span><span class="chip">T-6</span><span class="chip">2 wk</span><span class="chip warn">after E1</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Every dimension typeable, and the wall properties the model already carries reachable and saved.</p>
+    <ul>
+      <li>Typed length and angle <em>while</em> drawing, not only after; 15&deg; angle snap; a rectangle-room tool; split a wall at a point and join two collinear walls; alignment guides off existing corners.</li>
+      <li>Per-wall thickness and height in the inspector, and in the file &mdash; additive fields, explicitly written (T-6), a 2.0.0 file loading with the configured defaults and re-saving byte-identical when nothing was set.</li>
+    </ul>
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE</div>
+      <ul>
+        <li><strong>M-24 = round trip.</strong> Thickness and height written by this build read back exactly; every existing fixture re-saves byte-identical</li>
+        <li>A wall drawn by typing 3.4 m at 30&deg; measures 3.4 m at 30&deg; in the model, in all five display units</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">E3</span>
+      <h3>Annotation</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip">Q-8</span><span class="chip">T-6</span><span class="chip">1.5 wk</span><span class="chip warn">after E2</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> A plan that can be read by somebody who did not draw it.</p>
+    <ul>
+      <li>Dimension lines between any two points, with witness lines and the measurement in the active unit; free text labels; a room type alongside the room name; a north arrow; per-room ceiling height.</li>
+      <li>Two new persisted collections &mdash; <code>dimensions</code> and <code>annotations</code> &mdash; additive, written explicitly (T-6), ignored by any older reader.</li>
+    </ul>
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE</div>
+      <ul>
+        <li><strong>M-33 = annotation round trip.</strong> Every annotation type survives save, load and undo, and a file carrying none is byte-identical to one written before the sprint</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">E4</span>
+      <h3>The plan on paper</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip">Q-13</span><span class="chip ok">T-5</span><span class="chip">1 wk</span><span class="chip warn">after E3</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> A drawing that leaves the application at a stated scale.</p>
+    <ul>
+      <li>A backend interface over the eight primitives (T-5), implemented for canvas and for SVG; <code>drawCornerAngles</code> and <code>drawOriginCrossHair</code> refactored onto it.</li>
+      <li>PNG at a chosen resolution, SVG at a chosen scale (1:50, 1:100, custom), print to PDF through the browser, with a scale bar, a title block and the north arrow from E3.</li>
+    </ul>
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE</div>
+      <ul>
+        <li><strong>M-34 = backend fidelity.</strong> The same plan through both backends produces the same geometry &mdash; SVG path data compared against the canvas primitives' arguments, not against pixels</li>
+        <li>A wall measured with a ruler on a printed 1:100 sheet is its modelled length, within the printer's own tolerance</li>
+      </ul>
+    </div>
+  </div>
+
+  <p style="margin-top:16px">Seven and a half weeks against RM-007's seven, and the half week is T-2: a claim that a thing was half built, checked, and found to be not built at all. <strong>E1 is the only sprint here that decides anything</strong> &mdash; the projection contract in T-1 is what E2, E3 and E4 all draw on top of, and it is the reason this drawing exists before the code rather than after it.</p>
+</section>
+
+<!-- ======================= 40 RM-008 RISKS & COMPATIBILITY ======================= -->
+<section id="plan-risks">
+  <div class="sec-eyebrow">§ 40 · RISKS &amp; COMPATIBILITY</div>
+  <h2>What could go wrong, and what must not change</h2>
+
+  <div class="tw"><table>
+    <thead><tr><th>Risk</th><th>Where</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td>The projection becomes a second model that drifts from the first</td><td>E1</td><td>Derived on dispatch and never written to; the parity metric M-23 compares it against <code>scene.getItems()</code> on every fixture, so drift is a failing test rather than a wrong picture</td></tr>
+      <tr><td>Coverage falls through the branch floor, which has 0.77 % of room</td><td>all four</td><td>T-3 is why each sprint states a test budget; the projection is pure data and testable headlessly; coverage is checked per sprint, not at the end</td></tr>
+      <tr><td>Selection in both directions turns into two sources of truth</td><td>E1</td><td>One selection lives where it already lives, in <code>useSelection</code>; both views render it. Neither view keeps its own idea of what is selected &mdash; the plan's <code>activeWall</code> stays what it is today, hover</td></tr>
+      <tr><td>Live drag repaints put work back inside a pointermove handler</td><td>E1</td><td>The controller marks dirty; the repaint happens on the frame already scheduled by <code>invalidate()</code>. No new event, no dispatch in a move handler (T-7, RM-002 R-05)</td></tr>
+      <tr><td>Additive fields silently lost on save</td><td>E2, E3</td><td>T-6: every new field gets an explicit line in the writer and a round-trip assertion in the same commit</td></tr>
+      <tr><td>Two rendering backends diverge</td><td>E4</td><td>M-34 compares primitive arguments rather than pixels, so a divergence is caught at the call and not at the eye</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>What must not change</h3>
+  <p>The <strong>one-way arrow</strong>: <code>src/app</code> imports <code>src/scripts</code> and nothing goes back, and inside the library the model layer stays plain data with no DOM and no GPU &mdash; which is precisely why T-1 is answered with a projection. The <strong>save format</strong> stays readable by any build that reads 2.0.0; E2 and E3 add fields and no reader is required to understand them. <strong><code>Floorplanner2D</code>'s constructor</strong> keeps its two-argument form; the projection arrives by event. The <strong>preserved polygon predicates</strong> are untouched here &mdash; item hit-testing on the plan is a rectangle test in plan space and needs none of them; collision is J4's re-baseline and stays there. And <strong>no metric moves down</strong>: the coverage floors, the size budgets and the ten asset budgets are ratchets, and the only number this programme is expected to raise is the count of tests.</p>
+
+  <p style="margin-top:16px">First commit of E1 is the projection and its headless test, before a single line of drawing code &mdash; because the contract is the part that is expensive to change later, and it is the part that makes the rest of the programme testable at all.</p>
+</section>
+
+
 <footer>
   <p><strong>Method &mdash; RM-004.</strong> Three measurements against the working tree at <code>3cf1c24</code> on branch <code>amit</code>, all of them produced by running something rather than by reading code. <em>The payload</em> &mdash; every one of the 370 manifest entries read and gzipped at level 9, and every <code>.glb</code> walked chunk by chunk, splitting the BIN into buffer views an accessor points at, views an image points at, and the remainder, then a census of accessor <code>componentType</code> per attribute semantic and of index width against each primitive's <code>POSITION</code> count. <em>Wall identity</em> &mdash; three fixtures loaded, censused, round-tripped through <code>saveFloorplan()</code> and <code>loadFloorplan()</code> and intersected, plus a constructed two-walls-one-pair case run through the same round trip. <em>The type ledger</em> &mdash; <code>npx vue-tsc --noEmit --checkJs</code>, bucketed by area, by error code and by file. <strong>What was not run:</strong> no codec. Draco, meshopt and KTX2 are named throughout and none has been executed against this catalog, which is why M-12 carries no target and why B1's first task is the trial rather than its conclusion. Two repository inaccuracies were found and are recorded in §21 G-3 rather than fixed, since this is a planning pass: <code>tsconfig.json</code>'s SFC subtotal disagrees with the tree <em>and</em> with its own itemisation.</p>
   <p><strong>Sources &mdash; RM-004.</strong> <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_mesh_quantization/README.md">KHR_mesh_quantization</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_draco_mesh_compression/README.md">KHR_draco_mesh_compression</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_meshopt_compression/README.md">EXT_meshopt_compression</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_texture_basisu/README.md">KHR_texture_basisu</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/specification/2.0/README.md#binary-gltf-layout">glTF 2.0 &mdash; Binary glTF layout</a> &middot; <a href="https://threejs.org/docs/#examples/en/loaders/DRACOLoader">three.js &mdash; DRACOLoader</a> &middot; <a href="https://threejs.org/docs/#examples/en/loaders/KTX2Loader">three.js &mdash; KTX2Loader</a> &middot; <a href="https://www.typescriptlang.org/tsconfig/#checkJs">TypeScript &mdash; checkJs</a></p>
@@ -3665,8 +3909,10 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
   <p><strong>Method &mdash; RM-006.</strong> One measurement, run twenty-one times, against the working tree at <code>3d21b81</code> on branch <code>amit</code>. Every GPU texture the encoder has ever considered &mdash; the eleven now shipping as KTX2, the eight refused here, <code>ps_7.jpg</code> and <code>envs/Garden.jpg</code> &mdash; was rendered from its authored source and from its transcode through one <code>WebGLRenderer</code> under SwiftShader, same plane, same orthographic camera at 1:1, <code>NearestFilter</code>, no mipmaps, both textures tagged sRGB and the renderer outputting sRGB, and the two frames read back with <code>gl.readPixels</code> and differenced per channel over RGB. Sources for the eighteen were recovered with <code>git log --diff-filter=D</code> and <code>git show</code> against the parent of the commit that deleted each one; provenance was checked by re-encoding one with the shipped settings and comparing SHA-256 against the committed container, which matches byte for byte. The encoder sweep re-encoded each failing texture at <code>qualityLevel</code> 128, 192 and 255 and once as UASTC, and measured all four the same way. <strong>What was not run:</strong> no on-screen-size sweep. The gate is defined at 1:1 &mdash; <code>codecRms</code> in <code>tools/resize-textures.mjs</code> compares the decoded output against the pixels that went into the encoder &mdash; and re-measuring at the size furniture happens to be drawn at, in order to let a failure pass, would be moving the threshold rather than meeting it. <strong>Three repository inaccuracies were found and, unlike a planning pass, all three were fixed here:</strong> the Linear-sRGB frame behind C1's published figures, the one-directional repointer, and the &ldquo;1 bit per pixel&rdquo; claim in <code>tools/encode-textures.mjs</code>. The superseded oracle figures are kept in place with a corrected column written beside them rather than overwritten, because what C1 decided and why is still the record.</p>
   <p><strong>Sources &mdash; RM-006.</strong> <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_texture_basisu/README.md">KHR_texture_basisu</a> &middot; <a href="https://github.com/KhronosGroup/KTX-Specification">KTX 2.0 container specification</a> &middot; <a href="https://threejs.org/docs/#manual/en/introduction/Color-management">three.js &mdash; Color management</a> &middot; <a href="https://threejs.org/docs/#api/en/textures/CompressedTexture">three.js &mdash; CompressedTexture</a> &middot; <a href="https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_etc/">WEBGL_compressed_texture_etc</a></p>
   <p><strong>Method &mdash; RM-007.</strong> Two kinds of measurement against the working tree at <code>8510642</code> on branch <code>amit</code>, and one comparison. <em>The code</em> &mdash; every file under <code>src/scripts</code> and <code>src/app</code> read for what it does rather than what it says, with the line references in &sect; 33 and &sect; 34 pointing at that tree; the catalog and texture lists counted by script (168 items in eight placement types, 142 of them Kenney, 25 baked, one duck; five wall and two floor textures, two of them one file). <em>The application</em> &mdash; booted under Vite in headless Chromium at 1440&times;900 and 390&times;844, driven through fifteen states (plan, split, 3D, catalog open, two items added, item selected, walls drawn, wall selected on the plan and in 3D, walkthrough attempted, shortcuts dialog) and screenshotted at each; the &ldquo;0 of 2&rdquo; and &ldquo;40 px strip&rdquo; figures are read off those pictures, and rev B added 1024&times;768, 1280&times;720 and 1366&times;768 with the split view and the catalog open, reading the plan canvas width and <code>scrollWidth</code> against the viewport (462, 505 and 334 px of plan; no overflow at any). <em>The comparison</em> &mdash; Coohom's own floor-planner page and Sweet Home 3D's feature page were read for what a planner is expected to do, and used as a checklist and nothing more; no figure in this drawing comes from either. Effort is at the single-developer cadence RM-001 was planned at, stated at &plusmn;40 % because nothing here has been measured against a sprint yet; every programme gets its own drawing before it starts.</p>
+  <p><strong>Method &mdash; RM-008.</strong> Seven measurements against the working tree at <code>1d53fc8</code> on branch <code>amit</code>, five of them run in headless Chromium against the library as the dev server serves it rather than read off the source. <em>The structure</em> &mdash; a <code>Model</code> constructed in the page and its own properties and its floorplan's read back, which is how &ldquo;a Floorplan has no path to a Scene&rdquo; became a fact rather than an inference. <em>The two selection directions</em> &mdash; the application driven to one click each way, screenshots of the <em>other</em> pane captured immediately before and after, differenced per channel at a tolerance of 6; both returned zero changed pixels, which is what corrects RM-007. <em>The cost</em> &mdash; plans of 1, 4, 16 and 36 rooms built through the real <code>Floorplan</code> and drawn 60 times each after a warm-up, and item footprints drawn 60 times at 20, 60 and 150 into a 1200&times;800 canvas. <em>The coverage</em> &mdash; <code>coverage-summary.json</code> from <code>npm run test:coverage</code>, per file. <em>The primitive surface</em> &mdash; all 77 <code>this.context.*</code> calls in <code>floorplanner_view.js</code> attributed to their enclosing method by script. Effort is at the same single-developer cadence as every drawing in this set, and it is the first in the set to have <strong>raised</strong> its own estimate on the strength of a measurement.</p>
+  <p><strong>Sources &mdash; RM-008.</strong> <a href="https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D">MDN &mdash; CanvasRenderingContext2D</a> &middot; <a href="https://www.w3.org/TR/SVG2/">W3C &mdash; SVG 2</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame">MDN &mdash; requestAnimationFrame</a></p>
   <p><strong>Sources &mdash; RM-007.</strong> <a href="https://www.coohom.com/case/floor-planner">Coohom &mdash; Floor Planner</a> &middot; <a href="https://www.sweethome3d.com/features.jsp">Sweet Home 3D &mdash; Features</a> &middot; <a href="https://kenney.nl/assets/furniture-kit">Kenney &mdash; Furniture Kit (CC0)</a> &middot; <a href="https://polyhaven.com/">Poly Haven (CC0)</a> &middot; <a href="https://ambientcg.com/">ambientCG (CC0)</a> &middot; <a href="https://quaternius.com/">Quaternius (CC0)</a> &middot; <a href="https://threejs.org/docs/">three.js documentation</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API">MDN &mdash; Service Worker API</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API">MDN &mdash; IndexedDB</a></p>
-  <p>architect3d &middot; Delivery &amp; precision program RM-004 rev A &middot; <strong>delivered</strong>, all five sprints &middot; residual program RM-005 rev A &middot; <strong>delivered</strong>, both sprints &middot; correction program RM-006 rev A &middot; <strong>delivered</strong> &middot; product roadmap RM-007 rev B &middot; <strong>proposed</strong>, eight programmes, 42 weeks &middot; successor to hardening program RM-003</p>
+  <p>architect3d &middot; Delivery &amp; precision program RM-004 rev A &middot; <strong>delivered</strong>, all five sprints &middot; residual program RM-005 rev A &middot; <strong>delivered</strong>, both sprints &middot; correction program RM-006 rev A &middot; <strong>delivered</strong> &middot; product roadmap RM-007 rev B &middot; <strong>proposed</strong>, eight programmes, 42 weeks &middot; programme E RM-008 rev A &middot; <strong>proposed</strong>, four sprints, 7.5 weeks &middot; successor to hardening program RM-003</p>
   <p class="credit">Created by <a href="https://amitukind.com" target="_blank" rel="noopener noreferrer">Amit Verma</a></p>
 </footer>
 

@@ -69,6 +69,38 @@ open, the shell holds with no horizontal overflow and both panes usable. Rev A's
 totals were 26 sprints and 44.5 weeks; the drawing keeps them visible in its
 revision note.
 
+**RM-008, the drawing for programme E, added to `docs/public/roadmap.html`
+(§37–§40).** The first of RM-007's eight programmes to get its own sheet,
+measured against the tree before any of it is written — five of its seven
+findings run in headless Chromium against the library as the dev server serves
+it, not read off the source.
+
+Two findings shape the sprint. A `Floorplan` has six own properties and none of
+them is `model` or `scene`, and `BlueprintJS` hands the 2D view exactly that
+object — so the plan cannot reach an item even in principle, and E1 answers it
+with a projection published on the existing `CHANGE_ITEMS` ChangeSet rather
+than a back-reference that would put the scene inside the plain-data layer.
+And **cross-view selection does not exist in either direction**: a 3D wall click
+changes 0 of 492,000 plan pixels; a plan wall click changes 0 of 432,000 pixels
+of the 3D view.
+
+That second one **corrects RM-007**, written the same day, which said the
+cross-view selection was "already right" one way. It was hover state left over
+from the previous screenshot — a screenshot compared against a memory is not a
+measurement. Both directions are now differenced per channel in the same run.
+RM-007 keeps its figures with a `.corr` note beside them; E1 goes 2.5 → 3 weeks
+because it builds two directions rather than one, programme E 7 → 7.5, and the
+roadmap total 42 → 42.5. This is the first drawing in the set to raise its own
+estimate on the strength of a measurement.
+
+Three measurements clear risks rather than raising them: a 36-room, 144-wall
+plan draws in 0.593 ms and 150 item footprints add 0.197 ms, so the worst case
+is 4.7% of a frame; the plan's whole output is 77 canvas calls of which 64 sit
+inside eight primitive methods, which is what makes E4's SVG backend one week;
+and the five files E touches cover 36–69% of statements — the least-covered in
+the library, against a branch floor with 0.77% of headroom — so every sprint
+states a test budget. No code, asset or test changed.
+
 ## [3.0.1] - 2026-08-16
 
 No shipped code changed — `src/` is byte-identical to 3.0.0 and so is every
