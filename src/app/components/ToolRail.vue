@@ -2,7 +2,7 @@
 // @ts-check
 import {computed} from 'vue';
 import {
-	MousePointer2, PencilRuler, Eraser, Sofa, Footprints,
+	MousePointer2, PencilRuler, RectangleHorizontal, Eraser, Sofa, Footprints,
 	Copy, Trash2, Image as ImageIcon,
 } from '@lucide/vue';
 
@@ -60,6 +60,7 @@ const emit = defineEmits([
 const TOOLS = [
 	{id: floorplannerModes.MOVE, icon: MousePointer2, label: 'Select and move', keys: 'v'},
 	{id: floorplannerModes.DRAW, icon: PencilRuler, label: 'Draw walls', keys: 'w'},
+	{id: floorplannerModes.RECTANGLE, icon: RectangleHorizontal, label: 'Draw a rectangular room', keys: 'r'},
 	{id: floorplannerModes.DELETE, icon: Eraser, label: 'Delete walls', keys: 'x'},
 ];
 

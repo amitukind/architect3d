@@ -344,6 +344,10 @@ function onPlanPointerMove(event)
 		x: Dimensioning.pixelToCm(event.clientX - bounds.left) + Dimensioning.pixelToCm(planner.originX),
 		y: Dimensioning.pixelToCm(event.clientY - bounds.top) + Dimensioning.pixelToCm(planner.originY),
 	});
+	// The library's own handler has already run by now - this listener is bound
+	// on the canvas before App constructs the library, so the target is current
+	// rather than one event stale, the same ordering the readout above relies on.
+	editor.refreshDrawTarget();
 }
 
 function onAddItem(entry)
@@ -430,6 +434,7 @@ const bindings = computed(() => /** @type {Array<import('./composables/useShortc
 	// --- tools ---
 	{group: 'Tools', keys: 'v', label: 'Select and move', run: () => editor.setMode(floorplannerModes.MOVE)},
 	{group: 'Tools', keys: 'w', label: 'Draw walls', run: () => editor.setMode(floorplannerModes.DRAW)},
+	{group: 'Tools', keys: 'r', label: 'Draw a rectangular room', run: () => editor.setMode(floorplannerModes.RECTANGLE)},
 	{group: 'Tools', keys: 'x', label: 'Delete walls', run: () => editor.setMode(floorplannerModes.DELETE)},
 	{group: 'Tools', keys: 's', label: 'Toggle snap to grid', run: () => zoom.setSnap(!zoom.snap.value)},
 	{group: 'Tools', keys: 'a', label: 'Furniture catalog', run: toggleCatalog},
@@ -554,12 +559,17 @@ useShortcuts(() => bindings.value);
 								:spacing="zoom.spacing.value"
 								:spacings="zoom.gridSpacings"
 								:mode="editor.mode.value"
+								:angle-snap="editor.angleSnap.value"
+								:draw-target="editor.drawTarget.value"
+								:unit="display.unit.value"
 								@zoom-in="zoom.zoomIn"
 								@zoom-out="zoom.zoomOut"
 								@zoom-fit="zoom.zoomToFit"
 								@zoom-reset="zoom.resetZoom"
 								@centre="zoom.centre"
 								@set-snap="zoom.setSnap"
+								@set-angle-snap="editor.setAngleSnap"
+								@set-draw-target="editor.applyDrawTarget"
 								@set-spacing="zoom.setSpacing" />
 						</FloorplannerView>
 					</template>

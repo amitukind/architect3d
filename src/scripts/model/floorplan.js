@@ -499,6 +499,59 @@ export class Floorplan extends EventDispatcher
 	 * @param {Wall}
 	 *            wall The wall to be removed.
 	 */
+	/**
+	 * Draw a whole rectangular room in one gesture (RM-008 E2).
+	 *
+	 * Four corners and four walls, in one batch, so the plan re-derives once and
+	 * the undo stack gets one entry - the same reason `loadFloorplan` batches.
+	 * Without it this is eight separate edits and eight room re-derivations for
+	 * something a user thinks of as one act.
+	 *
+	 * Degenerate rectangles are refused rather than drawn. A zero width or height
+	 * produces two coincident corners, which `newCorner` merges inside
+	 * `cornerTolerance` anyway - leaving a plan with two walls on top of each
+	 * other and no room, which looks like the tool failed silently.
+	 *
+	 * @param {number} x1 One corner, in centimetres.
+	 * @param {number} y1
+	 * @param {number} x2 The opposite corner.
+	 * @param {number} y2
+	 * @returns {?Corner[]} The four corners in draw order, or null if refused.
+	 */
+	newRoomFromRectangle(x1, y1, x2, y2)
+	{
+		if (!isFinite(x1) || !isFinite(y1) || !isFinite(x2) || !isFinite(y2))
+		{
+			return null;
+		}
+		if (Math.abs(x2 - x1) < cornerTolerance || Math.abs(y2 - y1) < cornerTolerance)
+		{
+			return null;
+		}
+
+		this.beginBatch(REASON_EDIT);
+		try
+		{
+			var corners = [
+				this.newCorner(x1, y1),
+				this.newCorner(x2, y1),
+				this.newCorner(x2, y2),
+				this.newCorner(x1, y2),
+			];
+			for (var i = 0; i < 4; i++)
+			{
+				this.newWall(corners[i], corners[(i + 1) % 4]);
+			}
+			return corners;
+		}
+		finally
+		{
+			// As in loadFloorplan: a throw between here and the end would otherwise
+			// leave the batch open and the plan permanently frozen.
+			this.endBatch();
+		}
+	}
+
 	removeWall(wall)
 	{
 		this.dispatchEvent({type: EVENT_DELETED, item: this, deleted: wall, item_type: 'wall'});

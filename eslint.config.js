@@ -131,6 +131,9 @@ export default [
 				console: 'readonly',
 				navigator: 'readonly',
 				HTMLElement: 'readonly',
+				// Added by RM-008 E2: the plan overlay narrows an input event's target
+				// rather than asserting `.value` onto an EventTarget.
+				HTMLInputElement: 'readonly',
 				requestAnimationFrame: 'readonly',
 				cancelAnimationFrame: 'readonly',
 				setTimeout: 'readonly',

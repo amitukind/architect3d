@@ -19,6 +19,15 @@ import {footprintContains} from '../model/plan_projection.js';
 const ITEM_PICK_TOLERANCE_PIXELS = 4;
 
 /**
+ * The increment angle snapping rounds to, in degrees (RM-008 E2).
+ *
+ * Fifteen because it contains the angles a building is actually made of - 90
+ * for a square corner, 45 for a diagonal, 30 and 60 for a bay - and because the
+ * next divisor down, 10, misses 45 entirely.
+ */
+export const ANGLE_SNAP_DEGREES = 15;
+
+/**
  * Item types positioned by the wall they are attached to, and so not freely
  * draggable on the plan: WallItem (2), InWallItem (3), InWallFloorItem (7),
  * WallFloorItem (9). The same four the catalog calls wall-bound.
@@ -46,6 +55,44 @@ import {FloorplannerView2D, floorplannerModes} from './floorplanner_view.js';
 * The Floorplanner implements an interactive tool for creation of floorplans in
 * 2D.
 */
+/**
+ * Round a point's direction from an origin to the nearest snap increment,
+ * keeping its distance (RM-008 E2).
+ *
+ * Distance is kept rather than projected onto the snapped ray: projecting
+ * shortens the wall as the pointer swings away from the increment, so the length
+ * readout counts down while the pointer moves further out, which reads as the
+ * tool fighting the hand.
+ *
+ * @param {number} originX
+ * @param {number} originY
+ * @param {number} pointX
+ * @param {number} pointY
+ * @returns {{x: number, y: number, angle: number, length: number}} `angle` in
+ *          degrees, measured the way `Math.atan2` measures it.
+ */
+export function snapToAngle(originX, originY, pointX, pointY)
+{
+	var dx = pointX - originX;
+	var dy = pointY - originY;
+	var length = Math.sqrt((dx * dx) + (dy * dy));
+	if (length === 0)
+	{
+		// No direction to round. Returning the origin keeps the function total; a
+		// zero-length wall is refused downstream anyway.
+		return {x: originX, y: originY, angle: 0, length: 0};
+	}
+	var degrees = Math.atan2(dy, dx) * 180 / Math.PI;
+	var snapped = Math.round(degrees / ANGLE_SNAP_DEGREES) * ANGLE_SNAP_DEGREES;
+	var radians = snapped * Math.PI / 180;
+	return {
+		x: originX + (Math.cos(radians) * length),
+		y: originY + (Math.sin(radians) * length),
+		angle: snapped,
+		length: length,
+	};
+}
+
 export class Floorplanner2D extends EventDispatcher
 {
 	/**
@@ -141,6 +188,28 @@ export class Floorplanner2D extends EventDispatcher
 		
 		this.wallWidth = this.dimensioning.cmToPixel(this.configuration.getNumericValue('wallThickness'));
 		this.gridsnapmode = false;
+		/**
+		 * Round the direction of the wall being drawn to {@link ANGLE_SNAP_DEGREES}
+		 * (RM-008 E2).
+		 *
+		 * Its own mode rather than a modifier key. Shift is already taken - it turns
+		 * grid snapping on, which the README described as axis snapping until E2
+		 * looked - and a second meaning for one key is how a gesture becomes
+		 * unlearnable. Off by default, because it changes where a click lands.
+		 *
+		 * @type {boolean}
+		 */
+		this.anglesnapmode = false;
+		/**
+		 * The first corner of the rectangle being drawn, or null (RM-008 E2).
+		 *
+		 * Click-click rather than press-drag, matching the wall tool's rhythm: a
+		 * five-metre room is a long way to hold a button down, and a drag that ends
+		 * off the canvas has nowhere to release.
+		 *
+		 * @type {?{x: number, y: number}}
+		 */
+		this.rectangleAnchor = null;
 		this.shiftkey = false;
 		// Initialization:
 
@@ -397,7 +466,20 @@ export class Floorplanner2D extends EventDispatcher
 			this.targetY = this.mouseY;
 		}
 		
-		if(this.gridsnapmode || this.configuration.getNumericValue('snapToGrid'))
+		// Angle snapping wins outright while a wall is being drawn (RM-008 E2).
+		//
+		// It has to: the two branches above constrain the target's POSITION and
+		// this constrains its DIRECTION, and a position rounded to the grid after
+		// the direction was rounded to 15 degrees is at neither. Running this last
+		// and letting it overwrite is the only ordering where the wall you see is
+		// the wall you asked for, so grid snapping is skipped rather than fought.
+		if (this.anglesnapmode && this.mode == floorplannerModes.DRAW && this.lastNode)
+		{
+			var snapped = snapToAngle(this.lastNode.x, this.lastNode.y, this.mouseX, this.mouseY);
+			this.targetX = snapped.x;
+			this.targetY = snapped.y;
+		}
+		else if(this.gridsnapmode || this.configuration.getNumericValue('snapToGrid'))
 		{			
 			this.targetX = Math.floor(this.targetX / this.configuration.getNumericValue(snapTolerance)) * this.configuration.getNumericValue(snapTolerance);
 			this.targetY = Math.floor(this.targetY / this.configuration.getNumericValue(snapTolerance)) * this.configuration.getNumericValue(snapTolerance);
@@ -445,6 +527,14 @@ export class Floorplanner2D extends EventDispatcher
 		var bounds = this.canvasElement.getBoundingClientRect();
 		this.mouseX = this.dimensioning.pixelToCm((event.clientX - bounds.left)) + this.dimensioning.pixelToCm(this.originX);
 		this.mouseY = this.dimensioning.pixelToCm((event.clientY - bounds.top)) + this.dimensioning.pixelToCm(this.originY);
+
+		// A click with no pointer movement before it still has to land where the
+		// pointer is (RM-008 E2). `mousemove` is otherwise the only caller, so the
+		// first click of a session - or of a tool - used a target from before it.
+		if (this.mode == floorplannerModes.DRAW || this.mode == floorplannerModes.RECTANGLE)
+		{
+			this.updateTarget();
+		}
 
 		if(this._clickedWall)
 		{
@@ -547,7 +637,15 @@ export class Floorplanner2D extends EventDispatcher
 
 
 		// update target (snapped position of actual mouse)
-		if (this.mode == floorplannerModes.DRAW || (this.mode == floorplannerModes.MOVE && this.mouseDown))
+		//
+		// RECTANGLE added by RM-008 E2. Without it the tool's target never left
+		// the origin - `updateTarget` is the only thing that writes targetX/targetY
+		// and this was the only place that called it during a gesture - so every
+		// rectangle was measured from (0, 0) and refused as degenerate. Caught by
+		// driving the pointer, not by calling the method: a test that calls
+		// `placeRectangleCorner` directly sets the target itself and passes.
+		if (this.mode == floorplannerModes.DRAW || this.mode == floorplannerModes.RECTANGLE
+			|| (this.mode == floorplannerModes.MOVE && this.mouseDown))
 		{
 			this.updateTarget();
 		}
@@ -736,25 +834,13 @@ export class Floorplanner2D extends EventDispatcher
 			return;
 		}
 		// drawing
-		if (this.mode == floorplannerModes.DRAW && !this.mouseMoved)
+		if (this.mode == floorplannerModes.RECTANGLE && !this.mouseMoved)
 		{
-			// This creates the corner already
-			var corner = this.floorplan.newCorner(this.targetX, this.targetY);
-
-			// further create a newWall based on the newly inserted corners
-			// (one in the above line and the other in the previous mouse action
-			// of start drawing a new wall)
-			if (this.lastNode != null)
-			{
-				this.floorplan.newWall(this.lastNode, corner);
-				this.floorplan.newWallsForIntersections(this.lastNode, corner);
-				this.view.invalidate();
-			}
-			if (corner.mergeWithIntersected() && this.lastNode != null)
-			{
-				this.setMode(floorplannerModes.MOVE);
-			}
-			this.lastNode = corner;
+			this.placeRectangleCorner();
+		}
+		else if (this.mode == floorplannerModes.DRAW && !this.mouseMoved)
+		{
+			this.placeDrawTarget();
 		}
 		else
 		{
@@ -959,6 +1045,152 @@ export class Floorplanner2D extends EventDispatcher
 		this.view.invalidate();
 	}
 
+	/**
+	 * Put a corner where the drawing target is, and join it to the last one.
+	 *
+	 * Extracted from `mouseup` by RM-008 E2 so that typing a length is the same
+	 * act as clicking, rather than a second implementation of it that drifts.
+	 * Nothing about the body changed.
+	 *
+	 * @returns {?Object} The corner placed, or null outside drawing mode.
+	 */
+	placeDrawTarget()
+	{
+		if (this.mode != floorplannerModes.DRAW)
+		{
+			return null;
+		}
+		// This creates the corner already
+		var corner = this.floorplan.newCorner(this.targetX, this.targetY);
+
+		// further create a newWall based on the newly inserted corners
+		// (one in the above line and the other in the previous mouse action
+		// of start drawing a new wall)
+		if (this.lastNode != null)
+		{
+			this.floorplan.newWall(this.lastNode, corner);
+			this.floorplan.newWallsForIntersections(this.lastNode, corner);
+			this.view.invalidate();
+		}
+		if (corner.mergeWithIntersected() && this.lastNode != null)
+		{
+			this.setMode(floorplannerModes.MOVE);
+		}
+		this.lastNode = corner;
+		return corner;
+	}
+
+	/**
+	 * Take the next click of the rectangle tool (RM-008 E2).
+	 *
+	 * The first sets the anchor; the second draws the room and clears it, so the
+	 * tool is immediately ready for another. It stays in RECTANGLE mode rather
+	 * than dropping back to MOVE, because somebody laying out a flat draws several
+	 * rooms in a row and a tool that resigns after one has to be re-selected five
+	 * times.
+	 *
+	 * @returns {?Array<Object>} The four corners, or null if nothing was drawn.
+	 */
+	placeRectangleCorner()
+	{
+		if (this.mode != floorplannerModes.RECTANGLE)
+		{
+			return null;
+		}
+		if (!this.rectangleAnchor)
+		{
+			this.rectangleAnchor = {x: this.targetX, y: this.targetY};
+			this.view.invalidate();
+			return null;
+		}
+		var corners = this.floorplan.newRoomFromRectangle(
+			this.rectangleAnchor.x, this.rectangleAnchor.y, this.targetX, this.targetY);
+		// Cleared whether or not a room was drawn. A refused rectangle is one too
+		// small to be a room, and leaving the anchor set would make the next click
+		// try to finish the same degenerate one.
+		this.rectangleAnchor = null;
+		this.view.invalidate();
+		return corners;
+	}
+
+	/**
+	 * Where the wall being drawn currently ends, as a length and a bearing
+	 * (RM-008 E2).
+	 *
+	 * What the plan already draws beside the pointer, as numbers a caller can put
+	 * in a field. `angle` is degrees clockwise from east, which is what
+	 * `Math.atan2` gives on a canvas whose y grows downwards - the same convention
+	 * `snapToAngle` rounds and the same one the plan's own angle readout uses, so
+	 * the number in the field is the number on the canvas.
+	 *
+	 * @returns {?{length: number, angle: number, x: number, y: number}} Null when
+	 *          no wall is being drawn - not drawing mode, or no first corner yet.
+	 */
+	drawTarget()
+	{
+		if (this.mode != floorplannerModes.DRAW || !this.lastNode)
+		{
+			return null;
+		}
+		var dx = this.targetX - this.lastNode.x;
+		var dy = this.targetY - this.lastNode.y;
+		return {
+			length: Math.sqrt((dx * dx) + (dy * dy)),
+			angle: Math.atan2(dy, dx) * 180 / Math.PI,
+			x: this.targetX,
+			y: this.targetY,
+		};
+	}
+
+	/**
+	 * Move the drawing target to an exact length and bearing from the last corner
+	 * (RM-008 E2).
+	 *
+	 * The typed half of "draw to a number". Either argument may be omitted to
+	 * keep what the pointer is already saying, which is what makes typing a length
+	 * alone useful: the direction stays under the hand and only the distance is
+	 * pinned.
+	 *
+	 * It moves the target and nothing else. `placeDrawTarget()` is what commits
+	 * it, so a caller can show the wall before agreeing to it - and so that a
+	 * typed length behaves exactly like a click, because it ends in the same call.
+	 *
+	 * @param {?number} length Centimetres from the last corner, or null to keep
+	 *        the current distance.
+	 * @param {?number} angle Degrees, as `drawTarget` reports them, or null to
+	 *        keep the current bearing.
+	 * @returns {boolean} Whether the target moved. False outside drawing mode,
+	 *          with no first corner, or for a length that is not a positive
+	 *          finite number.
+	 */
+	setDrawTarget(length, angle)
+	{
+		var current = this.drawTarget();
+		if (!current)
+		{
+			return false;
+		}
+		var wanted = (length === null || length === undefined) ? current.length : Number(length);
+		var bearing = (angle === null || angle === undefined) ? current.angle : Number(angle);
+		if (!isFinite(wanted) || wanted <= 0 || !isFinite(bearing))
+		{
+			return false;
+		}
+		// `drawTarget()` returned non-null, which is exactly the test that
+		// `this.lastNode` is set - but the checker cannot carry a narrowing across
+		// a method call, so the node is read into a local it can see (RM-004 B3).
+		var origin = this.lastNode;
+		if (!origin)
+		{
+			return false;
+		}
+		var radians = bearing * Math.PI / 180;
+		this.targetX = origin.x + (Math.cos(radians) * wanted);
+		this.targetY = origin.y + (Math.sin(radians) * wanted);
+		this.view.invalidate();
+		return true;
+	}
+
 	/** */
 	mouseleave()
 	{
@@ -1014,6 +1246,9 @@ export class Floorplanner2D extends EventDispatcher
 	setMode(mode)
 	{
 		this.lastNode = null;
+		// A half-drawn rectangle does not survive leaving the tool (RM-008 E2).
+		// Escape resets the mode, so this is also what Escape clears.
+		this.rectangleAnchor = null;
 		this.mode = mode;
 		this.dispatchEvent({type:EVENT_MODE_RESET, mode: mode});
 		this.updateTarget();

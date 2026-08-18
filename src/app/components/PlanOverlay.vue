@@ -1,10 +1,11 @@
 <script setup>
 // @ts-check
+import {computed, ref} from 'vue';
 import {PopoverRoot, PopoverTrigger, PopoverPortal, PopoverContent} from 'reka-ui';
-import {ZoomIn, ZoomOut, Maximize2, Crosshair, Grid3x3, Magnet, ChevronDown} from '@lucide/vue';
+import {ZoomIn, ZoomOut, Maximize2, Crosshair, Grid3x3, Magnet, Triangle, ChevronDown} from '@lucide/vue';
 
 import AppTip from './AppTip.vue';
-import {floorplannerModes} from '../../scripts/blueprint.js';
+import {floorplannerModes, Dimensioning} from '../../scripts/blueprint.js';
 
 /**
  * The controls that float over the 2D plan.
@@ -37,12 +38,106 @@ const props = defineProps({
 		required: true,
 	},
 	mode: {type: Number, required: true},
+	angleSnap: {type: Boolean, default: false},
+	drawTarget: {
+		/**
+		 * The wall being drawn, or null when none is (RM-008 E2). Shape is
+		 * `Floorplanner2D.drawTarget()`'s, in centimetres and degrees.
+		 *
+		 * @type {import('vue').PropType<?{length: number, angle: number}>}
+		 */
+		type: Object,
+		default: null,
+	},
+	unit: {type: String, default: ''},
 });
 
 const emit = defineEmits([
 	'zoom-in', 'zoom-out', 'zoom-fit', 'zoom-reset', 'centre',
-	'set-snap', 'set-spacing',
+	'set-snap', 'set-spacing', 'set-angle-snap', 'set-draw-target',
 ]);
+
+/**
+ * The typed half of "draw to a number" (RM-008 E2).
+ *
+ * Two fields that mirror what the plan is already drawing beside the pointer,
+ * and write back to it. Local refs rather than a computed over the prop,
+ * because the prop changes on every pointermove and a field bound straight to
+ * it would rewrite itself under the cursor mid-type. `editing` is which field
+ * has focus; while one does, it keeps whatever was typed and the other keeps
+ * following the pointer.
+ */
+const typedLength = ref('');
+const typedAngle = ref('');
+const editing = ref('');
+
+const drawing = computed(() => props.drawTarget !== null);
+
+/** What each field shows: what was typed while focused, the live value if not. */
+const lengthShown = computed(() => (editing.value === 'length')
+	? typedLength.value
+	: (props.drawTarget ? round(Dimensioning.cmToMeasureRaw(props.drawTarget.length)) : ''));
+
+const angleShown = computed(() => (editing.value === 'angle')
+	? typedAngle.value
+	: (props.drawTarget ? round(props.drawTarget.angle) : ''));
+
+/** Two decimals is finer than anybody draws and shorter than a float prints. */
+function round(value)
+{
+	return String(Math.round(value * 100) / 100);
+}
+
+/**
+ * Read a field's value without asserting about the event target.
+ *
+ * `$event.target` is an `EventTarget`, which declares no `value` - only
+ * `HTMLInputElement` does. Narrowing here rather than in the template keeps the
+ * assertion in one place the checker can see (RM-004 B3).
+ *
+ * @param {string} which
+ * @param {Event} event
+ */
+function onTyped(which, event)
+{
+	const target = event.target;
+	if (!(target instanceof HTMLInputElement))
+	{
+		return;
+	}
+	if (which === 'length')
+	{
+		typedLength.value = target.value;
+		return;
+	}
+	typedAngle.value = target.value;
+}
+
+function focusField(which)
+{
+	editing.value = which;
+	typedLength.value = lengthShown.value;
+	typedAngle.value = angleShown.value;
+}
+
+/**
+ * Send both numbers, whichever was typed.
+ *
+ * Both, rather than only the edited one, because a length typed while the
+ * pointer keeps moving would otherwise land on a bearing the user never saw.
+ * Sending the pair pins the wall exactly where the two fields say it is.
+ */
+function commitTyped(place)
+{
+	const length = Dimensioning.cmFromMeasureRaw(Number(typedLength.value));
+	const angle = Number(typedAngle.value);
+	emit('set-draw-target', {
+		length: isFinite(length) ? length : null,
+		angle: isFinite(angle) ? angle : null,
+		place: place === true,
+	});
+	editing.value = '';
+}
 </script>
 
 <template>
@@ -94,6 +189,15 @@ const emit = defineEmits([
 				</button>
 			</AppTip>
 
+			<AppTip label="Snap the drawing angle to 15°" side="top" :delay="0">
+				<button
+					type="button" class="btn btn-icon" :class="{'is-active': props.angleSnap}"
+					:aria-pressed="props.angleSnap" title="Snap the drawing angle to 15 degrees"
+					@click="emit('set-angle-snap', !props.angleSnap)">
+					<Triangle :size="15" />
+				</button>
+			</AppTip>
+
 			<PopoverRoot>
 				<PopoverTrigger as-child>
 					<button type="button" class="btn gap-1 px-1.5" title="Grid spacing">
@@ -128,8 +232,41 @@ const emit = defineEmits([
 	<!-- Drawing is the one mode with a rule you cannot discover by trying, so it
 	     gets a persistent notice rather than only the status-bar hint. -->
 	<div
-		v-show="props.mode === floorplannerModes.DRAW"
+		v-show="props.mode === floorplannerModes.DRAW && !drawing"
 		class="btn-hint pointer-events-none absolute left-1/2 top-3 z-20 -translate-x-1/2 rounded-lg border border-line bg-overlay/90 px-3 py-1.5 text-[11px] shadow-float backdrop-blur">
-		Click to place corners · <kbd>Shift</kbd> to snap · <kbd>Esc</kbd> to finish
+		Click to place corners · <kbd>Shift</kbd> to snap to the grid · <kbd>Esc</kbd> to finish
+	</div>
+
+	<!-- Draw to a number (RM-008 E2). Only while a wall is actually being drawn:
+	     before the first corner there is no length to type, and the fields would
+	     be two disabled boxes explaining themselves. -->
+	<div
+		v-show="drawing"
+		class="glass pointer-events-auto absolute left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-2 px-2 py-1.5 text-[11px]">
+		<label class="flex items-center gap-1">
+			<span class="text-muted">Length</span>
+			<input
+				type="number" step="0.01" min="0" class="field-input w-20 py-0.5 text-[11px]"
+				:value="lengthShown"
+				@focus="focusField('length')"
+				@input="onTyped('length', $event)"
+				@keydown.enter.prevent="commitTyped(true)"
+				@keydown.tab="commitTyped(false)"
+				@blur="editing = ''">
+			<span class="text-muted">{{ props.unit }}</span>
+		</label>
+		<label class="flex items-center gap-1">
+			<span class="text-muted">Angle</span>
+			<input
+				type="number" step="1" class="field-input w-16 py-0.5 text-[11px]"
+				:value="angleShown"
+				@focus="focusField('angle')"
+				@input="onTyped('angle', $event)"
+				@keydown.enter.prevent="commitTyped(true)"
+				@keydown.tab="commitTyped(false)"
+				@blur="editing = ''">
+			<span class="text-muted">°</span>
+		</label>
+		<span class="text-muted"><kbd>Enter</kbd> places it</span>
 	</div>
 </template>

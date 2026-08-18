@@ -1,5 +1,5 @@
 // @ts-check
-import {onScopeDispose, ref, watch} from 'vue';
+import {onScopeDispose, ref, shallowRef, watch} from 'vue';
 import {EVENT_MODE_RESET, floorplannerModes} from '../../scripts/blueprint.js';
 
 /**
@@ -45,6 +45,96 @@ export function useFloorplannerMode(store)
 		}
 	}
 
+	/**
+	 * Whether the wall being drawn snaps its direction to 15 degrees
+	 * (RM-008 E2).
+	 *
+	 * A ref here rather than a read of `floorplanner.anglesnapmode`, for the
+	 * reason the settings panel's controls were rebuilt in RM-002 R-03: nothing
+	 * in the library is reactive, so a template bound straight to it renders once
+	 * and then sits there. The library holds the state; this mirrors it.
+	 */
+	var angleSnap = ref(false);
+
+	function setAngleSnap(flag)
+	{
+		angleSnap.value = Boolean(flag);
+		if (store.floorplanner.value)
+		{
+			store.floorplanner.value.anglesnapmode = angleSnap.value;
+		}
+	}
+
+	/**
+	 * The wall currently being drawn, as a length and a bearing, or null.
+	 *
+	 * Polled rather than pushed: the target moves on every pointermove, and the
+	 * library dispatches nothing for it - deliberately, since RM-002 R-05 spent a
+	 * sprint taking work out of that handler. `useZoom2D` reads the library the
+	 * same way for the same reason.
+	 */
+	var drawTarget = shallowRef(null);
+
+	/**
+	 * Read the target on the next frame, not on this event.
+	 *
+	 * The ordering matters and cost a browser round to find. App.vue's
+	 * `pointermove` listener is bound when the canvas mounts, which is *before*
+	 * App constructs the library - so this composable's caller runs before the
+	 * library's own handler, and reading the target here returns the previous
+	 * event's. Straight after a corner is placed that previous value is the
+	 * corner itself, so the length field read 0 while the plan drew 1.524 m
+	 * beside the pointer.
+	 *
+	 * A frame later is both correct and better: the plan repaints on the same
+	 * frame (P6's coalescing), so the number in the field and the number drawn on
+	 * the canvas are the same number, produced from the same state. Coalesced for
+	 * the same reason the repaint is - one read per frame, not one per move.
+	 */
+	var pendingRead = 0;
+
+	function refreshDrawTarget()
+	{
+		if (pendingRead)
+		{
+			return;
+		}
+		pendingRead = requestAnimationFrame(function ()
+		{
+			pendingRead = 0;
+			var planner = store.floorplanner.value;
+			drawTarget.value = planner ? planner.drawTarget() : null;
+		});
+	}
+
+	/**
+	 * Put the wall being drawn at an exact length and bearing, and optionally
+	 * place its corner.
+	 *
+	 * @param {{length: ?number, angle: ?number, place: boolean}} request
+	 */
+	function applyDrawTarget(request)
+	{
+		var planner = store.floorplanner.value;
+		if (!planner)
+		{
+			return;
+		}
+		if (!planner.setDrawTarget(request.length, request.angle))
+		{
+			return;
+		}
+		if (request.place)
+		{
+			planner.placeDrawTarget();
+		}
+		// Straight from the library, not through the frame above: this call
+		// already ran after the library's state changed, so there is nothing to
+		// wait for and a frame's delay would leave the fields showing the wall
+		// that was just committed.
+		drawTarget.value = planner.drawTarget();
+	}
+
 	function attach(floorplanner)
 	{
 		attached = {
@@ -76,5 +166,14 @@ export function useFloorplannerMode(store)
 
 	onScopeDispose(detach);
 
-	return {mode, setMode};
+	onScopeDispose(function ()
+	{
+		if (pendingRead)
+		{
+			cancelAnimationFrame(pendingRead);
+			pendingRead = 0;
+		}
+	});
+
+	return {mode, setMode, angleSnap, setAngleSnap, drawTarget, refreshDrawTarget, applyDrawTarget};
 }

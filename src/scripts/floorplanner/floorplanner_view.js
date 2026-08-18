@@ -44,7 +44,13 @@ import {CarbonSheet} from './carbonsheet.js';
  * @typedef {import('./floorplanner.js').Floorplanner2D} Floorplanner2D
  */
 /** */
-export const floorplannerModes = {MOVE: 0,DRAW: 1,DELETE: 2};
+/**
+ * RECTANGLE added by RM-008 E2. The three before it are the demo's and their
+ * numbers are load-bearing in nothing persisted - modes are interface state,
+ * never written to a file - but they are appended to rather than renumbered,
+ * because an embedder may have the old values in its own code.
+ */
+export const floorplannerModes = {MOVE: 0,DRAW: 1,DELETE: 2,RECTANGLE: 3};
 
 // grid parameters
 //export const gridSpacing = this.dimensioning.cmToPixel(25);//20; // pixels
@@ -665,6 +671,11 @@ export class FloorplannerView2D
 		// top of everything.
 		this.drawItems();
 
+		if (this.viewmodel.mode == floorplannerModes.RECTANGLE)
+		{
+			this.drawRectanglePreview();
+		}
+
 		if (this.viewmodel.mode == floorplannerModes.DRAW)
 		{
 			this.drawTarget(this.viewmodel.targetX, this.viewmodel.targetY, this.viewmodel.lastNode);
@@ -958,6 +969,35 @@ export class FloorplannerView2D
 			return 'hover';
 		}
 		return 'plain';
+	}
+
+	/**
+	 * The room the rectangle tool is about to draw (RM-008 E2).
+	 *
+	 * Outline and dimensions only - no fill - because a filled preview over a
+	 * filled room is unreadable exactly where it matters, which is when the new
+	 * room overlaps an old one. The two labels are the same `cmToMeasure` the
+	 * wall labels use, so a rectangle dragged to 4 m reads 4 m before it exists.
+	 */
+	drawRectanglePreview()
+	{
+		var anchor = this.viewmodel.rectangleAnchor;
+		if (!anchor)
+		{
+			this.drawTarget(this.viewmodel.targetX, this.viewmodel.targetY, null);
+			return;
+		}
+		var x1 = this.viewmodel.convertX(anchor.x);
+		var y1 = this.viewmodel.convertY(anchor.y);
+		var x2 = this.viewmodel.convertX(this.viewmodel.targetX);
+		var y2 = this.viewmodel.convertY(this.viewmodel.targetY);
+
+		this.drawPolygon([x1, x2, x2, x1], [y1, y1, y2, y2], false, null, true, floorplannerPalette.wallSelected, 2);
+
+		var width = Math.abs(this.viewmodel.targetX - anchor.x);
+		var depth = Math.abs(this.viewmodel.targetY - anchor.y);
+		this.drawTextLabel(this.dimensioning.cmToMeasure(width), (x1 + x2) / 2, Math.min(y1, y2) - 12);
+		this.drawTextLabel(this.dimensioning.cmToMeasure(depth), Math.max(x1, x2) + 26, (y1 + y2) / 2);
 	}
 
 	drawCornerAngles(corner)
