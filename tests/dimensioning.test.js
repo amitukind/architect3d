@@ -663,6 +663,20 @@ describe('Configuration - accepted keys and throwing behaviour', () =>
 		delete config.totallyMadeUp;
 	});
 
+	/**
+	 * The three label prefixes were 'e:', 'i:' and 'm:' until RM-008 E1 and are
+	 * now empty. That is a deliberate behaviour change, not a drift: the plan
+	 * captioned every wall `m:5m`, and the m stands for midline - a fact
+	 * available nowhere outside this repository.
+	 *
+	 * Changing a characterization expectation is normally the wrong move, so the
+	 * reasoning is here rather than in a commit message nobody will read next to
+	 * this line. What the prefix is FOR is telling two measurements apart when
+	 * interior and exterior lengths are drawn at once; `exterior` and `interior`
+	 * both default to false, so that has never been the shipped case. The keys
+	 * survive and are still configurable, so an embedder that turns those on can
+	 * set them back.
+	 */
 	it('exposes the non-configurable module constants cornerTolerance and wallInformation', () =>
 	{
 		expect(cornerTolerance).toBe(20);
@@ -671,9 +685,9 @@ describe('Configuration - accepted keys and throwing behaviour', () =>
 			interior: false,
 			midline: true,
 			labels: true,
-			exteriorlabel: 'e:',
-			interiorlabel: 'i:',
-			midlinelabel: 'm:',
+			exteriorlabel: '',
+			interiorlabel: '',
+			midlinelabel: '',
 		});
 	});
 });

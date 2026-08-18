@@ -13,6 +13,18 @@
     "is 360 bytes and one new component's classes would trip it, so it carries a",
     "flat ceiling instead of a percentage.",
     "",
+    "RM-008 E1 RAISED lib-esm-gzip, 50,300 -> 53,500. The ESM entry went 47,836 ->",
+    "50,938 gzipped because E1 adds a feature to the library rather than to the",
+    "application: model/plan_projection.js, the projection carrier and item commands",
+    "on Floorplan, and the footprint drawing and pointer handling in the two",
+    "floorplanner files. 3.1 KB gzipped for furniture on the 2D plan.",
+    "",
+    "Raised, not relaxed. The property this limit guards is unchanged and is checked",
+    "by the paragraph below: three and bezier-js are still external, and the figure",
+    "is still an order of magnitude below the ~423 KB a lost externals config would",
+    "produce. The new ceiling keeps the same ~5% headroom the limits were set with",
+    "on 2026-08-14, so the next change gets no more slack than the first one did.",
+    "",
     "lib-esm-gzip guards a property, not a size: the ESM entry externalises three",
     "and bezier-js as peerDependencies. Losing that config takes it from ~81 KB to",
     "~423 KB, so the limit is set well below the bundled figure and nowhere near",
@@ -390,8 +402,8 @@
       "measured": 6121106
     },
     "lib-esm-gzip": {
-      "limit": 50300,
-      "measured": 47836
+      "limit": 53500,
+      "measured": 50938
     },
     "public-largest": {
       "limit": 330000,

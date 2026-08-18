@@ -38,7 +38,17 @@ function defaultValues()
  */
 function defaultWallInformation()
 {
-	return {exterior: false, interior: false, midline: true, labels: true, exteriorlabel:'e:', interiorlabel:'i:', midlinelabel:'m:'};
+	// The three label prefixes are empty (RM-008 E1). They used to read 'e:',
+	// 'i:' and 'm:', which stand for exterior, interior and midline - so every
+	// wall on the plan was captioned `m:5m`, and nobody outside this repository
+	// could know what the m meant. A measurement is legible on its own; the
+	// prefix only becomes useful when two are shown at once, and `labels` is the
+	// flag that has always turned all three on and off together.
+	//
+	// Kept as configurable strings rather than deleted: an embedder showing
+	// interior AND exterior lengths together does need to tell them apart, and
+	// that caller can set them back to anything they like.
+	return {exterior: false, interior: false, midline: true, labels: true, exteriorlabel:'', interiorlabel:'', midlinelabel:''};
 }
 
 

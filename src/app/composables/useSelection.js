@@ -2,6 +2,7 @@
 import {computed, markRaw, onScopeDispose, ref, shallowRef, watch} from 'vue';
 import {EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED, EVENT_WALL_CLICKED, EVENT_FLOOR_CLICKED} from '../../scripts/blueprint.js';
 import {EVENT_NOTHING_CLICKED, EVENT_CORNER_2D_CLICKED, EVENT_WALL_2D_CLICKED, EVENT_ROOM_2D_CLICKED} from '../../scripts/blueprint.js';
+import {EVENT_ITEM_2D_CLICKED} from '../../scripts/blueprint.js';
 import {EVENT_CHANGESET} from '../../scripts/blueprint.js';
 
 /**
@@ -222,6 +223,30 @@ export function useSelection(store)
 			corner2d: (evt) => {select(SELECTION_CORNER_2D, evt.item);},
 			wall2d: (evt) => {select(SELECTION_WALL_2D, evt.item);},
 			room2d: (evt) => {select(SELECTION_ROOM_2D, evt.item);},
+			/**
+			 * A footprint was picked on the plan (RM-008 E1).
+			 *
+			 * The event carries a footprint and an id, not an item - the plan draws
+			 * a description of the furniture and never holds it. So the id is
+			 * resolved here, against the same scene `resolve()` already searches,
+			 * and the result goes into the one selection this composable keeps.
+			 * From there the inspector opens and the 3D view highlights, by the
+			 * same path a 3D pick takes.
+			 *
+			 * SELECTION_ITEM, not a type of its own: it is the same chair whichever
+			 * view was clicked, and giving the plan its own selection type would
+			 * mean every consumer learning that two types mean one thing - which is
+			 * the trap SELECTION_WALL and SELECTION_WALL_2D already are, and those
+			 * two really are different objects.
+			 */
+			item2d: (evt) =>
+			{
+				var item = blueprint.model.itemById ? blueprint.model.itemById(evt.id) : null;
+				if (item)
+				{
+					select(SELECTION_ITEM, item);
+				}
+			},
 		};
 
 		three.addEventListener(EVENT_ITEM_SELECTED, handlers.itemSelected);
@@ -233,6 +258,7 @@ export function useSelection(store)
 		floorplan.addEventListener(EVENT_CORNER_2D_CLICKED, handlers.corner2d);
 		floorplan.addEventListener(EVENT_WALL_2D_CLICKED, handlers.wall2d);
 		floorplan.addEventListener(EVENT_ROOM_2D_CLICKED, handlers.room2d);
+		floorplan.addEventListener(EVENT_ITEM_2D_CLICKED, handlers.item2d);
 		floorplan.addEventListener(EVENT_CHANGESET, handlers.changed);
 	}
 
@@ -254,6 +280,7 @@ export function useSelection(store)
 		floorplan.removeEventListener(EVENT_CORNER_2D_CLICKED, handlers.corner2d);
 		floorplan.removeEventListener(EVENT_WALL_2D_CLICKED, handlers.wall2d);
 		floorplan.removeEventListener(EVENT_ROOM_2D_CLICKED, handlers.room2d);
+		floorplan.removeEventListener(EVENT_ITEM_2D_CLICKED, handlers.item2d);
 		floorplan.removeEventListener(EVENT_CHANGESET, handlers.changed);
 
 		handlers = null;
@@ -268,6 +295,71 @@ export function useSelection(store)
 		if (blueprint)
 		{
 			attach(blueprint);
+		}
+	}, {immediate: true});
+
+	/**
+	 * Which of the 2D view's selection slots a selection type belongs in
+	 * (RM-008 E1).
+	 *
+	 * `SELECTION_WALL` and `SELECTION_WALL_2D` both land on 'wall' because they
+	 * are the same wall reached two ways - the 3D picks a face and the plan picks
+	 * the wall - and `Floorplanner2D.showSelection` unwraps the face. Everything
+	 * else that has no plan representation, including a floor picked in 3D that
+	 * resolves to a room, maps to what the plan can actually draw.
+	 */
+	const PLAN_SELECTION = {
+		[SELECTION_ITEM]: 'item',
+		[SELECTION_WALL]: 'wall',
+		[SELECTION_WALL_2D]: 'wall',
+		[SELECTION_CORNER_2D]: 'corner',
+		[SELECTION_FLOOR]: 'room',
+		[SELECTION_ROOM_2D]: 'room',
+	};
+
+	/**
+	 * Keep the plan showing whatever is selected, wherever it was selected
+	 * (RM-008 T-2).
+	 *
+	 * The measured finding this closes: a wall clicked in the 3D view changed
+	 * zero of the plan's 492,000 pixels, because the plan highlighted only what
+	 * the plan had been clicked on. The selection has always been shared - it
+	 * lives here, in one ref - and only the drawing of it was one-sided.
+	 *
+	 * This is the app's job rather than the library's on purpose. `src/scripts`
+	 * has no idea there are two views on one document; coordinating them is
+	 * exactly what this layer is for, and putting it here means an embedder using
+	 * only the 3D view pays nothing for it.
+	 *
+	 * Watches `selection` - the resolved object, not the stored id - so a
+	 * re-derived room or a rebuilt wall lights up the successor rather than
+	 * silently nothing.
+	 */
+	watch([selection, () => store.floorplanner.value, () => store.three.value], function ([current, planner, three])
+	{
+		// One local, narrowed once, rather than `current &&` at four call sites -
+		// the checker cannot carry the narrowing across a property read otherwise.
+		var target = (current && current.object) ? current.object : null;
+		var type = (current && target) ? current.type : null;
+
+		if (planner && typeof planner.showSelection === 'function')
+		{
+			planner.showSelection(type ? (PLAN_SELECTION[type] || null) : null, target);
+		}
+
+		// And the 3D view, which had the same one-sidedness in the other
+		// direction: `Controller.setSelectedObject` was only ever called with a
+		// real item by a click in the 3D view itself, so picking a chair on the
+		// plan left the 3D chair unhighlighted - zero changed pixels, measured.
+		//
+		// Items only. A wall, room or corner has no selected appearance in 3D to
+		// show - `Edge` and `Floor` draw hover and nothing else - so there is
+		// nothing to push, and inventing a highlight for them is a visual change
+		// with a parity capture attached rather than a wiring one. Named here so
+		// the asymmetry is a decision on the record instead of an omission.
+		if (three && typeof three.showItemSelected === 'function')
+		{
+			three.showItemSelected((type === SELECTION_ITEM) ? target : null);
 		}
 	}, {immediate: true});
 

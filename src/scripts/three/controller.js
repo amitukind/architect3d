@@ -212,13 +212,24 @@ export class Controller extends EventDispatcher
 	{
 		var scope = this;
 		this.mouse = vec2 || this.mouse;
+		// Before `itemIntersection`, not after it (RM-008 E1).
+		//
+		// The guard was already here and sat one line too late: `itemIntersection`
+		// reads `item.freePosition` and calls `item.customIntersectionPlanes()`, so
+		// a null selection threw there and never reached the check written to
+		// prevent it. Unreachable until E1, because the only way to hold state
+		// SELECTED with nothing selected was `Main.clearSelection()`, which ran on
+		// teardown. Clearing the selection from the plan while the pointer is live
+		// over the 3D view reaches it on the first try - "Cannot read properties of
+		// null (reading 'customIntersectionPlanes')", found by driving the
+		// application rather than by reading it.
+		if (!this.selectedObject)
+		{
+			return;
+		}
 		var intersection = scope.itemIntersection(this.mouse, this.selectedObject);
 		if (intersection)
 		{
-			if (!this.selectedObject)
-			{
-				return;
-			}
 			if (scope.isRotating())
 			{
 				this.selectedObject.rotate(intersection);
@@ -668,6 +679,34 @@ export class Controller extends EventDispatcher
 	}
 
 	// manage the selected object
+	/**
+	 * Drop the selection and return the state machine to rest (RM-008 E1).
+	 *
+	 * `setSelectedObject(null)` clears the object but deliberately leaves the
+	 * state alone - see the note in that method for why it cannot switch from
+	 * inside itself. That is fine for the path that always called it, which is
+	 * `onEntry(UNSELECTED)` arriving here already on its way to UNSELECTED, and
+	 * wrong for a caller outside the machine: the controller is then SELECTED
+	 * with nothing selected, and `checkWallsAndFloors` - which only runs while
+	 * UNSELECTED - stops answering. Measured as: clearing the selection on the
+	 * plan made every wall in the 3D view unclickable until an item was picked
+	 * and dropped there.
+	 *
+	 * So the way out from outside is a state transition, and `onEntry(UNSELECTED)`
+	 * does the clearing on the way through. One line, and it is the difference
+	 * between the two views sharing a selection and the 3D view quietly losing
+	 * its picking.
+	 */
+	deselect()
+	{
+		if (this.state !== states.UNSELECTED)
+		{
+			this.switchState(states.UNSELECTED);
+			return;
+		}
+		this.setSelectedObject(null);
+	}
+
 	setSelectedObject(object)
 	{
 		if (this.state === states.UNSELECTED)
@@ -687,6 +726,14 @@ export class Controller extends EventDispatcher
 		else
 		{
 			this.selectedObject = null;
+			// Deliberately NOT switching the state machine to UNSELECTED here.
+			// `onEntry(UNSELECTED)` calls this method, and `switchState` assigns
+			// `this.state` only after `onEntry` returns - so a switch from inside
+			// this branch re-enters through onEntry forever. Tried, and the suite
+			// returned a stack overflow rather than a wrong picture, which is the
+			// good outcome. The state may therefore be SELECTED with nothing
+			// selected; `clickDragged` is the one place that mattered, and it now
+			// checks before it dereferences.
 			this.three.itemIsUnselected();
 		}
 		this.needsUpdate = true;

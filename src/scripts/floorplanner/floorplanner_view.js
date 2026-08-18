@@ -6,6 +6,27 @@ import {EVENT_UPDATED} from '../core/events.js';
 
 import {gridSpacing, configWallThickness} from '../core/configuration.js';
 import {resolveCanvas, measureViewport, pixelRatio} from '../core/dom.js';
+import {footprintCorners} from '../model/plan_projection.js';
+
+/**
+ * Item types the plan draws as openings in a wall rather than as boxes on it
+ * (RM-008 E1): WallItem (2), InWallItem (3), InWallFloorItem (7) and
+ * WallFloorItem (9). The same four `useCatalog` calls wall-bound, and the same
+ * four the save-format documentation lists - named here rather than imported
+ * because `src/scripts` does not import from `src/app`, and duplicated with
+ * this note rather than silently.
+ */
+const WALL_BOUND_ITEM_TYPES = [2, 3, 7, 9];
+/** InWallFloorItem - a door. The only opening that gets a swing arc. */
+const ITEM_TYPE_IN_WALL_FLOOR = 7;
+/** OnFloorItem - a rug. Drawn before everything else so furniture sits on it. */
+const ITEM_TYPE_ON_FLOOR = 8;
+/**
+ * Below this on-screen size, in canvas pixels, an item's caption is suppressed.
+ * The same judgement `drawEdgeLabel` makes about wall lengths at 60, scaled to
+ * the smaller thing being labelled.
+ */
+const ITEM_LABEL_MIN_PIXELS = 34;
 import {CarbonSheet} from './carbonsheet.js';
 
 
@@ -140,6 +161,27 @@ export const floorplannerPalette = {
 	curveCasing: '#999999',
 	/** The drag puck on a curved wall's control point. */
 	wallControl: '#F7F7F7',
+
+	/**
+	 * Furniture on the plan (RM-008 E1).
+	 *
+	 * Deliberately quieter than the walls: the plan is a drawing of a building
+	 * and the furniture is what is standing in it, so a sofa must not out-draw
+	 * the wall it stands against. Fill is translucent for the same reason - two
+	 * items that overlap should look like two items, not one opaque blob.
+	 */
+	item: '#7E8CA3',
+	itemFill: 'rgba(126,140,163,0.16)',
+	itemHover: '#FF8A3D',
+	itemSelected: '#2B5DA8',
+	/** Locked items, which cannot be dragged and should not invite the attempt. */
+	itemFixed: '#A9B2C1',
+	/** The tick on the front edge, which is what tells a chair's facing. */
+	itemFacing: '#5D6F83',
+	/** Doors and windows, drawn into the wall run rather than as boxes on it. */
+	opening: '#2B5DA8',
+	openingFill: '#FFFFFF',
+	itemLabel: '#5D6F83',
 };
 
 /**
@@ -613,8 +655,16 @@ export class FloorplannerView2D
 		this.floorplan.getCorners().forEach((corner) => {
 			this.drawCorner(corner);
 			});
-		
-		
+
+		// Furniture, after the building and before the drawing aids (RM-008 E1).
+		//
+		// The order is why this is one line here rather than a branch inside
+		// drawRoom: a footprint sits ON the floor of a room and UNDER the wall it
+		// is against, and the wall pass has already run. Aids - the wall being
+		// drawn, its angle arc, the control puck - are transient and belong on
+		// top of everything.
+		this.drawItems();
+
 		if (this.viewmodel.mode == floorplannerModes.DRAW)
 		{
 			this.drawTarget(this.viewmodel.targetX, this.viewmodel.targetY, this.viewmodel.lastNode);
@@ -683,6 +733,233 @@ export class FloorplannerView2D
 		this.draw();
 	}
 	
+	/**
+	 * Every item in the design, as a footprint (RM-008 E1).
+	 *
+	 * Reads `floorplan.itemProjection` - plain data handed over by `Model` - and
+	 * never touches an item. See `model/plan_projection.js` for why the 2D view
+	 * is given a description rather than the scene: a `Floorplan` has no path to
+	 * a `Scene`, measured rather than assumed, and giving it one would put the
+	 * GPU inside the plain-data layer.
+	 *
+	 * Costs 0.032 ms for twenty footprints and 0.197 ms for a hundred and fifty,
+	 * measured before this was written (RM-008 T-4), against a 36-room plan that
+	 * draws in 0.593 ms. Nothing here is conditional on a count, for that reason.
+	 *
+	 * Rugs first, so furniture standing on one is drawn over it - the one
+	 * ordering rule inside the pass, and the same one the 3D view applies by
+	 * giving `OnFloorItem` its own class.
+	 */
+	drawItems()
+	{
+		var projection = this.floorplan.itemProjection;
+		if (!projection || !projection.length)
+		{
+			return;
+		}
+		var scope = this;
+		projection.forEach(function (footprint)
+		{
+			if (footprint.type === ITEM_TYPE_ON_FLOOR)
+			{
+				scope.drawItem(footprint);
+			}
+		});
+		projection.forEach(function (footprint)
+		{
+			if (footprint.type !== ITEM_TYPE_ON_FLOOR)
+			{
+				scope.drawItem(footprint);
+			}
+		});
+	}
+
+	/**
+	 * One footprint.
+	 *
+	 * An item with no size draws nothing: that is an item still downloading, and
+	 * a dot where a wardrobe is about to appear is worse than nothing. It stays
+	 * in the projection regardless, because the count is what M-23 asserts.
+	 *
+	 * @param {import('../model/plan_projection.js').ItemFootprint} footprint
+	 */
+	drawItem(footprint)
+	{
+		if (footprint.halfWidth <= 0 || footprint.halfDepth <= 0)
+		{
+			return;
+		}
+		if (WALL_BOUND_ITEM_TYPES.indexOf(footprint.type) !== -1)
+		{
+			this.drawOpening(footprint);
+			return;
+		}
+
+		var corners = footprintCorners(footprint).map((corner) => ({
+			x: this.viewmodel.convertX(corner.x),
+			y: this.viewmodel.convertY(corner.y),
+		}));
+		var state = this.itemState(footprint);
+		var stroke = (state === 'selected') ? floorplannerPalette.itemSelected
+			: (state === 'hover') ? floorplannerPalette.itemHover
+				: (footprint.fixed ? floorplannerPalette.itemFixed : floorplannerPalette.item);
+
+		this.drawPolygon(
+			corners.map((corner) => corner.x),
+			corners.map((corner) => corner.y),
+			true, floorplannerPalette.itemFill,
+			true, stroke, (state === 'plain') ? 1.5 : 2.5);
+
+		this.drawItemFacing(corners, floorplannerPalette.itemFacing);
+		this.drawItemLabel(footprint);
+	}
+
+	/**
+	 * The tick across the front edge.
+	 *
+	 * Without it a rectangle says where a chair is and not which way it faces,
+	 * and facing is most of what a furniture plan is read for. Drawn as a
+	 * chevron into the item rather than an arrow out of it, so it stays inside
+	 * the footprint and cannot be read as a dimension line.
+	 *
+	 * @param {Array<{x: number, y: number}>} corners In canvas pixels.
+	 * @param {string} color
+	 */
+	drawItemFacing(corners, color)
+	{
+		// footprintCorners returns the item's own -x-y, +x-y, +x+y, -x+y, so 0
+		// and 1 are the front edge whatever the rotation is.
+		var left = corners[0];
+		var right = corners[1];
+		var back = corners[3];
+		var depth = 0.22;
+		var apexX = ((left.x + right.x) / 2) + ((back.x - left.x) * depth);
+		var apexY = ((left.y + right.y) / 2) + ((back.y - left.y) * depth);
+		this.drawLine(left.x, left.y, apexX, apexY, 1.5, color);
+		this.drawLine(right.x, right.y, apexX, apexY, 1.5, color);
+	}
+
+	/**
+	 * The item's name, under it.
+	 *
+	 * Suppressed below a size threshold in CANVAS pixels rather than
+	 * centimetres, because the question is whether a caption fits beside the
+	 * thing it names on screen - the same test `drawEdgeLabel` applies to wall
+	 * lengths at 60, and the reason a plan zoomed out to a whole house is not a
+	 * field of overlapping words.
+	 *
+	 * @param {import('../model/plan_projection.js').ItemFootprint} footprint
+	 */
+	drawItemLabel(footprint)
+	{
+		if (!footprint.label)
+		{
+			return;
+		}
+		var widthOnScreen = this.dimensioning.cmToPixel(footprint.halfWidth * 2);
+		var depthOnScreen = this.dimensioning.cmToPixel(footprint.halfDepth * 2);
+		if (Math.min(widthOnScreen, depthOnScreen) < ITEM_LABEL_MIN_PIXELS)
+		{
+			return;
+		}
+		this.drawTextLabel(
+			footprint.label,
+			this.viewmodel.convertX(footprint.x),
+			this.viewmodel.convertY(footprint.y) + (depthOnScreen / 2) + 12,
+			floorplannerPalette.itemLabel,
+			floorplannerPalette.labelHalo);
+	}
+
+	/**
+	 * A door or a window, drawn into the wall rather than onto it.
+	 *
+	 * An opening is a gap in a wall, and a plan that draws it as a box sitting
+	 * on the wall reads as furniture pushed against it. So the wall run is
+	 * masked over the opening's width, the reveal is stroked on both sides, and
+	 * a door adds the quarter-circle swing every architectural plan uses. This
+	 * draws the hole `three/edge.js:471` already cuts in the 3D wall - the same
+	 * opening, drawn the way a plan draws one.
+	 *
+	 * The swing is a convention, not a measurement: nothing in the model records
+	 * a hinge side or an opening angle yet. That is F1's work (RM-007 Q-2), and
+	 * until then every door swings the same way and the arc says "door" rather
+	 * than "this door opens like this".
+	 *
+	 * @param {import('../model/plan_projection.js').ItemFootprint} footprint
+	 */
+	drawOpening(footprint)
+	{
+		var corners = footprintCorners(footprint).map((corner) => ({
+			x: this.viewmodel.convertX(corner.x),
+			y: this.viewmodel.convertY(corner.y),
+		}));
+		var state = this.itemState(footprint);
+		var color = (state === 'selected') ? floorplannerPalette.itemSelected
+			: (state === 'hover') ? floorplannerPalette.itemHover : floorplannerPalette.opening;
+
+		this.drawPolygon(
+			corners.map((corner) => corner.x),
+			corners.map((corner) => corner.y),
+			true, floorplannerPalette.openingFill, false, color, 0);
+		this.drawLine(corners[0].x, corners[0].y, corners[1].x, corners[1].y, 2, color);
+		this.drawLine(corners[3].x, corners[3].y, corners[2].x, corners[2].y, 2, color);
+
+		if (footprint.type === ITEM_TYPE_IN_WALL_FLOOR)
+		{
+			this.drawDoorSwing(corners, color);
+		}
+	}
+
+	/**
+	 * The quarter circle a door leaf sweeps.
+	 *
+	 * @param {Array<{x: number, y: number}>} corners In canvas pixels.
+	 * @param {string} color
+	 */
+	drawDoorSwing(corners, color)
+	{
+		var hinge = corners[0];
+		var leafX = corners[1].x - corners[0].x;
+		var leafY = corners[1].y - corners[0].y;
+		var radius = Math.sqrt((leafX * leafX) + (leafY * leafY));
+		if (radius < 4)
+		{
+			return;
+		}
+		var start = Math.atan2(leafY, leafX);
+		this.context.strokeStyle = color;
+		this.context.lineWidth = 1;
+		this.context.beginPath();
+		this.context.arc(hinge.x, hinge.y, radius, start, start + (Math.PI / 2), false);
+		this.context.stroke();
+		this.drawLine(hinge.x, hinge.y,
+			hinge.x + (radius * Math.cos(start + (Math.PI / 2))),
+			hinge.y + (radius * Math.sin(start + (Math.PI / 2))), 1, color);
+	}
+
+	/**
+	 * How a footprint should be drawn: plain, hovered or selected.
+	 *
+	 * Both ids come off the view model, which is where every other hover and
+	 * selection state on this canvas already lives - `activeWall`, `activeCorner`,
+	 * `activeRoom`. One more of the same kind, rather than a second mechanism.
+	 *
+	 * @param {import('../model/plan_projection.js').ItemFootprint} footprint
+	 * @returns {string} 'plain', 'hover' or 'selected'
+	 */
+	itemState(footprint)
+	{
+		if (this.viewmodel.selectedItemId === footprint.id)
+		{
+			return 'selected';
+		}
+		if (this.viewmodel.activeItemId === footprint.id)
+		{
+			return 'hover';
+		}
+		return 'plain';
+	}
+
 	drawCornerAngles(corner)
 	{
 		var ox = this.viewmodel.convertX(corner.location.x);

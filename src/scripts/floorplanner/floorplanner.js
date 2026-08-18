@@ -8,6 +8,22 @@ import {EVENT_CORNER_2D_HOVER, EVENT_WALL_2D_HOVER, EVENT_ROOM_2D_HOVER} from '.
 import {EVENT_CORNER_2D_CLICKED, EVENT_ROOM_2D_CLICKED, EVENT_WALL_2D_CLICKED} from '../core/events.js';
 import {EVENT_CORNER_2D_DOUBLE_CLICKED, EVENT_ROOM_2D_DOUBLE_CLICKED, EVENT_WALL_2D_DOUBLE_CLICKED} from '../core/events.js';
 import {EVENT_NOTHING_CLICKED} from '../core/events.js';
+import {EVENT_ITEM_2D_CLICKED, EVENT_ITEMS_PROJECTED} from '../core/events.js';
+import {footprintContains} from '../model/plan_projection.js';
+
+/**
+ * How close a pointer has to be to a footprint to pick it, in CANVAS pixels
+ * (RM-008 E1). Converted to centimetres per call so the target stays the same
+ * size on screen at every zoom.
+ */
+const ITEM_PICK_TOLERANCE_PIXELS = 4;
+
+/**
+ * Item types positioned by the wall they are attached to, and so not freely
+ * draggable on the plan: WallItem (2), InWallItem (3), InWallFloorItem (7),
+ * WallFloorItem (9). The same four the catalog calls wall-bound.
+ */
+const WALL_BOUND_ITEM_TYPES = [2, 3, 7, 9];
 import {resolveCanvas} from '../core/dom.js';
 import {FloorplannerView2D, floorplannerModes} from './floorplanner_view.js';
 
@@ -57,6 +73,28 @@ export class Floorplanner2D extends EventDispatcher
 		this._clickedCorner = null;
 		/** */
 		this._clickedRoom = null;
+		/**
+		 * The furniture, as ids (RM-008 E1).
+		 *
+		 * Ids rather than footprints, because a footprint is a value that is
+		 * rebuilt on every projection - holding one would mean holding a stale
+		 * copy the moment anything moved. The id is stable; the view looks the
+		 * footprint up when it draws.
+		 *
+		 * `selectedItemId` lives here beside `activeItemId` for the same reason
+		 * `activeWall` and `_clickedWall` do: this class is where the 2D view's
+		 * interaction state is kept, and the alternative - the view asking the
+		 * application what is selected - would point the library at its embedder.
+		 *
+		 * @type {?string}
+		 */
+		this.activeItemId = null;
+		/** @type {?string} The item picked on the plan, drawn emphasised. */
+		this.selectedItemId = null;
+		/** @type {?string} The item being dragged right now, or null. */
+		this._draggingItemId = null;
+		/** Pointer offset within the footprint at grab time, so it does not jump. */
+		this._itemGrabOffset = {x: 0, y: 0};
 		/** */
 		this.originX = 0;
 		/** */
@@ -147,6 +185,10 @@ export class Floorplanner2D extends EventDispatcher
 		floorplan.addEventListener(EVENT_CORNER_ATTRIBUTES_CHANGED, this._updateViewEvent);
 		floorplan.addEventListener(EVENT_WALL_ATTRIBUTES_CHANGED, this._updateViewEvent);
 		floorplan.addEventListener(EVENT_ROOM_ATTRIBUTES_CHANGED, this._updateViewEvent);
+		// A new projection is a new picture (RM-008 E1). Same coalesced redraw as
+		// every other attribute change - one draw per animation frame, not one per
+		// event, which is what P6 established and what makes a drag affordable.
+		floorplan.addEventListener(EVENT_ITEMS_PROJECTED, this._updateViewEvent);
 	}
 
 	/**
@@ -180,6 +222,7 @@ export class Floorplanner2D extends EventDispatcher
 		document.removeEventListener('keydown', this._keyDownEvent);
 
 		this.floorplan.removeEventListener(EVENT_LOADED, this._floorplanLoadedEvent);
+		this.floorplan.removeEventListener(EVENT_ITEMS_PROJECTED, this._updateViewEvent);
 		this.floorplan.removeEventListener(EVENT_CORNER_ATTRIBUTES_CHANGED, this._updateViewEvent);
 		this.floorplan.removeEventListener(EVENT_WALL_ATTRIBUTES_CHANGED, this._updateViewEvent);
 		this.floorplan.removeEventListener(EVENT_ROOM_ATTRIBUTES_CHANGED, this._updateViewEvent);
@@ -417,14 +460,37 @@ export class Floorplanner2D extends EventDispatcher
 		
 		var mDownCorner = this.floorplan.overlappedCorner(this.mouseX, this.mouseY, undefined);
 		var mDownWall = this.floorplan.overlappedWall(this.mouseX, this.mouseY, undefined);
+		var mDownItem = this.overlappedItem(this.mouseX, this.mouseY);
 		var mDownRoom = this.floorplan.overlappedRoom(this.mouseX, this.mouseY);
 		this._clickedWallControl = null;
-		
+
+		// Furniture is picked before the room it stands in and after the walls
+		// and corners that define it (RM-008 E1). The order is the useful one: a
+		// wall passing under a wide sofa stays grabbable, and clicking a chair
+		// does not select the room around it.
+		if (mDownCorner == null && mDownWall == null && mDownItem != null)
+		{
+			this._clickedCorner = undefined;
+			this._clickedWall = undefined;
+			this._clickedRoom = undefined;
+			this.selectItem(mDownItem.id);
+			if (this.mode == floorplannerModes.MOVE && !mDownItem.fixed && this.itemIsDraggable(mDownItem))
+			{
+				this._draggingItemId = mDownItem.id;
+				this._itemGrabOffset = {x: this.mouseX - mDownItem.x, y: this.mouseY - mDownItem.y};
+			}
+			this.view.invalidate();
+			return;
+		}
+
 		if(mDownCorner == null && mDownWall == null && mDownRoom == null)
 		{
 			this._clickedCorner = undefined;
 			this._clickedWall = undefined;
 			this._clickedRoom = undefined;
+			// Clicking bare canvas drops the furniture selection too, or a chair
+			// stays highlighted while the inspector shows nothing (RM-008 E1).
+			this.selectItem(null);
 			this.floorplan.dispatchEvent({type:EVENT_NOTHING_CLICKED});
 		}
 		
@@ -434,6 +500,7 @@ export class Floorplanner2D extends EventDispatcher
 			this._clickedWall = undefined;
 			this._clickedRoom = undefined;
 			this._clickedCorner = mDownCorner;
+			this.selectItem(null);
 			this.floorplan.dispatchEvent({type:EVENT_CORNER_2D_CLICKED, item: this._clickedCorner});
 		}
 		
@@ -443,6 +510,7 @@ export class Floorplanner2D extends EventDispatcher
 			this._clickedWall = undefined;
 			this._clickedRoom = undefined;
 			this._clickedWall = mDownWall;
+			this.selectItem(null);
 			this.floorplan.dispatchEvent({type:EVENT_WALL_2D_CLICKED, item: this._clickedWall});
 		}
 		
@@ -452,6 +520,7 @@ export class Floorplanner2D extends EventDispatcher
 			this._clickedWall = undefined;
 			this._clickedRoom = undefined;
 			this._clickedRoom = mDownRoom;
+			this.selectItem(null);
 			this.floorplan.dispatchEvent({type:EVENT_ROOM_2D_CLICKED, item: this._clickedRoom});
 		}
 		this.view.invalidate();
@@ -525,6 +594,17 @@ export class Floorplanner2D extends EventDispatcher
 				draw = true;
 			}
 
+			// Furniture hover, on the same rule as the pick: only when no corner
+			// or wall is under the pointer (RM-008 E1).
+			var hoverItem = (this.activeCorner == null && this.activeWall == null)
+				? this.overlappedItem(this.mouseX, this.mouseY) : null;
+			var hoverItemId = hoverItem ? hoverItem.id : null;
+			if (hoverItemId !== this.activeItemId)
+			{
+				this.activeItemId = hoverItemId;
+				draw = true;
+			}
+
 			if (draw)
 			{
 				this.view.invalidate();
@@ -533,7 +613,12 @@ export class Floorplanner2D extends EventDispatcher
 
 		var mx, my;
 		// panning.
-		if (this.mouseDown  && !this.activeCorner && !this.activeWall && !this._clickedWallControl)
+		// `!this._draggingItemId` added by RM-008 E1: this branch runs BEFORE the
+		// drag branches below, and its condition was "nothing else is grabbed" -
+		// expressed as a list of the things that could be grabbed at the time.
+		// A grabbed item is a new member of that list, and without it the first
+		// drag of a chair panned the whole plan instead. Found by dragging one.
+		if (this.mouseDown && !this.activeCorner && !this.activeWall && !this._clickedWallControl && !this._draggingItemId)
 //		else if (this.mouseDown && (this.activeCorner==null) && (this.activeWall==null) && (this._clickedWallControl == null))
 //		else if (this.mouseDown && (!this._clickedCorner) && (!this._clickedWall) && (this._clickedWallControl == null))
 		{
@@ -546,6 +631,30 @@ export class Floorplanner2D extends EventDispatcher
 			this.view.invalidate();
 		}
 		// dragging
+		// Dragging a footprint (RM-008 E1). Before the wall-control branch because
+		// grabbing an item is exclusive: nothing else can be under the pointer at
+		// the same time, mousedown having returned early.
+		if (this.mode == floorplannerModes.MOVE && this.mouseDown && this._draggingItemId)
+		{
+			var itemX = this.mouseX - this._itemGrabOffset.x;
+			var itemY = this.mouseY - this._itemGrabOffset.y;
+			if (this.gridsnapmode || this.configuration.getNumericValue('snapToGrid'))
+			{
+				var step = this.configuration.getNumericValue(snapTolerance);
+				itemX = Math.round(itemX / step) * step;
+				itemY = Math.round(itemY / step) * step;
+			}
+			var commands = this.floorplan.itemCommands;
+			if (commands)
+			{
+				// Moves and re-projects; the redraw happens on the frame this
+				// invalidate schedules, so nothing is dispatched per pointermove.
+				commands.move(this._draggingItemId, itemX, itemY);
+			}
+			this.view.invalidate();
+			return;
+		}
+
 		if (this.mode == floorplannerModes.MOVE && this.mouseDown)
 		{
 			if(this._clickedWallControl != null)
@@ -612,6 +721,20 @@ export class Floorplanner2D extends EventDispatcher
 	mouseup(/*event*/)
 	{
 		this.mouseDown = false;
+
+		// One undo entry for the whole drag, recorded when the pointer is let go
+		// (RM-008 E1, T-7) - the same moment the 3D controller commits one.
+		if (this._draggingItemId)
+		{
+			var commands = this.floorplan.itemCommands;
+			if (commands && this.mouseMoved)
+			{
+				commands.commit(this._draggingItemId);
+			}
+			this._draggingItemId = null;
+			this.view.invalidate();
+			return;
+		}
 		// drawing
 		if (this.mode == floorplannerModes.DRAW && !this.mouseMoved)
 		{
@@ -653,6 +776,186 @@ export class Floorplanner2D extends EventDispatcher
 				this._clickedWall.updateAttachedRooms(true);
 			}
 		}
+		this.view.invalidate();
+	}
+
+	/**
+	 * Which footprint is under a point in plan space (RM-008 E1).
+	 *
+	 * Last match wins, so the item drawn on top is the one picked - the draw pass
+	 * runs rugs first and then everything else, and a chair standing on a rug
+	 * should be what a click on the chair selects.
+	 *
+	 * The tolerance is in centimetres and scales with the zoom: at 25 % a 4 cm
+	 * lamp base is one screen pixel, and a target nobody can hit is a feature
+	 * nobody has. Converting a fixed pixel margin back into centimetres is what
+	 * keeps the target the same size on screen at every zoom.
+	 *
+	 * @param {number} x Plan space, centimetres.
+	 * @param {number} y Plan space, centimetres.
+	 * @returns {?import('../model/plan_projection.js').ItemFootprint}
+	 */
+	overlappedItem(x, y)
+	{
+		var projection = this.floorplan.itemProjection;
+		if (!projection || !projection.length)
+		{
+			return null;
+		}
+		var tolerance = this.dimensioning.pixelToCm(ITEM_PICK_TOLERANCE_PIXELS);
+		var found = null;
+		for (var i = 0; i < projection.length; i++)
+		{
+			if (projection[i].halfWidth > 0 && projection[i].halfDepth > 0
+				&& footprintContains(projection[i], x, y, tolerance))
+			{
+				found = projection[i];
+			}
+		}
+		return found;
+	}
+
+	/**
+	 * Whether the plan may drag this item.
+	 *
+	 * Wall-bound items - doors, windows, wall cabinets - are positioned by the
+	 * wall they are attached to, and `WallItem` re-derives that placement from
+	 * its edge whenever the wall moves. Dragging one freely on the plan would
+	 * set a position the next wall edit silently discards, which is a worse
+	 * outcome than not offering the drag. They can still be selected here, and
+	 * they still slide along their wall in 3D.
+	 *
+	 * Sliding one along its wall from the plan is real and is F1's, where the
+	 * opening becomes parametric and has a position along the wall to set
+	 * (RM-007 Q-2).
+	 *
+	 * @param {import('../model/plan_projection.js').ItemFootprint} footprint
+	 * @returns {boolean}
+	 */
+	itemIsDraggable(footprint)
+	{
+		return WALL_BOUND_ITEM_TYPES.indexOf(footprint.type) === -1;
+	}
+
+	/**
+	 * Select an item from the plan, or clear the selection (RM-008 E1).
+	 *
+	 * Half of what T-2 found missing: before this, clicking anything on the plan
+	 * changed nothing in the 3D view. This announces the pick and stops; the
+	 * application hears it, resolves the id to an item, and puts that in the one
+	 * selection it keeps - which is what makes the 3D view and the inspector
+	 * follow without this class knowing either exists.
+	 *
+	 * @param {?string} id
+	 */
+	selectItem(id)
+	{
+		if (this.selectedItemId === id)
+		{
+			return;
+		}
+		this.selectedItemId = id || null;
+		// One event, in the shape of the three beside it - EVENT_WALL_2D_CLICKED,
+		// EVENT_CORNER_2D_CLICKED, EVENT_ROOM_2D_CLICKED - carrying the footprint
+		// and the id. The application resolves that id to an item and puts it in
+		// the one selection it already keeps.
+		//
+		// Deliberately NOT dispatched through the item commands: the library has
+		// no idea there are two views on this document, and coordinating them is
+		// the application's job. The clearing case needs no event of its own -
+		// `mousedown` has already dispatched EVENT_NOTHING_CLICKED or one of the
+		// other three, and every one of those means "not an item".
+		if (this.selectedItemId)
+		{
+			this.floorplan.dispatchEvent({
+				type: EVENT_ITEM_2D_CLICKED,
+				item: this.floorplan.footprintById(this.selectedItemId),
+				id: this.selectedItemId,
+			});
+		}
+	}
+
+	/**
+	 * Show on the plan what something else selected (RM-008 E1, T-2).
+	 *
+	 * Before E1 the plan highlighted only what the plan itself had been clicked
+	 * on: `selectedWall` reads `_clickedWall`, which is written by `mousedown`
+	 * and by nothing else. So selecting a wall in the 3D view changed zero pixels
+	 * here - measured, not inferred - and the two views shared nothing but the
+	 * inspector.
+	 *
+	 * This is the inbound path. It writes the same fields a plan click writes and
+	 * dispatches NOTHING, which is what stops a selection echoing between the two
+	 * views forever. The outbound paths - `mousedown` and `selectItem` - are the
+	 * only things here that dispatch.
+	 *
+	 * A `HalfEdge` is accepted where a `Wall` is expected and unwrapped, because
+	 * the 3D view genuinely selects a face rather than a wall (`Main.wallIsClicked`
+	 * passes a HalfEdge straight through) and the plan genuinely selects a wall.
+	 * They have always been different things behind one name; this is the one
+	 * place that has to know it.
+	 *
+	 * @param {?string} type 'wall', 'corner', 'room', 'item', or null to clear.
+	 * @param {*} target The selected object, or an item id when type is 'item'.
+	 */
+	showSelection(type, target)
+	{
+		var wall = null;
+		var corner = null;
+		var room = null;
+		var itemId = null;
+
+		if (type === 'wall')
+		{
+			wall = (target && target.wall) ? target.wall : target;
+		}
+		else if (type === 'corner')
+		{
+			corner = target;
+		}
+		else if (type === 'room')
+		{
+			room = target;
+		}
+		else if (type === 'item')
+		{
+			itemId = (target && target.designId) ? target.designId : target;
+		}
+
+		var unchanged = (this._clickedWall === wall)
+			&& (this._clickedCorner === corner)
+			&& (this._clickedRoom === room)
+			&& (this.selectedItemId === (itemId || null));
+		if (unchanged)
+		{
+			return;
+		}
+
+		this._clickedWall = wall;
+		this._clickedCorner = corner;
+		this._clickedRoom = room;
+		this.selectedItemId = itemId || null;
+		this.view.invalidate();
+	}
+
+	/**
+	 * Show an item as selected on the plan because something else selected it.
+	 *
+	 * The other half of T-2: an item picked in the 3D view, or restored by undo,
+	 * has to light up here without this class dispatching a selection of its own
+	 * and starting a loop. `selectItem` is the outbound path and this is the
+	 * inbound one; keeping them separate is what makes the loop impossible rather
+	 * than merely unlikely.
+	 *
+	 * @param {?string} id
+	 */
+	showItemSelected(id)
+	{
+		if (this.selectedItemId === (id || null))
+		{
+			return;
+		}
+		this.selectedItemId = id || null;
 		this.view.invalidate();
 	}
 

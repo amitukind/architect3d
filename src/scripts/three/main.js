@@ -8,6 +8,7 @@ import {PointerLockControls} from './pointerlockcontrols.js';
 import {describeFrom} from '../core/texture_formats.js';
 
 import {EVENT_CHANGESET, EVENT_WALL_CLICKED, EVENT_NOTHING_CLICKED, EVENT_FLOOR_CLICKED, EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED, EVENT_GLTF_READY} from '../core/events.js';
+import {EVENT_ITEMS_PROJECTED} from '../core/events.js';
 import {CHANGE_TOPOLOGY} from '../core/change_set.js';
 import {EVENT_FPS_EXIT, EVENT_CAMERA_VIEW_CHANGE} from '../core/events.js';
 import {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY} from '../core/constants.js';
@@ -208,6 +209,8 @@ export class Main extends EventDispatcher
 
 		var scope = this;
 		this.updatedevent = (evt)=>{scope.onModelChanged(evt.changes);};
+		/** An item's placement changed; this viewer renders on demand (RM-008 E1). */
+		this.itemsprojectedevent = ()=>{scope.ensureNeedsUpdate();};
 		this.gltfreadyevent = (o)=>{scope.gltfReady(o);};
 
 		this.clippingPlaneActive = new Plane(new Vector3(0, 0, 1), 0.0);
@@ -503,6 +506,16 @@ export class Main extends EventDispatcher
 		scope.centerCamera();
 
 		scope.model.floorplan.addEventListener(EVENT_CHANGESET, this.updatedevent);
+		// An item moved on the plan (RM-008 E1). This viewer renders on demand -
+		// there is no continuous loop - so a position written by the 2D drag would
+		// otherwise sit in the scene graph until something unrelated asked for a
+		// frame, and the 3D view would show the furniture where it used to be.
+		//
+		// EVENT_ITEMS_PROJECTED rather than a new event: the projection is
+		// recomputed exactly when an item's placement changes, which is exactly
+		// when this view is stale. It asks for a frame and nothing more; the
+		// scene graph is already correct by the time it arrives.
+		scope.model.floorplan.addEventListener(EVENT_ITEMS_PROJECTED, this.itemsprojectedevent);
 		scope.model.addEventListener(EVENT_GLTF_READY, this.gltfreadyevent);
 
 		scope.lights = new Lights(scope.scene, scope.model.floorplan, scope.renderProfile);
@@ -565,6 +578,7 @@ export class Main extends EventDispatcher
 		if (this._clickEvent) { this.element.removeEventListener('click', this._clickEvent); }
 
 		this.model.floorplan.removeEventListener(EVENT_CHANGESET, this.updatedevent);
+		this.model.floorplan.removeEventListener(EVENT_ITEMS_PROJECTED, this.itemsprojectedevent);
 		this.model.removeEventListener(EVENT_GLTF_READY, this.gltfreadyevent);
 
 		if (this.controller)
@@ -772,6 +786,58 @@ export class Main extends EventDispatcher
 		{
 			this.controller.setSelectedObject(null);
 		}
+	}
+
+	/**
+	 * Show an item as selected here because something else selected it
+	 * (RM-008 E1, T-2).
+	 *
+	 * The 3D view's selection has only ever been set by picking in the 3D view:
+	 * `Controller.mouseUpEvent` is the sole caller of `setSelectedObject` with
+	 * anything but null. So selecting a chair on the plan lit it up on the plan,
+	 * opened the inspector, and left the 3D view showing an unhighlighted chair -
+	 * measured at zero changed pixels, which is the second half of what T-2
+	 * found.
+	 *
+	 * `setSelectedObject` already does the right things in the right order - it
+	 * unselects the previous item, moves the state machine out of UNSELECTED and
+	 * dispatches EVENT_ITEM_SELECTED - so this is a named way in rather than new
+	 * behaviour. The name says what it is for: `clearSelection` is its opposite
+	 * and has been public since before the migration.
+	 *
+	 * @param {?Object} item An item from `Scene.getItems()`, or null to clear.
+	 */
+	showItemSelected(item)
+	{
+		if (!this.controller)
+		{
+			return;
+		}
+		if (this.controller.selectedObject === item)
+		{
+			return;
+		}
+		// Anything that is not an item this view can highlight clears the
+		// selection instead of being handed to the controller.
+		//
+		// Not defensive padding: `useSelection` documents that an embedder may
+		// dispatch EVENT_ITEM_SELECTED "with anything it likes", and it keeps
+		// whatever it was given when the object carries no id. Two suites do
+		// exactly that with a stub, and `setSelectedObject` calls `setSelected()`
+		// on what it is passed - so without this the first selection in an
+		// embedder's own test is a TypeError inside the library. Found by running
+		// it, not by reading it.
+		var selectable = item && typeof item.setSelected === 'function';
+		if (selectable)
+		{
+			this.controller.setSelectedObject(item);
+			return;
+		}
+		// `deselect`, not `setSelectedObject(null)`: the second clears the object
+		// and leaves the state machine claiming a selection, which stops
+		// `checkWallsAndFloors` running and makes every wall in this view
+		// unclickable. See Controller.deselect.
+		this.controller.deselect();
 	}
 
 

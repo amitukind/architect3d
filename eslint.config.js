@@ -191,6 +191,10 @@ export default [
 			globals: {
 				window: 'readonly',
 				document: 'readonly',
+				// Added by RM-008 E1, whose frame-budget test times a draw. This tier
+				// is the only one with a real rasteriser, so it is the only place a
+				// frame cost can honestly be measured.
+				performance: 'readonly',
 				navigator: 'readonly',
 				console: 'readonly',
 				location: 'readonly',

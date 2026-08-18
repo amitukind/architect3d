@@ -101,7 +101,123 @@ export class Model extends EventDispatcher
 		this.scene.addEventListener(EVENT_ITEM_LOADED, this._reproject);
 		this.scene.addEventListener(EVENT_ITEM_REMOVED, this._reproject);
 		this.scene.addEventListener(EVENT_ITEM_MOVE_FINISH, this._reproject);
+
+		// And the way back: what the 2D plan may do to an item (RM-008 E1).
+		//
+		// Same shape as `Scene.setItemLoader` - the layer takes functions rather
+		// than importing the thing that does the work - so the plan can move a
+		// chair without holding the chair. The plan knows an id and a position in
+		// centimetres; everything about what an item IS stays on this side.
+		this.floorplan.setItemCommands({
+			move: (id, x, y) => {this.moveItemInPlan(id, x, y);},
+			rotate: (id, radians) => {this.rotateItemInPlan(id, radians);},
+			commit: (id) => {this.commitItemGesture(id);},
+		});
 	}
+
+	/**
+	 * The item carrying an id, or null (RM-008 E1).
+	 *
+	 * `designId` rather than `uuid`: it is the identity the save file carries and
+	 * the one `useSelection` already resolves against, so an id that came off a
+	 * footprint names the same item everywhere.
+	 *
+	 * @param {?string} id
+	 * @returns {?Object}
+	 */
+	itemById(id)
+	{
+		if (!id)
+		{
+			return null;
+		}
+		var items = this.scene.getItems();
+		for (var i = 0; i < items.length; i++)
+		{
+			if (items[i].designId === id)
+			{
+				return items[i];
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Move an item, because the plan was dragged (RM-008 E1).
+	 *
+	 * Writes `position` directly and keeps the height, for the reason
+	 * `Scene.updateItem` documents: `moveToPosition` is the interactive 3D path
+	 * and carries placement rules that can silently refuse the move. A drag on
+	 * the plan is a deliberate instruction with the destination visible, and an
+	 * item that stops following the pointer without saying why is the worst of
+	 * the available behaviours.
+	 *
+	 * The projection is refreshed but nothing is dispatched as finished - that is
+	 * `commitItemGesture`, once, when the pointer is released, so the undo stack
+	 * gets one entry for the drag rather than one per pointermove (T-7).
+	 *
+	 * @param {string} id
+	 * @param {number} x Plan space, centimetres.
+	 * @param {number} y Plan space, centimetres (the 3D z).
+	 */
+	moveItemInPlan(id, x, y)
+	{
+		var item = this.itemById(id);
+		if (!item)
+		{
+			return;
+		}
+		item.position.x = x;
+		item.position.z = y;
+		if (item.bhelper)
+		{
+			item.bhelper.update();
+		}
+		this.projectItemsToPlan();
+	}
+
+	/**
+	 * Turn an item, because the plan asked.
+	 *
+	 * @param {string} id
+	 * @param {number} radians About the vertical axis.
+	 */
+	rotateItemInPlan(id, radians)
+	{
+		var item = this.itemById(id);
+		if (!item)
+		{
+			return;
+		}
+		item.rotation.y = radians;
+		if (item.bhelper)
+		{
+			item.bhelper.update();
+		}
+		this.projectItemsToPlan();
+	}
+
+	/**
+	 * The gesture is over: tell everybody once.
+	 *
+	 * EVENT_ITEM_MOVE_FINISH is what the 3D controller dispatches when a drag
+	 * ends and what `useHistory` records an undo entry from, so a plan drag and a
+	 * 3D drag produce the same single entry. Dispatched on the scene, which is
+	 * where the existing listeners are - a second channel for the same fact would
+	 * be a second thing to keep in step.
+	 *
+	 * @param {string} id
+	 */
+	commitItemGesture(id)
+	{
+		var item = this.itemById(id);
+		if (!item)
+		{
+			return;
+		}
+		this.scene.dispatchEvent({type: EVENT_ITEM_MOVE_FINISH, item: item});
+	}
+
 
 	/**
 	 * Recompute the plan's view of the furniture and hand it over (RM-008 E1).

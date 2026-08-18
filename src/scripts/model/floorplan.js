@@ -202,6 +202,11 @@ export class Floorplan extends EventDispatcher
 		 */
 		this.itemProjection = [];
 		/**
+		 * How the plan asks for an item to change - see {@link Floorplan#setItemCommands}.
+		 * @type {?Object}
+		 */
+		this._itemCommands = null;
+		/**
 		 * The {@link CarbonSheet} that handles the background image to show in
 		 * the 2D view
 		 * 
@@ -942,6 +947,38 @@ export class Floorplan extends EventDispatcher
 	/**
 	 * @deprecated
 	 */
+	/**
+	 * How the plan asks for an item to change (RM-008 E1).
+	 *
+	 * The projection tells the 2D view what is there; this is how the view says
+	 * "the user dragged that". Installed by `Model`, which owns both halves, in
+	 * exactly the style `Scene.setItemLoader` already uses: the layer takes a
+	 * function rather than importing the thing that does the work. Null in a
+	 * document with no scene wired up - a bare `Floorplan` built by a test - and
+	 * every call site checks, so the plan degrades to read-only rather than
+	 * throwing.
+	 *
+	 * @typedef {Object} ItemCommands
+	 * @property {function(string, number, number): void} move Item id, plan x, plan y, in cm.
+	 * @property {function(string, number): void} rotate Item id, radians.
+	 * @property {function(string): void} commit Item id: the gesture is over, record it.
+	 *
+	 * @param {?ItemCommands} commands
+	 */
+	setItemCommands(commands)
+	{
+		this._itemCommands = commands || null;
+	}
+
+	/**
+	 * What the plan may do to an item, or null if nothing is wired up.
+	 * @returns {?Object}
+	 */
+	get itemCommands()
+	{
+		return this._itemCommands || null;
+	}
+
 	/**
 	 * Replace the plan's view of the furniture (RM-008 E1).
 	 *
