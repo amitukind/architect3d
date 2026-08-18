@@ -2,8 +2,74 @@
 
 ## [Unreleased]
 
-Nothing here changes shipped code. `src/`, `public/` and every build artifact
-are identical to 3.0.1, so no version is cut for it.
+**RM-008 E1 delivered: the plan shows the design.** Furniture, doors and
+windows are drawn on the 2D plan, picked and dragged there, and selection now
+crosses between the plan and the 3D view in both directions. Before this the 2D
+view had no code path for items at all, and RM-008 T-2 measured cross-view
+selection at zero changed pixels each way; it is 5,732 and 20,224 now,
+differenced by the same method that found the fault.
+
+The contract landed first and alone, as the drawing committed: `Model` derives a
+list of footprints — plain numbers and strings, no three.js types, no methods —
+and hands it to the floorplan as data. Nothing gained a back-reference to the
+scene and `Floorplanner2D` still takes two arguments. Because it is pure data it
+is pinned by 24 tests with no canvas, and coverage rose on the commit that
+introduced the feature.
+
+Four bugs surfaced by driving the application rather than reading it, three of
+them older than this sprint. `Controller.clickDragged` guarded a null selection
+one line *after* the call that dereferences it — unreachable until clearing the
+selection from the plan made it reachable. `setSelectedObject(null)` leaves the
+state machine in SELECTED, which stops `checkWallsAndFloors` and makes every
+wall in the 3D view unclickable; `Controller.deselect()` is the way out, and it
+cannot be done inside `setSelectedObject` because `onEntry(UNSELECTED)` calls
+that — attempted, and the suite returned a stack overflow. The pan branch's
+condition is a list of things that could be grabbed and an item was not on it,
+so the first drag of a chair panned the plan. And `Main.showItemSelected` is
+handed whatever is selected, which `useSelection` documents may be anything at
+all.
+
+Wall labels no longer read `m:5m`. The prefixes are the wall-information flags
+and the `m` stands for midline; they are empty strings now and still
+configurable, because an embedder drawing interior and exterior lengths together
+does need to tell them apart. A characterization test pinned the old default,
+and the reasoning for changing it is recorded beside the assertion.
+
+Two things did **not** change, and the second is a correction. The save format
+is untouched — a footprint is derived, never stored. And RM-007's claim that the
+split view leaves the plan half off the left edge does not reproduce: measured
+on both paths, the plan is centred, off by 8 px and 1 px, clipped in neither.
+Nothing was written for it, because forcing a zoom-to-fit on every layout change
+would discard a zoom and pan the user chose.
+
+    branches   68.77 -> 70.09      lines      80.32 -> 80.71
+    statements 80.26 -> 80.66      functions  79.17 -> 79.62
+
+Every file the sprint touched ends higher than it started, which was its own
+acceptance criterion: `floorplanner.js` 63.40 → 68.31, `floorplanner_view.js`
+69.26 → 73.37, `model/model.js` 78.49 → 82.83, `plan_projection.js` at 100. 38
+new tests — 28 headless, 10 in the browser tier for M-23 and M-32, including a
+2 ms frame budget for a 36-room, 150-item plan against the 0.79 ms measured.
+
+`lib-esm-gzip` **raised** 50,300 → 53,500 with the reason in `tools/budget.json`:
+the ESM entry grew 3.1 KB gzipped because this is a library feature, not an
+application one. The property that limit guards — three and bezier-js external,
+an order of magnitude below the ~423 KB a lost externals config produces — is
+unchanged, and the new ceiling keeps the same ~5% headroom the limits were set
+with.
+
+New public API, all additive: `EVENT_ITEMS_PROJECTED`, `EVENT_ITEM_2D_CLICKED`,
+`projectItem`, `projectItems`, `footprintContains`, `footprintCorners`,
+`Floorplan.setItemProjection` / `itemProjection` / `footprintById` /
+`setItemCommands`, `Floorplanner2D.showSelection` / `overlappedItem` /
+`itemIsDraggable` / `selectItem`, `Main.showItemSelected`, `Controller.deselect`,
+`Model.itemById` / `projectItemsToPlan` / `dispose` and the three plan-item
+commands.
+
+### Everything below this line changed no shipped code
+
+`src/`, `public/` and every build artifact were identical to 3.0.1 for all of
+it, so no version was cut.
 
 **The Deploy workflow no longer runs on push.** It has failed at
 `actions/configure-pages` on every push to `master` — including the merge that
