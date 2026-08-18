@@ -187,6 +187,71 @@ export function installResizeObserver(window)
 }
 
 /**
+ * A frame clock that never advances on its own - tests drive it by hand.
+ *
+ * jsdom does supply requestAnimationFrame (vitest's environment runs it with
+ * pretendToBeVisual), but it fires off a ~16 ms timer, which makes any test of
+ * P6's coalescing a race: "did the frame not run yet, or did it run and draw
+ * nothing?" are the same observation. This replaces it with a queue, so
+ * `pending()` is the exact number of frames outstanding and `tick()` runs
+ * exactly one round of them.
+ *
+ * One round, not a drain: a callback that schedules another frame is the shape
+ * of a coalescing bug - a draw that dirties the view it just drew - and a
+ * draining tick would loop forever instead of reporting it.
+ *
+ * @returns {{tick: Function, pending: Function, cancelled: Function, restore: Function}}
+ */
+export function installFrameClock(window)
+{
+	const originalRequest = window.requestAnimationFrame;
+	const originalCancel = window.cancelAnimationFrame;
+
+	let nextHandle = 1;
+	const queue = new Map();
+	let cancelled = 0;
+
+	window.requestAnimationFrame = function (callback)
+	{
+		const handle = nextHandle++;
+		queue.set(handle, callback);
+		return handle;
+	};
+	window.cancelAnimationFrame = function (handle)
+	{
+		if (queue.delete(handle))
+		{
+			cancelled += 1;
+		}
+	};
+
+	return {
+		/** Run the frames outstanding right now, once, in order. */
+		tick(time = 0)
+		{
+			const round = [...queue.entries()];
+			round.forEach(([handle]) => queue.delete(handle));
+			round.forEach(([, callback]) => callback(time));
+			return round.length;
+		},
+		pending()
+		{
+			return queue.size;
+		},
+		/** How many scheduled frames were cancelled rather than run. */
+		cancelled()
+		{
+			return cancelled;
+		},
+		restore()
+		{
+			window.requestAnimationFrame = originalRequest;
+			window.cancelAnimationFrame = originalCancel;
+		},
+	};
+}
+
+/**
  * jsdom performs no layout, so clientWidth/clientHeight are always 0 and
  * getBoundingClientRect() is all zeros. Give an element a size and a position
  * the way a real browser would have measured it.

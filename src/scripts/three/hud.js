@@ -1,6 +1,8 @@
+// @ts-check
 import {EventDispatcher, Scene as ThreeScene, BufferAttribute, BufferGeometry, Vector3, LineBasicMaterial, CylinderGeometry, MeshBasicMaterial, Mesh, SphereGeometry, Object3D, LineSegments} from 'three';
 
 import {EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED} from '../core/events.js';
+import {disposeObject} from '../core/resource_registry.js';
 
 //As far as I understand the HUD is here to show a rotation control on every item
 //If this idea is correct then it seriously sucks. A whole rendering to show just cones and lines as arrows?
@@ -58,14 +60,34 @@ export class HUD extends EventDispatcher
 	}
 	
 	
-	resetSelectedItem() 
+	resetSelectedItem()
 	{
 		this.selectedItem = null;
-		if (this.activeObject) 
+		if (this.activeObject)
 		{
 			this.scene.remove(this.activeObject);
+			// makeObject() builds a line, a cone and a sphere - three geometries and
+			// three materials - on every selection, and this removed the group from
+			// the scene without disposing any of it (RM-003 A0). Selecting items in
+			// turn leaked a set per selection.
+			disposeObject(this.activeObject);
 			this.activeObject = null;
 		}
+	}
+
+	/**
+	 * Detach from the viewer and release the rotation handle.
+	 *
+	 * There was no dispose() here at all, so tearing a viewer down left the HUD
+	 * subscribed to EVENT_ITEM_SELECTED and EVENT_ITEM_UNSELECTED on a Main that
+	 * was finished with - building handles into a scene nobody would draw.
+	 * `Main.dispose()` now calls this.
+	 */
+	dispose()
+	{
+		this.three.removeEventListener(EVENT_ITEM_SELECTED, this.itemselectedevent);
+		this.three.removeEventListener(EVENT_ITEM_UNSELECTED, this.itemunselectedevent);
+		this.resetSelectedItem();
 	}
 
 	itemSelected(item) 
@@ -104,7 +126,14 @@ export class HUD extends EventDispatcher
 		var scope = this;
 		if (scope.activeObject) 
 		{
-			scope.activeObject.children.forEach((obj) => {obj.material.color.set(scope.getColor());});
+			// `children` is Object3D[] and only a Mesh carries a material. Every
+			// child here IS one - makeObject builds a LineSegments, a Mesh cone and
+			// a Mesh sphere - so this narrows rather than asserts (RM-005 C2).
+			scope.activeObject.children.forEach((obj) =>
+			{
+				var mesh = /** @type {import('three').Mesh} */ (obj);
+				if (mesh.material) { /** @type {any} */ (mesh.material).color.set(scope.getColor()); }
+			});
 		}
 		scope.three.ensureNeedsUpdate();
 	}
@@ -168,9 +197,12 @@ export class HUD extends EventDispatcher
 	makeObject(item) 
 	{
 		var object = new Object3D();
-		var line = new LineSegments(this.makeLineGeometry(item),this.makeLineMaterial(this.rotating));
+		// `makeLineMaterial` and `makeSphere` take nothing - both read `getColor()`
+		// off `this` - so the arguments they were handed went nowhere (RM-005 C2).
+		// `this.rotating` is what `getColor()` already consults.
+		var line = new LineSegments(this.makeLineGeometry(item),this.makeLineMaterial());
 		var cone = this.makeCone(item);
-		var sphere = this.makeSphere(item);
+		var sphere = this.makeSphere();
 		object.add(line);
 		object.add(cone);
 		object.add(sphere);

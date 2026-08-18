@@ -1,3 +1,4 @@
+// @ts-check
 import {onScopeDispose, ref, watch} from 'vue';
 import {EVENT_FPS_EXIT} from '../../scripts/blueprint.js';
 import {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY} from '../../scripts/blueprint.js';

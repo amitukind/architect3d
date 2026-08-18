@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {computed, onBeforeUnmount, ref} from 'vue';
 import {LAYOUT_PLAN, LAYOUT_SPLIT, LAYOUT_VIEW} from '../composables/useLayout.js';
 
@@ -41,6 +42,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:splitRatio']);
 
+/** @type {import('vue').Ref<?HTMLElement>} The split container, null until mount. */
 const container = ref(null);
 const dragging = ref(false);
 
@@ -68,6 +70,10 @@ const planFraction = computed(function ()
  */
 const DIVIDER = 5;
 
+// `pointerEvents: 'none'` is a `string` to the checker and `PointerEvents` to
+// Vue's style binding, and the two branches produce different object shapes on
+// top of that. Declaring the return type is what reconciles them (RM-004 B3).
+/** @type {import('vue').ComputedRef<import('vue').CSSProperties>} */
 const planStyle = computed(function ()
 {
 	if (props.layout === LAYOUT_PLAN)
@@ -81,6 +87,7 @@ const planStyle = computed(function ()
 	return {width: `calc(${planFraction.value * 100}% - ${DIVIDER / 2}px)`, opacity: 1};
 });
 
+/** @type {import('vue').ComputedRef<import('vue').CSSProperties>} */
 const viewStyle = computed(function ()
 {
 	if (props.layout === LAYOUT_VIEW)
@@ -160,7 +167,11 @@ onBeforeUnmount(() => {dragging.value = false;});
 </script>
 
 <template>
-	<div id="workspace" ref="container" class="relative flex-1 overflow-hidden bg-ground">
+	<!-- <main>, not <div>: this is the page's main content, and without a landmark
+	     here everything between the banner and the status bar sat outside one.
+	     axe's `region` rule caught it, and it is a real gap - a screen-reader
+	     user had no way to skip to the plan. -->
+	<main id="workspace" ref="container" class="relative flex-1 overflow-hidden bg-ground">
 		<div
 			class="absolute inset-y-0 left-0 overflow-hidden"
 			:class="dragging ? '' : 'transition-[width,opacity] duration-[180ms] ease-out'"
@@ -198,5 +209,5 @@ onBeforeUnmount(() => {dragging.value = false;});
 			     honest about where the boundary is and impossible to grab. -->
 			<span class="absolute inset-y-0 -inset-x-1.5" />
 		</div>
-	</div>
+	</main>
 </template>

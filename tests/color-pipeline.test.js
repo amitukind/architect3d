@@ -155,7 +155,22 @@ describe('every texture carries an explicit colour space', () =>
 
 	it('tags the ground plane sRGB', () =>
 	{
-		expect(three.skybox.groundMat.map.colorSpace).toBe(THREE.SRGBColorSpace);
+		// The ground photograph is a KTX2 since RM-005 C1, and jsdom cannot produce
+		// one: with no WebGL, `formatSupport()` has no answer, and `Skybox` declines
+		// to build a transcoder at all rather than let `KTX2Loader.load()` throw on
+		// a missing `workerConfig`. So `groundMat.map` is legitimately null here.
+		//
+		// The property under test has not changed - whatever texture arrives is
+		// tagged sRGB and hung on the material - so the texture is handed over
+		// directly, which is the same move the environment-map test below makes for
+		// the same reason. It reads better than it did: this now exercises the
+		// asynchronous path a real browser takes, where the old assertion only ever
+		// saw the synchronous return that a JPEG happened to provide.
+		const texture = new THREE.Texture();
+		three.skybox.applyGroundTexture(texture);
+
+		expect(texture.colorSpace).toBe(THREE.SRGBColorSpace);
+		expect(three.skybox.groundMat.map).toBe(texture);
 	});
 
 	it('tags the environment map sRGB when one is loaded', () =>
@@ -166,7 +181,7 @@ describe('every texture carries an explicit colour space', () =>
 		const texture = new THREE.Texture();
 		skybox.texture = {load(url, onLoad) {onLoad(texture);}};
 
-		skybox.setEnvironmentMap('rooms/textures/envs/Garden.png');
+		skybox.setEnvironmentMap('rooms/textures/envs/Garden.jpg');
 
 		expect(texture.colorSpace).toBe(THREE.SRGBColorSpace);
 		skybox.dispose();

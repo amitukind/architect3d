@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {ref} from 'vue';
 import {ChevronRight} from '@lucide/vue';
 

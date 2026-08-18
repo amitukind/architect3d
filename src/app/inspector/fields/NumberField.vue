@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {computed} from 'vue';
 
 /**

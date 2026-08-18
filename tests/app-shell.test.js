@@ -359,6 +359,20 @@ describe('the catalog drawer', () =>
 	it('filters by search and by section, and stays open when an item is picked', async () =>
 	{
 		const wrapper = await mountApp();
+
+		// Picking an item is the one action in the shell that reaches the network.
+		// Stubbed through the seam the library provides for it, so this test stays
+		// about the drawer: no fetch attempt, no console noise, no timing.
+		//
+		// It used to be load-bearing rather than tidy. Before addItem had a failure
+		// path, the real GLTFLoader threw synchronously out of `new Request` on a
+		// relative URL under Node - past the Vue handler, out of the test - and
+		// Vitest failed the whole run on the unhandled exception while every
+		// assertion passed. RM-002 R-01 fixed that at the source; the suite now
+		// passes with this line removed. Scene.addItem's own failure path is
+		// covered directly in tests/items-and-scene.test.js.
+		wrapper.vm.$.setupState.store.model.value.scene.setItemLoader(() => {});
+
 		await openCatalog(wrapper);
 
 		const field = drawer().querySelector('input[type="search"]');

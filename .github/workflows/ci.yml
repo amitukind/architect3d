@@ -8,7 +8,26 @@
 # There is intentionally no `pull_request:` trigger. Add one only if you want
 # checks on PRs raised from working branches - it will consume minutes per PR
 # update. Nothing here uploads artifacts or populates the Actions cache, so the
-# workflow consumes no repository storage.
+# workflow consumes no repository storage; the coverage and budget numbers go to
+# the run summary instead of an uploaded report, which is free.
+#
+# WHAT THIS COSTS, AND WHY TIER 1 IS STILL ONE JOB
+#
+# Tier 1 of the RM-002 gate ladder. It grew from three steps to seven and still
+# runs in about ninety seconds, because the expensive part is `npm ci` and this
+# pays for it once. Splitting the builds into parallel jobs would duplicate that
+# install three times to save perhaps thirty seconds of wall clock - the wrong
+# trade when minutes are the constrained resource.
+#
+# Tier 2 (RM-002 P5) IS a second job, because it needs a browser: a chromium
+# download that tier 1 should not wait for and should not pay for when only the
+# data layer changed. The two run in parallel.
+#
+# THE GAP THIS DOES NOT CLOSE
+#
+# Nothing here runs before a merge - by policy, see above. The check that
+# catches a mistake on the machine that made it is the pre-commit hook (tier 0,
+# `npm run prepare` installs it). CI is the backstop, not the first line.
 name: CI
 
 on:
@@ -28,9 +47,9 @@ permissions:
 
 jobs:
   test:
-    name: Tests (headless data layer)
+    name: Tests, lint, builds and budgets
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -44,10 +63,37 @@ jobs:
           # consume repository cache storage for a marginal time saving.
 
       - name: Install dependencies
+        env:
+          # simple-git-hooks installs the pre-commit hook from its OWN
+          # postinstall, which does not look at CI - it honours this variable and
+          # nothing else. Without it a runner that will never make a commit gets
+          # a hook written into .git/hooks anyway. Harmless, but if some future
+          # step here does commit, it would silently start running lint-staged.
+          SKIP_INSTALL_SIMPLE_GIT_HOOKS: '1'
         run: npm ci --no-audit --no-fund
 
-      - name: Run characterization tests
-        run: npm test
+      - name: Typecheck
+        # RM-002 P2. `vue-tsc` rather than `tsc`: it is a superset that checks
+        # the .js files exactly as tsc does AND type-checks the SFC templates
+        # against their own script blocks, so one command covers both.
+        #
+        # Checking is opt-in per file (`// @ts-check`), because switching it on
+        # wholesale reports 406 errors in 2014-era library code. The ledger of
+        # what is opted in, and what each remaining area costs, is in
+        # tsconfig.json. It is a ratchet like the coverage floor: files join it,
+        # they do not leave.
+        run: npm run typecheck
+
+      - name: Test with coverage
+        # Thresholds live in vitest.config.mjs and are a ratchet: raise them when
+        # a change earns it, never lower them to make a build pass.
+        #
+        # This step also catches something `vitest run` alone reports but does
+        # not shout about: an unhandled exception escaping a test file fails the
+        # run even when every assertion passed. That exact case reached this
+        # branch once (see RM-002 §10) and was invisible because CI does not run
+        # where the work happens.
+        run: npm run test:coverage
 
       - name: Lint
         # Blocking since S1 (ESLint 10 flat config). Two rules new to ESLint 10
@@ -59,3 +105,98 @@ jobs:
         # Proves the Vite lib build still produces the IIFE bundle the demo
         # loads. Output goes to dist/, which is gitignored and not uploaded.
         run: npm run build
+
+      - name: Build the application
+        # New in RM-002 P1. This used to run only in the deploy job, on master -
+        # so a broken Vue template or a Tailwind token that no longer resolves
+        # reached master before anything noticed. It costs about fifteen seconds.
+        run: npm run build:demo
+
+      - name: Build the documentation
+        # Same reasoning: VitePress failures used to surface at deploy time.
+        run: npm run docs:build
+
+      - name: Size budgets
+        # Needs both builds above, so it comes last. Limits are committed in
+        # tools/budget.json; raising one is a commit with a reason.
+        run: npm run budget
+
+      - name: Advisories
+        # RM-006 took this tree to zero, and it is a ratchet from here.
+        #
+        # The three that were open were all reachable only through VitePress,
+        # which asks for `vite ^5.4.14` while the application itself is on 8.
+        # Every one of them is fixed in vite 6.4.3, so package.json overrides
+        # VitePress's vite to ^6.4.3 rather than moving the docs toolchain onto
+        # a 2.0.0 alpha. `npm run docs:build` above proves that override works;
+        # this proves it is still needed and still enough.
+        #
+        # Without this step the override is a line somebody deletes during a
+        # dependency bump and nothing says so - which is the same shape as the
+        # type ledger and the transcode oracle, both of which drifted for
+        # exactly that reason.
+        run: npm audit --audit-level=low
+
+      - name: Report to the run summary
+        # Always, so a failed run still shows the numbers that explain it.
+        if: always()
+        run: |
+          {
+            echo "### Coverage"
+            echo '```'
+            if [ -f coverage/coverage-summary.json ]; then
+              node -e '
+                const t = require("./coverage/coverage-summary.json").total;
+                for (const k of ["lines", "statements", "branches", "functions"]) {
+                  console.log(k.padEnd(12) + String(t[k].pct).padStart(6) + "%  (" + t[k].covered + "/" + t[k].total + ")");
+                }
+              '
+            else
+              echo "no coverage report produced"
+            fi
+            echo '```'
+            echo "### Size budgets"
+            echo '```'
+            npm run --silent budget || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  browser:
+    name: Browser tier (real canvas, real WebGL, axe)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Deliberately NOT `needs: test`. The two jobs check different things and
+    # neither result makes the other uninteresting - if the data layer breaks
+    # and the renderer also breaks, both are worth knowing in one run.
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        env:
+          SKIP_INSTALL_SIMPLE_GIT_HOOKS: '1'
+        run: npm ci --no-audit --no-fund
+
+      - name: Install chromium
+        # Chromium only, and no `--with-deps`: the ubuntu-latest image already
+        # carries the shared libraries it needs. Roughly a 170 MB download every
+        # run, because this workflow deliberately populates no Actions cache -
+        # see the note at the top. That is the price of the storage promise, and
+        # it is about twenty seconds.
+        run: npx playwright install chromium
+
+      - name: Run the browser suite
+        # Three things jsdom cannot check, and the reason this tier exists:
+        # the 2D plan rasterised and its palette read back off the canvas, the
+        # 3D view composited through SwiftShader and read back with readPixels,
+        # and axe-core over the booted application.
+        #
+        # There is no screenshot comparison here on purpose - see RM-002 §13.
+        run: npm run test:browser

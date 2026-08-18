@@ -1,15 +1,29 @@
+// @ts-check
 import {EVENT_CHANGED, EVENT_ROOM_ATTRIBUTES_CHANGED} from '../core/events.js';
 import {Region} from '../core/utils.js';
 import {EventDispatcher, Vector2, Vector3, Shape, ShapeGeometry, Mesh, MeshBasicMaterial, DoubleSide, Box3} from 'three';
 import {triangleFanGeometry} from '../core/geometry_builders.js';
+import {disposeObject} from '../core/resource_registry.js';
 
 import {WallTypes} from '../core/constants.js';
 
 import {Utils} from '../core/utils.js';
 import {HalfEdge} from './half_edge.js';
 
+
+/**
+ * A picking plane with a back-reference to the room that owns it.
+ *
+ * The `room` property is a monkey patch - the comment in `generatePlane()` has
+ * said so since before the migration - and the raycaster reads it to answer
+ * "which room did I just click". A typedef is what lets the patch be written
+ * down rather than merely done (RM-005 C2).
+ *
+ * @typedef {import('three').Mesh & {room?: Room}} RoomPlane
+ */
+
 /** Default texture to be used if nothing is provided. */
-export const defaultRoomTexture = {url: 'rooms/textures/hardwood.png', scale: 400};
+export const defaultRoomTexture = {url: 'rooms/textures/hardwood.jpg', scale: 400};
 
 /**
  * A Room is the combination of a Floorplan with a floor plane.
@@ -22,6 +36,26 @@ export class Room extends EventDispatcher
 	constructor(floorplan, corners)
 	{
 		super();
+		/**
+		 * This room's identity, assigned rather than derived (RM-003 A3).
+		 *
+		 * A `Room` object does not survive an edit - `Floorplan.update()` builds a
+		 * new one for every cycle it finds, every time - so before A3 there was
+		 * nothing to hold on to. Anything that wanted to refer to a room had to use
+		 * one of the two derived keys below, and both change the moment its corners
+		 * do; that is finding H-5, and it is why naming a room and then drawing a
+		 * wall through one of its sides lost the name.
+		 *
+		 * A successor room inherits this from the room it continues - see
+		 * `Floorplan.update()` and `model/room_matcher.js` - so it is stable across
+		 * re-derivation even though the object is not. It is deliberately NOT
+		 * persisted: a saved file identifies a room by its corners, which is a
+		 * description a different build can also understand, and the id is
+		 * reassigned on load.
+		 *
+		 * @type {string}
+		 */
+		this.id = Utils.guide();
 		this._name = 'A New Room';
 		this.min = null;
 		this.max = null;
@@ -105,12 +139,25 @@ export class Room extends EventDispatcher
 
 	setRoomWallsTexture(textureUrl, textureStretch, textureScale)
 	{
+		// `edgePointer` is null only for a room with no corners, which
+		// `Floorplan.update()` does not build - it comes from a cycle in the graph,
+		// and a cycle has corners. The guard says that rather than assuming it, and
+		// costs one comparison on a path a user drives (RM-005 C2).
 		var edge = this.edgePointer;
+		if (!edge)
+		{
+			return;
+		}
 		var iterateWhile = true;
 		edge.setTexture(textureUrl, textureStretch, textureScale);
 		while (iterateWhile)
 		{
-			if (edge.next === this.edgePointer)
+			// `!edge.next` is new (RM-005 C2). `next` is null on an unlinked edge,
+			// and the walk would then assign null and throw on the next line - so
+			// the guard turns a broken DCEL from a TypeError into a short walk.
+			// It cannot fire on a plan `Floorplan.update()` built, where every
+			// edge in a cycle has a successor.
+			if (!edge.next || edge.next === this.edgePointer)
 			{
 				break;
 			}
@@ -134,35 +181,33 @@ export class Room extends EventDispatcher
 
 	generateRoofPlane()
 	{
-		if(this.roofPlane && this.roofPlane != null)
-		{
-			if(this.roofPlane.parent != null)
-			{
-					this.roofPlane.parent.remove(this.roofPlane);
-			}
-		}
+		// Detached AND disposed, since RM-003 A0. The detach was already here; the
+		// disposal was not, so every regeneration left a fan geometry and a
+		// material behind. See dispose() below for who owns these.
+		disposeObject(this.roofPlane);
 		// setup texture
 		var points = this.corners.map((corner) => new Vector3(corner.x, corner.elevation, corner.y));
 		var geometry = triangleFanGeometry(points);
-		this.roofPlane = new Mesh(geometry, new MeshBasicMaterial({side: DoubleSide, visible:false}));
+		this.roofPlane = /** @type {RoomPlane} */ (new Mesh(geometry, new MeshBasicMaterial({side: DoubleSide, visible:false})));
 		this.roofPlane.room = this;
 	}
 
 	generatePlane()
 	{
+		disposeObject(this.floorPlane);
 		var points = [];
 		this.interiorCorners.forEach((corner) => {
 			points.push(new Vector2(corner.x,corner.y));
 		});
 		var shape = new Shape(points);
 		var geometry = new ShapeGeometry(shape);
-		this.floorPlane = new Mesh(geometry, new MeshBasicMaterial({side: DoubleSide, visible:false}));
+		this.floorPlane = /** @type {RoomPlane} */ (new Mesh(geometry, new MeshBasicMaterial({side: DoubleSide, visible:false})));
 		//The below line was originally setting the plane visibility to false
 		//Now its setting visibility to true. This is necessary to be detected
 		//with the raycaster objects to click walls and floors.
 		this.floorPlane.visible = true;
 		this.floorPlane.rotation.set(Math.PI / 2, 0, 0);
-		this.floorPlane.room = this; // js monkey patch
+		this.floorPlane.room = this; // js monkey patch, and RoomPlane is what declares it
 
 		var b3 = new Box3();
 		// precise: since r140 setFromObject expands the object's own bounding box
@@ -175,11 +220,46 @@ export class Room extends EventDispatcher
 		this.center = this.max.clone().sub(this.min).multiplyScalar(0.5).add(this.min);
 	}
 
+	/**
+	 * Release the two hit-test planes this room owns (RM-003 A0).
+	 *
+	 * ## Why a model class has a dispose() at all
+	 *
+	 * Because a model class builds GPU resources, which `docs/architecture.md`
+	 * used to say it did not. `generatePlane()` and `generateRoofPlane()` each
+	 * build a `Mesh` with its own geometry and material. They are invisible - they
+	 * exist so the raycaster has something to hit for floor and ceiling picking -
+	 * and being invisible is presumably how they escaped the description. A
+	 * `ShapeGeometry` is a `ShapeGeometry` whether or not it is drawn, and
+	 * `Floor.addToScene()` puts both of these into the live scene.
+	 *
+	 * `Floorplan.update()` throws every Room away and builds new ones, so before
+	 * A0 this pair leaked on every call - four of the six resources the RM-003
+	 * measurement counted per update.
+	 *
+	 * ## The ownership boundary
+	 *
+	 * The room owns these two planes; the half edges own theirs, and are released
+	 * through the wall that points at them. The 3D `Floor` *borrows* both of these
+	 * for picking and must never dispose them - see the borrowing test in
+	 * `tests/resource-lifecycle.test.js`, which is what stops a well-meaning
+	 * change in the view layer disposing geometry the model still needs.
+	 *
+	 * Idempotent, because ownership boundaries overlap in practice.
+	 */
+	dispose()
+	{
+		disposeObject(this.floorPlane);
+		disposeObject(this.roofPlane);
+		this.floorPlane = null;
+		this.roofPlane = null;
+	}
+
 	cycleIndex(index)
 	{
 		if (index < 0)
 		{
-			return index += this.corners.length;
+			return index + this.corners.length;
 		}
 		else
 		{
@@ -199,13 +279,19 @@ export class Room extends EventDispatcher
 
 	updateInteriorCorners()
 	{
+		// See setRoomWallsTexture: null only for a cornerless room.
 		var edge = this.edgePointer;
+		if (!edge)
+		{
+			return;
+		}
 		var iterateWhile = true;
 		while (iterateWhile)
 		{
 			this.interiorCorners.push(edge.interiorStart());
 			edge.generatePlane();
-			if (edge.next === this.edgePointer)
+			// See setRoomWallsTexture for why `!edge.next` is here.
+			if (!edge.next || edge.next === this.edgePointer)
 			{
 				break;
 			}
@@ -219,7 +305,7 @@ export class Room extends EventDispatcher
 	updateArea()
 	{
 		var oldarea = this.area;
-		var points = [];
+		var points;
 		var allpoints = [];
 		this.areaCenter = new Vector2();
 		this._polygonPoints = [];
@@ -311,7 +397,9 @@ export class Room extends EventDispatcher
 	updateWalls()
 	{
 
+		/** @type {?HalfEdge} */
 		var prevEdge = null;
+		/** @type {?HalfEdge} */
 		var firstEdge = null;
 
 		for (var i = 0; i < this.corners.length; i++)
@@ -338,11 +426,15 @@ export class Room extends EventDispatcher
 				console.log('corners arent connected by a wall, uh oh');
 			}
 
+			// The `else` branch only runs for i > 0, by which point both are set -
+			// and `edge` is null only on the "corners arent connected by a wall"
+			// path above, which logs and carries on. Stated rather than assumed
+			// (RM-005 C2); the alternative here is a TypeError while dragging.
 			if (i == 0)
 			{
 				firstEdge = edge;
 			}
-			else
+			else if (edge && prevEdge && firstEdge)
 			{
 				edge.prev = prevEdge;
 				prevEdge.next = edge;

@@ -1,3 +1,4 @@
+// @ts-check
 import {computed, ref, watch} from 'vue';
 
 /**

@@ -1,7 +1,4 @@
-/// <reference path="../../lib/three.d.ts" />
-/// <reference path="../model/model.ts" />
-/// <reference path="wall_item.ts" />
-/// <reference path="metadata.ts" />
+// @ts-check
 import {WallItem} from './wall_item.js';
 /** */
 export class InWallItem extends WallItem

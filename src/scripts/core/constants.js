@@ -1,3 +1,4 @@
+// @ts-check
 import Enum from './enum.js';
 
 export const VIEW_TOP = 'topview';

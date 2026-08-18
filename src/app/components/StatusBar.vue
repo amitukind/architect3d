@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {computed} from 'vue';
 import {Dimensioning, floorplannerModes} from '../../scripts/blueprint.js';
 import {LAYOUT_PLAN} from '../composables/useLayout.js';
@@ -28,7 +29,17 @@ const props = defineProps({
 	walls: {type: Number, default: 0},
 	items: {type: Number, default: 0},
 	areaLabel: {type: String, default: ''},
-	cursor: {type: Object, default: null},
+	cursor: {
+		/**
+		 * `type: X` with `default: null` still infers `X | undefined` - the default
+		 * does not widen the declared type, so passing an explicit null is an
+		 * error even though null is exactly what the default is (RM-004 B3).
+		 *
+		 * @type {import('vue').PropType<?{x: number, y: number}>}
+		 */
+		type: Object,
+		default: null,
+	},
 	zoom: {type: Number, default: 100},
 	mode: {type: Number, required: true},
 	layout: {type: String, required: true},
@@ -80,6 +91,18 @@ const cursorLabel = computed(function ()
 		id="status-bar"
 		class="z-[200] flex h-7 flex-none items-center gap-3 border-t border-line bg-surface px-3 text-ink-faint">
 		<p class="truncate text-[11px]">{{ hint }}</p>
+
+		<!-- The credit. Placed after the hint and before the counts so it is the
+		     one thing on this bar that never moves: the hint truncates and the
+		     counts change width, and a link that shifts under the pointer is a
+		     link nobody clicks on purpose. -->
+		<span class="hidden h-3.5 w-px flex-none bg-line sm:block" />
+		<a
+			class="hidden flex-none text-[11px] transition-colors hover:text-ink sm:inline"
+			href="https://amitukind.com" target="_blank" rel="noopener noreferrer"
+			title="amitukind.com">
+			Created by <span class="text-ink-soft">Amit Verma</span>
+		</a>
 
 		<div class="ml-auto flex items-center gap-3">
 			<span class="num" :title="`${plural(props.rooms, 'room')}, ${plural(props.walls, 'wall')}, ${plural(props.items, 'item')}`">

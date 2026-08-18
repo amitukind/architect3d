@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {PopoverRoot, PopoverTrigger, PopoverPortal, PopoverContent} from 'reka-ui';
 import {ZoomIn, ZoomOut, Maximize2, Crosshair, Grid3x3, Magnet, ChevronDown} from '@lucide/vue';
 
@@ -26,7 +27,15 @@ const props = defineProps({
 	canZoomOut: {type: Boolean, default: true},
 	snap: {type: Boolean, default: false},
 	spacing: {type: Number, default: 25},
-	spacings: {type: Array, required: true},
+	spacings: {
+		/**
+		 * Typed so the template can read `.value` and `.label` off each entry.
+		 *
+		 * @type {import('vue').PropType<Array<import('../composables/useZoom2D.js').GridSpacing>>}
+		 */
+		type: Array,
+		required: true,
+	},
 	mode: {type: Number, required: true},
 });
 

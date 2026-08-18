@@ -1,3 +1,4 @@
+// @ts-check
 import {Vector2} from 'three';
 import {Item} from './item.js';
 import {Utils} from '../core/utils.js';
@@ -21,7 +22,10 @@ export class FloorItem extends Item
 			var center = this.model.floorplan.getCenter();
 			this.position.x = center.x;
 			this.position.z = center.z;
-			this.position.y = 0.5 * (this.geometry.boundingBox.max.y - this.geometry.boundingBox.min.y);
+			// `bounds()` rather than `geometry.boundingBox`, which is null until
+			// something computes it - see Item.bounds (RM-005 C2).
+			var box = this.bounds();
+			this.position.y = 0.5 * (box.max.y - box.min.y);
 		}
 	}
 

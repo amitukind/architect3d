@@ -25,7 +25,7 @@ import {Configuration, configDimUnit} from '../src/scripts/core/configuration.js
 import {dimCentiMeter} from '../src/scripts/core/units.js';
 import {EVENT_LOADED, EVENT_CORNER_ATTRIBUTES_CHANGED} from '../src/scripts/core/events.js';
 import {resetAll} from './helpers/harness.js';
-import {buildFloorplannerDom, installCanvas2D, installListenerCounter, installResizeObserver, setLayout} from './helpers/dom.js';
+import {buildFloorplannerDom, installCanvas2D, installFrameClock, installListenerCounter, installResizeObserver, setLayout} from './helpers/dom.js';
 
 const VIEWPORT_WIDTH = 1024;
 const VIEWPORT_HEIGHT = 768;
@@ -33,6 +33,27 @@ const VIEWPORT_HEIGHT = 768;
 let canvasStub;
 let observer;
 let listeners;
+let clock;
+
+/**
+ * Record every draw, and what the pan origin was when it happened.
+ *
+ * The count proves coalescing; the origin proves the coalesced draw painted the
+ * drag's final state rather than an early one. Counting `clearRect` calls on the
+ * context stub would give the first without the second.
+ */
+function recordDraws(planner)
+{
+	const view = planner.view;
+	const original = view.draw.bind(view);
+	const origins = [];
+	view.draw = function ()
+	{
+		origins.push(planner.originX);
+		return original();
+	};
+	return origins;
+}
 
 function setDevicePixelRatio(value)
 {
@@ -60,10 +81,15 @@ beforeEach(() =>
 	listeners = installListenerCounter(window);
 	canvasStub = installCanvas2D(window);
 	observer = installResizeObserver(window);
+	// Hand-driven since P6: the view schedules its redraws on the frame clock, and
+	// jsdom's own rAF runs off a timer, which would make every assertion about a
+	// coalesced draw a race against 16 ms.
+	clock = installFrameClock(window);
 });
 
 afterEach(() =>
 {
+	clock.restore();
 	observer.restore();
 	canvasStub.restore();
 	listeners.restore();
@@ -203,8 +229,58 @@ describe('Floorplanner2D mounting', () =>
 		setLayout(container, {width: 900, height: 500});
 		observer.trigger();
 
+		// Deferred to the frame since P6 - see the next test for why. The resize
+		// still happens, one frame later.
+		clock.tick();
+
 		expect(planner.view.canvasWidth).toBe(900);
 		expect(planner.view.canvasHeight).toBe(500);
+		planner.dispose();
+	});
+
+	it('does not resize the canvas inside the observer callback', () =>
+	{
+		// The ResizeObserver loop, which is what P5's browser tier had to swallow
+		// by exact message: writing style.width on an element inside the observed
+		// subtree, during observation, forces the browser to defer the follow-up
+		// delivery and report `ResizeObserver loop completed with undelivered
+		// notifications` as a window error.
+		//
+		// The measurement still happens in the callback, where it is correct. Only
+		// the write moves to the frame.
+		const {container, canvas} = buildFloorplannerDom(window, {width: 640, height: 400});
+		const planner = new Floorplanner2D(canvas, new Floorplan());
+
+		setLayout(container, {width: 900, height: 500});
+		observer.trigger();
+
+		expect(planner.view.canvasWidth).toBe(640);
+		expect(canvas.style.width).toBe('640px');
+		expect(clock.pending()).toBe(1);
+
+		clock.tick();
+		expect(canvas.style.width).toBe('900px');
+		planner.dispose();
+	});
+
+	it('lets an explicit resize supersede a deferred one rather than be undone by it', () =>
+	{
+		// Both paths measure the same container, so the risk is ordering: a
+		// deferred resize landing a frame after an explicit one would put the
+		// canvas back to the size the observer saw. handleWindowResize drops the
+		// pending measurement because its own is newer.
+		const {container, canvas} = buildFloorplannerDom(window, {width: 640, height: 400});
+		const planner = new Floorplanner2D(canvas, new Floorplan());
+
+		setLayout(container, {width: 900, height: 500});
+		observer.trigger();
+
+		setLayout(container, {width: 300, height: 200});
+		planner.resizeView();
+		expect(planner.view.canvasWidth).toBe(300);
+
+		clock.tick();
+		expect(planner.view.canvasWidth).toBe(300);
 		planner.dispose();
 	});
 
@@ -354,6 +430,209 @@ describe('Floorplanner2D drawing', () =>
 		// fillRect never reads.
 		const crossHair = canvasStub.context.calls.filter((c) => c.name === 'fillRect' && c.fillStyle === '#0000FF');
 		expect(crossHair.length).toBe(4);
+		planner.dispose();
+	});
+});
+
+describe('Floorplanner2D frame coalescing (P6, RM-002 R-05)', () =>
+{
+	/**
+	 * Construct and settle.
+	 *
+	 * Construction draws once synchronously - the view's own constructor calls
+	 * handleWindowResize - and then books a frame, because setMode(MOVE) runs
+	 * updateTarget. Ticking it out here leaves every test below starting from a
+	 * quiet clock, so a pending frame means something the test itself did.
+	 */
+	function mount(canvas, floorplan = new Floorplan())
+	{
+		const planner = new Floorplanner2D(canvas, floorplan);
+		clock.tick();
+		return planner;
+	}
+
+	/** Press, drag through `steps` positions, and leave the button down. */
+	function drag(canvas, steps)
+	{
+		firePointer(canvas, 'pointerdown', {clientX: 100, clientY: 100});
+		for (let i = 1; i <= steps; i++)
+		{
+			firePointer(canvas, 'pointermove', {clientX: 100 + i, clientY: 100 + i});
+		}
+	}
+
+	it('repaints once per frame however many pointer events arrive', () =>
+	{
+		const {canvas} = buildFloorplannerDom(window, {left: 0, top: 0, width: 640, height: 400});
+		const planner = mount(canvas);
+		const draws = recordDraws(planner);
+
+		drag(canvas, 20);
+
+		// Sixty-one full canvas repaints before P6 - grid, carbon sheet, every
+		// room, wall, corner and dimension label, three times per pointer event, on
+		// the input thread. See the last test in this block, which measures that
+		// number rather than asserting it from memory. A 1000 Hz mouse made it
+		// three thousand a second for a display that can show sixty.
+		expect(draws.length).toBe(0);
+		expect(clock.pending()).toBe(1);
+
+		clock.tick();
+		expect(draws.length).toBe(1);
+		planner.dispose();
+	});
+
+	it('paints the end of the drag, not the beginning of it', () =>
+	{
+		// The ordering claim coalescing rests on: a deferred draw reads the model
+		// afresh, so the one frame that runs shows the state every dropped draw was
+		// converging on. If it painted a stale origin the pan would visibly lag.
+		const {canvas} = buildFloorplannerDom(window, {left: 0, top: 0, width: 640, height: 400});
+		const planner = mount(canvas);
+		const draws = recordDraws(planner);
+
+		drag(canvas, 20);
+		const finalOrigin = planner.originX;
+		expect(finalOrigin).not.toBe(0);
+
+		clock.tick();
+		expect(draws).toEqual([finalOrigin]);
+		planner.dispose();
+	});
+
+	it('starts a new frame for the next batch, and only one', () =>
+	{
+		const {canvas} = buildFloorplannerDom(window, {left: 0, top: 0, width: 640, height: 400});
+		const planner = mount(canvas);
+		const draws = recordDraws(planner);
+
+		drag(canvas, 5);
+		clock.tick();
+		drag(canvas, 5);
+		clock.tick();
+
+		expect(draws.length).toBe(2);
+		planner.dispose();
+	});
+
+	it('does not schedule a frame from inside a frame', () =>
+	{
+		// A draw that dirties the view it just drew is a runaway repaint that no
+		// count-based assertion would catch - it looks like one draw per frame,
+		// forever, at full cost.
+		const {canvas} = buildFloorplannerDom(window, {left: 0, top: 0, width: 640, height: 400});
+		const planner = mount(canvas);
+
+		drag(canvas, 3);
+		clock.tick();
+		expect(clock.pending()).toBe(0);
+		planner.dispose();
+	});
+
+	it('flush() draws now and says whether there was anything to draw', () =>
+	{
+		const {canvas} = buildFloorplannerDom(window, {left: 0, top: 0, width: 640, height: 400});
+		const planner = mount(canvas);
+		const draws = recordDraws(planner);
+
+		drag(canvas, 4);
+		expect(planner.view.flush()).toBe(true);
+		expect(draws.length).toBe(1);
+
+		// The frame it had booked is cancelled, not left to fire a second draw.
+		expect(clock.pending()).toBe(0);
+		expect(planner.view.flush()).toBe(false);
+		clock.tick();
+		expect(draws.length).toBe(1);
+		planner.dispose();
+	});
+
+	it('flush() applies a deferred resize, not just the draw', () =>
+	{
+		const {container, canvas} = buildFloorplannerDom(window, {width: 640, height: 400});
+		const planner = mount(canvas);
+
+		setLayout(container, {width: 900, height: 500});
+		observer.trigger();
+
+		expect(planner.view.flush()).toBe(true);
+		expect(planner.view.canvasWidth).toBe(900);
+		planner.dispose();
+	});
+
+	it('drops the frame it had booked when it is disposed', () =>
+	{
+		// The unmount case. A frame booked by the last pointermove before a Vue
+		// component tears down still fires, and by then the carbon sheet is
+		// disposed and the canvas is detached from the document.
+		const {canvas} = buildFloorplannerDom(window, {left: 0, top: 0, width: 640, height: 400});
+		const planner = mount(canvas);
+		const draws = recordDraws(planner);
+
+		drag(canvas, 3);
+		expect(clock.pending()).toBe(1);
+
+		planner.dispose();
+		expect(clock.pending()).toBe(0);
+		expect(clock.cancelled()).toBeGreaterThan(0);
+
+		expect(() => clock.tick()).not.toThrow();
+		expect(draws.length).toBe(0);
+	});
+
+	it('ignores an invalidate that arrives after dispose', () =>
+	{
+		const {canvas} = buildFloorplannerDom(window, {width: 640, height: 400});
+		const planner = mount(canvas);
+		planner.dispose();
+
+		planner.view.invalidate();
+		expect(clock.pending()).toBe(0);
+		expect(planner.view.flush()).toBe(false);
+	});
+
+	it('draws synchronously where there is no frame clock at all, and that is what P6 cost', () =>
+	{
+		// Two things at once. The fallback: a non-visual jsdom or a server render
+		// has no rAF, and there the view behaves exactly as it did before P6 - it
+		// loses the coalescing and keeps the drawing.
+		//
+		// And the measurement, which is the reason this asserts an exact number
+		// rather than "more than one". Ten repaints for a press and three moves,
+		// because a drag reaches all three of the pointermove draw sites on every
+		// single event: updateTarget, then the pan branch, then the drag branch.
+		// RM-002 counted three sites in the handler; they are not alternatives.
+		//
+		// The same gesture through the frame clock is one repaint.
+		const {canvas} = buildFloorplannerDom(window, {left: 0, top: 0, width: 640, height: 400});
+		const planner = mount(canvas);
+		const draws = recordDraws(planner);
+
+		clock.restore();
+		const request = window.requestAnimationFrame;
+		delete window.requestAnimationFrame;
+		try
+		{
+			drag(canvas, 3);
+			expect(draws.length).toBe(10); // 1 press + 3 moves x 3 draws each
+		}
+		finally
+		{
+			window.requestAnimationFrame = request;
+			clock = installFrameClock(window);
+		}
+		planner.dispose();
+	});
+
+	it('leaves draw() itself immediate, because callers read the canvas after it', () =>
+	{
+		const {canvas} = buildFloorplannerDom(window, {width: 640, height: 400});
+		const planner = mount(canvas);
+		const draws = recordDraws(planner);
+
+		planner.view.draw();
+		expect(draws.length).toBe(1);
+		expect(clock.pending()).toBe(0);
 		planner.dispose();
 	});
 });

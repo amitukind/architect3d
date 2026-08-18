@@ -1,7 +1,33 @@
+// @ts-check
 import {EventDispatcher, PlaneGeometry, SphereGeometry, MeshBasicMaterial, ShaderMaterial, Mesh, TextureLoader, Color, DoubleSide, SRGBColorSpace} from 'three';
 import {RepeatWrapping, Fog} from 'three';
-import {renderProfile, isStudio} from './render_profile.js';
+import {KTX2Loader} from 'three/addons/loaders/KTX2Loader.js';
+import {formatSupport} from '../core/texture_formats.js';
+import {renderProfile, isStudio} from '../core/render_profile.js';
 
+/**
+ * The two textures this module owns, named rather than written at the call
+ * (RM-005 C1 · J-2).
+ *
+ * Both were string literals passed straight to `TextureLoader.load()`, which
+ * made them the only two textures in the viewer that never went through
+ * `AssetResolver` - `Floor` and `Edge` resolve every one of theirs. That
+ * indirection is the whole of RM-003 A5: a logical name in a document, a
+ * physical URL at runtime. It is also the mechanism a RETIREMENT runs on, which
+ * is what made this a blocker rather than a tidy-up. `rooms/textures/hardwood.png`
+ * is not on disk and every design naming it still opens, because the manifest
+ * points the old name at the new file and `Floor` asks. Nothing asked for these.
+ *
+ * It cost nothing until now because B4 downscaled in place - a name that does
+ * not move needs no reference rewriting - so both files were rewritten under
+ * these literals and the bypass never showed. C1 encodes them to KTX2, which
+ * moves the names, and a bypass is invisible right up to the change that needs it.
+ *
+ * Constants beside the class rather than inline, matching `LIGHT_MAP_URL` in
+ * `edge.js`, so `tests/asset-integrity.test.js` can assert there are no others.
+ */
+const GROUND_URL = 'rooms/textures/Ground_4K.ktx2';
+const ENVIRONMENT_URL = 'rooms/textures/envs/Garden.jpg';
 
 /**
  * Whether the ground plane gets the mirror-blend reflector.
@@ -32,14 +58,23 @@ export const GROUND_REFLECTOR_ENABLED = false;
 
 export class Skybox extends EventDispatcher
 {
-	constructor(scene, renderer)
+	constructor(scene, renderer, profile)
 	{
 		super();
+	/**
+	 * The look this object draws with (RM-002 R-02, P7). Falls back to the shared
+	 * profile, which is what every construction site did before and what the
+	 * parity grid still measures.
+	 */
+		this.renderProfile = profile || renderProfile;
 		
-		this.defaultEnvironment = 'rooms/textures/envs/Garden.png';
+		// The logical name, not a URL. `setEnvironmentMap` resolves it, so an
+		// embedder may still set this to a name of their own and have the manifest
+		// apply to it - which is the behaviour it should always have had.
+		this.defaultEnvironment = ENVIRONMENT_URL;
 		this.useEnvironment = false;
-		this.topColor = renderProfile.skyTopColor;//0xe9e9e9; //0xf9f9f9;//0x565e63
-		this.bottomColor = renderProfile.skyBottomColor;//0xD8ECF9
+		this.topColor = this.renderProfile.skyTopColor;//0xe9e9e9; //0xf9f9f9;//0x565e63
+		this.bottomColor = this.renderProfile.skyBottomColor;//0xD8ECF9
 		this.verticalOffset = 400;
 		this.exponent = 0.5;
 		
@@ -52,6 +87,8 @@ export class Skybox extends EventDispatcher
 		this.widthSegments = 32;
 		this.heightSegments = 15;
 		this.sky = null;
+		/** The ground photograph, held so dispose() can release it (RM-003 A0). */
+		this.groundTex = null;
 
 		this.plainVertexShader = ['varying vec3 vWorldPosition;','void main() {','vec4 worldPosition = modelMatrix * vec4( position, 1.0 );','vWorldPosition = worldPosition.xyz;','gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0 );','}'].join('\n');
 		// --- Why these two shaders carry an explicit encode ---------------------
@@ -101,39 +138,26 @@ export class Skybox extends EventDispatcher
 		this.sky = new Mesh(this.skyGeo, this.skyMat);
 		
 		
-		var groundT = new TextureLoader().load('rooms/textures/Ground_4K.jpg', function(){});
-		// A photograph of gravel (S8).
-		groundT.colorSpace = SRGBColorSpace;
-		groundT.wrapS = groundT.wrapT = RepeatWrapping;
-		// Anisotropic filtering, in both profiles.
-		//
-		// A ground plane is the textbook case for it: the surface runs away from
-		// the camera, so the sampling footprint is enormously wider than it is
-		// tall, and isotropic mipmapping has to pick one level for both axes -
-		// which either aliases across the plane or blurs along it. Sixteen taps is
-		// the usual cap and costs nothing measurable for one draw.
-		//
-		// `renderer` can be a stub under test, and `capabilities` is a real WebGL
-		// query, so this is guarded rather than assumed.
-		if (renderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function')
-		{
-			groundT.anisotropy = Math.min(16, renderer.capabilities.getMaxAnisotropy());
-		}
-		// 40, not 10 - see GROUND_REFLECTOR_ENABLED. The reflector used to replace
-		// this material entirely and tiled its own copy of the same image at
-		// 40x40, so 10 was never what anyone actually saw. At 10 the ground reads
-		// as big flat squares with obvious seams; 40 restores the fine gravel the
-		// reflector produced, which is the whole of the difference the parity grid
-		// showed between r98 and r185.
-		groundT.repeat.set(renderProfile.groundRepeat, renderProfile.groundRepeat);
-		
+		// The mesh is built BEFORE the texture is asked for, which is the reordering
+		// RM-005 C1 needed. `TextureLoader.load()` hands back a Texture at call time
+		// and fills the pixels in later, so the material could always be built with
+		// its map in place; `KTX2Loader.load()` returns undefined and delivers a
+		// `CompressedTexture` through the callback, so there is nothing to build
+		// with. The material therefore starts with no map and gets one when the
+		// image arrives - by whichever of the two routes arrives first.
 		this.groundGeo = new PlaneGeometry(10000, 10000, 10);
 		this.groundMat = new MeshBasicMaterial({
-			color: renderProfile.groundColor,
+			color: this.renderProfile.groundColor,
 			side: DoubleSide,
-			map: renderProfile.groundTexture ? groundT : null,
+			map: null,
 		});
 		this.ground = new Mesh(this.groundGeo, this.groundMat);
+
+		// Apply on whichever route delivers first, and only once. A JPEG arrives
+		// twice - `TextureLoader` returns the Texture AND passes it to onLoad - and a
+		// KTX2 only through onLoad.
+		var scope = this;
+		this.applyGroundTexture(this.loadTexture(GROUND_URL, function (t) {scope.applyGroundTexture(t);}));
 		this.ground.rotateX(-Math.PI * 0.5);
 		this.ground.position.y = -1;
 
@@ -154,7 +178,7 @@ export class Skybox extends EventDispatcher
 		//
 		// It lives on the Scene, which is why it is set here rather than in the
 		// renderer: three reads `scene.fog` when it compiles each material.
-		this.threeScene().fog = isStudio() ? new Fog(renderProfile.fogColor, renderProfile.fogNear, renderProfile.fogFar) : null;
+		this.threeScene().fog = isStudio(this.renderProfile) ? new Fog(this.renderProfile.fogColor, this.renderProfile.fogNear, this.renderProfile.fogFar) : null;
 		
 		// See GROUND_REFLECTOR_ENABLED above. Null rather than absent so
 		// dispose() and any embedder reading it still find the property.
@@ -204,15 +228,230 @@ export class Skybox extends EventDispatcher
 		this.groundMat.dispose();
 		this.groundGeo.dispose();
 
+		// The maps, separately from the materials that carry them (RM-003 A0).
+		// three's Material.dispose() releases the material's own GPU program and
+		// nothing it points at - which is correct, because a texture can be shared
+		// by several materials, and is exactly why these two need naming here.
+		if(this.groundTex)
+		{
+			this.groundTex.dispose();
+			this.groundTex = null;
+		}
+
 		this.skyGeo.dispose();
 		this.plainSkyMat.dispose();
 		if(this.skyMat)
 		{
+			// The environment photograph lives in a uniform rather than in a
+			// material slot, so nothing would ever have reached it.
+			var envMap = this.skyMat.uniforms && this.skyMat.uniforms.envMap;
+			if(envMap && envMap.value)
+			{
+				envMap.value.dispose();
+				envMap.value = null;
+			}
 			this.skyMat.dispose();
 			this.skyMat = undefined;
 		}
+
+		// The transcoder's worker pool, if one was ever started (RM-005 C1).
+		// `KTX2Loader.dispose()` terminates the workers; without this a viewer
+		// torn down and rebuilt leaves a pool per build, which is the RM-003 A0
+		// failure shape in a resource three does not call a resource.
+		if(this._ktx2Loader)
+		{
+			this._ktx2Loader.dispose();
+			this._ktx2Loader = null;
+		}
 	}
 	
+	/**
+	 * A logical asset name as the URL to actually fetch (RM-005 C1).
+	 *
+	 * The same call `Floor` makes at `floor.js:115` and `Edge` at `edge.js:94`
+	 * and `:297`, reached the same way `threeScene()` reaches the real scene:
+	 * by duck-typing what was handed to the constructor. `scene` is the model's
+	 * `Scene` wrapper when `Main` builds this, and a plain THREE.Scene when a
+	 * caller builds it themselves - only the first carries a runtime, and this
+	 * class has never been allowed to require one.
+	 *
+	 * With no runtime the name is its own URL, which is what an `AssetResolver`
+	 * with no manifest returns anyway. So the fallback is not a degraded path,
+	 * it is the same answer arrived at without the lookup.
+	 *
+	 * @param {string} name A logical asset name, e.g. `rooms/textures/x.jpg`.
+	 * @returns {string}
+	 */
+	resolveAsset(name)
+	{
+		var runtime = this.scene && this.scene.runtime;
+		return (runtime && runtime.assets) ? runtime.assets.resolve(name).url : name;
+	}
+
+	/**
+	 * Dress the ground texture and hang it on the material (RM-005 C1).
+	 *
+	 * A method rather than the closure this started as, for two reasons. It is
+	 * called from two places - the loader's synchronous return and its callback -
+	 * and it is the only remaining way to observe the sampler state headlessly:
+	 * with the ground now a KTX2, jsdom cannot produce the texture at all, so a
+	 * test that wants to check the sRGB tag has to be able to hand one over. That
+	 * is what `tests/color-pipeline.test.js` does.
+	 *
+	 * Idempotent. A JPEG arrives twice - `TextureLoader` returns the Texture and
+	 * also passes it to `onLoad` - and a KTX2 once. Same object either way, so the
+	 * guard is about not redoing the work rather than about correctness.
+	 *
+	 * @param {?Object} groundT
+	 */
+	applyGroundTexture(groundT)
+	{
+		if (this._groundApplied || !groundT) { return; }
+		this._groundApplied = true;
+		// Held on `this` since RM-003 A0, so dispose() can release it. It was a
+		// local, and `Material.dispose()` in three does not touch the material's
+		// maps - so the ground photograph, the largest single texture the viewer
+		// loads, was leaked once per viewer built.
+		this.groundTex = groundT;
+		// A photograph of gravel (S8).
+		groundT.colorSpace = SRGBColorSpace;
+		groundT.wrapS = groundT.wrapT = RepeatWrapping;
+		// Anisotropic filtering, in both profiles.
+		//
+		// A ground plane is the textbook case for it: the surface runs away from
+		// the camera, so the sampling footprint is enormously wider than it is
+		// tall, and isotropic mipmapping has to pick one level for both axes -
+		// which either aliases across the plane or blurs along it. Sixteen taps is
+		// the usual cap and costs nothing measurable for one draw.
+		//
+		// `renderer` can be a stub under test, and `capabilities` is a real WebGL
+		// query, so this is guarded rather than assumed.
+		var renderer = this.renderer;
+		if (renderer && renderer.capabilities && typeof renderer.capabilities.getMaxAnisotropy === 'function')
+		{
+			groundT.anisotropy = Math.min(16, renderer.capabilities.getMaxAnisotropy());
+		}
+		// 40, not 10 - see GROUND_REFLECTOR_ENABLED. The reflector used to replace
+		// this material entirely and tiled its own copy of the same image at
+		// 40x40, so 10 was never what anyone actually saw. At 10 the ground reads
+		// as big flat squares with obvious seams; 40 restores the fine gravel the
+		// reflector produced, which is the whole of the difference the parity grid
+		// showed between r98 and r185.
+		groundT.repeat.set(this.renderProfile.groundRepeat, this.renderProfile.groundRepeat);
+
+		// Loaded either way and used only if the profile wants it, which is what
+		// this line has always done - studio draws untextured ground.
+		if (this.renderProfile.groundTexture)
+		{
+			this.groundMat.map = groundT;
+			// Required when a material gains a map after construction: `USE_MAP` is
+			// a compile-time define, so the shader has to be rebuilt. Harmless on
+			// the synchronous path, where the material is one line old.
+			this.groundMat.needsUpdate = true;
+		}
+	}
+
+	/**
+	 * Fetch a texture by logical name, whatever container it turns out to be in
+	 * (RM-005 C1).
+	 *
+	 * This class owns the only two textures in the viewer that do not go through
+	 * `texture_cache` - the ground photograph and the environment map - so it is
+	 * also the only place that has to choose a loader. The choice is made on the
+	 * RESOLVED url rather than on the name, which is the point of doing it here:
+	 * `rooms/textures/Ground_4K.jpg` is a name a manifest may point at a `.ktx2`,
+	 * and the caller should not have to know that it did.
+	 *
+	 * ## The return value is the whole reason this method exists
+	 *
+	 * `TextureLoader.load()` returns a `Texture` immediately and fills its pixels
+	 * in when the image lands. `KTX2Loader.load()` returns **undefined** and
+	 * delivers a `CompressedTexture` only through `onLoad`, because a compressed
+	 * texture's data lives in `.mipmaps` and there is nothing to hand back before
+	 * it has been transcoded. That difference is what stopped RM-004 B5 putting
+	 * these textures in `texture_cache`, whose clone-a-master design depends on
+	 * the synchronous return.
+	 *
+	 * Here it costs one line at each call site instead: take the texture from
+	 * whichever of the two routes produces it. A caller that ignores the return
+	 * value and uses only `onLoad` is correct for both loaders.
+	 *
+	 * @param {string} name A logical asset name.
+	 * @param {function(Object): void} onLoad
+	 * @returns {?Object} The texture, if this loader can produce one at call
+	 *          time. Null for KTX2, where `onLoad` is the only delivery.
+	 */
+	loadTexture(name, onLoad)
+	{
+		var url = this.resolveAsset(name);
+		var failed = function () {console.log('Skybox: failed to load ' + url);};
+
+		if (!/\.ktx2$/i.test(url))
+		{
+			// `this.texture` rather than a fresh TextureLoader, so the one seam the
+			// colour-pipeline test replaces covers both of this class's textures.
+			return this.texture.load(url, onLoad, undefined, failed) || null;
+		}
+
+		var loader = this.compressedLoader();
+		if (!loader)
+		{
+			// No answer about this device, so no transcode. `KTX2Loader.load()`
+			// THROWS rather than failing softly when `workerConfig` is unset, which
+			// is the one place B4's architectural objection was pointing at
+			// something real - and it lands here rather than in `Scene`, because
+			// `Scene` only ATTACHES its loader and GLTFLoader calls it only when a
+			// container actually carries a compressed image.
+			//
+			// `texture_formats.js` is explicit that a null record must not be
+			// guessed past: transcoding to a format the GPU cannot read produces a
+			// texture that fails to upload, which is worse than no texture. So the
+			// ground draws in its profile colour, which is what it does under a
+			// 404 today and what studio does on purpose.
+			return null;
+		}
+		loader.load(url, onLoad, undefined, failed);
+		return null;
+	}
+
+	/**
+	 * The KTX2 transcoder, built on first use and not before.
+	 *
+	 * `Scene` has to attach its KTX2Loader eagerly - `GLTFLoader` refuses a
+	 * container declaring `KHR_texture_basisu` unless one is already there. This
+	 * class has no such constraint, so a build whose skybox textures are ordinary
+	 * JPEGs never constructs one, never fetches the transcoder, and never starts
+	 * a worker.
+	 *
+	 * `workerConfig` comes from the device rather than from
+	 * `detectSupport(renderer)`, for the reason `core/texture_formats.js` sets
+	 * out: the dependency is on what this GPU can read, which is a property of
+	 * the machine and not of any one renderer. A `Skybox` does hold a renderer,
+	 * so it could call `detectSupport` - and using the shared record instead
+	 * means the answer here cannot disagree with the answer the model layer got.
+	 *
+	 * @returns {?KTX2Loader} Null where this device cannot report its formats,
+	 *          which is Node, jsdom, and a browser with no WebGL at all.
+	 */
+	compressedLoader()
+	{
+		if (!this._ktx2Loader)
+		{
+			// Asked before the loader is built, not after. `KTX2Loader.load()`
+			// throws on a missing `workerConfig`, so a loader constructed without
+			// one is a loader that can only fail loudly the first time it is used.
+			var support = formatSupport();
+			if (!support) { return null; }
+
+			var loader = new KTX2Loader();
+			var runtime = this.scene && this.scene.runtime;
+			if (runtime && runtime.assets) { loader.setTranscoderPath(runtime.assets.transcoderPath()); }
+			loader.workerConfig = support;
+			this._ktx2Loader = loader;
+		}
+		return this._ktx2Loader;
+	}
+
 	/**
 	 * The real THREE.Scene behind whatever was handed to the constructor.
 	 *
@@ -272,7 +511,23 @@ export class Skybox extends EventDispatcher
 	setEnvironmentMap(url)
 	{
 		var scope = this;
-		scope.texture.load(url, function (t)
+		// Resolved and dispatched by `loadTexture`, so every caller gets the
+		// indirection - `toggleEnvironment` passing `defaultEnvironment`, and an
+		// embedder passing a name of their own - and gets whichever loader the
+		// resolved URL turns out to need.
+		//
+		// The return value is deliberately ignored. This path was already the
+		// shape a compressed texture needs: the material is built INSIDE the
+		// callback, from the texture that arrives, so it holds a
+		// `CompressedTexture` as readily as a `Texture` and always could have.
+		//
+		// The trailing `undefined, function(){...}` this used to carry went with
+		// it. `loadTexture` takes two arguments and owns the failure path for both
+		// loaders, so the third and fourth were being dropped - which C1 did not
+		// notice and the type checker did, in the very next sprint (TS2554,
+		// expected 2 got 4). The message they logged, `ERROR LOADEING FILE`, is
+		// replaced by `loadTexture`'s, which names the URL.
+		scope.loadTexture(url, function (t)
 		{
 			// The environment photograph, decoded on the way in so the shader's
 			// #include <colorspace_fragment> has linear values to encode (S8).
@@ -283,10 +538,7 @@ export class Skybox extends EventDispatcher
 			var textureUniform = {type: 't', value: t};
 			var uniforms = {envMap: textureUniform};
 			scope.skyMat = new ShaderMaterial({vertexShader: scope.vertexShader, fragmentShader: scope.fragmentShader, uniforms: uniforms, side: DoubleSide});
-			scope.toggleEnvironment(scope.useEnvironment);			
-		}, undefined, function()
-		{
-			console.log('ERROR LOADEING FILE');
+			scope.toggleEnvironment(scope.useEnvironment);
 		});
 	}
 	

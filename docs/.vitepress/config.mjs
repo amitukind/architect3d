@@ -77,7 +77,9 @@ export default defineConfig({
 
 		footer: {
 			message: 'Released under the ISC licence.',
-			copyright: 'Copyright © Amit Verma',
+			// HTML rather than plain text: VitePress renders both footer fields as
+			// markup, and the credit is meant to be a link.
+			copyright: 'Created by <a href="https://amitukind.com" target="_blank" rel="noopener noreferrer">Amit Verma</a>',
 		},
 
 		search: {provider: 'local'},

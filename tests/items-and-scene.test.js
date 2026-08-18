@@ -23,6 +23,7 @@ import {describe, it, expect, beforeEach} from 'vitest';
 import * as three from 'three';
 
 import {Model} from '../src/scripts/model/model.js';
+import {Scene} from '../src/scripts/model/scene.js';
 import {Factory, item_types} from '../src/scripts/items/factory.js';
 import {Item} from '../src/scripts/items/item.js';
 import {FloorItem} from '../src/scripts/items/floor_item.js';
@@ -322,6 +323,98 @@ describe('Scene construction', () => {
 	it('installs no item loader by default, so production uses the built-in dispatch', () => {
 		const model = new Model('/textures/');
 		expect(model.scene.itemLoader).toBeNull();
+	});
+});
+
+describe('Scene.addItem failure path (RM-002 R-01)', () => {
+	/**
+	 * Before this existed, both loaders were called with a null onError and
+	 * nothing around them. A load that could not start dispatched
+	 * EVENT_ITEM_LOADING and then dispatched nothing at all, forever - which is
+	 * why the application's undo gate needed an eight-second timer to survive a
+	 * count that never came back down.
+	 *
+	 * The contract these pin: every addItem dispatches exactly one LOADING and
+	 * exactly one LOADED, whatever happens. On failure the LOADED carries a null
+	 * item and Scene.unloadableItemCount goes up by one.
+	 */
+	function countEvents(scene) {
+		const seen = {loading: 0, loaded: 0, items: []};
+		scene.addEventListener(EVENT_ITEM_LOADING, () => {seen.loading += 1;});
+		scene.addEventListener(EVENT_ITEM_LOADED, (event) => {
+			seen.loaded += 1;
+			seen.items.push(event.item);
+		});
+		return seen;
+	}
+
+	it('balances LOADING with LOADED when the URL cannot even be parsed', () => {
+		// Under Node a relative URL throws synchronously out of three's FileLoader,
+		// from `new Request` - past the onError callback that exists for this and
+		// never sees it. That synchronous throw used to escape addItem entirely.
+		const model = new Model('/textures/');
+		const seen = countEvents(model.scene);
+		const before = Scene.unloadableItemCount;
+
+		expect(() => model.scene.addItem(
+			1, 'models/js-glb/nope.glb',
+			{itemName: 'Nope', itemType: 1, format: 'gltf', modelUrl: 'models/js-glb/nope.glb'},
+			null, 0, null, false,
+		)).not.toThrow();
+
+		expect(seen.loading).toBe(1);
+		expect(seen.loaded).toBe(1);
+		expect(seen.items).toEqual([null]);
+		expect(Scene.unloadableItemCount).toBe(before + 1);
+		expect(model.scene.itemCount()).toBe(0);
+	});
+
+	it('counts per scene as well as per process (RM-002 R-02)', () => {
+		// The static total is what an embedder and the S4 exit gate read, and it
+		// keeps counting everything. The instance figure is the one that means
+		// something when two designs are open - and the one that stops a test
+		// having to zero a process-global between cases.
+		const first = new Model('/textures/');
+		const second = new Model('/textures/');
+		const processBefore = Scene.unloadableItemCount;
+
+		first.scene.addItem(1, 'a.js', {itemName: 'A', itemType: 1}, null, 0, null, false);
+		first.scene.addItem(1, 'b.js', {itemName: 'B', itemType: 1}, null, 0, null, false);
+		second.scene.addItem(1, 'c.js', {itemName: 'C', itemType: 1}, null, 0, null, false);
+
+		expect(first.scene.unloadableItemCount).toBe(2);
+		expect(second.scene.unloadableItemCount).toBe(1);
+		expect(Scene.unloadableItemCount).toBe(processBefore + 3);
+	});
+
+	it('does the same for a formatless item, the branch that set the convention', () => {
+		const model = new Model('/textures/');
+		const seen = countEvents(model.scene);
+		const before = Scene.unloadableItemCount;
+
+		model.scene.addItem(1, 'models/js/retired.js', {itemName: 'Retired', itemType: 1}, null, 0, null, false);
+
+		expect(seen.loading).toBe(1);
+		expect(seen.loaded).toBe(1);
+		expect(seen.items).toEqual([null]);
+		expect(Scene.unloadableItemCount).toBe(before + 1);
+	});
+
+	it('leaves the installed loader outside the catch, so item construction still throws', () => {
+		// The try covers starting a load, not running the callback. A loader that
+		// supplies geometry successfully and then fails to build an Item is a
+		// different failure, and the DOM-boundary test above pins it as one - if
+		// the catch were any wider it would swallow that and report a null item.
+		const model = new Model('/textures/');
+		model.scene.setItemLoader((fileName, metadata, onLoad) => {
+			onLoad(new three.BufferGeometry(), [new three.MeshBasicMaterial()]);
+		});
+
+		expect(() => model.scene.addItem(
+			1, 'models/anything.glb',
+			{itemName: 'Boom', itemType: 1, format: 'gltf'},
+			null, 0, null, false,
+		)).toThrow(ReferenceError);
 	});
 });
 
@@ -709,9 +802,13 @@ describe('Item.getMetaData - the save-file item contract', () => {
 	 * somebody actually picked one, null elsewhere, and is omitted entirely when
 	 * nothing was picked.
 	 */
-	it('emits twelve keys and no material_colors when nothing was recoloured', () => {
+	// `id` is new in RM-003 A3 and is additive: an item carries a stable identity
+	// so undo can recognise the furniture it already has instead of re-fetching
+	// every model. A file written before A3 has none and is assigned one on load.
+	it('emits thirteen keys and no material_colors when nothing was recoloured', () => {
 		const md = Item.prototype.getMetaData.call(metaDataSource());
 		expect(Object.keys(md)).toEqual([
+			'id',
 			'item_name', 'item_type', 'format', 'model_url',
 			'xpos', 'ypos', 'zpos',
 			'rotation',
@@ -721,9 +818,10 @@ describe('Item.getMetaData - the save-file item contract', () => {
 		expect('material_colors' in md).toBe(false);
 	});
 
-	it('adds material_colors as the thirteenth key once a colour is picked', () => {
+	it('adds material_colors as the fourteenth key once a colour is picked', () => {
 		const md = Item.prototype.getMetaData.call(metaDataSource({_pickedColorSlots: new Set([0])}));
 		expect(Object.keys(md)).toEqual([
+			'id',
 			'item_name', 'item_type', 'format', 'model_url',
 			'xpos', 'ypos', 'zpos',
 			'rotation',
@@ -736,6 +834,7 @@ describe('Item.getMetaData - the save-file item contract', () => {
 	it('maps metadata, position, rotation.y, scale and fixed onto those keys', () => {
 		const md = Item.prototype.getMetaData.call(metaDataSource({_pickedColorSlots: new Set([0])}));
 		expect(md).toEqual({
+			id: md.id,
 			item_name: 'Sofa',
 			item_type: 1,
 			format: 'obj',
@@ -821,7 +920,10 @@ describe('Item.getMetaData - the save-file item contract', () => {
 		const md = Item.prototype.getMetaData.call(source);
 		expect(md.format).toBeUndefined();
 		expect(md.model_url).toBeUndefined();
-		expect(Object.keys(md)).toHaveLength(12);
+		expect(Object.keys(md)).toHaveLength(13);
+		// `id` goes the same way as the other absent fields: this source has no
+		// designId, so the key is emitted as undefined and JSON drops it. A real
+		// Item always has one.
 		expect(Object.keys(JSON.parse(JSON.stringify(md)))).toEqual([
 			'item_name', 'item_type', 'xpos', 'ypos', 'zpos',
 			'rotation', 'scale_x', 'scale_y', 'scale_z', 'fixed',
@@ -940,12 +1042,19 @@ describe('Model.loadSerialized', () => {
 		expect(model.scene.getScene().children).toHaveLength(0);
 	});
 
-	// QUIRK (model.js:43 + model.js:105): items is not defaulted, so a design
-	// without an items key throws - and it throws AFTER EVENT_LOADING has already
-	// been dispatched and after the floorplan has been replaced, leaving the model
-	// half-loaded with no EVENT_LOADED.
-	it('throws on a design with no items array, after EVENT_LOADING and after replacing the floorplan', () => {
+	// RETIRED QUIRK (RM-003 A1). This used to read "throws on a design with no
+	// items array, after EVENT_LOADING and after replacing the floorplan", and it
+	// asserted exactly that: a TypeError, EVENT_LOADING already dispatched, and
+	// the floorplan already replaced - the model left half-loaded with no
+	// EVENT_LOADED and the previous design gone.
+	//
+	// That is the defect A1 exists to remove, so the expectation is retired rather
+	// than the change re-checked. What replaces it is the opposite claim.
+	it('rejects a design with no items array without touching the one that is open', () => {
 		const model = new Model('/textures/');
+		model.loadSerialized(JSON.stringify(makeDesign([])));
+		const before = model.exportSerialized();
+
 		const events = [];
 		model.addEventListener(EVENT_LOADING, (e) => events.push(e.type));
 		model.addEventListener(EVENT_LOADED, (e) => events.push(e.type));
@@ -953,8 +1062,15 @@ describe('Model.loadSerialized', () => {
 		const design = makeDesign([]);
 		delete design.items;
 
-		expect(() => model.loadSerialized(JSON.stringify(design))).toThrow(TypeError);
-		expect(events).toEqual(['LOADING_EVENT']);
+		// Still throws, because callers already catch and a function that quietly
+		// stops reporting failure is a worse change than one that keeps reporting
+		// it. The message now names the field instead of being whichever TypeError
+		// the mutation happened to hit first.
+		expect(() => model.loadSerialized(JSON.stringify(design))).toThrow(/items/);
+		// And no EVENT_LOADING: nothing started, so saying it did would leave a
+		// listener that shows a spinner on LOADING and hides it on LOADED spinning.
+		expect(events).toEqual([]);
+		expect(model.exportSerialized()).toBe(before);
 		expect(model.floorplan.getWalls()).toHaveLength(4);
 	});
 });
@@ -1078,5 +1194,88 @@ describe('Model.exportSerialized', () => {
 			expect('resizable' in out.items[0]).toBe(false);
 			expect(SOFA.resizable).toBe(true);
 		});
+	});
+});
+
+/**
+ * RoofItem threw on a design with no rooms, and the checker had already said so.
+ *
+ * Two of the library's 355 type errors sat on one line of
+ * `items/roof_item.js` - TS18047 for `result` and again for
+ * `result.closestPoint`. `result` is only ever assigned inside a loop over
+ * `floorplan.roofPlanes()`, which pushes one plane per room, so an empty
+ * floorplan left it null and the line dereferenced it.
+ *
+ * Not a corner of the API: `RoofItem`'s constructor calls
+ * `closestCeilingPoint()` (`roof_item.js:24`), so adding a ceiling item before
+ * drawing a room was a TypeError, and that is the state every design starts in.
+ *
+ * Constructed rather than found. No fixture has a design with no rooms and a
+ * ceiling item, which is exactly why nothing caught it - the crash needs the
+ * emptiest possible document, and every fixture is a real one.
+ */
+describe('RoofItem on a design with no ceiling (RM-005 C2, J-5)', () =>
+{
+	/** The two things `closestCeilingPoint` reads off `this`. */
+	const withRoofs = (planes) => ({
+		model: {floorplan: {roofPlanes: () => planes}},
+		position: new three.Vector3(10, 20, 30),
+	});
+
+	it('does not throw when the floorplan has no rooms', () =>
+	{
+		const item = withRoofs([]);
+		expect(() => RoofItem.prototype.closestCeilingPoint.call(item)).not.toThrow();
+	});
+
+	it('stays where it is, which is the honest answer when there is no ceiling', () =>
+	{
+		// `moveToPosition` with the current position is a no-op, so the item lands
+		// where it was placed and the user moves it - the same answer
+		// `FloorItem.isValidPosition` gives when it cannot find a room to be in.
+		const item = withRoofs([]);
+		const where = RoofItem.prototype.closestCeilingPoint.call(item);
+
+		expect(where).toBeInstanceOf(three.Vector3);
+		expect([where.x, where.y, where.z]).toEqual([10, 20, 30]);
+		// A copy, not the live position: the caller passes it to moveToPosition,
+		// which would otherwise be handed the vector it is about to overwrite.
+		expect(where).not.toBe(item.position);
+	});
+
+	it('has a sibling in WallItem, found the same way', () =>
+	{
+		// `WallItem.closestWallEdge()` returns null when `wallEdges()` is empty -
+		// the loop never runs and there is nothing to be nearest to - and
+		// `placeInRoom` handed it straight to `changeWallEdge`, which dereferences
+		// it on its first line. Adding a wall item before drawing a wall.
+		//
+		// Same shape as J-5, named by the same checker, and neither had a test
+		// because no fixture is empty enough to hit either.
+		const item = {
+			model: {floorplan: {wallEdges: () => []}},
+			position: new three.Vector3(1, 2, 3),
+			position_set: false,
+			closestWallEdge: WallItem.prototype.closestWallEdge,
+			// Present so a regression fails LOUDLY rather than by another missing
+			// method: if placeInRoom stops guarding, it reaches this and throws on
+			// `wallEdge.wall`, which is the original defect.
+			changeWallEdge: WallItem.prototype.changeWallEdge,
+		};
+		expect(WallItem.prototype.closestWallEdge.call(item)).toBe(null);
+		expect(() => WallItem.prototype.placeInRoom.call(item)).not.toThrow();
+	});
+
+	it('still prefers a real ceiling when there is one', () =>
+	{
+		// The fix must not have turned the normal path into the fallback. One roof
+		// that contains the point, so the loop assigns and the guard is not reached.
+		const item = withRoofs([{}]);
+		item.model.floorplan.roofPlanes = () => [{}];
+		const contained = {distance: 5, contains: true, point: new three.Vector3(1, 2, 3), closestPoint: new three.Vector3(9, 9, 9)};
+		const stub = {...item, roofContainsPoint: () => contained};
+
+		const where = RoofItem.prototype.closestCeilingPoint.call(stub);
+		expect([where.x, where.y, where.z]).toEqual([1, 2, 3]);
 	});
 });

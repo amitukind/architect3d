@@ -1,3 +1,4 @@
+// @ts-check
 export const EVENT_ACTION = 'ACTION_EVENT';
 export const EVENT_DELETED = 'DELETED_EVENT';
 export const EVENT_MOVED = 'MOVED_EVENT';
@@ -9,6 +10,20 @@ export const EVENT_UPDATED = 'UPDATED_EVENT';
 export const EVENT_SAVED = 'SAVED_EVENT';
 export const EVENT_CHANGED = 'CHANGED_EVENT';
 export const EVENT_GLTF_READY = 'GLTF_READY_EVENT';
+
+/**
+ * Something changed, and the payload says what (RM-003 A2).
+ *
+ * Carries `{item, changes}`, where `changes` is a `ChangeSet` naming the kinds
+ * that changed and the entities each kind affects. See core/change_set.js for
+ * the vocabulary and why it is a payload rather than six more constants.
+ *
+ * Dispatched by `Floorplan` immediately before the `EVENT_UPDATED` it derives,
+ * so the two are one announcement seen at two levels of detail. Subscribing to
+ * this one instead of EVENT_UPDATED is what lets a consumer stop doing its most
+ * expensive thing on every pointermove.
+ */
+export const EVENT_CHANGESET = 'CHANGESET_EVENT';
 
 export const EVENT_ITEM_LOADING = 'ITEM_LOADING_EVENT';
 export const EVENT_ITEM_LOADED = 'ITEM_LOADED_EVENT';
@@ -28,6 +43,26 @@ export const EVENT_ITEM_REMOVED = 'ITEM_REMOVED_EVENT';
 export const EVENT_ITEM_MOVE_FINISH = 'ITEM_MOVE_FINISH_EVENT';
 export const EVENT_ITEM_SELECTED = 'ITEM_SELECTED_EVENT';
 export const EVENT_ITEM_UNSELECTED = 'ITEM_UNSELECTED_EVENT';
+
+/**
+ * A configuration value changed.
+ *
+ * `Configuration` was the one change vector in the library that broadcast
+ * nothing: every other mutation announces itself through an EventDispatcher,
+ * while units, scale, grid spacing and snap tolerance changed silently on a
+ * plain object. A consumer that wanted to react had to poll or be told out of
+ * band, and the settings panel's zoom control read `Number(config.scale)` once,
+ * rendered 1, and then sat there reading 1 while the plan was at 300%.
+ *
+ * Dispatched by `Configuration.setValue`, and only when the value actually
+ * changes - setting a key to what it already holds is not a change. Carries
+ * `.key`, `.value` and `.previous`.
+ *
+ * Listen on the class itself, not on an instance: `Configuration` is a
+ * namespace of statics over module-level state, so the listener API is static
+ * too. See core/configuration.js.
+ */
+export const EVENT_CONFIG_CHANGED = 'CONFIG_CHANGED_EVENT';
 
 export const EVENT_MODE_RESET = 'MODE_RESET_EVENT';
 export const EVENT_CAMERA_MOVED = 'CAMERA_MOVED_EVENT';

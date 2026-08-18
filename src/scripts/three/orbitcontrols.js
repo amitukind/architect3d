@@ -1,6 +1,20 @@
+// @ts-check
 import {OrbitControls as OrbitControlsAddon} from 'three/addons/controls/OrbitControls.js';
-import {EVENT_CAMERA_MOVED} from '../core/events.js';
+import {EVENT_CAMERA_MOVED, EVENT_CAMERA_ACTIVE_STATUS} from '../core/events.js';
 
+
+/**
+ * JSDoc-only type imports (RM-005 C2).
+ *
+ * These names were already used in the annotations below and resolved to
+ * nothing - 43 TS2304s across eleven files, every one of them a type the
+ * project defines or three exports, named but never brought into scope. A
+ * `@typedef` import costs no runtime code and no bundle bytes: it exists
+ * entirely for the checker, which is the point of writing the JSDoc at all.
+
+ *
+ * @typedef {import('three').Camera} Camera
+ */
 /**
  * three's OrbitControls, plus the two things this app added to its own fork.
  *
@@ -45,10 +59,30 @@ export class OrbitControls extends OrbitControlsAddon
 		 */
 		this.needsUpdate = true;
 
+		var scope = this;
+		/**
+		 * Announce that the active camera changed.
+		 *
+		 * `Main` fires this at four points - a view switch, a clipping change, an
+		 * orthographic toggle and entering first person - and `Edge` listens for
+		 * it to re-evaluate which way each wall face is turned. Like
+		 * `EVENT_CAMERA_MOVED` above it is this class's own event and not one of
+		 * three's, so the map does not know the string; the cast lives here, once,
+		 * rather than at each of the four call sites (RM-005 C2).
+		 */
+		this.signalCameraActive = function ()
+		{
+			scope.dispatchEvent(/** @type {any} */ ({type: EVENT_CAMERA_ACTIVE_STATUS}));
+		};
+
 		this._cameraMoved = () =>
 		{
 			this.needsUpdate = true;
-			this.dispatchEvent({type: EVENT_CAMERA_MOVED});
+			// This class adds an event three's map does not know about, which is the
+			// whole reason it exists - `Edge` listens for it (RM-005 C2). The cast
+			// is to `OrbitControlsEventMap`'s key type because the alternative is
+			// re-declaring three's map to add one string to it.
+			this.dispatchEvent(/** @type {any} */ ({type: EVENT_CAMERA_MOVED}));
 		};
 		this.addEventListener('change', this._cameraMoved);
 
@@ -86,9 +120,13 @@ export class OrbitControls extends OrbitControlsAddon
 		// wherever the element happens to be rooted now. Removing a listener
 		// twice is a no-op, and if a future three renames this private the worst
 		// case is the status quo: super.dispose() still does the normal thing.
-		if (this._keyInterceptRoot && this._interceptControlDown)
+		// `_interceptControlDown` is three's private, undeclared in the types, and
+		// the comment above already says what happens if a future release renames
+		// it. Read through a cast naming just that field (RM-005 C2).
+		var addon = /** @type {{_interceptControlDown?: EventListener}} */ (/** @type {unknown} */ (this));
+		if (this._keyInterceptRoot && addon._interceptControlDown)
 		{
-			this._keyInterceptRoot.removeEventListener('keydown', this._interceptControlDown, {capture: true});
+			this._keyInterceptRoot.removeEventListener('keydown', addon._interceptControlDown, {capture: true});
 		}
 		this._keyInterceptRoot = null;
 

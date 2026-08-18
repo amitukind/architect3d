@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {onBeforeUnmount, reactive, watch} from 'vue';
 import NumberField from './fields/NumberField.vue';
 import TextField from './fields/TextField.vue';

@@ -25,7 +25,7 @@
  */
 import {afterAll, beforeAll, describe, expect, it} from 'vitest';
 import {createHash} from 'node:crypto';
-import {readFileSync, readdirSync, existsSync} from 'node:fs';
+import {readFileSync, readdirSync, existsSync, statSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {dirname, join} from 'node:path';
 import {mergeMeshes} from '../src/scripts/core/geometry_merge.js';
@@ -44,6 +44,35 @@ const CATALOG = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog.json'), 
 // pipeline inputs rather than in public/ - it is a build artifact this test
 // reads, and it was being served to every visitor for no reason.
 const REPORT = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/conversion-report.json'), 'utf8'));
+
+/**
+ * P6's re-encode, on top of S3's conversion.
+ *
+ * Two separate passes, two separate records, and `conversion-report.json` is
+ * deliberately not rewritten to match the second: it is what the S3 converter
+ * did, and editing it to stay current would destroy the thing it is for. This
+ * file composes them instead - S3 says which textures a model needs, P6 says
+ * which of those were re-encoded into a different container, and the shipped
+ * name is the second applied to the first.
+ */
+const RECOMPRESSED = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/texture-compression.json'), 'utf8'));
+const SHIPPED_AS = new Map(RECOMPRESSED.converted.map((entry) => [entry.from.split('/').pop(), entry.to.split('/').pop()]));
+
+/**
+ * B5's transcode, on top of P6's re-encode, on top of S3's conversion.
+ *
+ * Three passes now, and `shippedName` is their composition applied in order.
+ * The rule the file already stated for two holds for three: no report is
+ * rewritten to match a later tree, because each is a record of what its own
+ * pass did, and composing them is how the current name is derived.
+ */
+const TRANSCODED = new Map(JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/texture-transcode.json'), 'utf8'))
+	.textures.map((entry) => [entry.from.split('/').pop(), entry.to.split('/').pop()]));
+const shippedName = (texture) =>
+{
+	const afterP6 = SHIPPED_AS.get(texture) || texture;
+	return TRANSCODED.get(afterP6) || afterP6;
+};
 
 let restoreImages;
 beforeAll(() => {restoreImages = installImageStub();});
@@ -83,7 +112,8 @@ describe('every legacy model converted', () =>
 		{
 			for (const texture of model.textures)
 			{
-				expect(existsSync(join(CONVERTED_DIR, 'textures', texture)), `${model.source} -> ${texture}`).toBe(true);
+				const shipped = shippedName(texture);
+				expect(existsSync(join(CONVERTED_DIR, 'textures', shipped)), `${model.source} -> ${shipped}`).toBe(true);
 			}
 		}
 	});
@@ -94,13 +124,87 @@ describe('every legacy model converted', () =>
 		// canvas round-trip, so the baked maps are the original files.
 		// Hashed rather than deep-compared: vitest's toEqual walks two 4 MB
 		// Buffers byte by byte and the whole suite spent five seconds in here.
+		//
+		// P6 narrowed this to the textures it did not re-encode, and the narrowing
+		// is the point rather than a concession. The claim here is about the *S3
+		// converter* - that it did not round-trip anything through a canvas - and
+		// that claim is unchanged. What changed is that byte-equality with the
+		// source stopped being the way to observe it for 12 of the maps, because a
+		// later and entirely separate pass deliberately re-encoded them. The
+		// assertion below pins that set to exactly what P6 recorded, so a texture
+		// cannot quietly stop matching its source without being on that list.
 		const digest = (path) => createHash('sha256').update(readFileSync(path)).digest('hex');
 		const copied = readdirSync(join(CONVERTED_DIR, 'textures'));
 		expect(copied.length).toBeGreaterThan(0);
-		for (const name of copied)
+
+		// RM-004 B4 is the second pass to make byte-equality the wrong way to
+		// observe this claim, and it does it differently from P6 - which is why
+		// it needs naming separately rather than falling out of the filename.
+		// P6 re-encoded PNG to JPEG, so its outputs have no same-named file in
+		// the legacy tree and the `existsSync` split below already excludes
+		// them. B4 resized three JPEGs IN PLACE, keeping every filename, which
+		// is the whole reason that route needed no .glb rewriting - and the
+		// side effect is that they still look untouched to a filename test
+		// while no longer matching their source byte for byte.
+		//
+		// Pinned to the report rather than to a literal list, so a texture
+		// cannot stop matching its source without a pipeline pass recording
+		// that it did.
+		const RESIZED = new Set(JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/resize-report.json'), 'utf8'))
+			.textures
+			.filter((entry) => entry.name.startsWith('models/js-glb/textures/'))
+			.map((entry) => entry.name.split('/').pop()));
+		expect(RESIZED.size).toBeGreaterThan(0);
+
+		const untouched = copied.filter((name) => existsSync(join(LEGACY_DIR, name)) && !RESIZED.has(name));
+		const reencoded = copied.filter((name) => !existsSync(join(LEGACY_DIR, name)));
+
+		for (const name of untouched)
 		{
 			expect(digest(join(CONVERTED_DIR, 'textures', name)), name)
 				.toBe(digest(join(LEGACY_DIR, name)));
+		}
+
+		// The exemption has to stay narrow: a resized texture's legacy source is
+		// still there under the same name, and it must be the one that got
+		// bigger rather than the one that got replaced by something unrelated.
+		for (const name of RESIZED)
+		{
+			const legacy = join(LEGACY_DIR, name);
+			expect(existsSync(legacy), `legacy source for the resized ${name}`).toBe(true);
+			// B5 then transcoded most of these to KTX2, so the resized JPEG is
+			// gone and the comparison has to be against whatever stands in its
+			// place. Still the same claim - the shipped file is smaller than the
+			// legacy source - just followed one pass further along.
+			const shipped = TRANSCODED.get(name) || name;
+			expect(statSync(join(CONVERTED_DIR, 'textures', shipped)).size,
+				`${shipped} should be smaller than the source it came from`)
+				.toBeLessThan(statSync(legacy).size);
+		}
+
+		// Every texture that is no longer byte-identical to its source is one P6
+		// converted, and its source is still there under the name it had.
+		// Derived from the legacy sources forward, rather than from one pass's
+		// output list. `shippedName` is the composition of all three passes, so
+		// a legacy texture whose shipped name differs from its own is exactly a
+		// texture some recorded pass renamed - and the set of those is what
+		// should be in the converted directory without a same-named source.
+		//
+		// Written this way because the previous version listed P6's outputs
+		// directly and therefore had to be rewritten the moment a fourth pass
+		// touched any of them. This version does not: add a pass to
+		// `shippedName` and this assertion follows.
+		const recorded = new Set(readdirSync(LEGACY_DIR)
+			.filter((name) => /\.(png|jpe?g)$/i.test(name))
+			.map((name) => [name, shippedName(name)])
+			.filter(([name, shipped]) => shipped !== name)
+			.map(([, shipped]) => shipped));
+		expect(reencoded.sort()).toEqual([...recorded].sort());
+		for (const name of reencoded)
+		{
+			const source = readdirSync(LEGACY_DIR).find((candidate) => shippedName(candidate) === name);
+			expect(source, `no legacy source maps to ${name}`).toBeTruthy();
+			expect(existsSync(join(LEGACY_DIR, source)), `source for ${name}`).toBe(true);
 		}
 	});
 });
@@ -144,12 +248,33 @@ describe.each(LEGACY_MODEL_NAMES)('%s', (name) =>
 		expect(surfaceArea(converted)).toBeCloseTo(before, Math.max(0, 6 - Math.ceil(Math.log10(before || 1))));
 	});
 
-	it('keeps every vertex position', () =>
+	it('keeps every distinct vertex position', () =>
 	{
 		// Welding merges vertices that agree on position, normal and uv, so the
 		// set of positions is preserved even though the count and order are not.
-		// The fixture stores that set as a size and a hash; both must match.
-		expect(positionDigest(converted)).toEqual(legacy.positions);
+		//
+		// RM-004 B1 RETIRED THE HASH HALF OF THIS ASSERTION, deliberately, and it
+		// is the only expectation the sprint retired. The digest is a sha of every
+		// distinct position rounded to 3dp, and that is bit-exactness by another
+		// name: Draco moves the furthest vertex in this catalog by 0.38
+		// micrometres, which is four orders of magnitude inside the 5-micrometre
+		// tolerance the two assertions above apply - and still flips the hash the
+		// instant one vertex crosses a 3dp rounding boundary. No lossy codec
+		// satisfies it at any bit depth. At 30 bits it would pass on some models
+		// and not others, which is worse than failing honestly.
+		//
+		// `size` stays, and stays exact: it is the count of DISTINCT positions, so
+		// it catches quantization merging two vertices into one or splitting one
+		// into two - the change that would actually alter the surface. Together
+		// with the bounds, surface-area and triangle-count assertions around it,
+		// what survives is every geometric claim; what went is the fingerprint.
+		//
+		// The per-vertex guarantee did not disappear, it moved to where it can be
+		// stated as a number: tests/asset-encoding.test.js asserts authored ->
+		// encoded displacement against asset-pipeline/encoding-report.json. The
+		// chain is r98 -> authored, proven here, and authored -> shipped, proven
+		// there.
+		expect(positionDigest(converted).size).toBe(legacy.positions.size);
 	});
 
 	it('carries one material per material the source declared', () =>
@@ -199,11 +324,11 @@ describe('material translation', () =>
 		// The stock exporter writes metallic 0.5 / roughness 0.5, which makes every
 		// one of these visibly darker and glossier than the Lambert original.
 		const gltf = readGltfJson('cb-blue-block-60x96');
-		for (const material of gltf.materials)
+		gltf.materials.forEach((material, i) =>
 		{
-			expect(material.pbrMetallicRoughness.metallicFactor).toBe(0);
-			expect(material.pbrMetallicRoughness.roughnessFactor).toBe(1);
-		}
+			expect(pbrOf(gltf, i).metallicFactor).toBe(0);
+			expect(pbrOf(gltf, i).roughnessFactor).toBe(1);
+		});
 	});
 
 	it('passes the diffuse colour through untouched, everywhere it is declared', () =>
@@ -219,7 +344,7 @@ describe('material translation', () =>
 			const gltf = readGltfJson(name);
 			source.forEach((legacy, i) =>
 			{
-				const factor = gltf.materials[i].pbrMetallicRoughness.baseColorFactor;
+				const factor = pbrOf(gltf, i).baseColorFactor;
 				expect(factor.slice(0, 3), `${name} material ${i}`).toEqual(legacy.colorDiffuse || [1, 1, 1]);
 				expect(factor[3], `${name} material ${i} alpha`).toBe(legacy.transparency ?? 1);
 				if (legacy.colorDiffuse)
@@ -235,16 +360,22 @@ describe('material translation', () =>
 	{
 		const gltf = readGltfJson('ik-kivine_baked');
 		expect(gltf.images).toBeUndefined();
-		expect(gltf.materials[0].pbrMetallicRoughness.baseColorTexture).toBeUndefined();
+		expect(pbrOf(gltf, 0).baseColorTexture).toBeUndefined();
 		// The diffuse colour still carries, which is what the legacy path fell
 		// back to when the 404 came in.
-		expect(gltf.materials[0].pbrMetallicRoughness.baseColorFactor).toHaveLength(4);
+		expect(pbrOf(gltf, 0).baseColorFactor).toHaveLength(4);
 	});
 
 	it('points textures at the shared sidecar directory, not at models/js', () =>
 	{
 		const gltf = readGltfJson('cb-blue-block-60x96');
-		expect(gltf.images[0].uri).toBe('textures/b_cb-blue-block60x96.png');
+		// The directory is what this pins, as the assertion it replaces already
+		// said in a comment while pinning the extension anyway. P6 made it .jpg,
+		// B5 made it .ktx2, and neither changed the thing being claimed: the
+		// converter writes textures to a shared sidecar directory instead of
+		// leaving them beside the legacy models/js sources.
+		expect(gltf.images[0].uri).toMatch(/^textures\/b_cb-blue-block60x96\.[a-z0-9]+$/);
+		expect(gltf.images[0].uri).not.toContain('models/js');
 	});
 });
 
@@ -511,4 +642,32 @@ function readGltfJson(name)
 	const buffer = readFileSync(join(CONVERTED_DIR, `${name}.glb`));
 	const jsonLength = buffer.readUInt32LE(12);
 	return JSON.parse(buffer.toString('utf8', 20, 20 + jsonLength));
+}
+
+/**
+ * A material's PBR block with the glTF 2.0 defaults filled in (RM-004 B1).
+ *
+ * The assertions below are about what a material MEANS, and a glTF reader
+ * applies these defaults before it means anything. Reading the raw JSON instead
+ * was testing the serializer, and it broke the moment one changed: B1's
+ * re-encode round-trips every file through glTF-Transform, which omits any
+ * field equal to its default, so `roughnessFactor: 1` and
+ * `baseColorFactor: [1,1,1,1]` simply stop being written. Identical material,
+ * absent key, `expected undefined to be 1`.
+ *
+ * Filling the defaults in is what the renderer does, so this is the stricter
+ * reading as well as the more robust one - it now also passes if some future
+ * tool writes the defaults back out explicitly.
+ *
+ * Defaults per the spec's material.pbrMetallicRoughness schema.
+ */
+function pbrOf(gltf, index)
+{
+	const pbr = (gltf.materials[index] || {}).pbrMetallicRoughness || {};
+	return {
+		baseColorFactor: pbr.baseColorFactor || [1, 1, 1, 1],
+		metallicFactor: pbr.metallicFactor === undefined ? 1 : pbr.metallicFactor,
+		roughnessFactor: pbr.roughnessFactor === undefined ? 1 : pbr.roughnessFactor,
+		baseColorTexture: pbr.baseColorTexture,
+	};
 }

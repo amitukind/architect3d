@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {computed} from 'vue';
 import {
 	MousePointer2, PencilRuler, Eraser, Sofa, Footprints,

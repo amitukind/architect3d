@@ -1,18 +1,37 @@
-import {EVENT_UPDATED, EVENT_LOADED, EVENT_NEW, EVENT_DELETED, EVENT_ROOM_NAME_CHANGED} from '../core/events.js';
+// @ts-check
+import {EVENT_UPDATED, EVENT_LOADED, EVENT_NEW, EVENT_DELETED, EVENT_ROOM_NAME_CHANGED, EVENT_CHANGESET} from '../core/events.js';
 import {EVENT_CORNER_ATTRIBUTES_CHANGED, EVENT_WALL_ATTRIBUTES_CHANGED, EVENT_ROOM_ATTRIBUTES_CHANGED, EVENT_MOVED} from '../core/events.js';
+import {ChangeSet, CHANGE_TOPOLOGY, CHANGE_GEOMETRY, REASON_EDIT, REASON_LOAD, newChangeCounts} from '../core/change_set.js';
+import {matchRooms, rekeyInPlace} from './room_matcher.js';
 import {EventDispatcher, Vector2, Vector3} from 'three';
 import {Utils} from '../core/utils.js';
 import {Dimensioning} from '../core/dimensioning.js';
 import {WallTypes} from '../core/constants.js';
 import {Version} from '../core/version.js';
 import {cornerTolerance} from '../core/configuration.js';
+import {resolveRuntime} from '../core/design_runtime.js';
 
 
 import {HalfEdge} from './half_edge.js';
 import {Corner} from './corner.js';
 import {Wall} from './wall.js';
+import {deriveWallIds} from '../core/wall_identity.js';
 import {Room} from './room.js';
 
+
+/**
+ * JSDoc-only type imports (RM-005 C2).
+ *
+ * These names were already used in the annotations below and resolved to
+ * nothing - 43 TS2304s across eleven files, every one of them a type the
+ * project defines or three exports, named but never brought into scope. A
+ * `@typedef` import costs no runtime code and no bundle bytes: it exists
+ * entirely for the checker, which is the point of writing the JSDoc at all.
+
+ *
+ * @typedef {import('../floorplanner/carbonsheet.js').CarbonSheet} CarbonSheet
+ * @typedef {import('three').Mesh} Mesh
+ */
 /** */
 export const defaultFloorPlanTolerance = 10.0;
 
@@ -59,9 +78,31 @@ function cornerReader(units)
 export class Floorplan extends EventDispatcher
 {
 	/** Constructs a floorplan. */
-	constructor()
+	/**
+	 * @param {?(import('../core/configuration.js').Configuration|import('../core/design_runtime.js').DesignRuntime)} [runtime]
+	 * This design's services, or just its settings. Omit to share the page-wide
+	 * defaults, which is what every caller did before P7 and what a page with one
+	 * design should keep doing. A bare `Configuration` is still accepted and is
+	 * what P7 documented; a runtime is built around it.
+	 */
+	constructor(runtime)
 	{
 		super();
+		/**
+		 * This design's services (RM-003 A4): its configuration, the dimensioning
+		 * bound to that, the render profile, the load session and the resource
+		 * registries.
+		 *
+		 * The model layer needs no other plumbing to reach it: `Corner` already
+		 * took a floorplan as its first constructor argument, `Floorplan` is the
+		 * only factory for Corners and Walls, and a Wall gets here through
+		 * `this.start.floorplan`. That is what made P7's stage three lines rather
+		 * than a rewrite, and it is what makes A4's the same shape.
+		 *
+		 * @property {DesignRuntime} runtime
+		 * @type {import('../core/design_runtime.js').DesignRuntime}
+		 */
+		this.runtime = resolveRuntime(runtime || null);
 		/**
 		 * List of elements of Wall instance
 		 * 
@@ -93,6 +134,48 @@ export class Floorplan extends EventDispatcher
 		 * @type {Object}
 		 */
 		this.metaroomsdata = {};
+		/**
+		 * How many nested batches are open (RM-003 A1).
+		 *
+		 * `newCorner()` and `newWall()` each call `update()`, which re-derives every
+		 * room in the plan and dispatches EVENT_UPDATED. That is right for a single
+		 * edit and badly wrong for a bulk build: opening a four-corner, four-wall
+		 * design dispatched EVENT_UPDATED **25 times**, and every one of them drove
+		 * a full 3D teardown and rebuild and a camera recentre.
+		 *
+		 * While a batch is open, `update()` records what it was asked for and
+		 * returns; `endBatch()` performs it once. Deliberately the smallest thing
+		 * that works - A2 replaces it with a typed change contract, and this is the
+		 * seed of that rather than a competing mechanism.
+		 *
+		 * @type {number}
+		 */
+		this._batchDepth = 0;
+		/** What the deferred update has to do: null when nothing is pending. */
+		this._pendingUpdate = null;
+		/**
+		 * Why the open batch is happening, or null outside one (RM-003 A2).
+		 *
+		 * Set by the OUTERMOST `beginBatch()` and cleared when depth returns to
+		 * zero, because the outermost batch is the gesture: `loadFloorplan()` opens
+		 * one for `'load'` and every `newCorner()` inside it is part of that load,
+		 * not an edit of its own.
+		 *
+		 * @type {?string}
+		 */
+		this._batchReason = null;
+		/**
+		 * How many ChangeSets carrying each kind this plan has dispatched.
+		 *
+		 * The observability half of A2: "one EVENT_UPDATED per document open
+		 * instead of twenty-five" is a claim, and a claim nobody can compute is a
+		 * slogan. Read it with {@link Floorplan#changeStats}.
+		 *
+		 * @type {import('../core/change_set.js').ChangeCounts}
+		 */
+		this._changeCounts = newChangeCounts();
+		/** How many ChangeSets have been dispatched at all, of any kind. */
+		this._changeDispatches = 0;
 		// Removed in S1: new_wall_callbacks, new_corner_callbacks,
 		// redraw_callbacks, updated_rooms and roomLoadedCallbacks. They were
 		// plain Arrays whose only registrars (fireOnNewWall and friends) called
@@ -105,14 +188,49 @@ export class Floorplan extends EventDispatcher
 		 * the 2D view
 		 * 
 		 * @property {CarbonSheet} _carbonSheet The carbonsheet instance
-		 * @type {Object}
+		 * @type {?CarbonSheet} Null in widget mode and headless, where there is
+		 * no 2D view to inject one.
 		 */
 		this._carbonSheet = null;
 	}
 
 	/**
-	 * @param {CarbonSheet}
-	 *            val
+	 * Where this design reads its units, scale, wall defaults and snapping from
+	 * (RM-002 R-02, P7).
+	 *
+	 * A getter over the runtime rather than a field of its own, since A4. The
+	 * two would otherwise be storage in two places that have to agree, and
+	 * `configurationOf(floorplan)` and `runtimeOf(floorplan).configuration`
+	 * would be able to answer differently - which is the shape of bug the
+	 * previous three sprints have been closing. There is one answer because
+	 * there is one place it is kept.
+	 *
+	 * @returns {import('../core/configuration.js').Configuration}
+	 */
+	get configuration()
+	{
+		return this.runtime.configuration;
+	}
+
+	/**
+	 * Unit and scale conversion bound to this design's configuration.
+	 *
+	 * Reached through the runtime so the 2D view, the inspectors and the model
+	 * all measure with one object - and so that `floorplan.dimensioning` is the
+	 * obvious thing to reach for instead of the `Dimensioning` statics, which
+	 * measure with the shared default.
+	 *
+	 * @returns {import('../core/dimensioning.js').Dimensioning}
+	 */
+	get dimensioning()
+	{
+		return this.runtime.dimensioning;
+	}
+
+	/**
+	 * @param {?CarbonSheet} val The sheet, or null to detach it - which
+	 * `FloorplannerView2D.dispose()` does. Another tag whose type sat on one
+	 * line and whose name sat on the next (RM-005 C2).
 	 */
 	set carbonSheet(val)
 	{
@@ -120,8 +238,8 @@ export class Floorplan extends EventDispatcher
 	}
 
 	/**
-	 * @return {CarbonSheet} _carbonSheet reference to the instance of
-	 *         {@link CarbonSheet}
+	 * @return {?CarbonSheet} reference to the instance of {@link CarbonSheet},
+	 *         or null in widget mode and headless use.
 	 */
 	get carbonSheet()
 	{
@@ -151,7 +269,7 @@ export class Floorplan extends EventDispatcher
 	 * Returns the roof planes in the floorplan for intersection testing
 	 * 
 	 * @return {Mesh[]} planes
-	 * @see <https://threejs.org/docs/#api/en/objects/Mesh>
+	 * @see https://threejs.org/docs/#api/en/objects/Mesh
 	 */
 	roofPlanes()
 	{
@@ -166,7 +284,7 @@ export class Floorplan extends EventDispatcher
 	 * Returns all the planes for intersection for the walls
 	 * 
 	 * @return {Mesh[]} planes
-	 * @see <https://threejs.org/docs/#api/en/objects/Mesh>
+	 * @see https://threejs.org/docs/#api/en/objects/Mesh
 	 */
 	wallEdgePlanes()
 	{
@@ -188,7 +306,7 @@ export class Floorplan extends EventDispatcher
 	 * Returns all the planes for intersection of the floors in all room
 	 * 
 	 * @return {Mesh[]} planes
-	 * @see <https://threejs.org/docs/#api/en/objects/Mesh>
+	 * @see https://threejs.org/docs/#api/en/objects/Mesh
 	 */
 	floorPlanes()
 	{
@@ -265,16 +383,23 @@ export class Floorplan extends EventDispatcher
 	/**
 	 * Creates a new wall.
 	 * 
-	 * @param {Corner}
-	 *            start The start corner.
-	 * @param {Corner}
-	 *            end The end corner.
+	 * The three trailing parameters are optional and were not declared as such,
+	 * so every two-argument call in the project read as a TS2554 the moment
+	 * `Floorplan` became a resolvable type (RM-005 C2). The two tags above were
+	 * malformed as well - the type on one line and the name on the next, which
+	 * documents neither.
+	 *
+	 * @param {Corner} start The start corner.
+	 * @param {Corner} end The end corner.
+	 * @param {Vector2} [a] Curve control point, for a curved wall.
+	 * @param {Vector2} [b] The second control point.
+	 * @param {string} [id] Assigned identity, when one is being restored.
 	 * @returns {Wall} The new wall.
 	 */
-	newWall(start, end, a, b)
+	newWall(start, end, a, b, id)
 	{
 		var scope = this;
-		var wall = new Wall(start, end, a, b);
+		var wall = new Wall(start, end, a, b, id);
 		
 		this.walls.push(wall);
 		wall.addEventListener(EVENT_DELETED, function(o){scope.removeWall(o.item);});
@@ -296,9 +421,13 @@ export class Floorplan extends EventDispatcher
 	 *            x The x coordinate.
 	 * @param {Number}
 	 *            y The y coordinate.
-	 * @param {String}
-	 *            id An optional id. If unspecified, the id will be created
-	 *            internally.
+	 * @param {String} [id]
+	 *            An optional id. If unspecified, the id will be created
+	 *            internally. Bracketed because the word "optional" in the prose
+	 *            is not what makes it optional to a type checker - and the
+	 *            generated .d.ts declared it required, so every two-argument
+	 *            call was an error for a typed consumer. That is every real call
+	 *            in this repository.
 	 * @returns {Corner} The new corner.
 	 */
 	newCorner(x, y, id)
@@ -351,6 +480,19 @@ export class Floorplan extends EventDispatcher
 	{
 		this.dispatchEvent({type: EVENT_DELETED, item: this, deleted: wall, item_type: 'wall'});
 		Utils.removeValue(this.walls, wall);
+		// The departing wall's half edges have to be released here, not by the
+		// update() below (RM-003 A0). That release walks `this.walls`, and this wall
+		// has just left it - so its two intersection planes would be unreachable
+		// from anywhere by the time anything looked for them.
+		if (wall.frontEdge)
+		{
+			wall.frontEdge.dispose();
+		}
+		if (wall.backEdge)
+		{
+			wall.backEdge.dispose();
+		}
+		wall.resetFrontBack();
 		this.update();
 	}
 
@@ -364,6 +506,21 @@ export class Floorplan extends EventDispatcher
 	{
 		this.dispatchEvent({type: EVENT_DELETED, item: this, deleted: corner, item_type: 'corner'});
 		Utils.removeValue(this.corners, corner);
+		// The asymmetry A2 closes (RM-003 A2, task 6).
+		//
+		// removeWall() has always ended with an update() and this has never had
+		// one, so removing a corner left the plan announcing EVENT_DELETED and
+		// nothing else: the rooms still contained the departed corner, getSize()
+		// still counted it, and the 3D view still drew it, until some unrelated
+		// edit came along and re-derived. The usual path hid it - Corner.removeAll()
+		// removes the corner's walls first and each of THOSE updated - so the
+		// symptom only showed on a corner with no walls, or on the last update
+		// before something read the plan.
+		//
+		// Costs nothing on the usual path either, because removeAll() now opens a
+		// batch: what used to be one update per wall plus none for the corner is
+		// one update for the whole gesture.
+		this.update();
 	}
 
 	/**
@@ -403,7 +560,7 @@ export class Floorplan extends EventDispatcher
 	 *            mx
 	 * @param {Number}
 	 *            my
-	 * @return {Room}
+	 * @return {?Room} The room under the point, or null.
 	 */
 	overlappedRoom(mx, my)
 	{
@@ -424,13 +581,10 @@ export class Floorplan extends EventDispatcher
 	 * Gets the Control of a Curved Wall overlapping the location x, y at a
 	 * tolerance.
 	 * 
-	 * @param {Number}
-	 *            x
-	 * @param {Number}
-	 *            y
-	 * @param {Number}
-	 *            tolerance
-	 * @return {Corner}
+	 * @param {number} x
+	 * @param {number} y
+	 * @param {number} [tolerance] Defaults to five times the plan tolerance.
+	 * @return {?Corner} The control point under x,y, or null.
 	 */
 	overlappedControlPoint(wall, x, y, tolerance)
 	{
@@ -451,13 +605,10 @@ export class Floorplan extends EventDispatcher
 	/**
 	 * Gets the Corner overlapping the location x, y at a tolerance.
 	 * 
-	 * @param {Number}
-	 *            x
-	 * @param {Number}
-	 *            y
-	 * @param {Number}
-	 *            tolerance
-	 * @return {Corner}
+	 * @param {number} x
+	 * @param {number} y
+	 * @param {number} [tolerance] Defaults to the plan tolerance.
+	 * @return {?Corner} The corner under x,y, or null.
 	 */
 	overlappedCorner(x, y, tolerance)
 	{
@@ -475,13 +626,10 @@ export class Floorplan extends EventDispatcher
 	/**
 	 * Gets the Wall overlapping the location x, y at a tolerance.
 	 * 
-	 * @param {Number}
-	 *            x
-	 * @param {Number}
-	 *            y
-	 * @param {Number}
-	 *            tolerance
-	 * @return {Wall}
+	 * @param {number} x
+	 * @param {number} y
+	 * @param {number} [tolerance] Defaults to the plan tolerance.
+	 * @return {?Wall} The wall under x,y, or null.
 	 */
 	overlappedWall(x, y, tolerance)
 	{
@@ -539,6 +687,11 @@ export class Floorplan extends EventDispatcher
 	 */
 	saveFloorplan()
 	{
+		// Typed loosely, because an object literal takes each field's type from its
+		// initialiser - so `walls: []` is `never[]` and every push into it is an
+		// error, as are the three `{}` maps (RM-005 C2). This is the save format's
+		// wire shape; `model/document.js` is where it is actually described.
+		/** @type {Record<string, any>} */
 		var floorplans = {version:Version.getTechnicalVersion(), units: SAVE_UNITS, corners: {}, walls: [], rooms: {}, wallTextures: [], floorTextures: {}, newFloorTextures: {}, carbonSheet:{}};
 		var cornerIds = [];
 // writing all the corners based on the corners array
@@ -590,19 +743,96 @@ export class Floorplan extends EventDispatcher
 
 	// Load the floorplan from a previously saved json object file
 	/**
-	 * @param {JSON}
-	 *            floorplan
+	 * @param {Record<string, any>} floorplan A saved design, already parsed. The
+	 *        tag said `{JSON}` with the name on the next line, which typed the
+	 *        parameter as the global JSON namespace object and left every field
+	 *        read off it `unknown` (RM-005 C2).
+	 * @param {string} [reason] Why this load is happening - one of
+	 *            `CHANGE_REASONS`. Defaults to `REASON_LOAD`; history passes
+	 *            `REASON_UNDO` so consumers can tell a restoration from an open.
 	 * @return {void}
 	 * @emits {EVENT_LOADED}
 	 */
-	loadFloorplan(floorplan)
+	loadFloorplan(floorplan, reason)
 	{
-		this.reset();		
 		var corners = {};
-		if (floorplan == null || !('corners' in floorplan) || !('walls' in floorplan))
+		// The whole document swap is one gesture, `reset()` included (RM-003 A2).
+		//
+		// A1 batched the build but left `reset()` outside it, which was invisible
+		// while the only tested case was opening a document into an empty plan.
+		// Opening one OVER an existing design is the real case: reset() removes
+		// every wall and every corner, each removal re-derives, and the second file
+		// open of a session announced thirteen changes before it had built
+		// anything - all of them labelled `edit`, because the batch that would have
+		// labelled them `load` had not started yet.
+		//
+		// The finally is not defensive padding: a throw between here and the end
+		// would otherwise leave the batch open and the plan permanently frozen,
+		// which is a far worse failure than the one that caused it.
+		var usable = floorplan != null && ('corners' in floorplan) && ('walls' in floorplan);
+		this.beginBatch(reason || REASON_LOAD);
+		try
 		{
+			this.reset();
+			if (usable)
+			{
+				this._buildFloorplan(floorplan, corners);
+			}
+		}
+		finally
+		{
+			// Closes the batch AND performs the single deferred update, so the
+			// explicit update() that used to be here is not needed - and would be a
+			// second full re-derivation if it stayed.
+			this.endBatch();
+		}
+
+		if (!usable)
+		{
+			// Preserved exactly, quirk and all: a file that is not a floorplan has
+			// by now wiped the plan that was open, and says nothing about it - no
+			// EVENT_LOADED, no error. `tests/serialization.test.js` pins this under
+			// "CONTRADICTS the no-op reading of this branch". It is not the defect
+			// it looks like from here, because A1 put `DesignDocument.parse` in
+			// front of the only path an application reaches this by; a caller that
+			// hands raw JSON straight to loadFloorplan still gets the old behaviour.
 			return;
 		}
+
+		// The CarbonSheet is injected by the 2D floorplanner view. In widget mode
+		// (blueprint.js `options.widget`) and in headless use there is no 2D view,
+		// so this.carbonSheet is undefined and the block below used to throw on a
+		// design that carries a carbonSheet entry. Skip it instead: the data is
+		// still round-tripped by saveFloorplan only when a sheet exists.
+		if('carbonSheet' in floorplan && this.carbonSheet)
+		{
+			this.carbonSheet.clear();
+			this.carbonSheet.maintainProportion = false;
+			this.carbonSheet.x = floorplan.carbonSheet['x'];
+			this.carbonSheet.y = floorplan.carbonSheet['y'];
+			this.carbonSheet.transparency = floorplan.carbonSheet['transparency'];
+			this.carbonSheet.anchorX = floorplan.carbonSheet['anchorX'];
+			this.carbonSheet.anchorY = floorplan.carbonSheet['anchorY'];
+			this.carbonSheet.width = floorplan.carbonSheet['width'];
+			this.carbonSheet.height = floorplan.carbonSheet['height'];
+			this.carbonSheet.url = floorplan.carbonSheet['url'];
+			this.carbonSheet.maintainProportion = true;
+		}
+		this.dispatchEvent({type: EVENT_LOADED, item: this});
+	}
+
+	/**
+	 * Build corners, walls and room metadata from a validated document.
+	 *
+	 * Split out of `loadFloorplan` in A2 only so that the reset, the build and the
+	 * carbon sheet read as the three steps they are, with the batch around the
+	 * first two. The body is unchanged.
+	 *
+	 * @param {Object} floorplan
+	 * @param {Object} corners Filled in with the corners this builds, by file id.
+	 */
+	_buildFloorplan(floorplan, corners)
+	{
 		// How to read the corner coordinates, decided by the file rather than by
 		// its version number - the same rule as the wall records below.
 		//
@@ -626,8 +856,15 @@ export class Floorplan extends EventDispatcher
 			}
 		}
 		var scope = this;
-		floorplan.walls.forEach((wall) => {
-			var newWall = scope.newWall(corners[wall.corner1], corners[wall.corner2]);
+		// Identity is reconstructed here rather than assigned in the constructor
+		// (RM-004 B2). Derived from the corner pair the file already carries, so a
+		// file written before this change loads with the same ids as one written
+		// after, and nothing was added to the save format. Computed for the whole
+		// run up front because the ordinal that disambiguates two walls on one
+		// pair depends on the records around it, not on the record alone.
+		var wallIds = deriveWallIds(floorplan.walls);
+		floorplan.walls.forEach((wall, wallIndex) => {
+			var newWall = scope.newWall(corners[wall.corner1], corners[wall.corner2], undefined, undefined, wallIds[wallIndex]);
 			
 			if (wall.frontTexture)
 			{
@@ -682,28 +919,6 @@ export class Floorplan extends EventDispatcher
 			this.floorTextures = floorplan.newFloorTextures;
 		}
 		this.metaroomsdata = floorplan.rooms;
-		this.update();
-
-		// The CarbonSheet is injected by the 2D floorplanner view. In widget mode
-		// (blueprint.js `options.widget`) and in headless use there is no 2D view,
-		// so this.carbonSheet is undefined and the block below used to throw on a
-		// design that carries a carbonSheet entry. Skip it instead: the data is
-		// still round-tripped by saveFloorplan only when a sheet exists.
-		if('carbonSheet' in floorplan && this.carbonSheet)
-		{
-			this.carbonSheet.clear();
-			this.carbonSheet.maintainProportion = false;
-			this.carbonSheet.x = floorplan.carbonSheet['x'];
-			this.carbonSheet.y = floorplan.carbonSheet['y'];
-			this.carbonSheet.transparency = floorplan.carbonSheet['transparency'];
-			this.carbonSheet.anchorX = floorplan.carbonSheet['anchorX'];
-			this.carbonSheet.anchorY = floorplan.carbonSheet['anchorY'];
-			this.carbonSheet.width = floorplan.carbonSheet['width'];
-			this.carbonSheet.height = floorplan.carbonSheet['height'];
-			this.carbonSheet.url = floorplan.carbonSheet['url'];
-			this.carbonSheet.maintainProportion = true;
-		}
-		this.dispatchEvent({type: EVENT_LOADED, item: this});
 	}
 
 	/**
@@ -757,13 +972,35 @@ export class Floorplan extends EventDispatcher
 		tmpWalls.forEach((wall) => {
 			wall.remove();
 		});
+
+		// Release before the arrays are dropped (RM-003 A0).
+		//
+		// The two assignments below are what makes this necessary. Removing the
+		// walls above runs update() once per wall, and the last of those rebuilds
+		// the rooms and half edges from whatever corners remain - so there is
+		// always a live set at this point, and clearing the arrays is the moment it
+		// stops being reachable. This is a teardown boundary, and reset() is the
+		// first thing loadFloorplan() calls, so it is on the load path too.
+		this.rooms.forEach((room) => {room.dispose();});
+		this.walls.forEach((wall) => {
+			if (wall.frontEdge)
+			{
+				wall.frontEdge.dispose();
+			}
+			if (wall.backEdge)
+			{
+				wall.backEdge.dispose();
+			}
+		});
+		this.rooms = [];
 		this.corners = [];
 		this.walls = [];
 	}
 
 	/**
-	 * @param {Object}
-	 *            event
+	 * @param {{item: Room, newname: string}} e The rename, as Room dispatches it.
+	 *        The tag said `event` and the parameter is `e`, which is a TS8024 -
+	 *        the name was on its own line, so nothing had ever read them together.
 	 * @listens {EVENT_ROOM_NAME_CHANGED} When a room name is changed and
 	 *          updates to metaroomdata
 	 */
@@ -778,8 +1015,86 @@ export class Floorplan extends EventDispatcher
 	/**
 	 * Update the floorplan with new rooms, remove old rooms etc.
 	 */
-	update(updateroomconfiguration = true, updatecorners=null)//Should include for , updatewalls=null, updaterooms=null
+	/**
+	 * Defer the room re-derivation until `endBatch()` (RM-003 A1).
+	 *
+	 * Nests, so a caller need not know whether it is already inside one. Always
+	 * pair with `endBatch()` in a `finally`: a batch left open silently stops the
+	 * plan updating.
+	 */
+	/**
+	 * @param {string} [reason] Why this batch is happening - one of
+	 * `CHANGE_REASONS`. Only the outermost batch's reason is used; a nested
+	 * `beginBatch()` inside a load is still part of the load.
+	 */
+	beginBatch(reason)
 	{
+		if (this._batchDepth === 0)
+		{
+			this._batchReason = reason || null;
+		}
+		this._batchDepth += 1;
+	}
+
+	/**
+	 * Close a batch and perform the update it deferred, if any.
+	 *
+	 * The deferred update is the union of what was asked for: if any call during
+	 * the batch wanted a full room re-derivation, the one at the end does it, and
+	 * every corner any call named has its angles updated. So batching cannot do
+	 * less work than not batching - only the same work, once.
+	 */
+	endBatch()
+	{
+		if (this._batchDepth === 0)
+		{
+			return;
+		}
+		this._batchDepth -= 1;
+		if (this._batchDepth > 0)
+		{
+			return;
+		}
+		var reason = this._batchReason;
+		this._batchReason = null;
+		if (this._pendingUpdate === null)
+		{
+			return;
+		}
+		var pending = this._pendingUpdate;
+		this._pendingUpdate = null;
+		this.update(pending.rooms, pending.corners.length ? pending.corners : null, reason);
+	}
+
+	/**
+	 * @param {boolean} [updateroomconfiguration] Re-derive the rooms. A topology
+	 * change; false is a geometry change.
+	 * @param {?Corner[]} [updatecorners] The corners whose angles moved.
+	 * @param {?string} [reason] Why - one of `CHANGE_REASONS`. Defaults to the
+	 * open batch's reason, then to `REASON_EDIT`.
+	 */
+	update(updateroomconfiguration = true, updatecorners=null, reason=null)//Should include for , updatewalls=null, updaterooms=null
+	{
+		var effectiveReason = reason || this._batchReason || REASON_EDIT;
+		if (this._batchDepth > 0)
+		{
+			// Record and return. The union rather than the last call's arguments,
+			// because a batch that contained one full update and one partial must
+			// still perform the full one.
+			if (this._pendingUpdate === null)
+			{
+				/** @type {{rooms: boolean, corners: Corner[]}} */
+				var started = {rooms: false, corners: []};
+				this._pendingUpdate = started;
+			}
+			this._pendingUpdate.rooms = this._pendingUpdate.rooms || updateroomconfiguration;
+			if (updatecorners != null)
+			{
+				this._pendingUpdate.corners = this._pendingUpdate.corners.concat(updatecorners);
+			}
+			return;
+		}
+
 		if(updatecorners!=null)
 		{
 			updatecorners.forEach((corner)=>{
@@ -789,13 +1104,63 @@ export class Floorplan extends EventDispatcher
 		
 		if(!updateroomconfiguration)
 		{
-			this.dispatchEvent({type: EVENT_UPDATED, item: this});
-			return;			
+			// A geometry change: entities that already exist moved. The room set is
+			// the same set of OBJECTS, which is what lets the 3D projection redraw
+			// the handful of walls the moved corners touch instead of rebuilding the
+			// scene (RM-003 A2). The corner list is the payload because the corners
+			// are what the caller knew had moved - see newCorner()'s EVENT_MOVED
+			// listener, which passes the corner and its neighbours.
+			this._emitChanges(new ChangeSet(effectiveReason).add(CHANGE_GEOMETRY, updatecorners));
+			return;
 		}
-		
-		
+
+
 		var scope = this;
+
+		// What the rooms were, before they stop existing (RM-003 A3).
+		//
+		// Captured here rather than after the rebuild because the rebuild is what
+		// destroys them, and the successor rooms have to be able to ask which room
+		// each of them continues. Only the identity and the corner ids are needed,
+		// so this is three strings per room and not a snapshot.
+		var previousRooms = this.rooms.map(function (room)
+		{
+			return {
+				id: room.id,
+				nameKey: room.roomByCornersId,
+				textureKey: room.getUuid(),
+				cornerIds: room.corners.map(function (corner) {return corner.id;}),
+			};
+		});
+
+		// Release before replacing (RM-003 A0).
+		//
+		// This is the largest single leak the hardening review measured: every call
+		// to update() built two meshes per room and one per half edge, and dropped
+		// the previous set on the floor - six geometries and six materials per call
+		// on a single square room, with the plan unchanged. Opening a four-wall
+		// design dispatches EVENT_UPDATED twenty-five times, so a file open
+		// abandoned roughly 150 of each before the first frame was drawn.
+		//
+		// The two loops are separate because the ownership is: a Room owns its
+		// floor and roof planes, and a Wall owns its two half edges - the HalfEdge
+		// constructor writes itself onto `wall.frontEdge`/`backEdge`, which is what
+		// makes the wall the thing that can still reach it. That release therefore
+		// has to happen HERE, immediately before resetFrontBack() nulls the
+		// pointers; a line later and the edges are unreachable.
+		//
+		// Both dispose() calls are idempotent, so a half edge reachable from both a
+		// room's edge chain and its wall is disposed once.
+		this.rooms.forEach((room) => {room.dispose();});
 		this.walls.forEach((wall) => {
+			if (wall.frontEdge)
+			{
+				wall.frontEdge.dispose();
+			}
+			if (wall.backEdge)
+			{
+				wall.backEdge.dispose();
+			}
 			wall.resetFrontBack();
 		});
 
@@ -813,11 +1178,11 @@ export class Floorplan extends EventDispatcher
 			var room = new Room(scope, corners);
 			room.updateArea();
 			scope.rooms.push(room);
-			
+
 			room.addEventListener(EVENT_ROOM_NAME_CHANGED, (e)=>{scope.roomNameChanged(e);});
 			room.addEventListener(EVENT_ROOM_ATTRIBUTES_CHANGED, function(o){
 				var room = o.item;
-				scope.dispatchEvent(o);				
+				scope.dispatchEvent(o);
 				if(scope.metaroomsdata[room.roomByCornersId])
 				{
 					scope.metaroomsdata[room.roomByCornersId]['name'] = room.name;
@@ -828,25 +1193,169 @@ export class Floorplan extends EventDispatcher
 					scope.metaroomsdata[room.roomByCornersId]['name'] = room.name;
 				}
 			});
-			
+		});
+
+		// Carry the identities, and the two derived keys, across the rebuild.
+		//
+		// This is A3's headline and it has to happen HERE - after every room
+		// exists, so the matcher sees the whole set and can match one to one, and
+		// before any name is read back, so the lookup below finds the entry under
+		// the key the successor now has.
+		this.carryRoomIdentity(previousRooms);
+
+		this.rooms.forEach(function (room)
+		{
 			if(scope.metaroomsdata)
-			{				
+			{
 				if(scope.metaroomsdata[room.roomByCornersId])
 				{
 					room.name = scope.metaroomsdata[room.roomByCornersId]['name'];
 				}
 			}
-		});				
+		});
 		this.assignOrphanEdges();
 		this.updateFloorTextures();
-		this.dispatchEvent({type: EVENT_UPDATED, item: this});
+		// A topology change, and the rooms it carries are the set as re-derived -
+		// every one of them a new object, because that is what this method does.
+		// Consumers reconcile against it rather than diffing it, which is why the
+		// payload is the whole set rather than a delta: until A3 gives an entity an
+		// identity that survives recomputation, there is no delta to state.
+		//
+		// A corner list means the caller asked for both at once: the angles moved
+		// AND the rooms were re-derived. Both kinds go out on one ChangeSet, which
+		// is the point of a set.
+		var changes = new ChangeSet(effectiveReason).add(CHANGE_TOPOLOGY, this.rooms);
+		if (updatecorners != null)
+		{
+			changes.add(CHANGE_GEOMETRY, updatecorners);
+		}
+		this._emitChanges(changes);
+	}
+
+	/**
+	 * Give each re-derived room the identity of the room it continues (RM-003 A3).
+	 *
+	 * ## What this fixes
+	 *
+	 * A `Room` object does not survive `update()`; a new one is built for every
+	 * cycle found, every time. So before this, a room was known only by two keys
+	 * derived from its corners - `roomByCornersId` for its name and `getUuid()`
+	 * for its floor texture - and both change the moment the corner set does.
+	 * Drawing a wall through one side of a named, textured room took it from four
+	 * corners to five and lost both. That is finding H-5, and splitting a wall is
+	 * an ordinary drawing action.
+	 *
+	 * ## What it does
+	 *
+	 * `matchRooms` decides which successor continues which predecessor, by corner
+	 * overlap, one to one - see `model/room_matcher.js` for the rule and why it
+	 * has a floor under it. Each matched successor then takes the predecessor's
+	 * `id`, and the two metadata maps are rekeyed from the predecessor's keys to
+	 * the successor's.
+	 *
+	 * ## Why the maps are rekeyed rather than keyed by the id
+	 *
+	 * Keying them by the assigned id would be tidier in memory and is what a
+	 * reader expects to find here. It was not done, for two reasons that only
+	 * became clear against the code. The maps are what `saveFloorplan()` writes
+	 * and what `loadFloorplan()` adopts, both **by reference**, so re-keying them
+	 * in memory means translating at the file boundary in each direction - and the
+	 * id is deliberately not persisted, because a file identifies a room by its
+	 * corners and that is a description another build can also read. Worse, an
+	 * entry under an id has no way back: today a room you delete leaves its name
+	 * behind under its corner key, so drawing the room again brings the name back.
+	 * Under an assigned id the id dies with the room and the name is unreachable.
+	 *
+	 * What the two keys needed was not to become one key, but to stop being able
+	 * to disagree. They are moved together, by one rule, in one place, which is
+	 * this method.
+	 *
+	 * @param {Array<{id: string, nameKey: string, textureKey: string, cornerIds: Array<string>}>} previousRooms
+	 */
+	carryRoomIdentity(previousRooms)
+	{
+		var scope = this;
+		if (!previousRooms.length)
+		{
+			return;
+		}
+		var matched = matchRooms(
+			previousRooms.map(function (room) {return room.cornerIds;}),
+			this.rooms.map(function (room) {return room.corners.map(function (corner) {return corner.id;});}));
+
+		var nameMoves = [];
+		var textureMoves = [];
+		matched.forEach(function (fromIndex, toIndex)
+		{
+			var previous = previousRooms[fromIndex];
+			var current = scope.rooms[toIndex];
+			current.id = previous.id;
+			if (previous.nameKey !== current.roomByCornersId)
+			{
+				nameMoves.push({from: previous.nameKey, to: current.roomByCornersId});
+			}
+			if (previous.textureKey !== current.getUuid())
+			{
+				textureMoves.push({from: previous.textureKey, to: current.getUuid()});
+			}
+		});
+		rekeyInPlace(this.metaroomsdata, nameMoves);
+		rekeyInPlace(this.floorTextures, textureMoves);
+	}
+
+	/**
+	 * Announce a change, and derive the legacy event from it (RM-003 A2).
+	 *
+	 * The single place either event is dispatched, and the reason the adapter is
+	 * an adapter rather than a parallel mechanism: `EVENT_UPDATED` cannot fire
+	 * without a ChangeSet describing it, so the two can never disagree about
+	 * whether something happened. It fires at exactly the moments it fired before
+	 * and carries exactly what it carried before, plus `.changes` - so a consumer
+	 * can adopt the typed payload without changing which event it listens to, and
+	 * one that never adopts it notices nothing.
+	 *
+	 * @param {ChangeSet} changes
+	 */
+	_emitChanges(changes)
+	{
+		if (changes.isEmpty())
+		{
+			return;
+		}
+		var scope = this;
+		changes.kinds().forEach(function (kind) {scope._changeCounts[kind] += 1;});
+		this._changeDispatches += 1;
+		this.dispatchEvent({type: EVENT_CHANGESET, item: this, changes: changes});
+		this.dispatchEvent({type: EVENT_UPDATED, item: this, changes: changes});
+	}
+
+	/**
+	 * How many ChangeSets this plan has dispatched, per kind (RM-003 A2, M-4).
+	 *
+	 * `dispatches` is the number of announcements; the per-kind counts are how
+	 * many of those carried each kind, so they sum to more than `dispatches` when
+	 * a single change was both topological and geometric.
+	 *
+	 * @returns {{dispatches: number} & import('../core/change_set.js').ChangeCounts}
+	 */
+	changeStats()
+	{
+		// Spread rather than Object.assign (RM-005 C2). Assign's return type is an
+		// intersection with an index signature, which TypeScript will not accept as
+		// the concrete record this method documents; a spread produces the record.
+		return {dispatches: this._changeDispatches, ...this._changeCounts};
 	}
 
 	/**
 	 * Returns the center of the floorplan in the y plane
-	 * 
-	 * @return {Vector2} center
-	 * @see https://threejs.org/docs/#api/en/math/Vector2
+	 *
+	 * @return {Vector3} center
+	 * @see https://threejs.org/docs/#api/en/math/Vector3
+	 *
+	 * The tag said `Vector2` and the link pointed at Vector2 (RM-005 C2).
+	 * `getDimensions` returns a `Vector3` in all three of its branches, and
+	 * `FloorItem` reads `.z` off this - which type-checked as an error and works
+	 * perfectly at runtime, because the documentation was the only thing wrong.
 	 */
 	getCenter()
 	{
@@ -933,12 +1442,13 @@ export class Floorplan extends EventDispatcher
 	 * Find the "rooms" in our planar straight-line graph. Rooms are set of the
 	 * smallest (by area) possible cycles in this graph.
 	 * 
-	 * @param corners
-	 *            The corners of the floorplan.
-	 * @returns The rooms, each room as an array of corners.
-	 * @param {Corners[]}
-	 *            corners
-	 * @return {Corners[][]} loops
+	 * `Corners` was a typo for `Corner`, and the tag was malformed besides - the
+	 * name sat on one line and the parameter on the next, so it documented
+	 * nothing and resolved to nothing (RM-005 C2). Two @param tags for one
+	 * parameter, only one of which had a type.
+	 *
+	 * @param {Corner[]} corners The corners of the floorplan.
+	 * @returns {Corner[][]} The rooms, each as an array of corners.
 	 */
 	findRooms(corners)
 	{
@@ -963,16 +1473,23 @@ export class Floorplan extends EventDispatcher
 				// rooms are cycles, shift it around to check uniqueness
 				var add = true;
 				var room = roomArray[i];
+				// Hoisted out of the loop that assigns it (RM-005 C2). `var` is
+				// function-scoped, so reading it below always worked - except for a
+				// room with no corners, where the loop never runs and the write
+				// below would have keyed `lookup` under the string "undefined".
+				/** @type {?string} */
+				var str = null;
 				for (var j = 0; j < room.length; j++)
 				{
 					var roomShift = Utils.cycle(room, j);
-					var str = Utils.map(roomShift, hashFunc).join(sep);
-					if (lookup.hasOwnProperty(str))
+					str = Utils.map(roomShift, hashFunc).join(sep);
+					// Object.prototype.hasOwnProperty.call, not obj.hasOwnProperty. Identical for a plain object and correct for one that is not - a key literally named "hasOwnProperty" shadows the method and turns the guard into a TypeError.
+					if (Object.prototype.hasOwnProperty.call(lookup, str))
 					{
 						add = false;
 					}
 				}
-				if (add)
+				if (add && str !== null)
 				{
 					results.push(roomArray[i]);
 					lookup[str] = true;
@@ -1046,8 +1563,14 @@ export class Floorplan extends EventDispatcher
 		}
 
 		// find tightest loops, for each corner, for each adjacent
-		// TODO: optimize this, only check corners with > 2 adjacents, or
-		// isolated cycles
+		//
+		// Carried a TODO reading "optimize this, only check corners with > 2
+		// adjacents, or isolated cycles". Both suggestions are sound and neither
+		// is free: this walk is what decides which loops become ROOMS, so a
+		// corner skipped here is a room that stops existing. Any narrowing needs
+		// the room-detection fixtures as its gate, and a measurement first -
+		// nothing has ever established that this loop is slow on a real
+		// floorplan, only that it looks quadratic.
 		var loops = [];
 
 		corners.forEach((firstCorner) => {

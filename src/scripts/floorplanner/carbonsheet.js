@@ -1,9 +1,23 @@
+// @ts-check
 import {EventDispatcher} from 'three';
 import {EVENT_UPDATED} from '../core/events.js';
-import {cmPerPixel, pixelsPerCm, Dimensioning} from '../core/dimensioning.js';
-import {Configuration} from '../core/configuration.js';
-import {resolveElement} from '../core/dom.js';
+import {cmPerPixel, pixelsPerCm} from '../core/dimensioning.js';
+import {resolveCanvas} from '../core/dom.js';
 
+
+/**
+ * JSDoc-only type imports (RM-005 C2).
+ *
+ * These names were already used in the annotations below and resolved to
+ * nothing - 43 TS2304s across eleven files, every one of them a type the
+ * project defines or three exports, named but never brought into scope. A
+ * `@typedef` import costs no runtime code and no bundle bytes: it exists
+ * entirely for the checker, which is the point of writing the JSDoc at all.
+
+ *
+ * @typedef {import('../model/floorplan.js').Floorplan} Floorplan
+ * @typedef {import('./floorplanner.js').Floorplanner2D} Floorplanner2D
+ */
 /**
  * The View to be used by a Floorplanner to render in/interact with.
  */
@@ -18,9 +32,20 @@ export class CarbonSheet extends EventDispatcher
 	constructor(floorplan, viewmodel, canvas)
 	{
 		super();
-		this.canvasElement = resolveElement(canvas, 'carbon sheet canvas');
+		this.canvasElement = resolveCanvas(canvas, 'carbon sheet canvas');
 		this.canvas = (typeof canvas === 'string') ? canvas : this.canvasElement.id;
-		this.context = this.canvasElement.getContext('2d');
+		// Non-null by construction (RM-005 C2). `getContext('2d')` returns null
+		// only when the canvas already holds a context of another kind - a webgl
+		// one, say - which for this canvas is a programming error and not a state
+		// to draw around. Throwing here means the ~90 draw calls downstream do not
+		// each have to ask, and the message names the canvas rather than surfacing
+		// as `Cannot read properties of null` inside a render loop.
+		var context = this.canvasElement.getContext('2d');
+		if (!context)
+		{
+			throw new Error('architect3d: the carbon sheet canvas already has a context that is not 2d.');
+		}
+		this.context = context;
 		this.floorplan = floorplan;
 		this.viewmodel = viewmodel;
 		
@@ -71,6 +96,31 @@ export class CarbonSheet extends EventDispatcher
 	 * otherwise: its onload closure captures `scope`, so a decode still in flight
 	 * would call back into a disposed view.
 	 */
+	/**
+	 * This design's settings, reached through the plan being drawn (RM-002 R-02, P7).
+	 *
+	 * The 2D view is per-Floorplan by construction - it is handed one and draws
+	 * it - so the plan is the natural place to ask, and no new plumbing was
+	 * needed to get here. Reading through a getter rather than caching the
+	 * reference keeps a view correct if the floorplan it draws is ever swapped.
+	 *
+	 * @returns {import('../core/configuration.js').Configuration}
+	 */
+	get configuration()
+	{
+		return this.floorplan.configuration;
+	}
+
+	/**
+	 * Unit and scale conversion for this design (P7).
+	 *
+	 * @returns {import('../core/dimensioning.js').Dimensioning}
+	 */
+	get dimensioning()
+	{
+		return this.floorplan.dimensioning;
+	}
+
 	dispose()
 	{
 		this._image.onload = null;
@@ -104,24 +154,27 @@ export class CarbonSheet extends EventDispatcher
 		var scope = this;
 		this._url = val;
 		this._loaded = false;
+		// `this` inside an onload handler is typed as GlobalEventHandlers, which
+		// has no width or height. It is the image (RM-005 C2), and reading it off
+		// `scope._image` says so without relying on the binding at all.
 		this._image.onload = function()
-		{			
-			scope._rawWidthPixels = this.width;
-			scope._rawHeightPixels = this.height;
+		{
+			scope._rawWidthPixels = scope._image.width;
+			scope._rawHeightPixels = scope._image.height;
 			scope._rawWidth = scope._rawWidthPixels * cmPerPixel;
 			scope._rawHeight = scope._rawHeightPixels * cmPerPixel;
 			
-			scope._widthByHeightRatio = this.width / this.height;
+			scope._widthByHeightRatio = scope._image.width / scope._image.height;
 			
 			if(scope._widthPixels < 2.0)
 			{
 				scope._widthPixels = scope._rawWidthPixels;
-				scope.width = Dimensioning.cmToMeasureRaw(scope._rawWidth);
+				scope.width = scope.dimensioning.cmToMeasureRaw(scope._rawWidth);
 			}	
 			if(scope._heightPixels < 2.0)
 			{
 				scope._heightPixels = scope._rawHeightPixels;				
-				scope.height = Dimensioning.cmToMeasureRaw(scope._rawHeight);
+				scope.height = scope.dimensioning.cmToMeasureRaw(scope._rawHeight);
 			}
 			scope._loaded = true;
 			scope._calibrate();
@@ -213,7 +266,7 @@ export class CarbonSheet extends EventDispatcher
 	
 	set width(val)
 	{
-		this._width = Dimensioning.cmFromMeasureRaw(val);
+		this._width = this.dimensioning.cmFromMeasureRaw(val);
 		this._widthPixels = this._width * pixelsPerCm;
 		
 		if(this._maintainProportion)
@@ -228,12 +281,12 @@ export class CarbonSheet extends EventDispatcher
 	
 	get width()
 	{
-		return Dimensioning.cmToMeasureRaw(this._width);
+		return this.dimensioning.cmToMeasureRaw(this._width);
 	}
 	
 	set height(val)
 	{
-		this._height = Dimensioning.cmFromMeasureRaw(val);
+		this._height = this.dimensioning.cmFromMeasureRaw(val);
 		this._heightPixels = this._height * pixelsPerCm;
 		
 		if(this._maintainProportion)
@@ -248,7 +301,7 @@ export class CarbonSheet extends EventDispatcher
 	
 	get height()
 	{
-		return Dimensioning.cmToMeasureRaw(this._height);
+		return this.dimensioning.cmToMeasureRaw(this._height);
 	}
 	
 	drawOriginCrossHair()
@@ -271,7 +324,7 @@ export class CarbonSheet extends EventDispatcher
 			this.context.translate(conX, conY);
 			
 			this.context.globalAlpha = this._transparency;			
-			this.context.drawImage(this._image, -this._anchorX*this._scaleX* Configuration.getNumericValue('scale'), -this._anchorY*this._scaleY* Configuration.getNumericValue('scale'), this._drawWidthPixels* Configuration.getNumericValue('scale'), this._drawHeightPixels* Configuration.getNumericValue('scale'));
+			this.context.drawImage(this._image, -this._anchorX*this._scaleX* this.configuration.getNumericValue('scale'), -this._anchorY*this._scaleY* this.configuration.getNumericValue('scale'), this._drawWidthPixels* this.configuration.getNumericValue('scale'), this._drawHeightPixels* this.configuration.getNumericValue('scale'));
 			this.context.globalAlpha = 1.0;
 			
 			this.context.beginPath();			

@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {PopoverRoot, PopoverTrigger, PopoverPortal, PopoverContent} from 'reka-ui';
 import {
 	FilePlus2, FolderOpen, Save, Undo2, Redo2, Box, Share2,
@@ -37,12 +38,30 @@ const props = defineProps({
 	layout: {type: String, required: true},
 	theme: {type: String, required: true},
 	unit: {type: String, required: true},
-	units: {type: Array, required: true},
+	units: {
+		/**
+		 * Typed so the template can read `.value` and `.label` off each entry.
+		 *
+		 * @type {import('vue').PropType<Array<import('../composables/useDisplayUnit.js').UnitChoice>>}
+		 */
+		type: Array,
+		required: true,
+	},
 	canUndo: {type: Boolean, default: false},
 	canRedo: {type: Boolean, default: false},
 	exporting: {type: Boolean, default: false},
 	inspectorOpen: {type: Boolean, default: true},
-	savedAt: {type: Number, default: null},
+	savedAt: {
+		/**
+		 * `type: X` with `default: null` still infers `X | undefined` - the default
+		 * does not widen the declared type, so passing an explicit null is an
+		 * error even though null is exactly what the default is (RM-004 B3).
+		 *
+		 * @type {import('vue').PropType<?number>}
+		 */
+		type: Number,
+		default: null,
+	},
 });
 
 const emit = defineEmits([
@@ -71,6 +90,19 @@ function savedLabel(stamp)
 		return '';
 	}
 	return new Date(stamp).toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'});
+}
+/**
+ * Read the picked unit from the event, typed (RM-004 B3).
+ *
+ * `Event.target` is `EventTarget | null` and declares no `value`; the four
+ * inspector field components had the identical pair of errors.
+ *
+ * @param {Event} event
+ */
+function onUnitChange(event)
+{
+	const select = /** @type {HTMLSelectElement} */ (event.target);
+	emit('set-unit', select.value);
 }
 </script>
 
@@ -170,7 +202,7 @@ function savedLabel(stamp)
 
 			<select
 				class="field-input num h-7 w-[104px] text-left" aria-label="Display unit"
-				:value="props.unit" @change="emit('set-unit', $event.target.value)">
+				:value="props.unit" @change="onUnitChange">
 				<option v-for="entry in props.units" :key="entry.value" :value="entry.value">{{ entry.label }}</option>
 			</select>
 

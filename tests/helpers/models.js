@@ -16,6 +16,10 @@
  */
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {Texture} from 'three';
+import {NodeIO} from '@gltf-transform/core';
+import {KHRONOS_EXTENSIONS, KHRDracoMeshCompression} from '@gltf-transform/extensions';
+import draco3d from 'draco3dgltf';
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 import {dirname, join} from 'node:path';
@@ -96,14 +100,118 @@ export function loadLegacyMaterials(path)
 	return JSON.parse(readFileSync(path, 'utf8')).materials || [];
 }
 
-/** Parse a .glb / .gltf off disk through the loader the app itself uses. */
-export function loadGltf(path, resourcePath)
+/**
+ * Decompress a Draco-encoded container back to plain accessors (RM-004 B1).
+ *
+ * three's own `DRACOLoader` cannot be used here. It fetches its decoder over
+ * HTTP from a path, and under Node there is nothing to serve `public/draco/` -
+ * so the loader the browser uses is not available to a headless test, and the
+ * catalog became unreadable to this suite the moment it was compressed.
+ *
+ * `draco3dgltf` is the same decoder, callable in-process, and it is already a
+ * devDependency because the encoder needs it. **The dependency is decompressed,
+ * never the subject**: what this suite tests is `mergeMeshes` against frozen r98
+ * goldens, and Draco is transport underneath that, exactly as
+ * `Scene.setItemLoader` is transport underneath the model layer.
+ *
+ * Built lazily and once - constructing the WASM decoder per model turned a
+ * two-second file into a thirty-second one.
+ */
+let decompressIO = null;
+async function decompressor()
 {
-	const buffer = readFileSync(path);
+	if (!decompressIO)
+	{
+		decompressIO = new NodeIO()
+			.registerExtensions(KHRONOS_EXTENSIONS)
+			.registerExtensions([KHRDracoMeshCompression])
+			.registerDependencies({'draco3d.decoder': await draco3d.createDecoderModule()});
+	}
+	return decompressIO;
+}
+
+/**
+ * A KTX2 loader that hands back an empty texture (RM-004 B5).
+ *
+ * The same argument as `installImageStub`, for the other image format. B5
+ * transcoded 18 model textures to KTX2, and the containers declare
+ * `KHR_texture_basisu` as REQUIRED - correctly, since with `textures[].source`
+ * gone there is no image to fall back to. So GLTFLoader now REFUSES a file
+ * outright unless a KTX2 loader is attached, where before an undecodable
+ * texture merely left the material untextured.
+ *
+ * A real `KTX2Loader` is not usable here for the reason the real `DRACOLoader`
+ * is not: it fetches a transcoder over HTTP and runs it in a worker against a
+ * GPU, and this suite has none of those. It is also not the subject - what
+ * these tests measure is geometry, and the texture is transport underneath it.
+ *
+ * The stub satisfies the one call GLTFLoader makes, `load(url, onLoad)`, and
+ * hands back a `Texture` with no image. Materials come out valid and
+ * untextured, which is exactly what the image stub already produces for JPEG.
+ */
+function ktx2Stub()
+{
+	return {
+		load(url, onLoad)
+		{
+			const texture = new Texture();
+			if (onLoad) { onLoad(texture); }
+			return texture;
+		},
+	};
+}
+
+/** True if the container declares it needs a Draco decoder. */
+function needsDraco(buffer)
+{
+	if (buffer.length < 20 || buffer.readUInt32LE(0) !== 0x46546c67) { return false; }
+	let offset = 12;
+	while (offset + 8 <= buffer.length)
+	{
+		const length = buffer.readUInt32LE(offset);
+		const type = buffer.readUInt32LE(offset + 4);
+		if (type === 0x4e4f534a)
+		{
+			try
+			{
+				const json = JSON.parse(buffer.subarray(offset + 8, offset + 8 + length).toString('utf8'));
+				return (json.extensionsRequired || []).indexOf('KHR_draco_mesh_compression') !== -1;
+			}
+			catch { return false; }
+		}
+		offset += 8 + length;
+	}
+	return false;
+}
+
+/** Parse a .glb / .gltf off disk through the loader the app itself uses. */
+export async function loadGltf(path, resourcePath)
+{
+	let buffer = readFileSync(path);
+
+	if (needsDraco(buffer))
+	{
+		const io = await decompressor();
+		const document = await io.read(path);
+		// Reading DECODES into plain accessors; the extension is still attached to
+		// the document and would be re-applied on write. Disposing it is what makes
+		// the round trip a decompression rather than a no-op.
+		for (const extension of document.getRoot().listExtensionsUsed())
+		{
+			if (extension.extensionName === 'KHR_draco_mesh_compression') { extension.dispose(); }
+		}
+		// Textures stay external and are stubbed by installImageStub(); dropping
+		// them here keeps writeBinary from embedding files this suite never reads.
+		for (const texture of document.getRoot().listTextures()) { texture.dispose(); }
+		buffer = Buffer.from(await io.writeBinary(document));
+	}
+
 	const data = path.endsWith('.gltf') ? buffer.toString('utf8') : sameRealmArrayBuffer(buffer);
 	return new Promise((resolve, reject) =>
 	{
-		new GLTFLoader().parse(data, resourcePath, resolve, reject);
+		const loader = new GLTFLoader();
+		loader.setKTX2Loader(ktx2Stub());
+		loader.parse(data, resourcePath, resolve, reject);
 	});
 }
 

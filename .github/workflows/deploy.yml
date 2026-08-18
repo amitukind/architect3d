@@ -54,12 +54,20 @@ jobs:
           node-version: '22'
 
       - name: Install dependencies
+        env:
+          # See the note in ci.yml: simple-git-hooks installs from its own
+          # postinstall and honours only this variable, not CI.
+          SKIP_INSTALL_SIMPLE_GIT_HOOKS: '1'
         run: npm ci --no-audit --no-fund
 
       - name: Test
         # The deploy does not trust CI to have run on this commit - a push to
         # master can arrive by a route that never touched dev.
-        run: npm test
+        #
+        # With coverage since RM-002 P1, for the same reason: if this job is
+        # willing to re-run the suite rather than trust CI, it should re-run the
+        # same suite CI runs, thresholds included.
+        run: npm run test:coverage
 
       - name: Build the application
         # --base carries the repository sub-path into the hashed asset URLs.
@@ -72,6 +80,12 @@ jobs:
         env:
           DOCS_BASE: /${{ github.event.repository.name }}/docs/
         run: npm run docs:build
+
+      - name: Size budgets
+        # Before assembly, not after: the next step moves the built docs *into*
+        # dist-demo, and the demo-total budget measures what the application
+        # build produced, not what the deploy job then stacks on top of it.
+        run: npm run budget
 
       - name: Assemble the site
         # The application at the root, the docs one level down. .nojekyll stops

@@ -1,3 +1,4 @@
+// @ts-check
 import {onScopeDispose, ref, watch} from 'vue';
 import {EVENT_UPDATED, EVENT_LOADED, EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED} from '../../scripts/blueprint.js';
 import {Dimensioning} from '../../scripts/blueprint.js';
@@ -36,6 +37,7 @@ export function usePlanStats(store)
 	var areaLabel = ref('');
 
 	/** Plan-space cursor position in cm, or null when the pointer is elsewhere. */
+	/** @type {import('vue').Ref<?{x: number, y: number}>} */
 	var cursor = ref(null);
 
 	function recount()

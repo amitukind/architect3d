@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {onBeforeUnmount, reactive, watch} from 'vue';
 import NumberField from './fields/NumberField.vue';
 import {Dimensioning, EVENT_CORNER_ATTRIBUTES_CHANGED, EVENT_MOVED} from '../../scripts/blueprint.js';

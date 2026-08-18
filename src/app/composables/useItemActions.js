@@ -1,3 +1,4 @@
+// @ts-check
 import {computed} from 'vue';
 import {SELECTION_ITEM} from './useSelection.js';
 

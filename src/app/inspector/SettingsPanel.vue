@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {computed, reactive, watch} from 'vue';
 import CollapsibleGroup from './CollapsibleGroup.vue';
 import CarbonSheetPanel from './CarbonSheetPanel.vue';
@@ -6,9 +7,10 @@ import NumberField from './fields/NumberField.vue';
 import CheckField from './fields/CheckField.vue';
 import RangeField from './fields/RangeField.vue';
 import TextField from './fields/TextField.vue';
-import {Configuration, Dimensioning, config, wallInformation} from '../../scripts/blueprint.js';
+import {Configuration, Dimensioning, wallInformation} from '../../scripts/blueprint.js';
 import {snapTolerance, gridSpacing} from '../../scripts/blueprint.js';
 import {useDisplayUnit} from '../composables/useDisplayUnit.js';
+import {onConfigChange, useBooleanConfig} from '../composables/useConfiguration.js';
 
 /**
  * Everything that is not about the current selection.
@@ -20,15 +22,38 @@ import {useDisplayUnit} from '../composables/useDisplayUnit.js';
  * unit changes - the captions are bindings now, not folder names.
  *
  * The zoom slider that used to sit at the bottom of the 2D editor group is
- * gone. Zoom now has a control on the plan itself - a readout, stops, fit and
- * recentre, a wheel gesture and a keyboard shortcut - and a second one buried
- * here was both redundant and wrong: it read `Number(config.scale)` from a
- * plain object nothing makes reactive, so it rendered 1 once and then sat there
- * saying 1 while the plan was at 300%.
+ * gone, and stays gone. Zoom has a control on the plan itself - a readout,
+ * stops, fit and recentre, a wheel gesture and a keyboard shortcut - so a
+ * second one buried here would be redundant even now that it could be made to
+ * work. It could not before: it read `Number(config.scale)` from a plain object
+ * nothing makes reactive, so it rendered 1 once and then sat there saying 1
+ * while the plan was at 300%.
+ *
+ * ## The staleness it was one case of
+ *
+ * The same bug applied to every control here that mirrors configuration, and
+ * those are not redundant. Snap-to-grid, snap distance and grid resolution are
+ * all writable from the plan overlay as well as from this panel, and this panel
+ * read them once: change the grid density on the plan, open Settings, and it
+ * showed the old number.
+ *
+ * RM-002 R-03 gave Configuration an event, and useConfiguration turns it into
+ * refs. These controls now follow the library rather than their own first
+ * reading of it.
  */
 
 const props = defineProps({
-	store: {type: Object, required: true},
+	store: {
+		/**
+		 * `type: Object` alone is `Record<string, any>`, which is not the store -
+		 * so passing it to a composable that wants one is an error, and every
+		 * property read off it is unchecked (RM-004 B3).
+		 *
+		 * @type {import('vue').PropType<import('../composables/useBlueprint.js').BlueprintStore>}
+		 */
+		type: Object,
+		required: true,
+	},
 	camera: {type: Object, required: true},
 });
 
@@ -57,23 +82,26 @@ function read2d()
 	editor2d.grid = Dimensioning.cmToMeasureRaw(Configuration.getNumericValue(gridSpacing));
 }
 read2d();
+// Two reasons these need re-reading: the unit changed, so the same centimetres
+// display differently; or the library's value changed, possibly from the plan
+// overlay rather than from here.
 watch(unit, read2d);
+onConfigChange(read2d);
 
+const snapEnabled = useBooleanConfig('snapToGrid');
 const snapToGrid = computed({
-	get: () => Boolean(config.snapToGrid),
+	get: () => snapEnabled.value,
 	set: (next) => {Configuration.setValue('snapToGrid', next);},
 });
 
 function setSnap(next)
 {
 	Configuration.setValue(snapTolerance, Dimensioning.cmFromMeasureRaw(next));
-	read2d();
 }
 
 function setGrid(next)
 {
 	Configuration.setValue(gridSpacing, Dimensioning.cmFromMeasureRaw(next));
-	read2d();
 	redraw();
 }
 
