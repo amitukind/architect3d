@@ -32,9 +32,11 @@
 # and still correct - and the day Pages is wanted, throw the switch, run this
 # from the Actions tab to prove it, and put the trigger back.
 #
-# ci.yml is unaffected and still runs on master, dev and amit. Nothing about
-# what is PROVEN changes here; only what is PUBLISHED, which is currently
-# nothing.
+# ci.yml is unaffected and still runs on `dev` and `master` - NOT on the `amit`
+# working branch, which is deliberate and is the same Actions-minutes argument
+# the branch policy above makes. So work is proven locally on `amit` and proven
+# again by CI the moment it reaches `dev`. Nothing about what is PROVEN changes
+# here; only what is PUBLISHED, which is currently nothing.
 name: Deploy
 
 on:

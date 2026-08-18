@@ -16,6 +16,12 @@ mark, and the next real failure then arrives somewhere red is normal. The
 trigger is now `workflow_dispatch` only — nothing is deleted, and the build,
 budgets and artifact upload are all still there for whenever a target exists.
 
+`ci.yml` is untouched and still runs on `dev` and `master`. It does not run on
+the `amit` working branch and never has — the same Actions-minutes argument —
+so work is proven locally there and proven again by CI on reaching `dev`. The
+commit that made this change said CI runs on `amit` too; it does not, and the
+workflow comment is corrected.
+
 **Coverage headroom, so the floor stops being one commit from breaking.**
 3.0.1 fixed a breached branch floor and left 0.41% above it, which is about
 fourteen branches. `Utils`'s polygon predicates are now pinned, including two
