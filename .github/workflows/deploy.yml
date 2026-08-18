@@ -7,24 +7,37 @@
 # any more: Pages serves the artifact this workflow uploads.
 #
 # BRANCH POLICY (deliberate, to conserve Actions minutes and storage):
-#   - Runs ONLY on pushes to `master`.
-#   - Does NOT run on `dev`, on the `amit` working branch, or anywhere else.
-#   - Can be started by hand from the Actions tab (workflow_dispatch).
+#   - Started by hand only, from the Actions tab (workflow_dispatch). See below.
+#   - When the push trigger is restored it belongs on `master` and nowhere else:
+#     CI proves `dev` is healthy, but a deploy from `dev` would overwrite the
+#     published site with work in progress, and Pages has exactly one live
+#     deployment.
 #
-# Narrower than ci.yml on purpose. CI proves `dev` is healthy; a deploy from
-# `dev` would overwrite the published site with work in progress, and Pages has
-# exactly one live deployment.
+# PAGES IS DELIBERATELY NOT ENABLED, AND THIS NO LONGER RUNS ON PUSH (RM-006).
 #
-# BEFORE THE FIRST RUN: set Settings -> Pages -> Build and deployment -> Source
-# to "GitHub Actions". Until that is done this workflow fails at the
-# configure-pages step, which is the intended failure - it means Pages is still
-# wired to the old branch-based publish.
+# `actions/configure-pages` fails unless Settings -> Pages -> Source is set to
+# "GitHub Actions". That switch has never been thrown, so every push to master
+# has produced a red Deploy at the configure-pages step - including the merge
+# that took master from the pre-RM-002 tree to 3.0.1, where CI passed and this
+# did not. The comment above used to call that "the intended failure", which was
+# true for exactly as long as somebody intended to throw the switch.
+#
+# The plan is Cloudflare rather than Pages, so the switch is not going to be
+# thrown. A workflow that fails on every push to the default branch is worse
+# than no workflow: it trains everybody to ignore a red mark, and the next
+# genuine failure arrives into a branch where red is normal.
+#
+# So the push trigger is removed and `workflow_dispatch` is kept. Nothing is
+# deleted - the build, the budgets and the artifact upload are all still here
+# and still correct - and the day Pages is wanted, throw the switch, run this
+# from the Actions tab to prove it, and put the trigger back.
+#
+# ci.yml is unaffected and still runs on master, dev and amit. Nothing about
+# what is PROVEN changes here; only what is PUBLISHED, which is currently
+# nothing.
 name: Deploy
 
 on:
-  push:
-    branches:
-      - master
   workflow_dispatch:
 
 # Never deploy two commits at once, and never cancel a deploy half-published -

@@ -2,6 +2,43 @@
 
 ## [Unreleased]
 
+Nothing here changes shipped code. `src/`, `public/` and every build artifact
+are identical to 3.0.1, so no version is cut for it.
+
+**The Deploy workflow no longer runs on push.** It has failed at
+`actions/configure-pages` on every push to `master` — including the merge that
+took master to 3.0.1, where CI passed and Deploy did not — because Settings →
+Pages → Source has never been set to "GitHub Actions". The workflow's own header
+called that "the intended failure", which held for exactly as long as somebody
+intended to throw the switch; the plan is Cloudflare, so nobody does. A workflow
+that fails on every push to the default branch trains everyone to ignore a red
+mark, and the next real failure then arrives somewhere red is normal. The
+trigger is now `workflow_dispatch` only — nothing is deleted, and the build,
+budgets and artifact upload are all still there for whenever a target exists.
+
+**Coverage headroom, so the floor stops being one commit from breaking.**
+3.0.1 fixed a breached branch floor and left 0.41% above it, which is about
+fourteen branches. `Utils`'s polygon predicates are now pinned, including two
+PRESERVED BUGS that had no test at all: `polygonPolygonIntersect` always returns
+false and `polygonOutsidePolygon` always returns true, both because they are
+called with the pre-refactor coordinate arity. `pointInPolygon` and
+`polygonInsidePolygon` were already pinned this way; their siblings were not, so
+nothing said what they returned or why. A constant-returning function is the
+easiest thing in a codebase to "fix" by accident.
+
+    branches   68.41 -> 68.77    lines      80.08 -> 80.32
+    statements 80.00 -> 80.26    functions  79.17 -> 79.17
+
+**Correction — a commit that claimed less than it did.** `ebf6889` says it
+overrides VitePress's vite to clear three advisories. It does, but the
+`npm install` behind it re-resolved **564 package paths**, not one subtree, and
+three text bundles grew as a result — Demo JS +0.5 KB, Library IIFE +0.6 KB,
+Library ESM +0.7 KB, which is why ESM headroom moved 4.9% → 3.5%. Checked
+rather than assumed: both runtime peers are unchanged at `three` 0.185.1 and
+`bezier-js` 6.1.4, and no source file was touched, so the growth is toolchain
+and nothing shipped behaves differently. All three are inside budget. Recorded
+because the commit message describes a smaller change than the one that landed.
+
 ## [3.0.1] - 2026-08-16
 
 No shipped code changed — `src/` is byte-identical to 3.0.0 and so is every
