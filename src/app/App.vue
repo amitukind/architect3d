@@ -17,7 +17,7 @@ import ToastStack from './components/ToastStack.vue';
 import InspectorPanel from './inspector/InspectorPanel.vue';
 
 import {provideBlueprint} from './composables/useBlueprint.js';
-import {useSelection} from './composables/useSelection.js';
+import {useSelection, SELECTION_DIMENSION, SELECTION_ANNOTATION} from './composables/useSelection.js';
 import {useCameraViews, MODE_WALKTHROUGH} from './composables/useCameraViews.js';
 import {useFloorplannerMode} from './composables/useFloorplannerMode.js';
 import {useDesignIO} from './composables/useDesignIO.js';
@@ -411,6 +411,43 @@ function redo()
 }
 
 /**
+ * Delete whatever is selected (RM-008 E3).
+ *
+ * The Delete key used to mean "delete the selected item", because furniture was
+ * the only thing a selection could be that had nothing else to press. A
+ * dimension and a text label are two more, and a key that works for one kind of
+ * selection and silently does nothing for another is the worse half of a
+ * feature.
+ *
+ * Walls, corners and rooms are deliberately not included: they are deleted with
+ * the eraser tool, which is modal and armed on purpose, because deleting a wall
+ * silently deletes the rooms it defined. That asymmetry is a decision, not an
+ * oversight - an annotation costs a keystroke to recreate and a room does not.
+ */
+function deleteSelection()
+{
+	var current = selection.selection.value;
+	var planner = store.floorplanner.value;
+	if (current && (current.type === SELECTION_DIMENSION || current.type === SELECTION_ANNOTATION) && planner)
+	{
+		planner.deleteSelectedAnnotation();
+		return;
+	}
+	items.deleteSelected();
+}
+
+/** Whether {@link deleteSelection} has anything to do. */
+const canDeleteSelection = computed(function ()
+{
+	var current = selection.selection.value;
+	if (current && (current.type === SELECTION_DIMENSION || current.type === SELECTION_ANNOTATION))
+	{
+		return true;
+	}
+	return items.canActOnItem.value;
+});
+
+/**
  * The keyboard map.
  *
  * A computed rather than a constant, so `enabled` and the bindings themselves
@@ -435,6 +472,8 @@ const bindings = computed(() => /** @type {Array<import('./composables/useShortc
 	{group: 'Tools', keys: 'v', label: 'Select and move', run: () => editor.setMode(floorplannerModes.MOVE)},
 	{group: 'Tools', keys: 'w', label: 'Draw walls', run: () => editor.setMode(floorplannerModes.DRAW)},
 	{group: 'Tools', keys: 'r', label: 'Draw a rectangular room', run: () => editor.setMode(floorplannerModes.RECTANGLE)},
+	{group: 'Tools', keys: 'd', label: 'Measure between two points', run: () => editor.setMode(floorplannerModes.DIMENSION)},
+	{group: 'Tools', keys: 't', label: 'Add a text label', run: () => editor.setMode(floorplannerModes.TEXT)},
 	{group: 'Tools', keys: 'x', label: 'Delete walls', run: () => editor.setMode(floorplannerModes.DELETE)},
 	{group: 'Tools', keys: 's', label: 'Toggle snap to grid', run: () => zoom.setSnap(!zoom.snap.value)},
 	{group: 'Tools', keys: 'a', label: 'Furniture catalog', run: toggleCatalog},
@@ -443,12 +482,12 @@ const bindings = computed(() => /** @type {Array<import('./composables/useShortc
 		run: items.duplicateSelected, enabled: () => items.canActOnItem.value,
 	},
 	{
-		group: 'Tools', keys: 'delete', label: 'Delete item',
-		run: items.deleteSelected, enabled: () => items.canActOnItem.value,
+		group: 'Tools', keys: 'delete', label: 'Delete the selection',
+		run: deleteSelection, enabled: () => canDeleteSelection.value,
 	},
 	{
-		group: 'Tools', keys: 'backspace', label: 'Delete item', alias: true,
-		run: items.deleteSelected, enabled: () => items.canActOnItem.value,
+		group: 'Tools', keys: 'backspace', label: 'Delete the selection', alias: true,
+		run: deleteSelection, enabled: () => canDeleteSelection.value,
 	},
 
 	// --- view ---

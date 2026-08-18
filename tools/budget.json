@@ -19,6 +19,28 @@
     "on Floorplan, and the footprint drawing and pointer handling in the two",
     "floorplanner files. 3.1 KB gzipped for furniture on the 2D plan.",
     "",
+    "RM-008 E3 RAISED two: lib-esm-gzip 53,500 -> 59,500 and demo-total 13,860,000",
+    "-> 14,140,000. The ESM entry went 50,938 -> 56,687 gzipped, 5.7 KB for the",
+    "sprint that makes a plan readable by somebody who did not draw it:",
+    "model/annotation.js, the two authored collections and their save, load and",
+    "validation, dimension and label drawing with the north arrow, and the two new",
+    "tools with their picking and dragging. Roughly 1,400 lines of library code, at",
+    "the same cost per line E1 paid for 800.",
+    "",
+    "demo-total moved for a different reason and it is worth naming, because the",
+    "number is startling: the tree grew 274 KB for maybe 60 KB of new source. 6.2 MB",
+    "of that 14 MB tree is one sourcemap, and a sourcemap is four to five times the",
+    "size of the source it describes. So this limit tracks source volume rather than",
+    "shipped weight - the gzipped JS a browser actually downloads moved 353 -> 364",
+    "KB against a 371 KB ceiling and did not need raising at all. Recorded rather",
+    "than fixed: whether a public deploy should carry its sourcemap is a question",
+    "for whoever sets up the Cloudflare target, not for an annotation sprint.",
+    "",
+    "Both raised, not relaxed, and both keep the headroom their own limit was set",
+    "with - about 5% on the ESM entry and about 1.3% on the tree, which is what",
+    "demo-total has carried since 2026-08-14. The next change gets no more slack",
+    "than this one did.",
+    "",
     "Raised, not relaxed. The property this limit guards is unchanged and is checked",
     "by the paragraph below: three and bezier-js are still external, and the figure",
     "is still an order of magnitude below the ~423 KB a lost externals config would",
@@ -367,7 +389,7 @@
     "limits with, which is tight and is left tight on purpose: the next texture",
     "added to the catalog should have to argue for itself.",
     "",
-    "AND THE TREE WAS AUDITED BEFORE ACCEPTING THAT TIGHTNESS, so \u0027no slack\u0027 is a",
+    "AND THE TREE WAS AUDITED BEFORE ACCEPTING THAT TIGHTNESS, so 'no slack' is a",
     "measurement rather than a shrug. Every file under public/ was matched against",
     "the catalogs, all of src/, and the JSON chunk of every .glb: 376 files, 370",
     "named somewhere. The six that are not are draco/ and basis/, which are",
@@ -383,27 +405,27 @@
   "budgets": {
     "demo-js-gzip": {
       "limit": 371000,
-      "measured": 353326
+      "measured": 364004
     },
     "demo-css-gzip": {
       "limit": 10000,
-      "measured": 7306
+      "measured": 7324
     },
     "demo-total": {
-      "limit": 13860000,
-      "measured": 13685438
+      "limit": 14140000,
+      "measured": 13972398
     },
     "lib-iife-gzip": {
       "limit": 268000,
-      "measured": 255002
+      "measured": 262938
     },
     "public-total": {
       "limit": 6200000,
       "measured": 6121106
     },
     "lib-esm-gzip": {
-      "limit": 53500,
-      "measured": 50938
+      "limit": 59500,
+      "measured": 57071
     },
     "public-largest": {
       "limit": 330000,

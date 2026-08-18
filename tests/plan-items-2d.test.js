@@ -67,6 +67,22 @@ function callNames(calls)
 }
 
 /**
+ * Every string this draw put on the canvas.
+ *
+ * The two caption assertions below used to read `not.toContain('fillText')` -
+ * "nothing drew any text at all" as a proxy for "no caption was drawn". That was
+ * true when the only text in this fixture was the caption, and RM-008 E3 made it
+ * false: the plan now draws a north arrow, labelled N, on every frame. Re-checked
+ * rather than relaxed, and the assertion moved to what it always meant - the
+ * item's name is or is not among the strings drawn - which is both narrower and
+ * immune to the next thing that legitimately draws text.
+ */
+function drawnText(calls)
+{
+	return calls.filter((call) => call.name === 'fillText').map((call) => call.args[0]);
+}
+
+/**
  * A pointer event at a point in plan space.
  *
  * The plan converts client pixels to centimetres through `Dimensioning`, and
@@ -176,15 +192,16 @@ describe('drawing footprints', () =>
 		const big = drawWith([fakeItem()]);
 		const tiny = drawWith([fakeItem({halfSize: new Vector3(2, 2, 2)})]);
 
-		expect(callNames(big)).toContain('fillText');
-		expect(callNames(tiny)).not.toContain('fillText');
+		expect(drawnText(big)).toContain('Full Bed');
+		expect(drawnText(tiny)).not.toContain('Full Bed');
 	});
 
 	it('draws no caption for an item with no name', () =>
 	{
 		const calls = drawWith([fakeItem({metadata: {itemName: '', itemType: 1}})]);
 
-		expect(callNames(calls)).not.toContain('fillText');
+		expect(drawnText(calls)).not.toContain('Full Bed');
+		expect(drawnText(calls)).not.toContain('');
 	});
 });
 

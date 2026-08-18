@@ -6,6 +6,8 @@ import CornerInspector from './CornerInspector.vue';
 import RoomInspector from './RoomInspector.vue';
 import Wall2DInspector from './Wall2DInspector.vue';
 import ItemInspector from './ItemInspector.vue';
+import DimensionInspector from './DimensionInspector.vue';
+import AnnotationInspector from './AnnotationInspector.vue';
 import SurfaceInspector from './SurfaceInspector.vue';
 import SettingsPanel from './SettingsPanel.vue';
 import {MousePointerClick, SlidersHorizontal} from '@lucide/vue';
@@ -14,6 +16,7 @@ import {useBlueprint} from '../composables/useBlueprint.js';
 import {
 	SELECTION_ITEM, SELECTION_WALL, SELECTION_FLOOR,
 	SELECTION_CORNER_2D, SELECTION_WALL_2D, SELECTION_ROOM_2D,
+	SELECTION_DIMENSION, SELECTION_ANNOTATION,
 } from '../composables/useSelection.js';
 
 /**
@@ -83,6 +86,8 @@ const INSPECTORS = {
 	[SELECTION_ITEM]: ItemInspector,
 	[SELECTION_WALL]: SurfaceInspector,
 	[SELECTION_FLOOR]: SurfaceInspector,
+	[SELECTION_DIMENSION]: DimensionInspector,
+	[SELECTION_ANNOTATION]: AnnotationInspector,
 };
 
 const component = computed(() =>
@@ -106,6 +111,10 @@ const bindings = computed(() =>
 		return {corner: props.selection.object};
 	case SELECTION_ROOM_2D:
 		return {room: props.selection.object, floorplanner};
+	case SELECTION_DIMENSION:
+		return {dimension: props.selection.object, floorplanner};
+	case SELECTION_ANNOTATION:
+		return {annotation: props.selection.object, floorplanner};
 	case SELECTION_WALL_2D:
 		return {wall: props.selection.object, floorplanner};
 	case SELECTION_ITEM:
@@ -115,9 +124,34 @@ const bindings = computed(() =>
 	}
 });
 
-watch(() => props.selection, (selection) =>
+/**
+ * What is selected, as an identity rather than as the object holding it.
+ *
+ * `props.selection` is rebuilt every time the model says "look again" -
+ * `useSelection` resolves the entity afresh on each revision, so the
+ * `{type, object}` wrapper is a new object even when the same thing is still
+ * selected. Watching the wrapper therefore fires on changes that selected
+ * nothing.
+ *
+ * Measured in a real browser, on the control this note was written for: with a
+ * room selected, turning the north arrow in Settings bumped the revision, and
+ * the panel switched itself to the Selection tab - navigating away from the
+ * field being typed into. Comparing the identity fires only when the selection
+ * actually moves, which is what "clicking something opens its panel" means.
+ */
+const selectionKey = computed(() =>
 {
-	if (selection)
+	if (!props.selection)
+	{
+		return null;
+	}
+	var object = props.selection.object;
+	return `${props.selection.type}:${(object && object.id) || (object && object.designId) || ''}`;
+});
+
+watch(selectionKey, (key) =>
+{
+	if (key)
 	{
 		tab.value = 'selection';
 	}
@@ -152,8 +186,8 @@ watch(() => props.selection, (selection) =>
 					v-bind="bindings"
 					@changed="emit('changed')" />
 				<p v-else class="inspector-empty">
-					Nothing selected. Click a corner, a wall or a room on the plan, or an item,
-					a wall or a floor in the 3D view.
+					Nothing selected. Click a corner, a wall, a room, a dimension or a label
+					on the plan, or an item, a wall or a floor in the 3D view.
 				</p>
 			</template>
 

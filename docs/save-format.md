@@ -26,9 +26,17 @@ older one is still out there.
   "wallTextures": [],
   "floorTextures": {},
   "newFloorTextures": { },
-  "carbonSheet": { }
+  "carbonSheet": { },
+  "dimensions": [],
+  "annotations": [],
+  "north": 0
 }
 ```
+
+The last three are **optional** and are written only when there is something to
+write — see [what the plan says about itself](#what-the-plan-says-about-itself).
+A design nobody annotated produces exactly the file it produced before they
+existed.
 
 ### `corners`
 
@@ -129,9 +137,21 @@ things a user typed. The key is the room's corner ids joined with commas:
 
 ```json
 {
-  "3c885e88-…,0438a3a5-…,dc6353ae-…,213bb50e-…": {"name": "Living Room"}
+  "3c885e88-…,0438a3a5-…,dc6353ae-…,213bb50e-…": {"name": "Living Room", "type": "Living"}
 }
 ```
+
+| Field | Meaning |
+|---|---|
+| `name` | What the room is called. Always written for a room that has an entry. |
+| `type` | What the room is *for* — "Bedroom", "Kitchen". **Optional**, written only when somebody typed one, and removed again if it is cleared. |
+
+There is deliberately no ceiling height here. A room's ceiling is the elevation
+of its corners — that is where a wall's drawn top comes from — so storing a
+second number beside them could disagree with the geometry. Setting a ceiling
+height in the room panel writes `elevation` on every corner of the room, which
+means every file ever written by this project already carries its ceiling
+heights.
 
 The key is a description of the room rather than a name for it, which is
 deliberate: another build reading this file can find the room without needing
@@ -171,6 +191,58 @@ Both are written on every save — `[]` and `{}` — and neither is ever read.
 They are the pre-`newFloorTextures` fields, kept so old readers do not
 choke. Write them; ignore them.
 :::
+
+### What the plan says about itself
+
+Everything above describes the building. These three describe the *drawing*, and
+they are the only entities in the file that were authored rather than derived —
+added in RM-008 E3.
+
+All three are optional and are omitted entirely when empty, which is what keeps
+a file written before E3 byte-identical after a re-save. An older reader ignores
+them; this build ignores nothing else it does not recognise either.
+
+#### `dimensions`
+
+An array. Each entry measures between two points:
+
+```json
+{
+  "id": "9f2c1a44-…",
+  "a": {"x": 0, "y": 0},
+  "b": {"x": 400, "y": 0},
+  "offset": 40,
+  "aCorner": "3c885e88-…"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `id` | Stable identity, **persisted** — unlike a room's, which is derived from its corners. A dimension has no description to be found again by, so the id in the file *is* the identity. |
+| `a`, `b` | The two points, in centimetres. |
+| `offset` | Signed centimetres from the measured line to the drawn one. Negative puts it on the other side. |
+| `aCorner`, `bCorner` | **Optional** corner ids. When present and the corner still exists, that end follows it; when the corner is deleted the stored point is used instead. |
+
+#### `annotations`
+
+An array of free text placed on the plan:
+
+```json
+{"id": "1b7e0c92-…", "x": 220, "y": 340, "text": "Service duct", "size": 18}
+```
+
+| Field | Meaning |
+|---|---|
+| `id` | Persisted, for the same reason a dimension's is. |
+| `x`, `y` | Centimetres. |
+| `text` | What it says. May be empty — that is a label somebody is still typing. |
+| `size` | Font size in **CSS pixels**, not centimetres, so a label stays legible at every zoom. **Optional**, written only when it is not the default 14. |
+
+#### `north`
+
+A number: degrees clockwise from up. Absent means 0, which is north up, so a
+plan nobody oriented carries nothing. A value outside 0–360 loads and is
+normalised rather than refused — it is the same bearing written differently.
 
 ### `carbonSheet`
 

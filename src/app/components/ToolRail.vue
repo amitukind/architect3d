@@ -3,7 +3,7 @@
 import {computed} from 'vue';
 import {
 	MousePointer2, PencilRuler, RectangleHorizontal, Eraser, Sofa, Footprints,
-	Copy, Trash2, Image as ImageIcon,
+	Copy, Trash2, Image as ImageIcon, Ruler, Type,
 } from '@lucide/vue';
 
 import AppTip from './AppTip.vue';
@@ -56,11 +56,20 @@ const emit = defineEmits([
 	'toggle-walkthrough', 'open-backdrop',
 ]);
 
-/** The plan tools, in the order the shortcut keys run: V, W, X. */
+/**
+ * The plan tools, in the order their shortcut keys run.
+ *
+ * The two annotation tools (RM-008 E3) sit after the drawing tools and before
+ * the eraser, which is where they belong in the sequence a plan is made: draw
+ * the building, then say what it is, then correct. The eraser stays last
+ * because it is the destructive one and the rail is read top to bottom.
+ */
 const TOOLS = [
 	{id: floorplannerModes.MOVE, icon: MousePointer2, label: 'Select and move', keys: 'v'},
 	{id: floorplannerModes.DRAW, icon: PencilRuler, label: 'Draw walls', keys: 'w'},
 	{id: floorplannerModes.RECTANGLE, icon: RectangleHorizontal, label: 'Draw a rectangular room', keys: 'r'},
+	{id: floorplannerModes.DIMENSION, icon: Ruler, label: 'Measure between two points', keys: 'd'},
+	{id: floorplannerModes.TEXT, icon: Type, label: 'Add a text label', keys: 't'},
 	{id: floorplannerModes.DELETE, icon: Eraser, label: 'Delete walls', keys: 'x'},
 ];
 

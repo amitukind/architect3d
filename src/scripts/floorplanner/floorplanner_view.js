@@ -4,9 +4,10 @@ import {WallTypes} from '../core/constants.js';
 import {Utils} from '../core/utils.js';
 import {EVENT_UPDATED} from '../core/events.js';
 
-import {gridSpacing, configWallThickness} from '../core/configuration.js';
+import {gridSpacing, configWallThickness, configWallHeight} from '../core/configuration.js';
 import {resolveCanvas, measureViewport, pixelRatio} from '../core/dom.js';
 import {footprintCorners} from '../model/plan_projection.js';
+import {dimensionLine} from '../model/annotation.js';
 
 /**
  * Item types the plan draws as openings in a wall rather than as boxes on it
@@ -27,6 +28,56 @@ const ITEM_TYPE_ON_FLOOR = 8;
  * the smaller thing being labelled.
  */
 const ITEM_LABEL_MIN_PIXELS = 34;
+
+/** The size every measurement on this canvas has been drawn at since it was written. */
+const LABEL_SIZE_PIXELS = 12;
+
+/**
+ * The gap between what a dimension measures and where its witness line starts,
+ * and how far that line runs past the dimension line, in CSS pixels (RM-008 E3).
+ *
+ * Screen pixels rather than centimetres so the drawing looks the same at every
+ * zoom - the gap is a typographic space, not a distance in the building.
+ */
+const WITNESS_GAP_PIXELS = 6;
+const WITNESS_OVERSHOOT_PIXELS = 7;
+
+/** Half-length of the tick drawn where a dimension line meets its witness line. */
+const DIMENSION_TICK_PIXELS = 5;
+
+/** The dot drawn at a text label's anchor, which is what a click actually targets. */
+const ANNOTATION_ANCHOR_PIXELS = 3;
+
+/**
+ * The north arrow's radius and its inset from the top-right of the canvas, in
+ * CSS pixels.
+ *
+ * Fixed to the canvas rather than placed on the plan, because it describes the
+ * whole drawing rather than a place in it - so it must not pan away, and its
+ * size must not change with the zoom.
+ */
+const NORTH_RADIUS_PIXELS = 17;
+const NORTH_INSET_PIXELS = 30;
+
+/**
+ * The vertical step between the lines stacked at a room's centre, in CSS pixels
+ * (RM-008 E3).
+ *
+ * Screen pixels, not plan centimetres, and the difference is not cosmetic. The
+ * name used to be offset 30 *centimetres* below the area while both were drawn
+ * at a fixed 12 px, so the gap between two lines of type shrank with the zoom:
+ * at the default scale 30 cm is about 16 px, which is one line height, and the
+ * two labels touched. That was invisible until E3's declutter pass started
+ * asking whether they touched - at which point the room's own name vanished
+ * under its own area, at the default zoom, on every plan.
+ *
+ * A stack of type is typography. It is spaced in the units type is measured in,
+ * the same choice the font size and the witness-line gaps already make.
+ */
+const ROOM_LABEL_STEP_PIXELS = 17;
+
+/** Air around a label when deciding whether two of them collide, in CSS pixels. */
+const LABEL_PADDING_PIXELS = 2;
 import {CarbonSheet} from './carbonsheet.js';
 
 
@@ -50,7 +101,15 @@ import {CarbonSheet} from './carbonsheet.js';
  * never written to a file - but they are appended to rather than renumbered,
  * because an embedder may have the old values in its own code.
  */
-export const floorplannerModes = {MOVE: 0,DRAW: 1,DELETE: 2,RECTANGLE: 3};
+/**
+ * What a click does.
+ *
+ * MOVE, DRAW and DELETE are original; RECTANGLE arrived with RM-008 E2 and the
+ * two annotation tools with E3. Numbered rather than named because the values
+ * are compared across the library/application boundary and are persisted in
+ * nothing - a new tool appends, and no existing number moves.
+ */
+export const floorplannerModes = {MOVE: 0,DRAW: 1,DELETE: 2,RECTANGLE: 3,DIMENSION: 4,TEXT: 5};
 
 // grid parameters
 //export const gridSpacing = this.dimensioning.cmToPixel(25);//20; // pixels
@@ -188,6 +247,26 @@ export const floorplannerPalette = {
 	opening: '#2B5DA8',
 	openingFill: '#FFFFFF',
 	itemLabel: '#5D6F83',
+
+	/**
+	 * What the plan says about itself (RM-008 E3).
+	 *
+	 * A distinct hue from everything else on the canvas, and the reason is not
+	 * decoration: dimensions and notes are the only marks here that are NOT the
+	 * building. A reader has to be able to tell "this wall is 3.6 m long" from
+	 * "there is a wall here" at a glance, and colour is what does that on every
+	 * drawing anybody has ever read.
+	 */
+	dimension: '#8A6D3B',
+	dimensionHover: '#FF8A3D',
+	dimensionSelected: '#2B5DA8',
+	annotation: '#4A4A4A',
+	annotationHover: '#FF8A3D',
+	annotationSelected: '#2B5DA8',
+	/** The north arrow, which is chrome rather than drawing: fixed to the canvas. */
+	north: '#5D6F83',
+	/** Room type and ceiling height, under the room name. */
+	roomType: '#5D6F83',
 };
 
 /**
@@ -291,6 +370,12 @@ export class FloorplannerView2D
 		this._frame = null;
 		/** Size a deferred resize will apply before it draws, or null. See containerResized. */
 		this._pendingResize = null;
+		/**
+		 * Where text has already been put this frame, in canvas pixels (RM-008 E3).
+		 * Cleared at the top of every draw. See `reserveLabel`.
+		 * @type {Array<{x: number, y: number, w: number, h: number}>}
+		 */
+		this._labelBoxes = [];
 
 		var scope = this;
 		this._carbonsheet = new CarbonSheet(floorplan, viewmodel, this.canvasElement);
@@ -651,6 +736,12 @@ export class FloorplannerView2D
 			this.context.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
 		}
 
+		// Who gets the space, decided before anything is drawn (RM-008 E3). See
+		// `reserveLabel`: priority is a property of the text, not of the pass it is
+		// drawn in, so the two cannot be the same ordering.
+		this._labelBoxes.length = 0;
+		this.reserveAuthoredLabels();
+
 		this._carbonsheet.draw();
 		this.drawGrid();
 		this.drawOriginCrossHair();
@@ -671,11 +762,24 @@ export class FloorplannerView2D
 		// top of everything.
 		this.drawItems();
 
+		// What the plan says about itself, over what it says about the building
+		// (RM-008 E3). Both are part of the document, so both go under the
+		// transient aids below and over everything that is drawn from the graph -
+		// a dimension that disappeared behind the wall it measures would be
+		// useless, and one drawn over the wall being dragged would be in the way.
+		this.drawDimensions();
+		this.drawAnnotations();
+
 		this.drawAlignmentGuides();
 
 		if (this.viewmodel.mode == floorplannerModes.RECTANGLE)
 		{
 			this.drawRectanglePreview();
+		}
+
+		if (this.viewmodel.mode == floorplannerModes.DIMENSION)
+		{
+			this.drawDimensionPreview();
 		}
 
 		if (this.viewmodel.mode == floorplannerModes.DRAW)
@@ -719,6 +823,9 @@ export class FloorplannerView2D
 			}
 		}
 		this.floorplan.getWalls().forEach((wall) => {this.drawWallLabels(wall);});
+		// Last, and in screen coordinates: the arrow is chrome fixed to the canvas
+		// rather than a mark on the plan, so nothing may draw over it.
+		this.drawNorthArrow();
 		if(this.viewmodel._clickedWallControl != null)
 		{
 			this.drawCircle(this.viewmodel.convertX(this.viewmodel._clickedWallControl.x), this.viewmodel.convertY(this.viewmodel._clickedWallControl.y), 7, floorplannerPalette.wallControl);
@@ -746,6 +853,138 @@ export class FloorplannerView2D
 		this.draw();
 	}
 	
+	/**
+	 * Where text has already been put this frame, in canvas pixels (RM-008 E3).
+	 *
+	 * ## Why a plan needs this at all
+	 *
+	 * E1 shipped furniture captions with one rule - suppress below 34 pixels of
+	 * on-screen size - and flagged that it is not enough: two chairs beside each
+	 * other are both big enough and their captions still land on top of one
+	 * another. E3 makes it worse before it makes it better, because a room can now
+	 * carry four stacked lines and a person can put text anywhere they like. A
+	 * drawing whose whole objective is to be readable cannot also be a field of
+	 * overlapping words.
+	 *
+	 * ## Reserve first, then draw
+	 *
+	 * The high-priority text is reserved in a pre-pass at the top of `draw()`,
+	 * before anything is drawn: what somebody typed, and what a dimension
+	 * measures. Everything derived - a room's area, name, type and ceiling, an
+	 * item's caption - then asks for its box as it draws and simply does not draw
+	 * if the box is taken.
+	 *
+	 * The pre-pass is what makes the priority right. Reserving in draw order would
+	 * let "A New Room" win over a label a person typed, because rooms are drawn
+	 * first; and reordering the drawing to fix that would put the furniture over
+	 * the walls. Priority is a property of the text, not of the pass it is drawn
+	 * in, so it is expressed separately from both.
+	 *
+	 * Suppression rather than displacement, deliberately. Nudging labels apart
+	 * moves them away from the thing they name, which is the one property a label
+	 * cannot lose; and a caption that slides somewhere else as you pan is harder
+	 * to read than one that is absent. Zoom in and the boxes stop overlapping, so
+	 * the answer to a hidden label is the gesture a person would make anyway.
+	 *
+	 * @type {Array<{x: number, y: number, w: number, h: number}>}
+	 */
+
+	/**
+	 * How wide and tall a label will be, in canvas pixels.
+	 *
+	 * `measureText` rather than an estimate from the character count: the width of
+	 * a proportional string is what decides whether two labels touch, and guessing
+	 * it is how a declutter pass ends up hiding text that would have fitted. The
+	 * font has to be set before measuring, which is why this mirrors the one line
+	 * `drawTextLabel` uses to set it.
+	 *
+	 * @param {string} text
+	 * @param {number} size CSS pixels.
+	 * @param {string} [style]
+	 * @returns {{w: number, h: number}}
+	 */
+	measureLabel(text, size, style)
+	{
+		this.context.font = `${style || 'normal'} ${size}px ${floorplannerPalette.labelFont}`;
+		return {
+			// A couple of pixels of air on each side, so two labels that merely
+			// touch are treated as colliding - which is what a reader sees.
+			w: this.context.measureText(text).width + LABEL_PADDING_PIXELS * 2,
+			h: size + LABEL_PADDING_PIXELS * 2,
+		};
+	}
+
+	/**
+	 * Claim the space a label needs, or find out that something has it.
+	 *
+	 * @param {string} text
+	 * @param {number} x Centre, in canvas pixels.
+	 * @param {number} y Centre.
+	 * @param {number} [size] CSS pixels.
+	 * @param {string} [style]
+	 * @returns {boolean} False when the space is taken and nothing was reserved.
+	 */
+	reserveLabel(text, x, y, size, style)
+	{
+		if (!text)
+		{
+			return false;
+		}
+		var box = this.measureLabel(text, size || LABEL_SIZE_PIXELS, style);
+		var left = x - box.w / 2;
+		var top = y - box.h / 2;
+		for (var i = 0; i < this._labelBoxes.length; i++)
+		{
+			var taken = this._labelBoxes[i];
+			if (left < taken.x + taken.w && left + box.w > taken.x
+				&& top < taken.y + taken.h && top + box.h > taken.y)
+			{
+				return false;
+			}
+		}
+		this._labelBoxes.push({x: left, y: top, w: box.w, h: box.h});
+		return true;
+	}
+
+	/**
+	 * Hold the space for every piece of text that is drawn whatever else wants it
+	 * (RM-008 E3): what somebody typed, and what a dimension measures.
+	 *
+	 * Run before anything is drawn. See {@link FloorplannerView2D#reserveLabel}
+	 * for why the priority cannot simply be the drawing order.
+	 */
+	reserveAuthoredLabels()
+	{
+		var scope = this;
+		(this.floorplan.annotations || []).forEach(function (annotation)
+		{
+			scope.reserveLabel(
+				annotation.text,
+				scope.viewmodel.convertX(annotation.x),
+				scope.viewmodel.convertY(annotation.y) - annotation.size,
+				annotation.size);
+		});
+		(this.floorplan.dimensions || []).forEach(function (dimension)
+		{
+			var line = dimensionLine(dimension);
+			if (!line)
+			{
+				return;
+			}
+			// The axis-aligned box at the midpoint, which is the label's box only
+			// when the dimension is horizontal. A rotated label is claimed as if it
+			// were not, which over-reserves for a vertical one and under-reserves
+			// for a diagonal - accepted, because the alternative is a rotated
+			// rectangle intersection test for a few pixels of accuracy in a
+			// heuristic whose job is to be roughly right.
+			scope.reserveLabel(
+				scope.dimensioning.cmToMeasure(line.length),
+				(scope.viewmodel.convertX(line.ax) + scope.viewmodel.convertX(line.bx)) / 2,
+				(scope.viewmodel.convertY(line.ay) + scope.viewmodel.convertY(line.by)) / 2 - 9,
+				LABEL_SIZE_PIXELS, 'bold');
+		});
+	}
+
 	/**
 	 * Every item in the design, as a footprint (RM-008 E1).
 	 *
@@ -875,10 +1114,21 @@ export class FloorplannerView2D
 		{
 			return;
 		}
+		// The other half of E1's caption rule, and the half it flagged as missing:
+		// a size threshold stops a zoomed-out plan being a field of words, and it
+		// does nothing at all about two chairs side by side, both big enough, whose
+		// captions land on each other. A caption is the lowest-priority text on the
+		// plan, so it gives way to everything (RM-008 E3).
+		var captionX = this.viewmodel.convertX(footprint.x);
+		var captionY = this.viewmodel.convertY(footprint.y) + (depthOnScreen / 2) + 12;
+		if (!this.reserveLabel(footprint.label, captionX, captionY))
+		{
+			return;
+		}
 		this.drawTextLabel(
 			footprint.label,
-			this.viewmodel.convertX(footprint.x),
-			this.viewmodel.convertY(footprint.y) + (depthOnScreen / 2) + 12,
+			captionX,
+			captionY,
 			floorplannerPalette.itemLabel,
 			floorplannerPalette.labelHalo);
 	}
@@ -1036,6 +1286,259 @@ export class FloorplannerView2D
 		this.drawTextLabel(this.dimensioning.cmToMeasure(depth), Math.max(x1, x2) + 26, (y1 + y2) / 2);
 	}
 
+	/**
+	 * Every dimension the plan carries (RM-008 E3).
+	 *
+	 * Drawn after the building and the furniture and before the transient aids,
+	 * for the same reason `drawItems` is: a dimension is part of the document and
+	 * belongs over what it measures, while the wall being dragged right now
+	 * belongs over everything.
+	 */
+	drawDimensions()
+	{
+		var dimensions = this.floorplan.dimensions;
+		if (!dimensions || !dimensions.length)
+		{
+			return;
+		}
+		var scope = this;
+		dimensions.forEach(function (dimension) {scope.drawDimension(dimension);});
+	}
+
+	/**
+	 * One dimension: two witness lines, the dimension line between them, a tick
+	 * at each end, and the measurement.
+	 *
+	 * The geometry comes from `dimensionLine()` in `model/annotation.js` rather
+	 * than being recomputed here, so what is drawn and what
+	 * `Floorplan.overlappedDimension` picks are the same line by construction. A
+	 * second copy of that formula is how a dimension ends up clickable somewhere
+	 * it is not drawn.
+	 *
+	 * @param {import('../model/annotation.js').Dimension} dimension
+	 */
+	drawDimension(dimension)
+	{
+		var line = dimensionLine(dimension);
+		if (!line)
+		{
+			// Zero length: no direction to offset along, and nothing to measure.
+			return;
+		}
+		var color = floorplannerPalette.dimension;
+		if (dimension === this.viewmodel.activeDimension && dimension !== this.viewmodel.selectedDimension)
+		{
+			color = floorplannerPalette.dimensionHover;
+		}
+		else if (dimension === this.viewmodel.selectedDimension)
+		{
+			color = floorplannerPalette.dimensionSelected;
+		}
+
+		var measured = dimension.points();
+		var ax = this.viewmodel.convertX(measured.ax);
+		var ay = this.viewmodel.convertY(measured.ay);
+		var bx = this.viewmodel.convertX(measured.bx);
+		var by = this.viewmodel.convertY(measured.by);
+		var lax = this.viewmodel.convertX(line.ax);
+		var lay = this.viewmodel.convertY(line.ay);
+		var lbx = this.viewmodel.convertX(line.bx);
+		var lby = this.viewmodel.convertY(line.by);
+
+		// The witness lines run in screen space from here on: the gap and the
+		// overshoot are typographic, so they must not grow with the zoom.
+		var wx = lax - ax;
+		var wy = lay - ay;
+		var reach = Math.sqrt(wx * wx + wy * wy);
+		if (reach > 1e-6)
+		{
+			var ux = wx / reach;
+			var uy = wy / reach;
+			var gap = Math.min(WITNESS_GAP_PIXELS, reach);
+			this.drawLine(ax + ux * gap, ay + uy * gap, lax + ux * WITNESS_OVERSHOOT_PIXELS, lay + uy * WITNESS_OVERSHOOT_PIXELS, 1, color);
+			this.drawLine(bx + ux * gap, by + uy * gap, lbx + ux * WITNESS_OVERSHOOT_PIXELS, lby + uy * WITNESS_OVERSHOOT_PIXELS, 1, color);
+		}
+
+		this.drawLine(lax, lay, lbx, lby, 1, color);
+
+		// Ticks rather than arrowheads: at 45 degrees across the line's ends, the
+		// way a surveyed drawing marks an extent. Two strokes each instead of a
+		// filled triangle, which keeps this inside the eight primitives E4's SVG
+		// backend has to implement rather than adding a ninth.
+		var dx = lbx - lax;
+		var dy = lby - lay;
+		var span = Math.sqrt(dx * dx + dy * dy);
+		if (span > 1e-6)
+		{
+			var tx = (dx / span) * DIMENSION_TICK_PIXELS;
+			var ty = (dy / span) * DIMENSION_TICK_PIXELS;
+			// Rotated 45 degrees from the line's direction, both ends the same way.
+			var kx = (tx - ty) * Math.SQRT1_2;
+			var ky = (ty + tx) * Math.SQRT1_2;
+			this.drawLine(lax - kx, lay - ky, lax + kx, lay + ky, 1, color);
+			this.drawLine(lbx - kx, lby - ky, lbx + kx, lby + ky, 1, color);
+		}
+
+		this.drawDimensionLabel(line, lax, lay, lbx, lby, color);
+	}
+
+	/**
+	 * The measurement, along its own line and never upside down.
+	 *
+	 * Rotated with the dimension, which is what makes a vertical dimension
+	 * readable at all - horizontal text beside a vertical line has to be hunted
+	 * for. The flip is the part that is easy to get wrong: a dimension drawn
+	 * right to left has a direction pointing left, and text laid along it reads
+	 * backwards, so anything past a quarter turn is drawn along the reverse
+	 * direction instead. The line is the same line; only the reading direction
+	 * changes.
+	 *
+	 * @param {Object} line What `dimensionLine()` returned, for its length.
+	 * @param {number} lax Screen coordinates of the dimension line.
+	 * @param {number} lay
+	 * @param {number} lbx
+	 * @param {number} lby
+	 * @param {string} color
+	 */
+	drawDimensionLabel(line, lax, lay, lbx, lby, color)
+	{
+		var angle = Math.atan2(lby - lay, lbx - lax);
+		if (angle > Math.PI / 2 || angle < -Math.PI / 2)
+		{
+			angle += Math.PI;
+		}
+		var midX = (lax + lbx) / 2;
+		var midY = (lay + lby) / 2;
+
+		this.context.save();
+		this.context.translate(midX, midY);
+		this.context.rotate(angle);
+		// Just clear of the line, on the side the text reads from. The label
+		// primitive draws a halo, so it stays legible over a room fill.
+		this.drawTextLabel(this.dimensioning.cmToMeasure(line.length), 0, -9, color, null, 'bold');
+		this.context.restore();
+	}
+
+	/**
+	 * Every text label the plan carries (RM-008 E3).
+	 */
+	drawAnnotations()
+	{
+		var annotations = this.floorplan.annotations;
+		if (!annotations || !annotations.length)
+		{
+			return;
+		}
+		var scope = this;
+		annotations.forEach(function (annotation) {scope.drawAnnotation(annotation);});
+	}
+
+	/**
+	 * One text label, and the dot that is what a click actually targets.
+	 *
+	 * The dot exists because `Floorplan.overlappedAnnotation` hit-tests a radius
+	 * around the anchor rather than the text's box - the model layer has no font
+	 * metrics and giving it any would put a canvas inside the plain-data layer.
+	 * Drawing the anchor is what makes that honest: what you aim at is what is
+	 * picked, rather than a target you have to guess at.
+	 *
+	 * @param {import('../model/annotation.js').TextAnnotation} annotation
+	 */
+	drawAnnotation(annotation)
+	{
+		var color = floorplannerPalette.annotation;
+		if (annotation === this.viewmodel.activeAnnotation && annotation !== this.viewmodel.selectedAnnotation)
+		{
+			color = floorplannerPalette.annotationHover;
+		}
+		else if (annotation === this.viewmodel.selectedAnnotation)
+		{
+			color = floorplannerPalette.annotationSelected;
+		}
+		var x = this.viewmodel.convertX(annotation.x);
+		var y = this.viewmodel.convertY(annotation.y);
+		this.drawCircle(x, y, ANNOTATION_ANCHOR_PIXELS, color);
+		if (annotation.text)
+		{
+			this.drawTextLabel(annotation.text, x, y - annotation.size, color, null, 'normal', annotation.size);
+		}
+	}
+
+	/**
+	 * Which way is north (RM-008 E3).
+	 *
+	 * Fixed to the top right of the canvas rather than placed on the plan,
+	 * because it describes the whole drawing and not a place in it: panning must
+	 * not take it off screen and zooming must not change its size. That also
+	 * makes it the one mark here drawn entirely in screen coordinates, which is
+	 * why it does not go through `convertX`.
+	 *
+	 * Nothing is drawn when the canvas is too small to hold it - a split view
+	 * dragged almost shut - rather than putting an arrow over the plan's only
+	 * remaining strip.
+	 */
+	drawNorthArrow()
+	{
+		var radius = NORTH_RADIUS_PIXELS;
+		if (this.canvasWidth < NORTH_INSET_PIXELS * 3 || this.canvasHeight < NORTH_INSET_PIXELS * 3)
+		{
+			return;
+		}
+		var cx = this.canvasWidth - NORTH_INSET_PIXELS;
+		var cy = NORTH_INSET_PIXELS;
+		// Clockwise from up, which is how a bearing is written and read. Canvas y
+		// runs down, so "up" is negative y and a positive bearing turns towards
+		// positive x - which is exactly what these two lines say.
+		var angle = (this.floorplan.north || 0) * Math.PI / 180;
+		var nx = Math.sin(angle);
+		var ny = -Math.cos(angle);
+		var color = floorplannerPalette.north;
+
+		this.drawLine(cx - nx * radius, cy - ny * radius, cx + nx * radius, cy + ny * radius, 1, color);
+		// The head, as two strokes back from the point at 30 degrees either side.
+		var head = radius * 0.45;
+		var spread = Math.PI / 6;
+		var tipX = cx + nx * radius;
+		var tipY = cy + ny * radius;
+		var back = angle + Math.PI;
+		this.drawLine(tipX, tipY, tipX + Math.sin(back - spread) * head, tipY - Math.cos(back - spread) * head, 1, color);
+		this.drawLine(tipX, tipY, tipX + Math.sin(back + spread) * head, tipY - Math.cos(back + spread) * head, 1, color);
+		this.drawTextLabel('N', cx + nx * (radius + 11), cy + ny * (radius + 11), color, null, 'bold');
+	}
+
+	/**
+	 * The dimension being placed, between its first click and its second
+	 * (RM-008 E3).
+	 *
+	 * The measured line itself, not the offset one - during placement the two
+	 * points are what is being chosen, and drawing the finished shape would show
+	 * a line 40 cm from where the pointer is. The offset is chosen afterwards, by
+	 * dragging.
+	 */
+	drawDimensionPreview()
+	{
+		var anchor = this.viewmodel.dimensionAnchor;
+		if (!anchor)
+		{
+			this.drawTarget(this.viewmodel.targetX, this.viewmodel.targetY, null);
+			return;
+		}
+		var x1 = this.viewmodel.convertX(anchor.x);
+		var y1 = this.viewmodel.convertY(anchor.y);
+		var x2 = this.viewmodel.convertX(this.viewmodel.targetX);
+		var y2 = this.viewmodel.convertY(this.viewmodel.targetY);
+
+		this.drawLine(x1, y1, x2, y2, 1, floorplannerPalette.dimensionSelected);
+		this.drawCircle(x1, y1, ANNOTATION_ANCHOR_PIXELS, floorplannerPalette.dimensionSelected);
+
+		var dx = this.viewmodel.targetX - anchor.x;
+		var dy = this.viewmodel.targetY - anchor.y;
+		this.drawTextLabel(
+			this.dimensioning.cmToMeasure(Math.sqrt(dx * dx + dy * dy)),
+			(x1 + x2) / 2, (y1 + y2) / 2 - 12,
+			floorplannerPalette.dimensionSelected, null, 'bold');
+	}
+
 	drawCornerAngles(corner)
 	{
 		var ox = this.viewmodel.convertX(corner.location.x);
@@ -1190,12 +1693,13 @@ export class FloorplannerView2D
 	 * @param {?string} [textcolor] Null or absent means "use the theme".
 	 * @param {?string} [strokecolor] Same.
 	 * @param {string} [style]
+	 * @param {number} [size] Font size in CSS pixels (RM-008 E3).
 	 *
 	 * The two colour parameters default to `null` in the signature, which types
 	 * them AS null - so every caller passing a real colour was an error and the
 	 * two assignments below were too (RM-005 C2).
 	 */
-	drawTextLabel(label, x, y, textcolor=null, strokecolor=null, style='normal')
+	drawTextLabel(label, x, y, textcolor=null, strokecolor=null, style='normal', size=LABEL_SIZE_PIXELS)
 	{
 		// Defaulting through the palette rather than in the signature: a default
 		// parameter is evaluated per call, so `floorplannerPalette.label` would
@@ -1203,7 +1707,12 @@ export class FloorplannerView2D
 		// both "use the theme", and callers pass both.
 		textcolor = textcolor || floorplannerPalette.label;
 		strokecolor = strokecolor || floorplannerPalette.labelHalo;
-		this.context.font = `${style} 12px ${floorplannerPalette.labelFont}`;
+		// Screen pixels, not plan centimetres, and every other piece of text on
+		// this canvas has been 12 of them since it was written (RM-008 E3). A
+		// label that scaled with the zoom while the wall length beside it did not
+		// would read as a bug. E4 owns the export case, where text on a 1:50 sheet
+		// does have a physical size.
+		this.context.font = `${style} ${size}px ${floorplannerPalette.labelFont}`;
 		this.context.fillStyle = textcolor;
 		this.context.textBaseline = 'middle';
 		this.context.textAlign = 'center';
@@ -1359,8 +1868,75 @@ export class FloorplannerView2D
 		// '#00FF0000' is an eight-digit hex with a zero alpha: a transparent halo,
 		// i.e. no halo. Kept - the room label sits on the room's own fill, which
 		// is already a flat colour, and a halo there would read as a smudge.
-		this.drawTextLabel(this.dimensioning.cmToMeasure(room.area, 2)+String.fromCharCode(178), this.viewmodel.convertX(room.areaCenter.x), this.viewmodel.convertY(room.areaCenter.y), floorplannerPalette.area, '#00FF0000', 'bold');
-		this.drawTextLabel(room.name, this.viewmodel.convertX(room.areaCenter.x), this.viewmodel.convertY(room.areaCenter.y+30), floorplannerPalette.roomName, '#00FF0000', 'bold italic');
+		// Each of the four lines a room can carry asks for its space and gives way
+		// (RM-008 E3). A room's area and name are derived; a label somebody typed
+		// over this room reserved its box before any of this ran.
+		var labelX = this.viewmodel.convertX(room.areaCenter.x);
+		var labelY = this.viewmodel.convertY(room.areaCenter.y);
+		var area = this.dimensioning.cmToMeasure(room.area, 2)+String.fromCharCode(178);
+		if (this.reserveLabel(area, labelX, labelY, LABEL_SIZE_PIXELS, 'bold'))
+		{
+			this.drawTextLabel(area, labelX, labelY, floorplannerPalette.area, '#00FF0000', 'bold');
+		}
+		if (this.reserveLabel(room.name, labelX, labelY + ROOM_LABEL_STEP_PIXELS, LABEL_SIZE_PIXELS, 'bold italic'))
+		{
+			this.drawTextLabel(room.name, labelX, labelY + ROOM_LABEL_STEP_PIXELS, floorplannerPalette.roomName, '#00FF0000', 'bold italic');
+		}
+		this.drawRoomAnnotation(room);
+	}
+
+	/**
+	 * What a room is for, and how high it is (RM-008 E3).
+	 *
+	 * Both are drawn only when there is something to say, and the two rules are
+	 * different:
+	 *
+	 *   - **Type** appears when somebody typed one. There is no default for what
+	 *     a room is for.
+	 *   - **Ceiling height** appears only when it is NOT the document's wall
+	 *     height. A plan where every room is the standard height and every room
+	 *     says so is a plan carrying the same number a dozen times, which is
+	 *     noise; the number is worth drawing exactly where it is a surprise.
+	 *     That also means a plan drawn before this sprint looks exactly as it did.
+	 *
+	 * Under the name, in the same stack, because they answer questions about the
+	 * same thing and putting them anywhere else would need a leader line.
+	 *
+	 * @param {import('../model/room.js').Room} room
+	 */
+	drawRoomAnnotation(room)
+	{
+		var centre = room.areaCenter;
+		if (!centre)
+		{
+			// A room with no corners has no centroid. `drawRoom` reaches this only
+			// through `updateArea`, which sets one - but the field is nullable and
+			// the checker is right that nothing here guarantees it.
+			return;
+		}
+		var x = this.viewmodel.convertX(centre.x);
+		var y = this.viewmodel.convertY(centre.y) + ROOM_LABEL_STEP_PIXELS;
+		if (room.type)
+		{
+			y += ROOM_LABEL_STEP_PIXELS;
+			if (this.reserveLabel(room.type, x, y, LABEL_SIZE_PIXELS, 'italic'))
+			{
+				this.drawTextLabel(room.type, x, y, floorplannerPalette.roomType, '#00FF0000', 'italic');
+			}
+		}
+		var ceiling = room.ceilingHeight;
+		if (ceiling > 0 && Math.abs(ceiling - this.configuration.getNumericValue(configWallHeight)) > 1e-6)
+		{
+			y += ROOM_LABEL_STEP_PIXELS;
+			// "at most" when the corners disagree, because the number is then the
+			// highest point of a sloped ceiling rather than the height of the room.
+			var prefix = room.hasUniformCeiling ? 'H ' : 'H \u2264 ';
+			var height = prefix + this.dimensioning.cmToMeasure(ceiling);
+			if (this.reserveLabel(height, x, y, LABEL_SIZE_PIXELS, 'italic'))
+			{
+				this.drawTextLabel(height, x, y, floorplannerPalette.roomType, '#00FF0000', 'italic');
+			}
+		}
 	}
 
 	/** */

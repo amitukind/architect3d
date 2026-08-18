@@ -1,6 +1,7 @@
 // @ts-check
 import {EVENT_UPDATED, EVENT_LOADED, EVENT_NEW, EVENT_DELETED, EVENT_ROOM_NAME_CHANGED, EVENT_CHANGESET} from '../core/events.js';
 import {EVENT_ITEMS_PROJECTED} from '../core/events.js';
+import {EVENT_ANNOTATIONS_CHANGED} from '../core/events.js';
 import {EVENT_CORNER_ATTRIBUTES_CHANGED, EVENT_WALL_ATTRIBUTES_CHANGED, EVENT_ROOM_ATTRIBUTES_CHANGED, EVENT_MOVED} from '../core/events.js';
 import {ChangeSet, CHANGE_TOPOLOGY, CHANGE_GEOMETRY, REASON_EDIT, REASON_LOAD, newChangeCounts} from '../core/change_set.js';
 import {matchRooms, rekeyInPlace} from './room_matcher.js';
@@ -18,6 +19,7 @@ import {Corner} from './corner.js';
 import {Wall} from './wall.js';
 import {deriveWallIds} from '../core/wall_identity.js';
 import {Room} from './room.js';
+import {Dimension, TextAnnotation, dimensionLine} from './annotation.js';
 
 
 /**
@@ -213,6 +215,32 @@ export class Floorplan extends EventDispatcher
 		 * @type {Array<import('./plan_projection.js').ItemFootprint>}
 		 */
 		this.itemProjection = [];
+		/**
+		 * What this plan says about itself (RM-008 E3).
+		 *
+		 * The first entities here that are authored rather than derived - see
+		 * `model/annotation.js` for why that matters and what follows from it.
+		 * Beside `itemProjection` and `floorTextures` because all three are things
+		 * the wall graph does not produce; unlike `itemProjection`, these two are
+		 * owned here and persisted here.
+		 *
+		 * @type {Array<Dimension>}
+		 */
+		this.dimensions = [];
+		/** @type {Array<TextAnnotation>} */
+		this.annotations = [];
+		/**
+		 * Which way is north, in degrees clockwise from up (RM-008 E3).
+		 *
+		 * A property of the building, not of the view: it survives a save, and a
+		 * plan drawn with the front door at the bottom is a different building from
+		 * one drawn with it at the top even when the walls are identical. Zero -
+		 * north is up - is the default and is not written to a file, so a design
+		 * nobody oriented is unchanged by this sprint.
+		 *
+		 * @type {number}
+		 */
+		this._north = 0;
 		/**
 		 * How the plan asks for an item to change - see {@link Floorplan#setItemCommands}.
 		 * @type {?Object}
@@ -998,6 +1026,26 @@ export class Floorplan extends EventDispatcher
 			floorplans.carbonSheet['height'] = this.carbonSheet.height;
 		}
 
+		// Additive, and written only when there is something to write (RM-008 E3,
+		// T-6). The same rule per-wall thickness follows two fields above, for a
+		// related but distinct reason: thickness is conditional so a document
+		// default is not frozen into a file, and these are conditional so a file
+		// written before this sprint survives a re-save byte for byte. That is the
+		// half of M-33 that an additive collection usually gets wrong - `[]` looks
+		// harmless and changes every file in existence.
+		if (this.dimensions.length)
+		{
+			floorplans.dimensions = this.dimensions.map(function (dimension) {return dimension.toJSON();});
+		}
+		if (this.annotations.length)
+		{
+			floorplans.annotations = this.annotations.map(function (annotation) {return annotation.toJSON();});
+		}
+		if (this._north)
+		{
+			floorplans.north = this._north;
+		}
+
 		floorplans.newFloorTextures = this.floorTextures;
 		return floorplans;
 	}
@@ -1184,6 +1232,41 @@ export class Floorplan extends EventDispatcher
 			}
 		});
 
+		// Authored entities, absent from every file written before RM-008 E3.
+		//
+		// After the walls, because a dimension may name a corner it is pinned to
+		// and `Dimension.points()` resolves that against the live corner list -
+		// which is only complete once the loop above has run. Read defensively:
+		// `DesignDocument.parse` has already refused the shapes that cannot be
+		// drawn, and a third-party file that carries something else here should
+		// open with the rest of its design intact rather than not at all.
+		if (Array.isArray(floorplan.dimensions))
+		{
+			var plan = this;
+			floorplan.dimensions.forEach(function (record)
+			{
+				if (record && typeof record === 'object')
+				{
+					plan.dimensions.push(Dimension.fromJSON(plan, record));
+				}
+			});
+		}
+		if (Array.isArray(floorplan.annotations))
+		{
+			var owner = this;
+			floorplan.annotations.forEach(function (record)
+			{
+				if (record && typeof record === 'object')
+				{
+					owner.annotations.push(TextAnnotation.fromJSON(owner, record));
+				}
+			});
+		}
+		if (typeof floorplan.north === 'number' && isFinite(floorplan.north))
+		{
+			this._north = ((floorplan.north % 360) + 360) % 360;
+		}
+
 		if ('newFloorTextures' in floorplan)
 		{
 			this.floorTextures = floorplan.newFloorTextures;
@@ -1275,6 +1358,271 @@ export class Floorplan extends EventDispatcher
 		return null;
 	}
 
+	/**
+	 * Announce that a dimension, a label or the north bearing changed (RM-008 E3).
+	 *
+	 * Called by the annotation objects themselves - they hold a back-reference to
+	 * this plan and no listener list of their own, because nothing but this array
+	 * holds one. See `model/annotation.js`.
+	 *
+	 * @emits {EVENT_ANNOTATIONS_CHANGED}
+	 * @returns {void}
+	 */
+	/**
+	 * Keep a room's saved metadata in step with the room (RM-008 E3).
+	 *
+	 * Was two branches inline in `update()` that wrote `name` and nothing else.
+	 * Extracted because a second attribute arrived and the interesting rule is
+	 * not the writing, it is which keys appear: `type` is written only when the
+	 * room has one, so a design where nobody typed a room type produces exactly
+	 * the metadata it produced before this sprint - and a room whose type is
+	 * cleared loses the key rather than carrying an empty string forever.
+	 *
+	 * That is the same conditional-write rule as `dimensions`, `annotations` and
+	 * per-wall thickness, applied one level down inside a record that is itself
+	 * written whole.
+	 *
+	 * @param {Room} room
+	 * @returns {void}
+	 */
+	_writeRoomMeta(room)
+	{
+		if (!this.metaroomsdata)
+		{
+			return;
+		}
+		var key = room.roomByCornersId;
+		if (!this.metaroomsdata[key])
+		{
+			this.metaroomsdata[key] = {};
+		}
+		this.metaroomsdata[key]['name'] = room.name;
+		if (room.type)
+		{
+			this.metaroomsdata[key]['type'] = room.type;
+		}
+		else
+		{
+			delete this.metaroomsdata[key]['type'];
+		}
+	}
+
+	annotationsChanged()
+	{
+		this.dispatchEvent({type: EVENT_ANNOTATIONS_CHANGED, item: this});
+	}
+
+	/**
+	 * Measure between two points (RM-008 E3).
+	 *
+	 * Refuses a zero-length dimension rather than drawing one: two coincident
+	 * points give no direction to offset the line along, so the result is a
+	 * measurement of 0 drawn on top of itself, which looks like the tool failed.
+	 * The same judgement `newRoomFromRectangle` makes about a degenerate
+	 * rectangle, and the caller gets null to say so.
+	 *
+	 * @param {number} ax Centimetres.
+	 * @param {number} ay
+	 * @param {number} bx
+	 * @param {number} by
+	 * @param {Object} [options] See {@link Dimension}.
+	 * @returns {?Dimension}
+	 */
+	newDimension(ax, ay, bx, by, options)
+	{
+		if (!isFinite(ax) || !isFinite(ay) || !isFinite(bx) || !isFinite(by))
+		{
+			return null;
+		}
+		if (Math.abs(bx - ax) < 1e-6 && Math.abs(by - ay) < 1e-6)
+		{
+			return null;
+		}
+		var dimension = new Dimension(this, ax, ay, bx, by, options);
+		this.dimensions.push(dimension);
+		this.annotationsChanged();
+		return dimension;
+	}
+
+	/**
+	 * @param {Dimension} dimension
+	 * @returns {boolean} Whether it was there to remove.
+	 */
+	removeDimension(dimension)
+	{
+		var at = this.dimensions.indexOf(dimension);
+		if (at < 0)
+		{
+			return false;
+		}
+		this.dimensions.splice(at, 1);
+		this.annotationsChanged();
+		return true;
+	}
+
+	/**
+	 * Put a piece of text on the plan (RM-008 E3).
+	 *
+	 * @param {number} x Centimetres.
+	 * @param {number} y
+	 * @param {string} [text]
+	 * @param {Object} [options] See {@link TextAnnotation}.
+	 * @returns {?TextAnnotation}
+	 */
+	newAnnotation(x, y, text, options)
+	{
+		if (!isFinite(x) || !isFinite(y))
+		{
+			return null;
+		}
+		var annotation = new TextAnnotation(this, x, y, text, options);
+		this.annotations.push(annotation);
+		this.annotationsChanged();
+		return annotation;
+	}
+
+	/**
+	 * @param {TextAnnotation} annotation
+	 * @returns {boolean} Whether it was there to remove.
+	 */
+	removeAnnotation(annotation)
+	{
+		var at = this.annotations.indexOf(annotation);
+		if (at < 0)
+		{
+			return false;
+		}
+		this.annotations.splice(at, 1);
+		this.annotationsChanged();
+		return true;
+	}
+
+	/**
+	 * Either kind of annotation, by the id in its record (RM-008 E3).
+	 *
+	 * One lookup for both collections because a selection is one thing: the
+	 * application asks "what is this id" and does not want to know which array it
+	 * came out of.
+	 *
+	 * @param {string} id
+	 * @returns {?(Dimension|TextAnnotation)}
+	 */
+	annotationById(id)
+	{
+		if (!id)
+		{
+			return null;
+		}
+		var i;
+		for (i = 0; i < this.dimensions.length; i++)
+		{
+			if (this.dimensions[i].id === id)
+			{
+				return this.dimensions[i];
+			}
+		}
+		for (i = 0; i < this.annotations.length; i++)
+		{
+			if (this.annotations[i].id === id)
+			{
+				return this.annotations[i];
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Which way is north, in degrees clockwise from up (RM-008 E3).
+	 * @returns {number}
+	 */
+	get north()
+	{
+		return this._north;
+	}
+
+	/**
+	 * Normalised into [0, 360) so the arrow, the field and the file always show
+	 * the same number - otherwise -90 and 270 are the same bearing written two
+	 * ways, and a round trip through a text field turns one into the other.
+	 *
+	 * @param {number} degrees
+	 */
+	set north(degrees)
+	{
+		if (typeof degrees !== 'number' || !isFinite(degrees))
+		{
+			return;
+		}
+		var next = ((degrees % 360) + 360) % 360;
+		if (next === this._north)
+		{
+			return;
+		}
+		this._north = next;
+		this.annotationsChanged();
+	}
+
+	/**
+	 * The dimension line nearest a point, or null (RM-008 E3).
+	 *
+	 * Distance to the *dimension line* - the offset one that is drawn - not to
+	 * the points being measured, because that line is what a person sees and
+	 * clicks. The witness lines are deliberately not pickable: they are thin, they
+	 * run through the geometry being measured, and making them targets would take
+	 * clicks away from the walls underneath.
+	 *
+	 * @param {number} x Centimetres.
+	 * @param {number} y
+	 * @param {number} [tolerance] Centimetres.
+	 * @returns {?Dimension}
+	 */
+	overlappedDimension(x, y, tolerance)
+	{
+		var limit = (tolerance === undefined || tolerance === null) ? cornerTolerance : tolerance;
+		for (var i = this.dimensions.length - 1; i >= 0; i--)
+		{
+			var line = dimensionLine(this.dimensions[i]);
+			if (!line)
+			{
+				continue;
+			}
+			if (Utils.pointDistanceFromLine(new Vector2(x, y), new Vector2(line.ax, line.ay), new Vector2(line.bx, line.by)) <= limit)
+			{
+				return this.dimensions[i];
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * The text label nearest a point, or null (RM-008 E3).
+	 *
+	 * A radius rather than the text's bounding box, because the model layer has
+	 * no font metrics and asking it to measure text would put a canvas inside the
+	 * plain-data layer. The view draws a marker at the anchor for exactly this
+	 * reason: what you aim at is the thing that is picked.
+	 *
+	 * @param {number} x Centimetres.
+	 * @param {number} y
+	 * @param {number} [tolerance] Centimetres.
+	 * @returns {?TextAnnotation}
+	 */
+	overlappedAnnotation(x, y, tolerance)
+	{
+		var limit = (tolerance === undefined || tolerance === null) ? cornerTolerance : tolerance;
+		for (var i = this.annotations.length - 1; i >= 0; i--)
+		{
+			var annotation = this.annotations[i];
+			var dx = annotation.x - x;
+			var dy = annotation.y - y;
+			if (Math.sqrt(dx * dx + dy * dy) <= limit)
+			{
+				return annotation;
+			}
+		}
+		return null;
+	}
+
 	getFloorTexture(uuid)
 	{
 		if (uuid in this.floorTextures)
@@ -1315,6 +1663,16 @@ export class Floorplan extends EventDispatcher
 	 */
 	reset()
 	{
+		// The authored entities go first, and unconditionally (RM-008 E3).
+		//
+		// They hang off nothing in the graph, so nothing below would remove them:
+		// before this, opening a second design would have kept the first one's
+		// dimensions and notes floating over it. `north` goes back to up for the
+		// same reason - it describes the building being replaced.
+		this.dimensions = [];
+		this.annotations = [];
+		this._north = 0;
+
 		var tmpCorners = this.corners.slice(0);
 		var tmpWalls = this.walls.slice(0);
 		tmpCorners.forEach((corner) => {
@@ -1534,15 +1892,7 @@ export class Floorplan extends EventDispatcher
 			room.addEventListener(EVENT_ROOM_ATTRIBUTES_CHANGED, function(o){
 				var room = o.item;
 				scope.dispatchEvent(o);
-				if(scope.metaroomsdata[room.roomByCornersId])
-				{
-					scope.metaroomsdata[room.roomByCornersId]['name'] = room.name;
-				}
-				else
-				{
-					scope.metaroomsdata[room.roomByCornersId] = {};
-					scope.metaroomsdata[room.roomByCornersId]['name'] = room.name;
-				}
+				scope._writeRoomMeta(room);
 			});
 		});
 
@@ -1558,9 +1908,25 @@ export class Floorplan extends EventDispatcher
 		{
 			if(scope.metaroomsdata)
 			{
-				if(scope.metaroomsdata[room.roomByCornersId])
+				var meta = scope.metaroomsdata[room.roomByCornersId];
+				if(meta)
 				{
-					room.name = scope.metaroomsdata[room.roomByCornersId]['name'];
+					// Both values are read out BEFORE either is assigned, and that
+					// ordering is load-bearing. Each setter announces itself, and the
+					// listener installed above writes the room straight back into this
+					// record - so assigning the name first rewrites the record from a
+					// room whose type is still empty, deleting the type that was about
+					// to be read. Cost one debugging round; the record is not a safe
+					// place to read from once you have started writing to the room.
+					var savedName = meta['name'];
+					// Additive since RM-008 E3, so absent from every older file and
+					// from every room nobody typed a type into.
+					var savedType = meta['type'];
+					room.name = savedName;
+					if (savedType !== undefined)
+					{
+						room.type = savedType;
+					}
 				}
 			}
 		});

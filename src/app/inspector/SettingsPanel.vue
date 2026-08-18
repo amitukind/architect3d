@@ -1,6 +1,6 @@
 <script setup>
 // @ts-check
-import {computed, reactive, watch} from 'vue';
+import {computed, onScopeDispose, reactive, ref, watch} from 'vue';
 import CollapsibleGroup from './CollapsibleGroup.vue';
 import CarbonSheetPanel from './CarbonSheetPanel.vue';
 import NumberField from './fields/NumberField.vue';
@@ -9,6 +9,7 @@ import RangeField from './fields/RangeField.vue';
 import TextField from './fields/TextField.vue';
 import {Configuration, Dimensioning, wallInformation} from '../../scripts/blueprint.js';
 import {snapTolerance, gridSpacing} from '../../scripts/blueprint.js';
+import {EVENT_ANNOTATIONS_CHANGED} from '../../scripts/blueprint.js';
 import {useDisplayUnit} from '../composables/useDisplayUnit.js';
 import {onConfigChange, useBooleanConfig} from '../composables/useConfiguration.js';
 
@@ -60,6 +61,61 @@ const props = defineProps({
 const {unit, units, setUnit} = useDisplayUnit(props.store);
 
 const floorplanner = computed(() => props.store.floorplanner.value);
+
+/**
+ * Which way is north, in degrees clockwise from up (RM-008 E3).
+ *
+ * A property of the building rather than a preference, so it is saved with the
+ * design - but it is edited here, beside the other things that describe the
+ * whole drawing rather than one selected thing, because there is nothing to
+ * select. A ref mirroring the library for the reason this whole panel was
+ * rebuilt in RM-002 R-03: nothing in `src/scripts` is reactive, so a template
+ * bound straight to `floorplan.north` renders once and then sits there.
+ */
+const north = ref(0);
+let attachedPlan = null;
+
+function readNorth()
+{
+	north.value = attachedPlan ? attachedPlan.north : 0;
+}
+
+function setNorth(next)
+{
+	if (attachedPlan)
+	{
+		attachedPlan.north = next;
+		// Read-after-write: the setter normalises into [0, 360), so 450 comes back
+		// as 90 and the field has to show what the plan took.
+		readNorth();
+	}
+}
+
+watch(() => props.store.model.value, function (model)
+{
+	if (attachedPlan)
+	{
+		attachedPlan.removeEventListener(EVENT_ANNOTATIONS_CHANGED, readNorth);
+		attachedPlan = null;
+	}
+	attachedPlan = model ? model.floorplan : null;
+	if (attachedPlan)
+	{
+		// North also changes by opening a file and by undo, neither of which comes
+		// through this panel.
+		attachedPlan.addEventListener(EVENT_ANNOTATIONS_CHANGED, readNorth);
+	}
+	readNorth();
+}, {immediate: true});
+
+onScopeDispose(function ()
+{
+	if (attachedPlan)
+	{
+		attachedPlan.removeEventListener(EVENT_ANNOTATIONS_CHANGED, readNorth);
+		attachedPlan = null;
+	}
+});
 const carbonSheet = computed(() => (floorplanner.value ? floorplanner.value.carbonSheet : null));
 
 function redraw()
@@ -164,6 +220,16 @@ function resetClipping()
 			<NumberField
 				label="Grid resolution" :unit="unit" :min="0" :step="0.1" :model-value="editor2d.grid"
 				@update:model-value="setGrid" />
+		</CollapsibleGroup>
+
+		<CollapsibleGroup title="Plan">
+			<NumberField
+				label="North" unit="°" :min="0" :max="360" :step="1"
+				:model-value="north" @update:model-value="setNorth" />
+			<button type="button" class="btn btn-block" @click="setNorth(0)">Point north up</button>
+			<p class="inspector-note">
+				Drawn in the top right of the plan, and saved with the design.
+			</p>
 		</CollapsibleGroup>
 
 		<CollapsibleGroup title="Wall measurements">

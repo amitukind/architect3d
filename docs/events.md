@@ -59,6 +59,7 @@ Dispatched on `blueprint.model.floorplan`.
 | `EVENT_UPDATED` | The wall graph changed and rooms were re-derived |
 | `EVENT_DELETED` | A corner or wall was removed |
 | `EVENT_ITEMS_PROJECTED` | The plan's view of the furniture was replaced. **`evt.projection` carries the list.** |
+| `EVENT_ANNOTATIONS_CHANGED` | A dimension, a text label or the north bearing changed |
 
 `EVENT_UPDATED` is the one to listen to if you care about rooms. Rooms are
 derived, not stored, so this is the only moment the room list is known to be
@@ -73,6 +74,14 @@ one per item — and hands it over, dispatching this. Read the current list off
 It is deliberately not `EVENT_UPDATED`. That one means the wall graph moved and
 drives a full 3D teardown, rebuild and camera recentre, which is the right cost
 for dragging a wall and an absurd one for dragging a chair.
+
+`EVENT_ANNOTATIONS_CHANGED` (RM-008 E3) is the same argument again, for the same
+reason: dimensions, text labels and north are drawn by the 2D view alone, so
+typing a note must not cost a 3D rebuild either. It carries no payload beyond
+the floorplan — the collections are small, the view redraws whole, and a delta
+would be a second description of state that already has one. Read
+`floorplan.dimensions`, `floorplan.annotations` and `floorplan.north`, or
+`floorplan.annotationById(id)` for either kind by id.
 
 ## What changed, and why
 
@@ -244,6 +253,8 @@ attached to the controller receives nothing at all, silently. Verified against
 | `EVENT_WALL_2D_HOVER` | Pointer entered a wall |
 | `EVENT_ROOM_2D_HOVER` | Pointer entered a room |
 | `EVENT_ITEM_2D_CLICKED` | A furniture footprint was clicked. **`evt.id` is the item's `designId`; `evt.item` is the footprint.** |
+| `EVENT_DIMENSION_2D_CLICKED` | A dimension line was clicked. **`evt.item` is the `Dimension`; `evt.id` is its id.** |
+| `EVENT_ANNOTATION_2D_CLICKED` | A text label was clicked. **`evt.item` is the `TextAnnotation`.** |
 | `EVENT_NOTHING_CLICKED` | The click hit nothing |
 
 `EVENT_UPDATED` also comes off the carbon sheet when the underlay moves or
@@ -254,6 +265,12 @@ plan draws a description of the furniture and never holds it. Resolve it with
 `blueprint.model.itemById(evt.id)`. There is no matching "unselected": a click
 that leaves the furniture has already dispatched `EVENT_NOTHING_CLICKED` or one
 of the other three, and every one of those means "not an item".
+
+The two annotation events carry the **object itself**, unlike the footprint
+above, and the difference is real: a footprint is rebuilt on every projection,
+while a `Dimension` is owned by the floorplan and lives as long as the design.
+Their ids are persisted, so `floorplan.annotationById(id)` still finds one after
+an undo — which is how a selection survives a restore.
 
 Selection made anywhere can be pushed back into either view:
 `Floorplanner2D.showSelection(type, target)` highlights on the plan and

@@ -108,3 +108,24 @@ export const EVENT_ITEMS_PROJECTED = 'ITEMS_PROJECTED_EVENT';
 
 /** An item's footprint was clicked on the 2D plan (RM-008 E1). Carries `id`. */
 export const EVENT_ITEM_2D_CLICKED = 'ITEM_CLICKED_2D_EVENT';
+
+/**
+ * The plan's dimensions, text labels or north bearing changed (RM-008 E3).
+ *
+ * Its own event rather than EVENT_UPDATED for the reason
+ * {@link EVENT_ITEMS_PROJECTED} is: EVENT_UPDATED means the wall graph moved,
+ * and drives a full 3D teardown, a light rebuild and a camera recentre. Typing
+ * a note on the plan must not cost that, and none of it would change anything -
+ * annotations are drawn by the 2D view alone.
+ *
+ * Carries `item` (the floorplan). Deliberately no payload beyond that: the
+ * collections are small, the view redraws whole, and a delta would be a second
+ * description of state that already has one.
+ */
+export const EVENT_ANNOTATIONS_CHANGED = 'ANNOTATIONS_CHANGED_EVENT';
+
+/** A dimension line was clicked on the 2D plan (RM-008 E3). Carries `item`. */
+export const EVENT_DIMENSION_2D_CLICKED = 'DIMENSION_CLICKED_2D_EVENT';
+
+/** A text label was clicked on the 2D plan (RM-008 E3). Carries `item`. */
+export const EVENT_ANNOTATION_2D_CLICKED = 'ANNOTATION_CLICKED_2D_EVENT';

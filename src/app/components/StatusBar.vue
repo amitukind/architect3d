@@ -62,8 +62,14 @@ const hint = computed(function ()
 	{
 	case floorplannerModes.DRAW:
 		return 'Click to place corners · hold Shift to snap · Esc to finish';
+	case floorplannerModes.RECTANGLE:
+		return 'Click two opposite corners to draw a room · Esc to cancel';
+	case floorplannerModes.DIMENSION:
+		return 'Click the two points to measure between · Esc to cancel';
+	case floorplannerModes.TEXT:
+		return 'Click where the label goes, then type it in the panel';
 	case floorplannerModes.DELETE:
-		return 'Click a wall or corner to delete it · Esc to stop';
+		return 'Click a wall, corner, dimension or label to delete it · Esc to stop';
 	default:
 		return 'Drag corners and walls · double-click a corner for its elevation';
 	}

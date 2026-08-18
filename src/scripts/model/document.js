@@ -280,6 +280,57 @@ function validateFloorplan(floorplan, errors, warnings)
 		}
 	});
 
+	// Authored collections, additive since RM-008 E3 and absent from every older
+	// file, so their absence is never a defect. What is checked is only what
+	// would draw wrongly or throw: a dimension needs two finite points, a label
+	// needs a position. Everything else - a missing offset, a missing size, a
+	// corner id naming a corner that is not here - has a documented default or a
+	// documented fallback in `model/annotation.js`, and inventing requirements
+	// for them would refuse files that open perfectly well.
+	validateAnnotations(floorplan.dimensions, 'floorplan.dimensions', errors, function (record, path)
+	{
+		[['a', 'x'], ['a', 'y'], ['b', 'x'], ['b', 'y']].forEach(function (pair)
+		{
+			var end = record[pair[0]];
+			if (!isPlainObject(end) || !isFiniteNumber(end[pair[1]]))
+			{
+				errors.push({path: `${path}.${pair[0]}.${pair[1]}`, message: 'a dimension must carry finite x and y at each end'});
+			}
+		});
+		if (record.offset !== undefined && record.offset !== null && !isFiniteNumber(record.offset))
+		{
+			errors.push({path: `${path}.offset`, message: `must be a finite number of centimetres when present, not ${JSON.stringify(record.offset)}`});
+		}
+	});
+
+	validateAnnotations(floorplan.annotations, 'floorplan.annotations', errors, function (record, path)
+	{
+		['x', 'y'].forEach(function (axis)
+		{
+			if (!isFiniteNumber(record[axis]))
+			{
+				errors.push({path: `${path}.${axis}`, message: `must be a finite number, not ${JSON.stringify(record[axis])}`});
+			}
+		});
+		if (record.text !== undefined && record.text !== null && typeof record.text !== 'string')
+		{
+			errors.push({path: `${path}.text`, message: `must be a string when present, not ${JSON.stringify(record.text)}`});
+		}
+		if (record.size !== undefined && record.size !== null
+			&& (!isFiniteNumber(record.size) || record.size <= 0))
+		{
+			errors.push({path: `${path}.size`, message: `must be a positive number of pixels when present, not ${JSON.stringify(record.size)}`});
+		}
+	});
+
+	// Degrees clockwise from up. A value outside 0-360 is normalised on load
+	// rather than refused - it is the same bearing written differently, and
+	// refusing to open a design over it would be absurd.
+	if (floorplan.north !== undefined && floorplan.north !== null && !isFiniteNumber(floorplan.north))
+	{
+		errors.push({path: 'floorplan.north', message: `must be a finite number of degrees when present, not ${JSON.stringify(floorplan.north)}`});
+	}
+
 	// `rooms` holds room metadata keyed by corner-id string. Absent on some files
 	// and merely assigned by loadFloorplan, so its absence is not a defect - but a
 	// non-object would be assigned and then indexed into.
@@ -295,6 +346,40 @@ function validateFloorplan(floorplan, errors, warnings)
 			message: `declares units "${floorplan.units}", which this build does not know. Reading coordinates as ${SAVE_UNITS}.`,
 		});
 	}
+}
+
+/**
+ * The shape both authored collections share, checked once (RM-008 E3).
+ *
+ * Absent is fine, an array of objects is fine, anything else is not - and the
+ * per-kind check only runs on records that are objects, so a caller never has to
+ * defend against reading a field off a number.
+ *
+ * @param {*} collection
+ * @param {string} path Dotted path to the collection, for the messages.
+ * @param {Array<DocumentProblem>} errors
+ * @param {function(Record<string, any>, string): void} checkRecord
+ */
+function validateAnnotations(collection, path, errors, checkRecord)
+{
+	if (collection === undefined || collection === null)
+	{
+		return;
+	}
+	if (!Array.isArray(collection))
+	{
+		errors.push({path: path, message: 'must be an array when present'});
+		return;
+	}
+	collection.forEach(function (record, index)
+	{
+		if (!isPlainObject(record))
+		{
+			errors.push({path: `${path}[${index}]`, message: 'is not an object'});
+			return;
+		}
+		checkRecord(record, `${path}[${index}]`);
+	});
 }
 
 /**

@@ -123,6 +123,129 @@ New public API, all additive: `Wall.thickness` / `hasOwnThickness`,
 `ANGLE_SNAP_DEGREES`, `ALIGN_TOLERANCE_CM`, `COLLINEAR_SAGITTA_RATIO`, and the
 optional `thickness` field in a saved wall.
 
+**RM-008 E3 delivered: a plan that can be read by somebody who did not draw it.**
+
+Dimension lines between any two points, free text labels, a room type beside the
+room name, a north arrow, and a ceiling height per room. Two new persisted
+collections — `dimensions` and `annotations` — plus an optional `north` and an
+optional `type` on a room, all additive and all written only when there is
+something to write.
+
+**The per-room ceiling height is not stored, and that is the finding.** E3 was
+planned with it as a third persisted field. Building it that way would have
+repeated the bug E2 measured in `Wall.height`: a wall's drawn top comes from its
+two corners' elevations, so a room's ceiling *is* the elevation of its corners,
+and a second number beside them can disagree with the geometry. So `ceilingHeight`
+reads the corners and `setCeilingHeight` writes them — nothing new is persisted,
+which also means nothing new can be lost, and every file this project has ever
+written already carries its ceiling heights. The panel says what follows from
+that: a corner shared with the room next door is one corner, so raising this
+room's ceiling raises that wall on both sides.
+
+These are the first **authored** entities in the model — everything else the plan
+draws is derived from the wall graph — and two things follow. Their ids are
+persisted, unlike a room's, because a dimension has no description to be found
+again by; that is what lets a selection survive an undo, which here is a save and
+a load. And both collections are omitted from the file entirely when empty, which
+is the half of M-33 that an additive collection usually gets wrong: `[]` looks
+harmless and turns every file already on somebody's disk into a different file
+the first time they open and save it.
+
+A dimension's ends carry an optional corner id and follow that corner when it
+moves, so a drawing does not quietly start lying after the first edit. Delete the
+corner and the dimension falls back to the point it stored — the last place that
+corner was — rather than vanishing or throwing. The offset line's geometry lives
+in one exported function that the drawing, the measurement and the hit test all
+call, because two copies of that formula is how a dimension becomes clickable
+somewhere it is not drawn.
+
+Two new tools on the rail, <kbd>D</kbd> and <kbd>T</kbd>. The dimension tool is
+click-click and stays armed, because a plan needs several. The text tool places
+one and drops back to the pointer, because a label is placed in order to be typed
+into and the panel's field takes focus on mount — the gesture starts on the
+canvas and finishes in the inspector without a second click. <kbd>Delete</kbd>
+now removes a selected dimension or label as well as a selected item; walls,
+corners and rooms still need the eraser, deliberately, because deleting a wall
+silently deletes the rooms it defined and an annotation costs a keystroke to
+recreate.
+
+The north arrow is drawn on every plan, in screen coordinates fixed to the top
+right, so panning cannot take it off screen and zooming cannot change its size. A
+room's ceiling height is drawn only where it is **not** the document's wall
+height — a plan carrying the same number a dozen times is noise, and the number
+is worth drawing exactly where it is a surprise, which also means a plan drawn
+before this sprint looks exactly as it did.
+
+**Labels give way to each other now**, which is the other half of the caption
+rule E1 shipped and flagged. A size threshold stops a zoomed-out plan being a
+field of words and does nothing at all about two chairs side by side, both big
+enough, whose captions land on top of one another — and E3 makes that worse
+before it makes it better, because a room can now carry four stacked lines and a
+person can put text anywhere. Text a person typed and the measurement on a
+dimension are reserved in a pre-pass before anything is drawn; everything derived
+— a room's area, name, type and ceiling, an item's caption — asks for its box as
+it draws and does not draw if the box is taken. The pre-pass is what makes the
+priority right: reserving in draw order would let "A New Room" beat a label
+somebody typed, because rooms are drawn first, and reordering the drawing to fix
+that would put the furniture over the walls.
+
+That pass immediately found something that had been wrong all along. A room's
+name is offset **30 centimetres** below its area and both are drawn at a fixed
+12 px, so the gap between two lines of type shrank with the zoom: at the default
+scale 30 cm is about 16 px, which is one line height, and the two labels touched.
+Invisible until something started asking whether they touched — at which point
+the room's own name vanished under its own area on every plan. The stack is
+spaced in pixels now, like every other piece of typography on the canvas.
+
+**Three bugs found by driving the assembled application, not the library.** The
+label field did not take focus, so typing "Living area" went to the global
+shortcut map and opened the furniture catalog: this panel mounts *during* the
+click that created the label, so a `focus()` on mount lands and the same
+mousedown's default action takes it straight back — measured as a `focusin`
+followed immediately by a `focusout`, with `activeElement` settling on `<body>`.
+It focuses a frame later, which is after the gesture. Turning north in Settings
+threw the panel over to the Selection tab, away from the field being typed into,
+because `useSelection` rebuilds its `{type, object}` wrapper on every revision
+and the panel watched the wrapper rather than the identity. And `Delete` did
+nothing for the two new kinds of selection until it was taught them.
+
+    branches   71.20 -> 73.19      lines      81.21 -> 82.61
+    statements 81.16 -> 82.55      functions  78.97 -> 80.17
+
+99 new headless tests and 9 in the browser tier, 1,547 and 81. The two files
+RM-008 T-3 named as the least covered in the library finish the programme well
+above it: `floorplanner.js` 63.40 → 82.51 and `floorplanner_view.js` 69.26 →
+83.35 across E1–E3. `model/annotation.js` is at 93.25 with every function
+covered.
+
+One characterization test was re-checked and re-pinned rather than relaxed. Two
+assertions in `tests/plan-items-2d.test.js` read `not.toContain('fillText')` —
+"nothing drew any text at all" as a proxy for "no caption was drawn" — which was
+true when the only text in that fixture was the caption and is false now that
+every frame draws a north arrow labelled N. They assert the item's name is or is
+not among the strings drawn, which is both narrower and what they always meant.
+
+Two budgets **raised**, with the reasons in `tools/budget.json`: `lib-esm-gzip`
+53,500 → 59,500 for 5.7 KB gzipped of library feature, and `demo-total`
+13,860,000 → 14,140,000. The second is worth naming because the number is
+startling — the tree grew 274 KB for maybe 60 KB of new source — and the reason
+is that 6.2 MB of that 14 MB tree is one sourcemap. The gzipped JS a browser
+actually downloads moved 353 → 364 KB against a 371 KB ceiling and needed no
+change at all.
+
+New public API, all additive: `EVENT_ANNOTATIONS_CHANGED`,
+`EVENT_DIMENSION_2D_CLICKED`, `EVENT_ANNOTATION_2D_CLICKED`, `Dimension`,
+`TextAnnotation`, `dimensionLine`, `Floorplan.dimensions` / `annotations` /
+`north` / `newDimension` / `removeDimension` / `newAnnotation` /
+`removeAnnotation` / `annotationById` / `overlappedDimension` /
+`overlappedAnnotation` / `annotationsChanged`, `Room.type` / `ceilingHeight` /
+`hasUniformCeiling` / `setCeilingHeight`, `floorplannerModes.DIMENSION` and
+`.TEXT`, `Floorplanner2D.placeDimensionPoint` / `placeAnnotation` /
+`selectAnnotationTarget` / `deleteSelectedAnnotation` / `overlappedDimension` /
+`overlappedAnnotation` / `snapToCorner` / `offsetToPointer`, the `dimension` and
+`annotation` kinds on `showSelection`, and the optional `dimensions`,
+`annotations`, `north` and room `type` fields in a saved design.
+
 ### Everything below this line changed no shipped code
 
 `src/`, `public/` and every build artifact were identical to 3.0.1 for all of

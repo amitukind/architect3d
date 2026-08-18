@@ -3,6 +3,7 @@ import {computed, markRaw, onScopeDispose, ref, shallowRef, watch} from 'vue';
 import {EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED, EVENT_WALL_CLICKED, EVENT_FLOOR_CLICKED} from '../../scripts/blueprint.js';
 import {EVENT_NOTHING_CLICKED, EVENT_CORNER_2D_CLICKED, EVENT_WALL_2D_CLICKED, EVENT_ROOM_2D_CLICKED} from '../../scripts/blueprint.js';
 import {EVENT_ITEM_2D_CLICKED} from '../../scripts/blueprint.js';
+import {EVENT_DIMENSION_2D_CLICKED, EVENT_ANNOTATION_2D_CLICKED, EVENT_ANNOTATIONS_CHANGED} from '../../scripts/blueprint.js';
 import {EVENT_CHANGESET} from '../../scripts/blueprint.js';
 
 /**
@@ -44,6 +45,16 @@ export const SELECTION_FLOOR = 'floor';
 export const SELECTION_CORNER_2D = 'corner2d';
 export const SELECTION_WALL_2D = 'wall2d';
 export const SELECTION_ROOM_2D = 'room2d';
+/**
+ * The two authored entities (RM-008 E3).
+ *
+ * Kinds of their own rather than a shared 'annotation', because the inspectors
+ * are genuinely different - one edits an offset and reads a measurement, the
+ * other edits text - and because `Floorplan.annotationById` searching both
+ * collections is the lookup, not the type.
+ */
+export const SELECTION_DIMENSION = 'dimension';
+export const SELECTION_ANNOTATION = 'annotation';
 
 /**
  * @param {import('./useBlueprint.js').BlueprintStore} store
@@ -114,6 +125,14 @@ export function useSelection(store)
 		case SELECTION_FLOOR:
 		case SELECTION_ROOM_2D:
 			found = floorplan.getRooms().find((room) => room.id === id);
+			break;
+		// Both kinds resolve through one lookup, which is what makes an annotation
+		// survive undo: a restore rebuilds every Dimension and TextAnnotation from
+		// the file, so the object is new and the id - which IS persisted, unlike a
+		// room's - still finds it (RM-008 E3).
+		case SELECTION_DIMENSION:
+		case SELECTION_ANNOTATION:
+			found = floorplan.annotationById(id);
 			break;
 		default:
 			found = null;
@@ -247,6 +266,16 @@ export function useSelection(store)
 					select(SELECTION_ITEM, item);
 				}
 			},
+			// Both carry the object itself, unlike the footprint event above: an
+			// annotation is owned by the floorplan and lives as long as the design,
+			// so there is nothing to look up (RM-008 E3).
+			dimension2d: (evt) => {select(SELECTION_DIMENSION, evt.item);},
+			annotation2d: (evt) => {select(SELECTION_ANNOTATION, evt.item);},
+			// A dimension deleted from the plan, or an undo that took one away,
+			// must not leave the inspector bound to it. Re-resolving is what does
+			// that - `resolve` returns null and the computed clears - and it is the
+			// same signal EVENT_CHANGESET already provides for the wall graph.
+			annotationsChanged: () => {revision.value += 1;},
 		};
 
 		three.addEventListener(EVENT_ITEM_SELECTED, handlers.itemSelected);
@@ -260,6 +289,9 @@ export function useSelection(store)
 		floorplan.addEventListener(EVENT_ROOM_2D_CLICKED, handlers.room2d);
 		floorplan.addEventListener(EVENT_ITEM_2D_CLICKED, handlers.item2d);
 		floorplan.addEventListener(EVENT_CHANGESET, handlers.changed);
+		floorplan.addEventListener(EVENT_DIMENSION_2D_CLICKED, handlers.dimension2d);
+		floorplan.addEventListener(EVENT_ANNOTATION_2D_CLICKED, handlers.annotation2d);
+		floorplan.addEventListener(EVENT_ANNOTATIONS_CHANGED, handlers.annotationsChanged);
 	}
 
 	function detach()
@@ -282,6 +314,9 @@ export function useSelection(store)
 		floorplan.removeEventListener(EVENT_ROOM_2D_CLICKED, handlers.room2d);
 		floorplan.removeEventListener(EVENT_ITEM_2D_CLICKED, handlers.item2d);
 		floorplan.removeEventListener(EVENT_CHANGESET, handlers.changed);
+		floorplan.removeEventListener(EVENT_DIMENSION_2D_CLICKED, handlers.dimension2d);
+		floorplan.removeEventListener(EVENT_ANNOTATION_2D_CLICKED, handlers.annotation2d);
+		floorplan.removeEventListener(EVENT_ANNOTATIONS_CHANGED, handlers.annotationsChanged);
 
 		handlers = null;
 		attachedStore.value = null;
@@ -315,6 +350,8 @@ export function useSelection(store)
 		[SELECTION_CORNER_2D]: 'corner',
 		[SELECTION_FLOOR]: 'room',
 		[SELECTION_ROOM_2D]: 'room',
+		[SELECTION_DIMENSION]: 'dimension',
+		[SELECTION_ANNOTATION]: 'annotation',
 	};
 
 	/**

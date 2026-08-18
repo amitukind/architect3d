@@ -57,6 +57,21 @@ export class Room extends EventDispatcher
 		 */
 		this.id = Utils.guide();
 		this._name = 'A New Room';
+		/**
+		 * What this room is for - Bedroom, Kitchen, Bathroom (RM-008 E3).
+		 *
+		 * Separate from the name, because they answer different questions and a
+		 * plan needs both: "Master" is which room this is, "Bedroom" is what it is.
+		 * Free text rather than an enum, with the common ones offered in the
+		 * inspector - a plan of a house nobody anticipated should be able to say
+		 * "Puja room" or "Utility" without a library release.
+		 *
+		 * Empty by default and drawn only when set, so a plan nobody has typed into
+		 * looks exactly as it did before this sprint.
+		 *
+		 * @type {string}
+		 */
+		this._type = '';
 		this.min = null;
 		this.max = null;
 		this.center = null;
@@ -106,6 +121,155 @@ export class Room extends EventDispatcher
 	get name()
 	{
 		return this._name;
+	}
+
+	/**
+	 * What this room is for, or '' (RM-008 E3).
+	 * @returns {string}
+	 */
+	get type()
+	{
+		return this._type;
+	}
+
+	/**
+	 * Announced with the same event and the same `{from, to}` payload the name
+	 * uses, and deliberately without saying which attribute moved.
+	 *
+	 * `tests/change-projection.test.js` pins that payload shape exactly, and every
+	 * listener this repository has re-reads the room rather than acting on the
+	 * values in the event - so naming the attribute would break a pin to add
+	 * information nothing consumes. The event means "an attribute of this room
+	 * changed; read it again".
+	 *
+	 * @param {string} value
+	 */
+	set type(value)
+	{
+		var next = (typeof value === 'string') ? value : '';
+		if (next === this._type)
+		{
+			return;
+		}
+		var previous = this._type;
+		this._type = next;
+		this.dispatchEvent({type: EVENT_ROOM_ATTRIBUTES_CHANGED, item: this, info: {from: previous, to: this._type}});
+	}
+
+	/**
+	 * How high this room's ceiling is, in centimetres (RM-008 E3).
+	 *
+	 * ## Derived, not stored, and that is the finding
+	 *
+	 * E3 was planned with a per-room ceiling height as a third persisted field.
+	 * Building it that way would have been wrong, and E2 is why: `Wall.height`
+	 * turned out not to be the height of the wall, because a wall's drawn top
+	 * comes from the elevations of the two corners at its ends. The ceiling of a
+	 * room *is* the elevation of its corners - there is nowhere else for a
+	 * ceiling to come from - so a second number stored beside them could disagree
+	 * with the geometry, and the drawing would then be a lie in the same way
+	 * `Wall.height` was.
+	 *
+	 * So this reads the corners, and {@link Room#setCeilingHeight} writes them.
+	 * Nothing new is persisted, which also means nothing new can be lost: every
+	 * file ever written by this project already carries its ceiling heights.
+	 *
+	 * The maximum rather than an average, because that is the height of the room:
+	 * a room with one corner raised has a sloped ceiling whose highest point is
+	 * that corner. {@link Room#hasUniformCeiling} is how a caller tells the two
+	 * cases apart, and the inspector says so rather than showing a number that
+	 * describes only part of the room.
+	 *
+	 * @returns {number} Centimetres. Zero for a room with no corners.
+	 */
+	get ceilingHeight()
+	{
+		if (!this.corners.length)
+		{
+			return 0;
+		}
+		var highest = -Infinity;
+		this.corners.forEach(function (corner)
+		{
+			if (corner.elevation > highest)
+			{
+				highest = corner.elevation;
+			}
+		});
+		return highest;
+	}
+
+	/**
+	 * Whether every corner of this room is at the same elevation (RM-008 E3).
+	 * @returns {boolean}
+	 */
+	get hasUniformCeiling()
+	{
+		if (this.corners.length < 2)
+		{
+			return true;
+		}
+		var first = this.corners[0].elevation;
+		for (var i = 1; i < this.corners.length; i++)
+		{
+			// A tolerance rather than equality: these are centimetres a person
+			// typed, round-tripped through a display unit and back, so 250 and
+			// 249.99999999999997 are the same ceiling.
+			if (Math.abs(this.corners[i].elevation - first) > 1e-6)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Raise or lower this room's ceiling (RM-008 E3).
+	 *
+	 * Writes every corner of the room, which is the honest consequence of the
+	 * height living on the corners: a corner shared with the room next door is
+	 * one corner, and raising this room's ceiling raises that wall's top on both
+	 * sides. Two walls meeting at a corner share it, and always have - the wall
+	 * inspector has said so since E2. The room inspector says it here too rather
+	 * than letting somebody discover it.
+	 *
+	 * Batched, so eight corners on a pair of adjoining rooms are one undo entry
+	 * and one re-derivation instead of eight of each.
+	 *
+	 * @param {number} centimetres
+	 * @returns {boolean} Whether anything moved.
+	 */
+	setCeilingHeight(centimetres)
+	{
+		if (typeof centimetres !== 'number' || !isFinite(centimetres) || centimetres <= 0)
+		{
+			return false;
+		}
+		var corners = this.corners.filter(function (corner)
+		{
+			return Math.abs(corner.elevation - centimetres) > 1e-6;
+		});
+		if (!corners.length)
+		{
+			return false;
+		}
+		var plan = this.floorplan;
+		if (plan && typeof plan.beginBatch === 'function')
+		{
+			plan.beginBatch('edit');
+		}
+		try
+		{
+			corners.forEach(function (corner) {corner.elevation = centimetres;});
+		}
+		finally
+		{
+			if (plan && typeof plan.endBatch === 'function')
+			{
+				plan.endBatch();
+			}
+		}
+		return true;
 	}
 
 	roomIdentifier()

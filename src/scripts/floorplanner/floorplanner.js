@@ -9,6 +9,7 @@ import {EVENT_CORNER_2D_CLICKED, EVENT_ROOM_2D_CLICKED, EVENT_WALL_2D_CLICKED} f
 import {EVENT_CORNER_2D_DOUBLE_CLICKED, EVENT_ROOM_2D_DOUBLE_CLICKED, EVENT_WALL_2D_DOUBLE_CLICKED} from '../core/events.js';
 import {EVENT_NOTHING_CLICKED} from '../core/events.js';
 import {EVENT_ITEM_2D_CLICKED, EVENT_ITEMS_PROJECTED} from '../core/events.js';
+import {EVENT_ANNOTATIONS_CHANGED, EVENT_DIMENSION_2D_CLICKED, EVENT_ANNOTATION_2D_CLICKED} from '../core/events.js';
 import {footprintContains} from '../model/plan_projection.js';
 
 /**
@@ -17,6 +18,16 @@ import {footprintContains} from '../model/plan_projection.js';
  * size on screen at every zoom.
  */
 const ITEM_PICK_TOLERANCE_PIXELS = 4;
+
+/**
+ * How close a pointer has to be to a dimension line or a label's anchor to pick
+ * it, in CANVAS pixels (RM-008 E3).
+ *
+ * Larger than the furniture's four, because both targets are one pixel wide -
+ * a line and a dot - where a footprint is an area, so the tolerance IS the
+ * target rather than a margin around one.
+ */
+const ANNOTATION_PICK_TOLERANCE_PIXELS = 6;
 
 /**
  * The increment angle snapping rounds to, in degrees (RM-008 E2).
@@ -292,6 +303,41 @@ export class Floorplanner2D extends EventDispatcher
 		 */
 		this.alignedTo = {x: null, y: null};
 		this.rectangleAnchor = null;
+		/**
+		 * The annotation the pointer is over, and the one that is selected
+		 * (RM-008 E3).
+		 *
+		 * Objects rather than ids, unlike the furniture beside them, and the
+		 * difference is real: a footprint is rebuilt on every projection, so
+		 * holding one would hold a stale copy - a `Dimension` is owned by the
+		 * floorplan and lives as long as the design does.
+		 *
+		 * @type {?import('../model/annotation.js').Dimension}
+		 */
+		this.activeDimension = null;
+		/** @type {?import('../model/annotation.js').Dimension} */
+		this.selectedDimension = null;
+		/** @type {?import('../model/annotation.js').TextAnnotation} */
+		this.activeAnnotation = null;
+		/** @type {?import('../model/annotation.js').TextAnnotation} */
+		this.selectedAnnotation = null;
+		/**
+		 * The first point of the dimension being placed, or null (RM-008 E3).
+		 *
+		 * Click-click, the same rhythm as the wall and rectangle tools, and for the
+		 * same reason: a dimension across a room is a long way to hold a button
+		 * down. Carries the corner it landed on when it landed on one, so the
+		 * finished dimension can be pinned to it.
+		 *
+		 * @type {?{x: number, y: number, cornerId: ?string}}
+		 */
+		this.dimensionAnchor = null;
+		/** @type {?import('../model/annotation.js').TextAnnotation} The label being dragged. */
+		this._draggingAnnotation = null;
+		/** Pointer offset within the label at grab time, so it does not jump. */
+		this._annotationGrabOffset = {x: 0, y: 0};
+		/** @type {?import('../model/annotation.js').Dimension} The dimension whose offset is being dragged. */
+		this._draggingDimension = null;
 		this.shiftkey = false;
 		// Initialization:
 
@@ -340,6 +386,10 @@ export class Floorplanner2D extends EventDispatcher
 		// every other attribute change - one draw per animation frame, not one per
 		// event, which is what P6 established and what makes a drag affordable.
 		floorplan.addEventListener(EVENT_ITEMS_PROJECTED, this._updateViewEvent);
+		// A dimension moved, a note was typed, north turned (RM-008 E3). Same
+		// coalesced redraw, and the same argument: the plan is the only view that
+		// draws any of it.
+		floorplan.addEventListener(EVENT_ANNOTATIONS_CHANGED, this._updateViewEvent);
 	}
 
 	/**
@@ -374,6 +424,7 @@ export class Floorplanner2D extends EventDispatcher
 
 		this.floorplan.removeEventListener(EVENT_LOADED, this._floorplanLoadedEvent);
 		this.floorplan.removeEventListener(EVENT_ITEMS_PROJECTED, this._updateViewEvent);
+		this.floorplan.removeEventListener(EVENT_ANNOTATIONS_CHANGED, this._updateViewEvent);
 		this.floorplan.removeEventListener(EVENT_CORNER_ATTRIBUTES_CHANGED, this._updateViewEvent);
 		this.floorplan.removeEventListener(EVENT_WALL_ATTRIBUTES_CHANGED, this._updateViewEvent);
 		this.floorplan.removeEventListener(EVENT_ROOM_ATTRIBUTES_CHANGED, this._updateViewEvent);
@@ -554,7 +605,8 @@ export class Floorplanner2D extends EventDispatcher
 		// over a guide: a guide is a suggestion drawn from what happens to be
 		// nearby, and the other two were asked for.
 		this.alignedTo = {x: null, y: null};
-		if ((this.mode == floorplannerModes.DRAW || this.mode == floorplannerModes.RECTANGLE)
+		if ((this.mode == floorplannerModes.DRAW || this.mode == floorplannerModes.RECTANGLE
+			|| this.mode == floorplannerModes.DIMENSION)
 			&& this.alignguides)
 		{
 			var aligned = alignToCorners(this.floorplan.getCorners(), this.targetX, this.targetY, this.lastNode, undefined);
@@ -628,7 +680,8 @@ export class Floorplanner2D extends EventDispatcher
 		// A click with no pointer movement before it still has to land where the
 		// pointer is (RM-008 E2). `mousemove` is otherwise the only caller, so the
 		// first click of a session - or of a tool - used a target from before it.
-		if (this.mode == floorplannerModes.DRAW || this.mode == floorplannerModes.RECTANGLE)
+		if (this.mode == floorplannerModes.DRAW || this.mode == floorplannerModes.RECTANGLE
+			|| this.mode == floorplannerModes.DIMENSION || this.mode == floorplannerModes.TEXT)
 		{
 			this.updateTarget();
 		}
@@ -645,11 +698,77 @@ export class Floorplanner2D extends EventDispatcher
 		}
 		
 		
+		// The annotation tools place rather than pick, so they run before anything
+		// is hit-tested (RM-008 E3). Clicking with the dimension tool active means
+		// "here", not "select whatever is underneath".
+		if (this.mode == floorplannerModes.DIMENSION)
+		{
+			this.placeDimensionPoint();
+			this.view.invalidate();
+			return;
+		}
+		if (this.mode == floorplannerModes.TEXT)
+		{
+			this.placeAnnotation();
+			this.view.invalidate();
+			return;
+		}
+
 		var mDownCorner = this.floorplan.overlappedCorner(this.mouseX, this.mouseY, undefined);
 		var mDownWall = this.floorplan.overlappedWall(this.mouseX, this.mouseY, undefined);
 		var mDownItem = this.overlappedItem(this.mouseX, this.mouseY);
 		var mDownRoom = this.floorplan.overlappedRoom(this.mouseX, this.mouseY);
 		this._clickedWallControl = null;
+
+		// Authored marks are picked after corners and before walls (RM-008 E3).
+		//
+		// Corners stay first because they are the smallest and most precise target
+		// on the canvas and every drawing gesture starts at one. Everything else
+		// comes second, and the rule is that a mark somebody placed deliberately
+		// beats geometry that was derived: a note pinned to a wall has to be
+		// clickable, and a wall is an enormous target that would otherwise swallow
+		// the dot. A dimension line sits 40 cm clear of what it measures by
+		// default, so the two rarely compete at all.
+		var mDownAnnotation = (mDownCorner == null) ? this.overlappedAnnotation(this.mouseX, this.mouseY) : null;
+		var mDownDimension = (mDownCorner == null && mDownAnnotation == null)
+			? this.overlappedDimension(this.mouseX, this.mouseY) : null;
+		if (mDownAnnotation || mDownDimension)
+		{
+			this._clickedCorner = undefined;
+			this._clickedWall = undefined;
+			this._clickedRoom = undefined;
+			this.selectItem(null);
+			if (this.mode == floorplannerModes.DELETE)
+			{
+				this.selectAnnotationTarget(null);
+				if (mDownAnnotation)
+				{
+					this.floorplan.removeAnnotation(mDownAnnotation);
+				}
+				else if (mDownDimension)
+				{
+					this.floorplan.removeDimension(mDownDimension);
+				}
+				this.view.invalidate();
+				return;
+			}
+			this.selectAnnotationTarget(mDownAnnotation || mDownDimension);
+			if (this.mode == floorplannerModes.MOVE)
+			{
+				if (mDownAnnotation)
+				{
+					this._draggingAnnotation = mDownAnnotation;
+					this._annotationGrabOffset = {x: this.mouseX - mDownAnnotation.x, y: this.mouseY - mDownAnnotation.y};
+				}
+				else
+				{
+					this._draggingDimension = mDownDimension;
+				}
+			}
+			this.view.invalidate();
+			return;
+		}
+		this.selectAnnotationTarget(null);
 
 		// Furniture is picked before the room it stands in and after the walls
 		// and corners that define it (RM-008 E1). The order is the useful one: a
@@ -742,6 +861,7 @@ export class Floorplanner2D extends EventDispatcher
 		// driving the pointer, not by calling the method: a test that calls
 		// `placeRectangleCorner` directly sets the target itself and passes.
 		if (this.mode == floorplannerModes.DRAW || this.mode == floorplannerModes.RECTANGLE
+			|| this.mode == floorplannerModes.DIMENSION || this.mode == floorplannerModes.TEXT
 			|| (this.mode == floorplannerModes.MOVE && this.mouseDown))
 		{
 			this.updateTarget();
@@ -800,6 +920,21 @@ export class Floorplanner2D extends EventDispatcher
 				draw = true;
 			}
 
+			// Annotation hover, on the same rule as the pick above it (RM-008 E3):
+			// after a corner, before anything else. Kept in step with `mousedown`
+			// deliberately - a mark that highlights on hover and is not what a click
+			// selects is worse than no highlight at all.
+			var hoverAnnotation = (this.activeCorner == null)
+				? this.overlappedAnnotation(this.mouseX, this.mouseY) : null;
+			var hoverDimension = (this.activeCorner == null && hoverAnnotation == null)
+				? this.overlappedDimension(this.mouseX, this.mouseY) : null;
+			if (hoverAnnotation !== this.activeAnnotation || hoverDimension !== this.activeDimension)
+			{
+				this.activeAnnotation = hoverAnnotation;
+				this.activeDimension = hoverDimension;
+				draw = true;
+			}
+
 			if (draw)
 			{
 				this.view.invalidate();
@@ -813,7 +948,8 @@ export class Floorplanner2D extends EventDispatcher
 		// expressed as a list of the things that could be grabbed at the time.
 		// A grabbed item is a new member of that list, and without it the first
 		// drag of a chair panned the whole plan instead. Found by dragging one.
-		if (this.mouseDown && !this.activeCorner && !this.activeWall && !this._clickedWallControl && !this._draggingItemId)
+		if (this.mouseDown && !this.activeCorner && !this.activeWall && !this._clickedWallControl && !this._draggingItemId
+			&& !this._draggingAnnotation && !this._draggingDimension)
 //		else if (this.mouseDown && (this.activeCorner==null) && (this.activeWall==null) && (this._clickedWallControl == null))
 //		else if (this.mouseDown && (!this._clickedCorner) && (!this._clickedWall) && (this._clickedWallControl == null))
 		{
@@ -825,6 +961,24 @@ export class Floorplanner2D extends EventDispatcher
 			this.lastY = this.rawMouseY;
 			this.view.invalidate();
 		}
+		// Dragging a note, and dragging a dimension's offset (RM-008 E3). First,
+		// because mousedown returned early for both - nothing else can be grabbed
+		// at the same time - and because the pan guard above already excludes them.
+		if (this.mode == floorplannerModes.MOVE && this.mouseDown && this._draggingAnnotation)
+		{
+			this._draggingAnnotation.moveTo(
+				this.mouseX - this._annotationGrabOffset.x,
+				this.mouseY - this._annotationGrabOffset.y);
+			this.view.invalidate();
+			return;
+		}
+		if (this.mode == floorplannerModes.MOVE && this.mouseDown && this._draggingDimension)
+		{
+			this._draggingDimension.setOffset(this.offsetToPointer(this._draggingDimension, this.mouseX, this.mouseY));
+			this.view.invalidate();
+			return;
+		}
+
 		// dragging
 		// Dragging a footprint (RM-008 E1). Before the wall-control branch because
 		// grabbing an item is exclusive: nothing else can be under the pointer at
@@ -916,6 +1070,18 @@ export class Floorplanner2D extends EventDispatcher
 	mouseup(/*event*/)
 	{
 		this.mouseDown = false;
+
+		// The annotation drags end here and announce nothing extra (RM-008 E3):
+		// each mutator has already announced itself, and the application commits a
+		// history entry off the same coalesced event, so a gesture is one entry
+		// without this having to say when it finished.
+		if (this._draggingAnnotation || this._draggingDimension)
+		{
+			this._draggingAnnotation = null;
+			this._draggingDimension = null;
+			this.view.invalidate();
+			return;
+		}
 
 		// One undo entry for the whole drag, recorded when the pointer is let go
 		// (RM-008 E1, T-7) - the same moment the 3D controller commits one.
@@ -1059,6 +1225,222 @@ export class Floorplanner2D extends EventDispatcher
 	}
 
 	/**
+	 * The text label under a point, at a target that stays the same size on
+	 * screen (RM-008 E3).
+	 *
+	 * The pixel-to-centimetre conversion is the same argument `overlappedItem`
+	 * makes: at 25 % zoom a fixed centimetre tolerance is a quarter of the target
+	 * it was at 100 %, and a target nobody can hit is a feature nobody has.
+	 *
+	 * @param {number} x Plan space, centimetres.
+	 * @param {number} y
+	 * @returns {?import('../model/annotation.js').TextAnnotation}
+	 */
+	overlappedAnnotation(x, y)
+	{
+		return this.floorplan.overlappedAnnotation(x, y, this.dimensioning.pixelToCm(ANNOTATION_PICK_TOLERANCE_PIXELS));
+	}
+
+	/**
+	 * The dimension line under a point (RM-008 E3).
+	 *
+	 * @param {number} x Plan space, centimetres.
+	 * @param {number} y
+	 * @returns {?import('../model/annotation.js').Dimension}
+	 */
+	overlappedDimension(x, y)
+	{
+		return this.floorplan.overlappedDimension(x, y, this.dimensioning.pixelToCm(ANNOTATION_PICK_TOLERANCE_PIXELS));
+	}
+
+	/**
+	 * Where a corner would pin a point being placed, or the point unchanged
+	 * (RM-008 E3).
+	 *
+	 * A dimension placed on two corners follows them - that is what stops a
+	 * drawing lying after the first edit, and `model/annotation.js` argues it at
+	 * length. This is the half that decides whether it got one, and it is
+	 * deliberately the plan's own `overlappedCorner`, at the plan's own tolerance:
+	 * the point where a click counts as being on a corner is a property of this
+	 * drawing, not of this tool.
+	 *
+	 * @param {number} x Plan space, centimetres.
+	 * @param {number} y
+	 * @returns {{x: number, y: number, cornerId: ?string}}
+	 */
+	snapToCorner(x, y)
+	{
+		var corner = this.floorplan.overlappedCorner(x, y, undefined);
+		if (corner)
+		{
+			return {x: corner.x, y: corner.y, cornerId: corner.id};
+		}
+		return {x: x, y: y, cornerId: null};
+	}
+
+	/**
+	 * How far a dimension's line would have to move to sit under the pointer
+	 * (RM-008 E3).
+	 *
+	 * The signed distance from the measured line to the pointer, along the same
+	 * left-hand normal `dimensionLine()` offsets by - so dragging past the line
+	 * flips the dimension to the other side, which is the gesture and the sign
+	 * change being one thing rather than two.
+	 *
+	 * @param {import('../model/annotation.js').Dimension} dimension
+	 * @param {number} x Plan space, centimetres.
+	 * @param {number} y
+	 * @returns {number} Centimetres, signed.
+	 */
+	offsetToPointer(dimension, x, y)
+	{
+		var p = dimension.points();
+		var dx = p.bx - p.ax;
+		var dy = p.by - p.ay;
+		var length = Math.sqrt(dx * dx + dy * dy);
+		if (!(length > 1e-6))
+		{
+			return dimension.offset;
+		}
+		return ((x - p.ax) * (-dy / length)) + ((y - p.ay) * (dx / length));
+	}
+
+	/**
+	 * Select a dimension or a text label, or clear both (RM-008 E3).
+	 *
+	 * One method for both because a selection is one thing, and one place that
+	 * dispatches because two would eventually disagree about which. This is the
+	 * OUTBOUND path - it announces - and {@link Floorplanner2D#showSelection} is
+	 * the inbound one, which does not. Keeping the two apart is what makes a
+	 * selection loop between the views impossible rather than merely unlikely,
+	 * and it is the shape E1 established for items.
+	 *
+	 * @param {?(import('../model/annotation.js').Dimension|import('../model/annotation.js').TextAnnotation)} target
+	 */
+	selectAnnotationTarget(target)
+	{
+		/** @type {?import('../model/annotation.js').Dimension} */
+		var dimension = null;
+		/** @type {?import('../model/annotation.js').TextAnnotation} */
+		var annotation = null;
+		if (target)
+		{
+			// A duck test rather than an instanceof, so a caller across a bundle
+			// boundary - the case the peer-dependency note in the README is about -
+			// still works. Cast because the two classes are a union here and only
+			// one of them has `points`, which is the whole point of asking.
+			if (this.selectedAnnotationWasText(target))
+			{
+				annotation = /** @type {*} */ (target);
+			}
+			else
+			{
+				dimension = /** @type {*} */ (target);
+			}
+		}
+		if (this.selectedDimension === dimension && this.selectedAnnotation === annotation)
+		{
+			return;
+		}
+		this.selectedDimension = dimension;
+		this.selectedAnnotation = annotation;
+		if (dimension)
+		{
+			this.floorplan.dispatchEvent({type: EVENT_DIMENSION_2D_CLICKED, item: dimension, id: dimension.id});
+		}
+		else if (annotation)
+		{
+			this.floorplan.dispatchEvent({type: EVENT_ANNOTATION_2D_CLICKED, item: annotation, id: annotation.id});
+		}
+		this.view.invalidate();
+	}
+
+	/**
+	 * Place one end of a dimension (RM-008 E3).
+	 *
+	 * The first click anchors, the second completes and leaves the tool armed for
+	 * the next one - a plan being dimensioned needs several, and dropping back to
+	 * the pointer after each would make the common case the slow one. Escape and
+	 * any tool change clear a half-placed anchor, through `setMode`.
+	 *
+	 * @returns {?import('../model/annotation.js').Dimension} The dimension the
+	 *          second click completed, or null.
+	 */
+	placeDimensionPoint()
+	{
+		var point = this.snapToCorner(this.targetX, this.targetY);
+		if (!this.dimensionAnchor)
+		{
+			this.dimensionAnchor = point;
+			return null;
+		}
+		var anchor = this.dimensionAnchor;
+		this.dimensionAnchor = null;
+		var dimension = this.floorplan.newDimension(anchor.x, anchor.y, point.x, point.y, {
+			aCorner: anchor.cornerId,
+			bCorner: point.cornerId,
+		});
+		if (dimension)
+		{
+			this.selectAnnotationTarget(dimension);
+		}
+		return dimension;
+	}
+
+	/**
+	 * Put a text label where the pointer is, and select it (RM-008 E3).
+	 *
+	 * Drops back to the pointer, unlike the dimension tool above, and the reason
+	 * is what happens next: a label is placed in order to be typed into, so the
+	 * gesture ends in the inspector rather than on the canvas. The wall tool makes
+	 * the same call when a loop closes.
+	 *
+	 * @returns {?import('../model/annotation.js').TextAnnotation}
+	 */
+	placeAnnotation()
+	{
+		var annotation = this.floorplan.newAnnotation(this.targetX, this.targetY);
+		if (annotation)
+		{
+			this.setMode(floorplannerModes.MOVE);
+			this.selectAnnotationTarget(annotation);
+		}
+		return annotation;
+	}
+
+	/**
+	 * Remove whichever annotation is selected (RM-008 E3).
+	 *
+	 * Here rather than in the application because the plan is what holds the
+	 * selection - the application asks for the delete and this knows what "the
+	 * selection" currently means.
+	 *
+	 * @returns {boolean} Whether anything was removed.
+	 */
+	deleteSelectedAnnotation()
+	{
+		var target = this.selectedAnnotation || this.selectedDimension;
+		if (!target)
+		{
+			return false;
+		}
+		this.selectAnnotationTarget(null);
+		return this.selectedAnnotationWasText(target)
+			? this.floorplan.removeAnnotation(/** @type {*} */ (target))
+			: this.floorplan.removeDimension(/** @type {*} */ (target));
+	}
+
+	/**
+	 * The same duck test `selectAnnotationTarget` uses, named once.
+	 * @param {*} target
+	 * @returns {boolean}
+	 */
+	selectedAnnotationWasText(target)
+	{
+		return typeof target.points !== 'function';
+	}
+
+	/**
 	 * Show on the plan what something else selected (RM-008 E1, T-2).
 	 *
 	 * Before E1 the plan highlighted only what the plan itself had been clicked
@@ -1078,7 +1460,8 @@ export class Floorplanner2D extends EventDispatcher
 	 * They have always been different things behind one name; this is the one
 	 * place that has to know it.
 	 *
-	 * @param {?string} type 'wall', 'corner', 'room', 'item', or null to clear.
+	 * @param {?string} type 'wall', 'corner', 'room', 'item', 'dimension',
+	 *        'annotation', or null to clear.
 	 * @param {*} target The selected object, or an item id when type is 'item'.
 	 */
 	showSelection(type, target)
@@ -1087,6 +1470,10 @@ export class Floorplanner2D extends EventDispatcher
 		var corner = null;
 		var room = null;
 		var itemId = null;
+		/** @type {?import('../model/annotation.js').Dimension} */
+		var dimension = null;
+		/** @type {?import('../model/annotation.js').TextAnnotation} */
+		var annotation = null;
 
 		if (type === 'wall')
 		{
@@ -1104,11 +1491,31 @@ export class Floorplanner2D extends EventDispatcher
 		{
 			itemId = (target && target.designId) ? target.designId : target;
 		}
+		else if (type === 'dimension' || type === 'annotation')
+		{
+			// An id is accepted as well as the object, because undo restores a
+			// selection by id: the object it named is gone, replaced by an equal one
+			// built by the load (RM-008 E3). The kind is then taken from what was
+			// found rather than from what was asked for, so an id looked up in the
+			// wrong collection highlights nothing instead of highlighting the wrong
+			// thing.
+			var found = (typeof target === 'string') ? this.floorplan.annotationById(target) : target;
+			if (found && !this.selectedAnnotationWasText(found))
+			{
+				dimension = /** @type {*} */ (found);
+			}
+			else if (found)
+			{
+				annotation = /** @type {*} */ (found);
+			}
+		}
 
 		var unchanged = (this._clickedWall === wall)
 			&& (this._clickedCorner === corner)
 			&& (this._clickedRoom === room)
-			&& (this.selectedItemId === (itemId || null));
+			&& (this.selectedItemId === (itemId || null))
+			&& (this.selectedDimension === dimension)
+			&& (this.selectedAnnotation === annotation);
 		if (unchanged)
 		{
 			return;
@@ -1118,6 +1525,8 @@ export class Floorplanner2D extends EventDispatcher
 		this._clickedCorner = corner;
 		this._clickedRoom = room;
 		this.selectedItemId = itemId || null;
+		this.selectedDimension = dimension;
+		this.selectedAnnotation = annotation;
 		this.view.invalidate();
 	}
 
@@ -1346,6 +1755,8 @@ export class Floorplanner2D extends EventDispatcher
 		// A half-drawn rectangle does not survive leaving the tool (RM-008 E2).
 		// Escape resets the mode, so this is also what Escape clears.
 		this.rectangleAnchor = null;
+		// Same rule for a half-placed dimension (RM-008 E3).
+		this.dimensionAnchor = null;
 		this.mode = mode;
 		this.dispatchEvent({type:EVENT_MODE_RESET, mode: mode});
 		this.updateTarget();

@@ -1,6 +1,7 @@
 // @ts-check
 import {computed, onScopeDispose, ref, shallowRef, watch} from 'vue';
 import {EVENT_UPDATED, EVENT_LOADED} from '../../scripts/blueprint.js';
+import {EVENT_ANNOTATIONS_CHANGED} from '../../scripts/blueprint.js';
 import {EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED, EVENT_ITEM_MOVE_FINISH} from '../../scripts/blueprint.js';
 import {REASON_UNDO} from '../../scripts/blueprint.js';
 
@@ -386,6 +387,12 @@ export function useHistory(store)
 		};
 
 		floorplan.addEventListener(EVENT_UPDATED, attached.onChange);
+		// A dimension placed, a note typed, north turned (RM-008 E3). Its own
+		// event because EVENT_UPDATED means the wall graph moved and costs a full
+		// 3D rebuild - but as far as THIS is concerned the two are the same thing:
+		// the document changed and the change is worth keeping. Coalesced by the
+		// same debounce, so dragging a label across the plan is one entry.
+		floorplan.addEventListener(EVENT_ANNOTATIONS_CHANGED, attached.onChange);
 		scene.addEventListener(EVENT_ITEM_LOADED, attached.onItemSettled);
 		scene.addEventListener(EVENT_ITEM_REMOVED, attached.onChange);
 		scene.addEventListener(EVENT_ITEM_MOVE_FINISH, attached.onChange);
@@ -401,6 +408,7 @@ export function useHistory(store)
 			return;
 		}
 		attached.floorplan.removeEventListener(EVENT_UPDATED, attached.onChange);
+		attached.floorplan.removeEventListener(EVENT_ANNOTATIONS_CHANGED, attached.onChange);
 		attached.scene.removeEventListener(EVENT_ITEM_LOADED, attached.onItemSettled);
 		attached.scene.removeEventListener(EVENT_ITEM_REMOVED, attached.onChange);
 		attached.scene.removeEventListener(EVENT_ITEM_MOVE_FINISH, attached.onChange);

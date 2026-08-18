@@ -3,8 +3,8 @@
 WebGL 3D interior design tool with a 2D floorplanner.
 
 Draw walls by clicking, close a loop to make a room, furnish it from a catalog
-of 168 models, change wall and floor textures, and walk through the result in
-first person. Plan and 3D view side by side — the furniture is drawn on both,
+of 168 models, change wall and floor textures, dimension and label the plan, and
+walk through the result in first person. Plan and 3D view side by side — the furniture is drawn on both,
 and selecting anything in one view selects it in the other — with undo on
 everything, and a dark or light theme that reaches the drawing canvas as well as
 the chrome.
@@ -46,7 +46,7 @@ are checked in under `public/`, which Vite serves at the site root.
 | `npm run dev` | Dev server on port 10001, with hot reload |
 | `npm run build` | Library build &rarr; `dist/`: the ESM entry, the `BP3DJS` IIFE, and the declarations |
 | `npm run build:demo` | Application build &rarr; `dist-demo/` |
-| `npm test` | The vitest suite (1,385 tests, headless) |
+| `npm test` | The vitest suite (1,541 tests, headless) |
 | `npm run test:coverage` | The same suite, with coverage and its thresholds |
 | `npm run test:browser` | The browser tier: real canvas, real WebGL, axe (needs chromium) |
 | `npm run lint` | ESLint |
@@ -96,7 +96,7 @@ blocks.
 
 Checking is **opt-in per file**: a file joins by putting `// @ts-check` on its
 first line, or on the first line inside `<script setup>`. Every file is in, all
-105 of them, with zero errors — the library tier went from 355 errors to none in
+108 of them, with zero errors — the library tier went from 355 errors to none in
 RM-005 C2, so `npm run typecheck` rather than an audit somebody remembers to run
 is what fails on a regression. The ledger of what is in, and what each
 remaining area would cost, is at the top of
@@ -109,6 +109,7 @@ remaining area would cost, is at the top of
 |---|---|
 | **Workspace** | <kbd>1</kbd> plan · <kbd>2</kbd> split · <kbd>3</kbd> 3D. In split, drag the divider between the panes. |
 | **Drawing** | <kbd>V</kbd> select · <kbd>W</kbd> draw walls · <kbd>R</kbd> rectangular room · <kbd>X</kbd> delete · <kbd>S</kbd> snap to grid. Hold <kbd>Shift</kbd> while drawing for the grid too. While drawing, type an exact length and angle in the bar at the top. |
+| **Annotating** | <kbd>D</kbd> dimension between two points · <kbd>T</kbd> text label. A room's name, type and ceiling height are in the panel; north is under Settings &rarr; Plan. |
 | **Zoom** | Wheel over the plan, or <kbd>+</kbd> / <kbd>-</kbd>. <kbd>Shift</kbd><kbd>F</kbd> frames the whole plan. |
 | **Furniture** | <kbd>A</kbd> opens the catalog. It stays open while you pick, and searches all 168 models. |
 | **Editing** | <kbd>⌘Z</kbd> / <kbd>⌘⇧Z</kbd> undo and redo · <kbd>⌘D</kbd> duplicate · <kbd>Del</kbd> delete. |
@@ -177,7 +178,7 @@ public/        assets the running app loads (models, textures, thumbnails)
 asset-pipeline/ inputs and records that are not served: the 25 pre-migration
                three.js JSON models the .glb files were converted from, the
                .blend authoring files, and the conversion report
-tests/         1,385 headless tests; see tests/README.md
+tests/         1,541 headless tests; see tests/README.md
 tools/         one-off and migration tooling (conversion, goldens, parity)
 docs/          this documentation site
 ```

@@ -24,6 +24,8 @@ import Wall2DInspector from '../src/app/inspector/Wall2DInspector.vue';
 import ItemInspector from '../src/app/inspector/ItemInspector.vue';
 import SurfaceInspector from '../src/app/inspector/SurfaceInspector.vue';
 import TexturePicker from '../src/app/inspector/TexturePicker.vue';
+import DimensionInspector from '../src/app/inspector/DimensionInspector.vue';
+import AnnotationInspector from '../src/app/inspector/AnnotationInspector.vue';
 import App from '../src/app/App.vue';
 
 import textures from '../src/catalog/textures.json';
@@ -33,7 +35,7 @@ import {dimCentiMeter, dimMeter} from '../src/scripts/core/units.js';
 import {Dimensioning} from '../src/scripts/core/dimensioning.js';
 import {WallTypes} from '../src/scripts/core/constants.js';
 import {SELECTION_WALL, SELECTION_FLOOR} from '../src/app/composables/useSelection.js';
-import {EVENT_CORNER_2D_CLICKED} from '../src/scripts/core/events.js';
+import {EVENT_CORNER_2D_CLICKED, EVENT_ROOM_2D_CLICKED, EVENT_DIMENSION_2D_CLICKED, EVENT_ANNOTATION_2D_CLICKED} from '../src/scripts/core/events.js';
 import {syncDisplayUnit} from '../src/app/composables/useDisplayUnit.js';
 
 import {buildSquareRoom, resetAll} from './helpers/harness.js';
@@ -194,6 +196,201 @@ describe('RoomInspector', () =>
 		// with the label drawn on the plan, including the squared conversion.
 		expect(wrapper.find('.inspector-readout').text())
 			.toContain(Dimensioning.cmToMeasure(room.area, 2));
+
+		wrapper.unmount();
+	});
+});
+
+describe('RoomInspector, what a room is for and how high (RM-008 E3)', () =>
+{
+	it('sets the type without touching the name', async () =>
+	{
+		const {floorplan} = buildSquareRoom();
+		const room = floorplan.getRooms()[0];
+		const floorplanner = fakeFloorplanner();
+		const wrapper = mount(RoomInspector, {props: {room, floorplanner}});
+
+		const input = fieldNamed(wrapper, 'Type');
+		input.element.value = 'Bedroom';
+		await input.trigger('input');
+
+		expect(room.type).toBe('Bedroom');
+		expect(room.name).toBe('A New Room');
+		expect(floorplanner.redraws).toBe(1);
+
+		wrapper.unmount();
+	});
+
+	/**
+	 * The field writes the corners, because that is where a ceiling height lives -
+	 * E2 measured that a wall's drawn top comes from its two corners' elevations,
+	 * so a second stored number could disagree with the geometry.
+	 */
+	it('raises the ceiling by raising every corner of the room', async () =>
+	{
+		const {floorplan, corners} = buildSquareRoom();
+		const room = floorplan.getRooms()[0];
+		const wrapper = mount(RoomInspector, {props: {room, floorplanner: fakeFloorplanner()}});
+
+		await setField(wrapper, 'Ceiling height', 320);
+
+		corners.forEach((corner) => {expect(corner.elevation).toBe(320);});
+		expect(fieldNamed(wrapper, 'Ceiling height').element.value).toBe('320');
+
+		wrapper.unmount();
+	});
+
+	it('says the ceiling slopes when the corners disagree', async () =>
+	{
+		const {floorplan, corners} = buildSquareRoom();
+		const room = floorplan.getRooms()[0];
+		corners[0].elevation = 400;
+		const wrapper = mount(RoomInspector, {props: {room}});
+		await nextTick();
+
+		expect(wrapper.find('.inspector-note').text()).toContain('slopes');
+
+		wrapper.unmount();
+	});
+});
+
+describe('DimensionInspector (RM-008 E3)', () =>
+{
+	function aDimension()
+	{
+		const {floorplan} = buildSquareRoom();
+		return floorplan.newDimension(0, 0, 400, 0, {offset: 40});
+	}
+
+	it('reports the measurement the way the canvas labels it', () =>
+	{
+		const dimension = aDimension();
+		const wrapper = mount(DimensionInspector, {props: {dimension}});
+
+		expect(wrapper.find('.inspector-readout').text()).toContain(Dimensioning.cmToMeasure(400));
+
+		wrapper.unmount();
+	});
+
+	it('moves the line, and puts it on the other side', async () =>
+	{
+		const dimension = aDimension();
+		const wrapper = mount(DimensionInspector, {props: {dimension}});
+
+		await setField(wrapper, 'Offset', 90);
+		expect(dimension.offset).toBe(90);
+
+		await wrapper.findAll('button').find((button) => button.text().includes('other side')).trigger('click');
+		expect(dimension.offset).toBe(-90);
+
+		wrapper.unmount();
+	});
+
+	/**
+	 * Invisible on the canvas and the thing that decides what happens next: a
+	 * pinned end follows its corner when the plan is edited, a free one does not.
+	 */
+	it('says how many of its ends follow a corner', async () =>
+	{
+		const {floorplan, corners} = buildSquareRoom();
+		const dimension = floorplan.newDimension(0, 0, 400, 0, {
+			aCorner: corners[0].id, bCorner: corners[1].id,
+		});
+		const wrapper = mount(DimensionInspector, {props: {dimension}});
+
+		expect(wrapper.find('.inspector-note').text()).toContain('Both ends');
+
+		dimension.moveEnd('b', 500, 0);
+		await nextTick();
+
+		expect(wrapper.find('.inspector-note').text()).toContain('One end');
+
+		wrapper.unmount();
+	});
+
+	it('deletes the dimension it is showing', async () =>
+	{
+		const dimension = aDimension();
+		const floorplan = dimension.floorplan;
+		const wrapper = mount(DimensionInspector, {props: {dimension}});
+
+		await wrapper.find('.btn-danger').trigger('click');
+
+		expect(floorplan.dimensions).toHaveLength(0);
+
+		wrapper.unmount();
+	});
+});
+
+describe('AnnotationInspector (RM-008 E3)', () =>
+{
+	function anAnnotation()
+	{
+		const {floorplan} = buildSquareRoom();
+		return floorplan.newAnnotation(100, 100, 'Note');
+	}
+
+	it('writes the text as it is typed, like the room name', async () =>
+	{
+		const annotation = anAnnotation();
+		const wrapper = mount(AnnotationInspector, {props: {annotation}});
+
+		const input = wrapper.find('.field-input');
+		input.element.value = 'Service duct';
+		await input.trigger('input');
+
+		expect(annotation.text).toBe('Service duct');
+
+		wrapper.unmount();
+	});
+
+	it('offers four sizes and sets the one pressed', async () =>
+	{
+		const annotation = anAnnotation();
+		const wrapper = mount(AnnotationInspector, {props: {annotation}});
+
+		const segments = wrapper.findAll('.segment');
+		expect(segments).toHaveLength(4);
+		await segments[3].trigger('click');
+
+		expect(annotation.size).toBe(Number(segments[3].text()));
+
+		wrapper.unmount();
+	});
+
+	/**
+	 * The reason the text tool drops back to the pointer after placing a label:
+	 * the gesture starts on the canvas and finishes in this field, without a
+	 * second click to find it.
+	 */
+	it('takes focus on the next frame, so a freshly placed label can just be typed', async () =>
+	{
+		const annotation = anAnnotation();
+		const wrapper = mount(AnnotationInspector, {props: {annotation}, attachTo: document.body});
+
+		// A frame, not a tick, and the delay is the whole point. This panel mounts
+		// *during* the click that created the label - the mousedown handler creates
+		// it and Vue flushes in a microtask - so focusing on mount lands and is then
+		// undone by that same mousedown's default action. Measured in a real
+		// browser as a focusin on the input immediately followed by a focusout,
+		// with activeElement settling on <body>, and the visible symptom was that
+		// typing "Living area" went to the shortcut map and opened the catalog.
+		await new Promise((resolve) => {window.requestAnimationFrame(() => {resolve(null);});});
+
+		expect(document.activeElement).toBe(wrapper.find('.field-input').element);
+
+		wrapper.unmount();
+	});
+
+	it('deletes the label it is showing', async () =>
+	{
+		const annotation = anAnnotation();
+		const floorplan = annotation.floorplan;
+		const wrapper = mount(AnnotationInspector, {props: {annotation}});
+
+		await wrapper.find('.btn-danger').trigger('click');
+
+		expect(floorplan.annotations).toHaveLength(0);
 
 		wrapper.unmount();
 	});
@@ -556,6 +753,82 @@ describe('the inspector inside the app', () =>
 
 		expect(tab(wrapper, 'Selection').classes()).toContain('is-active');
 		expect(wrapper.find('.inspector-heading').text()).toBe('Corner');
+
+		wrapper.unmount();
+	});
+
+	/**
+	 * Found by driving the assembled application rather than by mounting a
+	 * component: with a room selected, typing a north bearing in Settings threw
+	 * the panel over to the Selection tab - away from the field being typed into.
+	 *
+	 * The cause is that `useSelection` resolves the selected entity afresh on
+	 * every revision, so `{type, object}` is a new object even when the same thing
+	 * is still selected, and the panel watched that wrapper. It watches the
+	 * identity now. "Clicking something opens its panel" is the behaviour; "the
+	 * model said look again" is not.
+	 */
+	it('stays on Settings when an annotation changes under a live selection', async () =>
+	{
+		const wrapper = await mountApp();
+		const blueprint = wrapper.vm.$.setupState.store.instance.value;
+		const floorplan = blueprint.model.floorplan;
+
+		floorplan.dispatchEvent({type: EVENT_ROOM_2D_CLICKED, item: floorplan.getRooms()[0]});
+		await nextTick();
+		expect(tab(wrapper, 'Selection').classes()).toContain('is-active');
+
+		await tab(wrapper, 'Settings').trigger('click');
+		await nextTick();
+		expect(tab(wrapper, 'Settings').classes()).toContain('is-active');
+
+		floorplan.north = 45;
+		await nextTick();
+
+		expect(tab(wrapper, 'Settings').classes()).toContain('is-active');
+
+		wrapper.unmount();
+	});
+
+	it('opens the right panel for a dimension and for a label (RM-008 E3)', async () =>
+	{
+		const wrapper = await mountApp();
+		const blueprint = wrapper.vm.$.setupState.store.instance.value;
+		const floorplan = blueprint.model.floorplan;
+		const dimension = floorplan.newDimension(0, 0, 400, 0);
+		const annotation = floorplan.newAnnotation(200, 200, 'Hall');
+
+		floorplan.dispatchEvent({type: EVENT_DIMENSION_2D_CLICKED, item: dimension, id: dimension.id});
+		await nextTick();
+		expect(wrapper.find('.inspector-heading').text()).toBe('Dimension');
+
+		floorplan.dispatchEvent({type: EVENT_ANNOTATION_2D_CLICKED, item: annotation, id: annotation.id});
+		await nextTick();
+		expect(wrapper.find('.inspector-heading').text()).toBe('Label');
+
+		wrapper.unmount();
+	});
+
+	/**
+	 * A selection has to stop being one when the thing it named is removed, or
+	 * the panel goes on editing something no longer in the design - which is the
+	 * whole reason RM-003 A3 made the selection hold an id.
+	 */
+	it('closes the panel when the annotation it was showing is deleted', async () =>
+	{
+		const wrapper = await mountApp();
+		const blueprint = wrapper.vm.$.setupState.store.instance.value;
+		const floorplan = blueprint.model.floorplan;
+		const annotation = floorplan.newAnnotation(200, 200, 'Hall');
+
+		floorplan.dispatchEvent({type: EVENT_ANNOTATION_2D_CLICKED, item: annotation, id: annotation.id});
+		await nextTick();
+		expect(wrapper.find('.inspector-heading').text()).toBe('Label');
+
+		floorplan.removeAnnotation(annotation);
+		await nextTick();
+
+		expect(wrapper.find('.inspector-empty').exists()).toBe(true);
 
 		wrapper.unmount();
 	});
