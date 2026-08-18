@@ -41,6 +41,8 @@ const curved = ref(false);
 const length = ref(0);
 const thickness = ref(0);
 const ownThickness = ref(false);
+const partial = ref(0);
+const isHalfWall = ref(false);
 
 const canSetLength = computed(() => !curved.value);
 
@@ -50,6 +52,9 @@ function readBack()
 	length.value = Dimensioning.cmToMeasureRaw(props.wall.wallSize);
 	thickness.value = Dimensioning.cmToMeasureRaw(props.wall.thickness);
 	ownThickness.value = props.wall.hasOwnThickness;
+	isHalfWall.value = props.wall.partialHeight !== null;
+	partial.value = Dimensioning.cmToMeasureRaw(
+		props.wall.partialHeight === null ? props.wall.drawnHeightAt(props.wall.getStart()) : props.wall.partialHeight);
 }
 
 function redraw()
@@ -76,6 +81,28 @@ function setCurved(next)
 function setThickness(next)
 {
 	props.wall.thickness = Dimensioning.cmFromMeasureRaw(next);
+	readBack();
+	redraw();
+}
+
+/**
+ * Stop this wall below its corners, or let it reach them again (RM-008 F2).
+ *
+ * A half wall is one thing here and not a mode: the corners keep the height,
+ * this caps where the faces stop, and nothing else in the plan changes - which
+ * is what makes it safe for a wall inside a room. See `Wall.partialHeight` for
+ * why it is not `Wall.height` and not a corner split; both were tried.
+ */
+function setPartialHeight(next)
+{
+	props.wall.partialHeight = Dimensioning.cmFromMeasureRaw(next);
+	readBack();
+	redraw();
+}
+
+function clearPartialHeight()
+{
+	props.wall.partialHeight = null;
 	readBack();
 	redraw();
 }
@@ -162,10 +189,20 @@ onBeforeUnmount(detach);
 			Use the default thickness
 		</button>
 
+		<NumberField
+			label="Stops at" :unit="unit" :min="0" :step="0.01"
+			:model-value="partial" @update:model-value="setPartialHeight" />
+		<button
+			v-if="isHalfWall" type="button" class="btn w-full justify-center"
+			@click="clearPartialHeight">
+			Full height again
+		</button>
+
 		<p class="inspector-note">
-			Wall height is set per corner &mdash; double-click a corner on the plan,
-			or select one, and set its elevation. Two walls meeting at a corner share
-			its height.
+			Full wall height is set per corner &mdash; double-click a corner on the
+			plan, or select one, and set its elevation. Two walls meeting at a corner
+			share its height, so &ldquo;stops at&rdquo; is how one wall is made a half
+			wall without lowering its neighbour.
 		</p>
 	</section>
 </template>

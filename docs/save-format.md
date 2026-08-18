@@ -81,6 +81,7 @@ An array. Each wall names the two corners it spans:
 | `wallType` | `"STRAIGHT"` or `"CURVED"`. |
 | `a`, `b` | Bezier control points. Only meaningful when `wallType` is `"CURVED"`, but always written. |
 | `thickness` | Centimetres. **Optional**, and written only for a wall somebody gave a thickness of its own. |
+| `partialHeight` | Centimetres. **Optional**, and written only for a half wall — one whose faces stop below its corners (RM-008 F2). Absent means the wall reaches its corners, which is every wall in every older file. |
 
 `a` and `b` are centimetres, like everything else in a 2.0.0 file. They always
 were, which in 0.0.2a made them disagree with the corners.

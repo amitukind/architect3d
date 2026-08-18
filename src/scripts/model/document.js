@@ -278,6 +278,18 @@ function validateFloorplan(floorplan, errors, warnings)
 				message: `must be a positive finite number of centimetres when present, not ${JSON.stringify(wall.thickness)}`,
 			});
 		}
+
+		// Optional since RM-008 F2 - absent means "as high as its corners", which
+		// is every wall in every older file. A zero or negative one is a wall with
+		// no height, which draws nothing where a wall should be.
+		if (wall.partialHeight !== undefined && wall.partialHeight !== null
+			&& (typeof wall.partialHeight !== 'number' || !isFinite(wall.partialHeight) || wall.partialHeight <= 0))
+		{
+			errors.push({
+				path: `floorplan.walls[${index}].partialHeight`,
+				message: `must be a positive finite number of centimetres when present, not ${JSON.stringify(wall.partialHeight)}`,
+			});
+		}
 	});
 
 	// Authored collections, additive since RM-008 E3 and absent from every older

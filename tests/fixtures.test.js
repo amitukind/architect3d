@@ -90,7 +90,10 @@ describe('simple-room fixture', () =>
 		expect(floorplan.getCorners().length).toBe(4);
 		expect(floorplan.getWalls().length).toBe(4);
 		expect(floorplan.getRooms().length).toBe(1);
-		expect(Math.round(floorplan.getRooms()[0].area)).toBe(120000);
+		// The centreline figure, which is what a fixture pins: `area` became the
+		// interior polygon in RM-008 F2 and depends on wall thickness, where a
+		// fixture is about the coordinates in the file (RM-009 U-7).
+		expect(Math.round(floorplan.getRooms()[0].centrelineArea)).toBe(120000);
 	});
 
 	it('has only straight walls', () =>
@@ -117,7 +120,7 @@ describe('rich-design fixture', () =>
 	{
 		resetAll();
 		const {floorplan} = loadFixture('rich-design');
-		const areas = floorplan.getRooms().map((r) => Math.round(r.area)).sort((a, b) => a - b);
+		const areas = floorplan.getRooms().map((r) => Math.round(r.centrelineArea)).sort((a, b) => a - b);
 		expect(areas).toEqual([160000, 200000]);
 	});
 
@@ -208,7 +211,7 @@ describe('curved-walls fixture', () =>
 		const {floorplan} = loadFixture('curved-walls');
 		// 600 x 450 would be 270000 if all four walls were straight; the two
 		// curved walls bow inward, so the sampled area is smaller.
-		expect(Math.round(floorplan.getRooms()[0].area)).toBe(144564);
+		expect(Math.round(floorplan.getRooms()[0].centrelineArea)).toBe(144564);
 	});
 
 	it('contains no items, because wall-bound items crash on curved walls today', () =>

@@ -441,6 +441,35 @@ export class Room extends EventDispatcher
 		return Utils.pointInPolygon2(pt, polygon);
 	}
 
+	/**
+	 * The area of the polygon the room's interior faces enclose, in cm²
+	 * (RM-008 F2).
+	 *
+	 * Zero for a room whose interior corners have not been derived yet, which is
+	 * a room mid-rebuild rather than a room with no floor - and zero is the
+	 * honest answer for something that cannot be measured yet.
+	 *
+	 * @returns {number}
+	 */
+	interiorArea()
+	{
+		if (!this.interiorCorners || this.interiorCorners.length < 3)
+		{
+			return 0;
+		}
+		// The shoelace formula, rather than `Region` - `Region` takes the whole
+		// sampled polygon and this needs the corners exactly as the half edges
+		// mitred them.
+		var total = 0;
+		for (var i = 0; i < this.interiorCorners.length; i++)
+		{
+			var here = this.interiorCorners[i];
+			var next = this.interiorCorners[(i + 1) % this.interiorCorners.length];
+			total += (here.x * next.y) - (next.x * here.y);
+		}
+		return Math.abs(total / 2);
+	}
+
 	updateInteriorCorners()
 	{
 		// See setRoomWallsTexture: null only for a cornerless room.
@@ -522,9 +551,37 @@ export class Room extends EventDispatcher
 		
 		points = allpoints;		
 		region  = new Region(points);
-		this.area = Math.abs(region.area());
+		/**
+		 * The area between the wall CENTRELINES, which is what this class has
+		 * always computed and what a builder measures. Kept, because it is a real
+		 * figure and somebody wants it - it is just not the one to put on a plan.
+		 *
+		 * @type {number}
+		 */
+		this.centrelineArea = Math.abs(region.area());
 		this.areaCenter = region.centroid();		
 		this._polygonPoints = points;
+		/**
+		 * The floor a person can stand on (RM-009 U-7, RM-008 F2).
+		 *
+		 * `area` used to be the centreline figure above, which is neither the
+		 * inside of the room nor the outside: a 400 x 400 room at the default
+		 * 10 cm walls reported 16.00 m² where the floor is 15.21, over by 5.2 %,
+		 * and by about 19 % at 40 cm walls. Usable floor area is one of the two or
+		 * three numbers anybody actually wants from a plan, so it is the one on it.
+		 *
+		 * The interior polygon is the room's half edges' mitred interior corners -
+		 * the same points the 3D floor is built from - so the number and the
+		 * surface agree by construction.
+		 *
+		 * One stated limitation: for a CURVED wall the interior polygon takes the
+		 * straight chord between its two interior corners, where the centreline
+		 * figure above samples the bezier. A curved room is therefore understated
+		 * by its bulge. That is a smaller error than the 5.2 % this replaces, it
+		 * applies to curved rooms rather than to every room, and offsetting a
+		 * sampled bezier is a geometry problem rather than an area one.
+		 */
+		this.area = this.interiorArea();
 		this.dispatchEvent({type:EVENT_ROOM_ATTRIBUTES_CHANGED, item:this, info:{from: oldarea, to: this.area}});
 	}
 	

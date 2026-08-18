@@ -19,6 +19,16 @@ import {useDisplayUnit} from '../composables/useDisplayUnit.js';
  * anticipated has to be able to say "Puja room" - so the type is free text with
  * the common answers offered, not a closed list.
  *
+ * ## Two areas, and the one on the plan is the floor
+ *
+ * `Room.area` was the area between the wall *centrelines*, which is neither the
+ * inside of the room nor the outside: a 400 x 400 room at the default 10 cm
+ * walls reported 16.00 m² where the floor is 15.21, over by 5.2 %, and by about
+ * 23 % at 40 cm walls (RM-009 U-7). RM-008 F2 made `area` the interior polygon,
+ * because usable floor area is one of the two or three numbers anybody actually
+ * wants from a plan. The centreline figure is kept and shown beneath it, because
+ * it is a real number that a builder measures.
+ *
  * ## Ceiling height is the corners
  *
  * There is no stored per-room ceiling height, and that is a finding rather than
@@ -50,6 +60,7 @@ const ROOM_TYPES = [
 const name = ref('');
 const type = ref('');
 const area = ref('');
+const centrelineArea = ref('');
 const ceiling = ref(0);
 const uniformCeiling = ref(true);
 
@@ -67,6 +78,7 @@ function readBack()
 	name.value = props.room.name;
 	type.value = props.room.type || '';
 	area.value = Dimensioning.cmToMeasure(props.room.area || 0, 2);
+	centrelineArea.value = Dimensioning.cmToMeasure(props.room.centrelineArea || 0, 2);
 	ceiling.value = Dimensioning.cmToMeasureRaw(props.room.ceilingHeight);
 	uniformCeiling.value = props.room.hasUniformCeiling;
 }
@@ -174,7 +186,8 @@ onBeforeUnmount(detach);
 			:model-value="ceiling" @update:model-value="setCeiling" />
 
 		<p class="inspector-readout">
-			Area <strong>{{ area }}&sup2;</strong>
+			Floor area <strong>{{ area }}&sup2;</strong><br>
+			<span class="opacity-70">To wall centres {{ centrelineArea }}&sup2;</span>
 		</p>
 
 		<p class="inspector-note">{{ ceilingNote }}</p>

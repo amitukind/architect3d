@@ -642,6 +642,88 @@ export class HalfEdge extends EventDispatcher
 		var scalar = desiredMag / mag;
 
 		var halfAngleVector = {x:vx * scalar, y:vy * scalar};//new Vector2(vx * scalar, vy * scalar);
-		return halfAngleVector;
+
+		// Two walls of different thickness meeting at a corner (RM-009 U-7).
+		//
+		// Everything above mitres with `this.offset` - the offset of whichever
+		// half edge the method was called on - so at a corner between a 40 cm wall
+		// and a 10 cm one, `A.interiorEnd()` mitres as if both were 20 and
+		// `B.interiorStart()` as if both were 5. The two interior faces therefore
+		// do not meet: measured on a 400 x 400 room, wall A's face ends at
+		// (380, 20) and wall B's starts at (395, 5), and the room's floor polygon
+		// runs 15 cm inside wall A's inner face.
+		//
+		// That was unreachable until RM-008 E2 gave walls their own thickness,
+		// which is why it has never shown. Corrected only when the two offsets
+		// actually differ: when they are equal this returns the vector it always
+		// returned, bit for bit, so every existing design and every frozen r98
+		// golden is untouched.
+		return this.mitreDifferingOffsets(v1, v2, halfAngleVector);
+	}
+
+	/**
+	 * Where two interior faces of different offsets actually meet (RM-009 U-7).
+	 *
+	 * The intersection of the two offset lines, which is what a mitre is. Returns
+	 * `fallback` unchanged whenever the two offsets are equal - the case every
+	 * design had before per-wall thickness - and whenever the two edges are
+	 * parallel, where there is no intersection to find and the equal-offset mitre
+	 * is still the best answer available.
+	 *
+	 * @param {?HalfEdge} v1 The edge arriving at the corner.
+	 * @param {?HalfEdge} v2 The edge leaving it.
+	 * @param {{x: number, y: number}} fallback What the equal-offset mitre gave.
+	 * @returns {{x: number, y: number}} Relative to the corner, as `fallback` is.
+	 */
+	mitreDifferingOffsets(v1, v2, fallback)
+	{
+		if (!v1 || !v2 || v1 === v2)
+		{
+			return fallback;
+		}
+		var o1 = v1.offset;
+		var o2 = v2.offset;
+		if (Math.abs(o1 - o2) < 1e-9)
+		{
+			return fallback;
+		}
+		var d1 = new Vector2(v1.getEnd().x - v1.getStart().x, v1.getEnd().y - v1.getStart().y);
+		var d2 = new Vector2(v2.getEnd().x - v2.getStart().x, v2.getEnd().y - v2.getStart().y);
+		if (d1.length() < 1e-9 || d2.length() < 1e-9)
+		{
+			return fallback;
+		}
+		d1.normalize();
+		d2.normalize();
+		// Which side is the interior, taken from the mitre that was just computed
+		// rather than assumed: it already points inward, so the normal that agrees
+		// with it is the inward one. That keeps this correct for a room wound
+		// either way without this method having to know which.
+		var n1 = new Vector2(-d1.y, d1.x);
+		var n2 = new Vector2(-d2.y, d2.x);
+		if ((n1.x * fallback.x) + (n1.y * fallback.y) < 0)
+		{
+			n1.multiplyScalar(-1);
+		}
+		if ((n2.x * fallback.x) + (n2.y * fallback.y) < 0)
+		{
+			n2.multiplyScalar(-1);
+		}
+		// Line 1 through corner + n1*o1 along d1, line 2 through corner + n2*o2
+		// along d2, both relative to the corner so the result is a vector.
+		var cross = (d1.x * d2.y) - (d1.y * d2.x);
+		if (Math.abs(cross) < 1e-9)
+		{
+			// Parallel: no intersection. Two collinear walls of different thickness
+			// have a step in them, and where that step goes is a modelling question
+			// rather than a mitre.
+			return fallback;
+		}
+		var p1x = n1.x * o1;
+		var p1y = n1.y * o1;
+		var p2x = n2.x * o2;
+		var p2y = n2.y * o2;
+		var t = (((p2x - p1x) * d2.y) - ((p2y - p1y) * d2.x)) / cross;
+		return {x: p1x + d1.x * t, y: p1y + d1.y * t};
 	}
 }

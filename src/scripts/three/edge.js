@@ -458,8 +458,12 @@ export class Edge extends EventDispatcher
 		var v3 = v2.clone();
 		var v4 = v1.clone();
 		
-		v3.y = this.edge.getEnd().elevation;
-		v4.y = this.edge.getStart().elevation;
+		// A half wall stops below its corners (RM-008 F2). `drawnHeightAt` is the
+		// corner's elevation capped by `Wall.partialHeight`, which is null for
+		// every wall anybody has ever drawn - so this is the corner elevation
+		// unchanged for every existing design, and every frozen r98 golden with it.
+		v3.y = this.wall.drawnHeightAt(this.edge.getEnd());
+		v4.y = this.wall.drawnHeightAt(this.edge.getStart());
 		
 		var points = [v1.clone(), v2.clone(), v3.clone(), v4.clone()];
 
@@ -484,7 +488,9 @@ export class Edge extends EventDispatcher
 		// unaffected because it draws the graph rather than the mesh. Seven of the
 		// ten catalog openings are that size, which is why none of them was ever
 		// noticed to be unusable.
-		var wallTop = Math.max(this.edge.getStart().elevation, this.edge.getEnd().elevation);
+		var wallTop = Math.max(
+			this.wall.drawnHeightAt(this.edge.getStart()),
+			this.wall.drawnHeightAt(this.edge.getEnd()));
 		this.wall.items.forEach((item) => {
 			var pos = item.position.clone();
 			pos.applyMatrix4(transform);

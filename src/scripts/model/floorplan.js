@@ -493,21 +493,19 @@ export class Floorplan extends EventDispatcher
 	 *            in this repository.
 	 * @returns {Corner} The new corner.
 	 */
-	newCorner(x, y, id)
+	/**
+	 * Subscribe to a corner this plan owns.
+	 *
+	 * Extracted from `newCorner` by RM-008 F2 so that `splitCorner` wires its
+	 * replacement corner up with exactly the same three listeners rather than a
+	 * copy of them. The bodies are unchanged.
+	 *
+	 * @param {Corner} corner
+	 * @returns {void}
+	 */
+	_listenToCorner(corner)
 	{
 		var scope = this;
-		var corner = new Corner(this, x, y, id);
-		
-		for (var i=0;i<this.corners.length;i++)
-		{
-				var existingCorner = this.corners[i];
-				if(existingCorner.distanceFromCorner(corner) < cornerTolerance)
-				{
-					return existingCorner;
-				}
-		}
-		
-		this.corners.push(corner);
 		corner.addEventListener(EVENT_DELETED, function(o)
 				{scope.removeCorner(o.item);}
 		);
@@ -523,6 +521,23 @@ export class Floorplan extends EventDispatcher
 			updatecorners.push(o.item);
 			scope.update(false, updatecorners);
 			});
+	}
+
+	newCorner(x, y, id)
+	{
+		var corner = new Corner(this, x, y, id);
+		
+		for (var i=0;i<this.corners.length;i++)
+		{
+				var existingCorner = this.corners[i];
+				if(existingCorner.distanceFromCorner(corner) < cornerTolerance)
+				{
+					return existingCorner;
+				}
+		}
+		
+		this.corners.push(corner);
+		this._listenToCorner(corner);
 		
 		this.dispatchEvent({type: EVENT_NEW, item: this, newItem: corner});
 
@@ -999,6 +1014,13 @@ export class Floorplan extends EventDispatcher
 				{
 					record['thickness'] = wall.thickness;
 				}
+				// Additive and conditional for the same reason (RM-008 F2): null is
+				// "as high as its corners", which is every wall anybody has drawn, and
+				// writing it would turn every file into a different file.
+				if (wall.partialHeight !== null)
+				{
+					record['partialHeight'] = wall.partialHeight;
+				}
 				floorplans.walls.push(record);
 				cornerIds.push(wall.getStart());
 				cornerIds.push(wall.getEnd());
@@ -1229,6 +1251,11 @@ export class Floorplan extends EventDispatcher
 			if (typeof wall.thickness === 'number')
 			{
 				newWall.thickness = wall.thickness;
+			}
+			// Additive since RM-008 F2, absent from every older file.
+			if (typeof wall.partialHeight === 'number')
+			{
+				newWall.partialHeight = wall.partialHeight;
 			}
 		});
 

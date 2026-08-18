@@ -46,7 +46,7 @@ are checked in under `public/`, which Vite serves at the site root.
 | `npm run dev` | Dev server on port 10001, with hot reload |
 | `npm run build` | Library build &rarr; `dist/`: the ESM entry, the `BP3DJS` IIFE, and the declarations |
 | `npm run build:demo` | Application build &rarr; `dist-demo/` |
-| `npm test` | The vitest suite (1,593 tests, headless) |
+| `npm test` | The vitest suite (1,647 tests, headless) |
 | `npm run test:coverage` | The same suite, with coverage and its thresholds |
 | `npm run test:browser` | The browser tier: real canvas, real WebGL, axe (needs chromium) |
 | `npm run lint` | ESLint |
@@ -96,7 +96,7 @@ blocks.
 
 Checking is **opt-in per file**: a file joins by putting `// @ts-check` on its
 first line, or on the first line inside `<script setup>`. Every file is in, all
-110 of them, with zero errors — the library tier went from 355 errors to none in
+113 of them, with zero errors — the library tier went from 355 errors to none in
 RM-005 C2, so `npm run typecheck` rather than an audit somebody remembers to run
 is what fails on a regression. The ledger of what is in, and what each
 remaining area would cost, is at the top of
@@ -179,7 +179,7 @@ public/        assets the running app loads (models, textures, thumbnails)
 asset-pipeline/ inputs and records that are not served: the 25 pre-migration
                three.js JSON models the .glb files were converted from, the
                .blend authoring files, and the conversion report
-tests/         1,593 headless tests; see tests/README.md
+tests/         1,647 headless tests; see tests/README.md
 tools/         one-off and migration tooling (conversion, goldens, parity)
 docs/          this documentation site
 ```

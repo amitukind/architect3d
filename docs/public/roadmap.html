@@ -4181,7 +4181,7 @@ if(this.halfSize.x &lt; 1.0)
     <div class="sprint-head">
       <span class="sprint-no">F2</span>
       <h3>Openings, half walls and the join audit</h3>
-      <div class="meta"><span class="chip acc">proposed</span><span class="chip">Q-3</span><span class="chip crit">U-5</span><span class="chip">U-7</span><span class="chip">1.5 wk</span></div>
+      <div class="meta"><span class="chip warn">part done</span><span class="chip">Q-3</span><span class="chip crit">U-5</span><span class="chip">U-7</span><span class="chip">1.5 wk</span></div>
     </div>
     <p class="goal"><strong>Objective.</strong> A hole with nothing in it, a wall that stops at waist height, and the two things per-wall thickness broke.</p>
     <ul>
@@ -4196,6 +4196,23 @@ if(this.halfSize.x &lt; 1.0)
         <li><strong>M-36 = the room is the floor.</strong> A room's reported area equals its interior polygon's area for every fixture, at every wall thickness, and a 400 &times; 400 room at 10 cm walls reads 15.21 m&sup2;</li>
         <li>Two walls of different thickness meeting at a corner produce interior faces that share a point &mdash; asserted on the polygon, not on a picture</li>
         <li>A half wall lowers its own corners and no others</li>
+      </ul>
+    </div>
+
+    <div class="gate">
+      <div class="g-head">LANDED &mdash; F2, WITH ONE PART OUTSTANDING</div>
+      <ul>
+        <li><strong>M-36 is met: a room's area is its floor.</strong> The centreline figure was over by 5.2&nbsp;% at the default 10&nbsp;cm walls and by <strong>23.5&nbsp;%</strong> at 40 &mdash; a 400&nbsp;&times;&nbsp;400 room reporting 16.00&nbsp;m&sup2; where the floor is 15.21. It is the interior polygon now, and the centreline figure is kept as <code>Room.centrelineArea</code> and shown beneath it, because it is a real number that a builder measures. Eleven characterization tests pinned the old figure; every one was re-checked and <em>re-pointed</em> rather than re-numbered, because those tests are about room detection and the centreline polygon is what answers that question.</li>
+
+        <li><strong>The join is closed, and only where it was broken.</strong> <code>halfAngleVector</code> mitres with the offset of whichever half edge it was called on, so a 40&nbsp;cm wall's face ended at (380,&nbsp;20) where the 10&nbsp;cm wall's began at (395,&nbsp;5). The correction runs only when the two offsets actually differ; when they are equal the mitre is the one this class always computed, bit for bit, so every existing design and every frozen r98 golden is untouched.</li>
+
+        <li><strong>Half walls took two failures to get right, and both were measured.</strong> RM-007 said per-wall height; E2 had already measured that <code>Wall.height</code> does not set a wall's height. This drawing then said corners, giving a wall its own pair &mdash; and <strong>that was built and it deletes rooms</strong>: two coincident corners break the cycle the room detector walks, and <code>newCorner</code>'s merge tolerance meant the split did not survive a save either. <code>Wall.partialHeight</code> caps the drawn top of one wall's faces and touches neither the graph nor the corners nor <code>height</code>, so every room, every neighbour and every golden is unaffected.</li>
+
+        <li><strong>Openings with nothing in them were already there.</strong> F1's description makes an archway the same five numbers with no leaf and no pane, which is what this drawing predicted when it said F2's first bullet would be nearly free.</li>
+
+        <li><strong>One part is outstanding: columns and beams as parametric items.</strong> They need a new item class, a new type number, catalog rows, an inspector and their own round-trip tests &mdash; an F1-sized slice rather than the line RM-007 makes them look like &mdash; and shipping a new <em>persisted</em> item type without tests would be worse than not shipping it. Recorded here rather than quietly dropped.</li>
+
+        <li><strong>15 new tests, 1,647 and 88.</strong> Branches 73.21 &rarr; 73.32; statements, lines and functions flat to within a tenth. No budget moved.</li>
       </ul>
     </div>
   </div>

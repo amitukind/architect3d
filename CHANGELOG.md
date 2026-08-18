@@ -393,6 +393,67 @@ New public API, all additive: `ParametricOpening`,
 `OPENING_DEFAULTS` / `HINGE_LEFT` / `HINGE_RIGHT`, `ItemFootprint.opening`, and
 the optional `opening` field on a saved item.
 
+**RM-008 F2 delivered: half walls, and the two things per-wall thickness broke.**
+
+**A room's area is the floor now.** `Room.area` was the area between the wall
+*centrelines*, which is neither the inside of the room nor the outside: a
+400 × 400 room at the default 10 cm walls reported **16.00 m² where the floor is
+15.21** — over by 5.2 %, and by 23.5 % at 40 cm walls (RM-009 U-7). Usable floor
+area is one of the two or three numbers anybody actually wants from a plan, so it
+is the one on it. The centreline figure is kept as `Room.centrelineArea` and shown
+beneath it, because it is a real number that a builder measures.
+
+Eleven characterization tests pinned the old figure. Every one was re-checked and
+re-pointed at `centrelineArea` rather than re-numbered, and the distinction is the
+reason: those tests are about room *detection* — which cycles are found, and that
+the arithmetic is the shoelace formula rather than a bounding box — and the
+centreline polygon is the one that answers those questions.
+
+**Two walls of different thickness now meet where they join.** `halfAngleVector`
+mitres with the offset of whichever half edge it was called on, so at a corner
+between a 40 cm wall and a 10 cm one, one face ended at (380, 20) and the other
+began at (395, 5): the room's floor ran 15 cm inside the first wall's inner face.
+Unreachable until E2 gave walls their own thickness, which is why it had never
+shown. Corrected only when the two offsets actually differ — when they are equal
+the mitre is the one this class always computed, bit for bit, so every existing
+design and every frozen r98 golden is untouched.
+
+**Half walls are a cap on the drawn top, and getting there took two failures.**
+RM-007 priced them as "per-wall height"; E2 had already measured that
+`Wall.height` does not set a wall's height and declined the parity change that
+would make it. RM-009 F2 therefore drew them on the corners, giving a wall its own
+pair so lowering it would not lower its neighbour. **That was built, and measured,
+and it does not work**: two coincident corners break the cycle the room detector
+walks, so a half wall inside a room deleted the room — and `newCorner` merges
+corners within `cornerTolerance` on load, so the split did not survive a save
+either. Both measured rather than reasoned.
+
+`Wall.partialHeight` touches neither. The wall graph is unchanged, so every room
+stays as it was; the corners are unchanged, so a neighbour is unaffected;
+`Wall.height` is unchanged, so every r98 golden is unaffected. It caps the drawn
+top of one wall's faces and nothing else, which is the whole of what a half wall
+is. Additive and conditional: absent from every file for every wall anybody has
+ever drawn.
+
+Openings with nothing in them — archway and pass-through — were already there:
+F1's description makes an arch the same five numbers with no leaf and no pane,
+which is exactly what its drawing predicted.
+
+**One part of F2 is not delivered: columns and beams as parametric items.** They
+need a new item class, a new type number, catalog rows, an inspector and their own
+round-trip tests — an F1-sized slice rather than the line RM-007 makes them look
+like — and shipping a new persisted item type without tests would be worse than
+not shipping it. Everything else in the sprint is done.
+
+    branches   73.21 -> 73.32      lines      82.65 -> 82.63
+    statements 82.59 -> 82.58      functions  80.36 -> 80.29
+
+15 new tests, 1,647 total and 88 in the browser tier. No budget moved.
+
+New public API, all additive: `Wall.partialHeight` / `drawnHeightAt`,
+`Room.centrelineArea` / `interiorArea`, `HalfEdge.mitreDifferingOffsets`, and the
+optional `partialHeight` field in a saved wall.
+
 ### Everything below this line changed no shipped code
 
 `src/`, `public/` and every build artifact were identical to 3.0.1 for all of

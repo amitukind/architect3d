@@ -161,6 +161,12 @@ export class Wall extends EventDispatcher
 		 * @type {boolean}
 		 */
 		this._thicknessIsOwn = false;
+		/**
+		 * Where this wall's faces stop, or null for the corners (RM-008 F2).
+		 * See {@link Wall#partialHeight}.
+		 * @type {?number}
+		 */
+		this._partialHeight = null;
 
 		/**
 		 * Wall height, in centimetres, snapshotted from the configuration.
@@ -433,6 +439,91 @@ export class Wall extends EventDispatcher
 	{
 		return this._thicknessIsOwn;
 	}
+
+	/**
+	 * Where this wall's faces stop, in centimetres, or null for the corners
+	 * (RM-008 F2).
+	 *
+	 * ## Why this exists when `height` looks like it should
+	 *
+	 * RM-007 priced half walls as "per-wall height", and `Wall.height` looks like
+	 * exactly that field. RM-008 E2 measured that it is not: a wall with `height`
+	 * 400 and its corners at 250 draws a mesh 250 tall, because the drawn top
+	 * comes from the corner elevations. Deriving `height` from them was written
+	 * and reverted - it fails the frozen r98 golden for `edge.plain`, which
+	 * records a texture tiling past the top of a raised wall, and three r98 is
+	 * gone. `height` still feeds the texture repeat and the initial placement of a
+	 * wall item, and is pinned with that measurement beside it.
+	 *
+	 * ## And why not a corner split
+	 *
+	 * RM-009 F2's own drawing said half walls should be built on the corners,
+	 * giving the wall its own pair so lowering it does not lower its neighbour.
+	 * That was built, and measured, and it does not work: **two coincident corners
+	 * break the cycle the room detector walks**, so a half wall inside a room
+	 * deleted the room - and `newCorner` merges corners within `cornerTolerance`
+	 * on load, so the split did not survive a save either. Both measured rather
+	 * than reasoned, which is why the approach changed and the estimate did not.
+	 *
+	 * This field touches neither. The wall graph is unchanged, so every room stays
+	 * as it was; the corners are unchanged, so a neighbour is unaffected; `height`
+	 * is unchanged, so every r98 golden is unaffected. It caps the drawn top of
+	 * this wall's faces and nothing else, which is the whole of what a half wall
+	 * is.
+	 *
+	 * Null - and absent from the file - for every wall anybody has ever drawn.
+	 *
+	 * @returns {?number}
+	 */
+	get partialHeight()
+	{
+		return this._partialHeight;
+	}
+
+	/**
+	 * @param {?number} value Centimetres, or null to go back to the corners.
+	 */
+	set partialHeight(value)
+	{
+		if (value === null || value === undefined)
+		{
+			if (this._partialHeight === null)
+			{
+				return;
+			}
+			var was = this._partialHeight;
+			this._partialHeight = null;
+			this.dispatchEvent({type: EVENT_WALL_ATTRIBUTES_CHANGED, item: this, info: {from: was, to: null}});
+			return;
+		}
+		// A wall with no height is not a wall. Refused rather than clamped, for the
+		// reason the thickness setter gives: a caller that asked for zero has a
+		// bug, and quietly substituting one hides it.
+		if (typeof value !== 'number' || !isFinite(value) || value <= 0 || value === this._partialHeight)
+		{
+			return;
+		}
+		var previous = this._partialHeight;
+		this._partialHeight = value;
+		this.dispatchEvent({type: EVENT_WALL_ATTRIBUTES_CHANGED, item: this, info: {from: previous, to: value}});
+	}
+
+	/**
+	 * How high this wall is drawn at one of its ends (RM-008 F2).
+	 *
+	 * The corner's elevation, or the cap when there is one and it is lower. Never
+	 * higher: a partial height that raised a wall above its corners would leave a
+	 * gap where it meets the next one, and "half wall" is the feature.
+	 *
+	 * @param {import('./corner.js').Corner} corner One of this wall's two.
+	 * @returns {number} Centimetres.
+	 */
+	drawnHeightAt(corner)
+	{
+		var elevation = corner ? corner.elevation : 0;
+		return (this._partialHeight === null) ? elevation : Math.min(elevation, this._partialHeight);
+	}
+
 
 	set wallSize(value)
 	{
