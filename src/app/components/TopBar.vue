@@ -2,7 +2,8 @@
 // @ts-check
 import {PopoverRoot, PopoverTrigger, PopoverPortal, PopoverContent} from 'reka-ui';
 import {
-	FilePlus2, FolderOpen, Save, Undo2, Redo2, Box, Share2,
+	FilePlus2, FolderOpen, Save, Undo2, Redo2, Box, Share2, Printer,
+	Image as ImageIcon,
 	Moon, Sun, Keyboard, PanelRight, ChevronDown, Ruler,
 } from '@lucide/vue';
 
@@ -66,9 +67,19 @@ const props = defineProps({
 
 const emit = defineEmits([
 	'new-design', 'open-design', 'save-design', 'save-mesh', 'save-gltf',
+	'save-plan-svg', 'save-plan-png', 'print-plan',
 	'undo', 'redo', 'set-layout', 'set-unit', 'toggle-theme',
 	'toggle-inspector', 'show-shortcuts',
 ]);
+
+/**
+ * The scales the plan can be exported at (RM-008 E4).
+ *
+ * A short list rather than a free number, because these are the ratios building
+ * drawings are actually issued at - 1:50 for a room, 1:100 for a floor - and a
+ * sheet at 1:73 is a sheet nobody can check with a scale rule.
+ */
+const PLAN_SCALES = [20, 50, 100, 200];
 
 function onFile(event)
 {
@@ -155,6 +166,20 @@ function onUnitChange(event)
 							@click="emit('save-gltf')">
 							<Share2 :size="15" />
 							{{ props.exporting ? 'Exporting glTF…' : 'glTF 2.0' }}
+						</button>
+
+						<p class="eyebrow px-2 py-1.5">Export the plan</p>
+						<button
+							v-for="ratio in PLAN_SCALES" :key="ratio"
+							type="button" class="btn w-full justify-start"
+							@click="emit('save-plan-svg', ratio)">
+							<Ruler :size="15" /> SVG at 1:{{ ratio }}
+						</button>
+						<button type="button" class="btn w-full justify-start" @click="emit('save-plan-png', 2400)">
+							<ImageIcon :size="15" /> PNG, 2400&nbsp;px wide
+						</button>
+						<button type="button" class="btn w-full justify-start" @click="emit('print-plan', 100)">
+							<Printer :size="15" /> Print at 1:100&hellip;
 						</button>
 					</PopoverContent>
 				</PopoverPortal>

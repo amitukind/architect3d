@@ -77,6 +77,8 @@ export {defaultWallTexture, Wall} from './model/wall.js';
 
 //Classes from floorplanner module
 export {floorplannerModes, gridWidth, gridColor, deleteColor} from './floorplanner/floorplanner_view.js';
+export {CanvasBackend, SvgBackend} from './floorplanner/backends.js';
+export {planBounds, scaleProjection, fitProjection, drawTitleBlock, exportPlanSVG, renderPlanToCanvas, PLAN_SCALES, PIXELS_PER_PAPER_CM} from './floorplanner/plan_export.js';
 export {roomColor, roomColorHover, roomColorSelected} from './floorplanner/floorplanner_view.js';
 export {wallWidth, wallWidthHover, wallWidthSelected, wallColor, wallColorHover, wallColorSelected}  from './floorplanner/floorplanner_view.js';
 export {edgeColor, edgeColorHover, edgeWidth} from './floorplanner/floorplanner_view.js';

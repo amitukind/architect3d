@@ -246,6 +246,87 @@ New public API, all additive: `EVENT_ANNOTATIONS_CHANGED`,
 `annotation` kinds on `showSelection`, and the optional `dimensions`,
 `annotations`, `north` and room `type` fields in a saved design.
 
+**RM-008 E4 delivered: the plan leaves the application at a stated scale.**
+
+SVG at 1:20, 1:50, 1:100 or 1:200, a PNG at a chosen pixel width, and print
+straight to the browser's PDF dialog — each sheet with a border, a scale bar, a
+title block and the north arrow.
+
+**The export is not a second renderer, and that was the point of measuring
+first.** RM-008 T-5 counted every raw canvas call in `floorplanner_view.js` and
+attributed each one to its method: 77, mostly inside a handful of primitives,
+two outliers. That is what priced this sprint at a week. Re-measured at the start
+of it, after three sprints had each added drawing code: **92 calls, and the
+surface is eleven operations rather than eight**. The three extra are each from a
+delivered sprint — E1's door swings and E3's north arrow need an `arc`, E2's
+alignment guides need a dash pattern, E3's dimension labels need rotated text —
+and a fourth is more interesting: E3's declutter pass has to *measure* text, and
+a format with no font metrics cannot. The SVG backend takes a measuring function
+and the application hands it the live canvas', so a sheet hides exactly the
+labels the screen hides.
+
+`FloorplannerView2D.renderTo(backend, project, size)` swaps the backend and the
+projection, calls the same `draw()` the screen calls, and puts them back in a
+`finally`. So a sheet walks the same rooms, walls, corners, footprints,
+dimensions and labels in the same order, and there is nothing to keep in step.
+Both of T-5's outliers were refactored onto the interface: `drawCornerAngles`
+was passing `this.context.lineWidth` and `this.context.strokeStyle` back into
+its own `drawLine` calls — the state being the parameter, which is exactly what
+a second backend cannot honour — and `drawOriginCrossHair` lost a `strokeStyle`
+assignment that `fillRect` never read, which is why all four of its rectangles
+have always been one colour.
+
+**A stated scale is a physical promise**, kept in one function. CSS defines an
+inch as 96 pixels, so a centimetre of paper is 96/2.54 of them and a four-metre
+wall on a 1:100 sheet is four centimetres — asserted as arithmetic, since a
+ruler cannot be run in CI. A PNG makes no such promise, because an image is
+pixels and how big one comes out is the printer's business; so PNG export offers
+no ratio, its title block says "not to scale", and both formats carry a scale
+bar, which stays true through a photocopier when a printed ratio does not.
+
+A sheet carries the document and not the session. The grid, the tracing
+underlay, the origin marker, the alignment guides and the half-drawn wall under
+the pointer are all suppressed, and so is every hover and selection colour —
+every colour decision on the canvas now goes through one `emphasis` predicate,
+so a printed drawing cannot arrive with one wall in selection green.
+
+**Two bugs, both found by running it rather than reading it.** The measurer
+passed to the SVG backend was written as `view.backend.measureText(...)` — but
+`renderTo` swaps `view.backend` for the duration, so once the export was under
+way that resolved to the SVG backend, which delegates to its measurer, which is
+that closure: infinite recursion on the first label. It reads the backend once,
+before the render. And the north arrow, positioned 30 px in from the corner
+because that is right on screen, landed in the margin of an exported sheet with
+half of it above the printed border; the inset comes from the sheet now. The
+second was found by exporting a plan and looking at it.
+
+    branches   73.19 -> 73.23      lines      82.61 -> 82.50
+    statements 82.55 -> 82.44      functions  80.17 -> 80.23
+
+46 new headless tests and 3 in the browser tier, 1,593 and 84. Two of the four
+figures moved up and two moved down by about a tenth, all four well clear of
+their floors: the dip is `useDesignIO`'s three new functions, which are a blob
+download, a `toBlob` and a print iframe and cannot be exercised without a
+browser. `backends.js` is at 96.02 statements, `plan_export.js` at 92.07.
+
+M-34 is met by comparing arguments rather than pixels, which is the only
+comparison that means anything between a rasteriser and a path writer: a
+recording backend beside the two real ones asserts that the same plan issues the
+same primitives, in the same order, with the same arguments — and that every
+call the canvas backend receives produces exactly one SVG element.
+
+`lib-esm-gzip` **raised** 59,500 → 62,900 with the reason in `tools/budget.json`:
+the ESM entry grew 3.1 KB gzipped, the same as E1's, for a second output format
+across the whole 2D view. The refactor half is close to size-neutral — it moved
+canvas calls from one file to another — and the growth is the SVG writer and the
+sheet, which are new.
+
+New public API, all additive: `CanvasBackend`, `SvgBackend`, `planBounds`,
+`scaleProjection`, `fitProjection`, `drawTitleBlock`, `exportPlanSVG`,
+`renderPlanToCanvas`, `PLAN_SCALES`, `PIXELS_PER_PAPER_CM`,
+`FloorplannerView2D.renderTo` / `backend` / `project` / `exporting` / `emphasis`,
+and `useDesignIO`'s `savePlanSVG` / `savePlanPNG` / `printPlan`.
+
 ### Everything below this line changed no shipped code
 
 `src/`, `public/` and every build artifact were identical to 3.0.1 for all of

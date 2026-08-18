@@ -46,7 +46,7 @@ are checked in under `public/`, which Vite serves at the site root.
 | `npm run dev` | Dev server on port 10001, with hot reload |
 | `npm run build` | Library build &rarr; `dist/`: the ESM entry, the `BP3DJS` IIFE, and the declarations |
 | `npm run build:demo` | Application build &rarr; `dist-demo/` |
-| `npm test` | The vitest suite (1,541 tests, headless) |
+| `npm test` | The vitest suite (1,593 tests, headless) |
 | `npm run test:coverage` | The same suite, with coverage and its thresholds |
 | `npm run test:browser` | The browser tier: real canvas, real WebGL, axe (needs chromium) |
 | `npm run lint` | ESLint |
@@ -96,7 +96,7 @@ blocks.
 
 Checking is **opt-in per file**: a file joins by putting `// @ts-check` on its
 first line, or on the first line inside `<script setup>`. Every file is in, all
-108 of them, with zero errors — the library tier went from 355 errors to none in
+110 of them, with zero errors — the library tier went from 355 errors to none in
 RM-005 C2, so `npm run typecheck` rather than an audit somebody remembers to run
 is what fails on a regression. The ledger of what is in, and what each
 remaining area would cost, is at the top of
@@ -110,6 +110,7 @@ remaining area would cost, is at the top of
 | **Workspace** | <kbd>1</kbd> plan · <kbd>2</kbd> split · <kbd>3</kbd> 3D. In split, drag the divider between the panes. |
 | **Drawing** | <kbd>V</kbd> select · <kbd>W</kbd> draw walls · <kbd>R</kbd> rectangular room · <kbd>X</kbd> delete · <kbd>S</kbd> snap to grid. Hold <kbd>Shift</kbd> while drawing for the grid too. While drawing, type an exact length and angle in the bar at the top. |
 | **Annotating** | <kbd>D</kbd> dimension between two points · <kbd>T</kbd> text label. A room's name, type and ceiling height are in the panel; north is under Settings &rarr; Plan. |
+| **Exporting** | The share menu writes the plan as SVG at 1:20, 1:50, 1:100 or 1:200, as a 2400&nbsp;px PNG, or straight to the printer &mdash; each sheet with a scale bar, a title block and the north arrow. |
 | **Zoom** | Wheel over the plan, or <kbd>+</kbd> / <kbd>-</kbd>. <kbd>Shift</kbd><kbd>F</kbd> frames the whole plan. |
 | **Furniture** | <kbd>A</kbd> opens the catalog. It stays open while you pick, and searches all 168 models. |
 | **Editing** | <kbd>⌘Z</kbd> / <kbd>⌘⇧Z</kbd> undo and redo · <kbd>⌘D</kbd> duplicate · <kbd>Del</kbd> delete. |
@@ -178,7 +179,7 @@ public/        assets the running app loads (models, textures, thumbnails)
 asset-pipeline/ inputs and records that are not served: the 25 pre-migration
                three.js JSON models the .glb files were converted from, the
                .blend authoring files, and the conversion report
-tests/         1,541 headless tests; see tests/README.md
+tests/         1,593 headless tests; see tests/README.md
 tools/         one-off and migration tooling (conversion, goldens, parity)
 docs/          this documentation site
 ```

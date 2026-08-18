@@ -583,6 +583,34 @@ describe('useDesignIO', () =>
 		expect(revoked).toEqual(['blob:1']);
 	});
 
+	/**
+	 * The plan export, from the application's side (RM-008 E4). What the sheet
+	 * *contains* is pinned in `tests/plan-export.test.js`; what is asserted here
+	 * is the three things only this layer knows - that it finds the plan view,
+	 * names the file after the scale, and hands the browser a document rather
+	 * than an error.
+	 */
+	it('downloads the plan as an SVG named after its scale', () =>
+	{
+		io.newDesign();
+
+		io.savePlanSVG(50);
+
+		expect(downloads).toHaveLength(1);
+		expect(revoked).toEqual(['blob:1']);
+	});
+
+	it('says so rather than downloading an empty sheet', () =>
+	{
+		// A store with a plan, but nothing drawn on it.
+		blueprint.model.floorplan.reset();
+
+		io.savePlanSVG(100);
+
+		expect(downloads).toHaveLength(0);
+		expect(io.lastError.value).toContain('nothing on the plan');
+	});
+
 	it('resolves the glTF export from the event, and removes its listener', async () =>
 	{
 		let started = false;

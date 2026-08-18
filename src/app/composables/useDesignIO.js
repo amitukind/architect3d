@@ -1,6 +1,7 @@
 // @ts-check
 import {ref} from 'vue';
 import {EVENT_GLTF_READY} from '../../scripts/blueprint.js';
+import {exportPlanSVG, renderPlanToCanvas} from '../../scripts/blueprint.js';
 import {DEFAULT_DESIGN} from '../designs/default-design.js';
 import {useToasts} from './useToasts.js';
 
@@ -47,6 +48,28 @@ function download(data, filename, type)
 	anchor.click();
 	document.body.removeChild(anchor);
 	URL.revokeObjectURL(url);
+}
+
+/**
+ * A text measurer bound to the live canvas, captured BEFORE the export starts
+ * (RM-008 E4).
+ *
+ * The binding is the whole point and it cost a test to find. `renderTo` swaps
+ * `view.backend` for the duration of the export, so a measurer written as
+ * `view.backend.measureText(...)` resolves to the SVG backend once the export
+ * is under way - and `SvgBackend.measureText` delegates to its measurer, which
+ * is that closure. Straight into infinite recursion, on the first label.
+ *
+ * Reading the backend once, here, is what makes it the canvas' measurer for the
+ * whole of the render.
+ *
+ * @param {Object} planner A `Floorplanner2D`.
+ * @returns {function(string, number, string=): number}
+ */
+function liveMeasurer(planner)
+{
+	var backend = planner.view.backend;
+	return function (text, size, style) {return backend.measureText(text, size, style);};
 }
 
 /**
@@ -229,6 +252,159 @@ export function useDesignIO(store)
 	}
 
 	/**
+	 * The 2D plan, as a drawing (RM-008 E4).
+	 *
+	 * The library does the drawing - `exportPlanSVG` points the live view's own
+	 * `draw()` at an SVG backend, so a sheet is the plan on screen and not a
+	 * second rendering of it. This function's whole job is the three things the
+	 * library cannot know: which floorplanner, what the file should be called,
+	 * and how to hand a string to a browser.
+	 *
+	 * The measurer is passed through, and it matters: E3's declutter pass asks
+	 * how wide a label is before deciding to draw it, and SVG has no font
+	 * metrics. Handing it the live canvas' `measureText` is what makes the sheet
+	 * hide exactly the labels the screen hides.
+	 *
+	 * @param {number} scale The denominator: 50 means 1:50.
+	 */
+	function savePlanSVG(scale)
+	{
+		var planner = store.floorplanner.value;
+		if (!planner)
+		{
+			fail('There is no plan view to export.');
+			return;
+		}
+		var svg = exportPlanSVG(planner.view, store.model.value.floorplan, {
+			scale: scale,
+			title: 'Floor plan',
+			subtitle: new Date().toISOString().slice(0, 10),
+			measure: liveMeasurer(planner),
+		});
+		if (!svg)
+		{
+			fail('There is nothing on the plan to export yet.');
+			return;
+		}
+		download(svg, `plan-1-${scale}.svg`, 'image/svg+xml');
+		toasts.success(`Exported plan-1-${scale}.svg`);
+	}
+
+	/**
+	 * The 2D plan, as a PNG (RM-008 E4).
+	 *
+	 * No scale is offered and that is deliberate rather than an omission: a PNG
+	 * is pixels, and how big a pixel comes out is the printer's business. A
+	 * ratio printed on an image nothing can hold to would be worse than no ratio
+	 * at all, so the sheet carries a scale bar - which stays true through a
+	 * photocopier - and says "not to scale" beside it.
+	 *
+	 * @param {number} pixelWidth
+	 */
+	function savePlanPNG(pixelWidth)
+	{
+		var planner = store.floorplanner.value;
+		if (!planner)
+		{
+			fail('There is no plan view to export.');
+			return;
+		}
+		var canvas = document.createElement('canvas');
+		var drawn = renderPlanToCanvas(planner.view, store.model.value.floorplan, canvas, {
+			width: pixelWidth,
+			title: 'Floor plan',
+			subtitle: new Date().toISOString().slice(0, 10),
+		});
+		if (!drawn)
+		{
+			fail('There is nothing on the plan to export yet.');
+			return;
+		}
+		// Narrowed into a local before the callback: the checker cannot carry the
+		// null guard above across the closure boundary (RM-005 C2).
+		var size = drawn;
+		canvas.toBlob(function (blob)
+		{
+			if (!blob)
+			{
+				fail('The browser could not encode the image.');
+				return;
+			}
+			var url = URL.createObjectURL(blob);
+			var anchor = document.createElement('a');
+			anchor.href = url;
+			anchor.download = 'plan.png';
+			document.body.appendChild(anchor);
+			anchor.click();
+			document.body.removeChild(anchor);
+			URL.revokeObjectURL(url);
+			toasts.success(`Exported plan.png, ${size.width}\u00d7${size.height}`);
+		}, 'image/png');
+	}
+
+	/**
+	 * Print the plan, which is how a browser makes a PDF (RM-008 E4).
+	 *
+	 * Through a hidden iframe holding the SVG, rather than a print stylesheet
+	 * over the application. The application is a full-height flex layout with a
+	 * canvas in it, and printing that means fighting every rule in it for one
+	 * page; an iframe carrying nothing but the sheet prints the sheet, at the
+	 * size the sheet says it is, in one browser dialog with a Save-as-PDF option
+	 * already in it.
+	 *
+	 * @param {number} scale
+	 */
+	function printPlan(scale)
+	{
+		var planner = store.floorplanner.value;
+		if (!planner)
+		{
+			fail('There is no plan view to print.');
+			return;
+		}
+		var svg = exportPlanSVG(planner.view, store.model.value.floorplan, {
+			scale: scale,
+			title: 'Floor plan',
+			subtitle: new Date().toISOString().slice(0, 10),
+			measure: liveMeasurer(planner),
+		});
+		if (!svg)
+		{
+			fail('There is nothing on the plan to print yet.');
+			return;
+		}
+		var frame = document.createElement('iframe');
+		frame.setAttribute('aria-hidden', 'true');
+		frame.style.position = 'fixed';
+		frame.style.right = '100%';
+		frame.style.width = '1px';
+		frame.style.height = '1px';
+		document.body.appendChild(frame);
+		var doc = frame.contentDocument;
+		if (!doc || !frame.contentWindow)
+		{
+			document.body.removeChild(frame);
+			fail('The browser would not open a print view.');
+			return;
+		}
+		doc.open();
+		doc.write(`<!doctype html><meta charset="utf-8"><title>Floor plan 1:${scale}</title>`
+			+ '<style>@page{margin:0}body{margin:0}svg{display:block}</style>' + svg);
+		doc.close();
+		var win = frame.contentWindow;
+		// The frame has to be in the document and laid out before print() will
+		// paginate it, so this waits a frame rather than calling straight away.
+		requestAnimationFrame(function ()
+		{
+			win.focus();
+			win.print();
+			// Removed on a timer rather than on afterprint: Safari does not fire it
+			// for an iframe, and a frame left behind is a leak per print.
+			setTimeout(function () {if (frame.parentNode) {frame.parentNode.removeChild(frame);}}, 1000);
+		});
+	}
+
+	/**
 	 * Export the scene as glTF.
 	 *
 	 * The library's export is a double hop: `Main.exportForBlender()` hides the
@@ -280,5 +456,5 @@ export function useDesignIO(store)
 		});
 	}
 
-	return {busy, lastError, newDesign, loadDesign, openDesign, saveDesign, saveMesh, saveGLTF};
+	return {busy, lastError, newDesign, loadDesign, openDesign, saveDesign, saveMesh, saveGLTF, savePlanSVG, savePlanPNG, printPlan};
 }

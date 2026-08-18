@@ -318,10 +318,38 @@ removal. Use `shallowRef` for the slot and `markRaw` for the object — see
 
 ### `floorplanner` — the 2D view
 
-`floorplanner.js` is the controller (modes: move, draw, delete) and
-`floorplanner_view.js` is the renderer, drawing to a plain 2D canvas. There is
-no scene graph and no retained objects; every change repaints the whole canvas.
+`floorplanner.js` is the controller — modes: move, draw, rectangle, dimension,
+text, delete — and `floorplanner_view.js` is the renderer. There is no scene
+graph and no retained objects; every change repaints the whole canvas.
 `carbonsheet.js` is the image underlay you can trace over.
+
+#### The view draws through a backend, not through a canvas
+
+`backends.js` is eleven stateless drawing operations — `clear`, `fillRect`,
+`line`, `curve`, `polygon`, `path`, `circle`, `arc`, `text`, `measureText`,
+`dash` — with two implementations: `CanvasBackend` over a
+`CanvasRenderingContext2D`, and `SvgBackend`, which accumulates elements and
+hands back a document.
+
+Each operation carries its own colour and width. There is no state to set and
+restore, no transform stack and no current path, and that shape is chosen for
+the *export* rather than for the canvas: a stateful interface maps onto a canvas
+context for free and onto SVG badly, because an SVG element carries its own
+style and has no notion of "the style in force". Even rotation is a parameter of
+`text` rather than a transform, because it is the only rotation the plan draws.
+
+`plan_export.js` is what turns that into a sheet — bounds, a scale projection, a
+scale bar, a title block — and it is deliberately **not** a renderer.
+`FloorplannerView2D.renderTo(backend, project, size)` swaps the backend and the
+projection, calls the same `draw()` the screen calls, and puts them back. A
+sheet is the plan on screen, not a second rendering of it, so there is nothing
+to keep in step.
+
+A scale is a physical promise: CSS defines an inch as 96 pixels, so a centimetre
+of paper is 96/2.54 of them and a four-metre wall on a 1:100 sheet is exactly
+four centimetres. PNG export makes no such promise — an image is pixels — so it
+fits the plan to a width and its title block says "not to scale" beside a scale
+bar, which stays true through a photocopier when a printed ratio does not.
 
 #### How the plan sees the furniture
 

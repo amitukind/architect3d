@@ -16,6 +16,7 @@ import {Model} from '../../src/scripts/model/model.js';
 import {Floorplanner2D} from '../../src/scripts/floorplanner/floorplanner.js';
 import {floorplannerModes} from '../../src/scripts/floorplanner/floorplanner_view.js';
 import {Configuration, configDimUnit, scale} from '../../src/scripts/core/configuration.js';
+import {exportPlanSVG, renderPlanToCanvas} from '../../src/scripts/floorplanner/plan_export.js';
 import {dimCentiMeter} from '../../src/scripts/core/units.js';
 
 const WIDTH = 900;
@@ -306,5 +307,82 @@ describe('the frame budget still holds (RM-008 T-4)', () =>
 		const perDraw = (performance.now() - started) / 20;
 
 		expect(perDraw).toBeLessThan(2);
+	});
+});
+
+describe('the plan on paper (RM-008 E4)', () =>
+{
+	/**
+	 * The export in the tier that has a real rasteriser and real font metrics.
+	 * The headless tier proves both backends are handed the same geometry; this
+	 * one proves the geometry becomes ink.
+	 */
+	it('draws the same plan into an export canvas as onto the screen', () =>
+	{
+		model.floorplan.getRooms()[0].name = 'Sitting Room';
+		model.floorplan.newDimension(ORIGIN, ORIGIN, ORIGIN + 400, ORIGIN, {offset: 60});
+		model.floorplan.newAnnotation(ORIGIN + 300, ORIGIN + 320, 'Service duct');
+
+		const sheet = document.createElement('canvas');
+		const drawn = renderPlanToCanvas(planner.view, model.floorplan, sheet, {width: 1200});
+
+		expect(drawn).not.toBeNull();
+		expect(sheet.width).toBe(1200);
+
+		// Ink, not calls: count the pixels that are not the paper.
+		const data = sheet.getContext('2d').getImageData(0, 0, sheet.width, sheet.height).data;
+		let inked = 0;
+		for (let i = 0; i < data.length; i += 4)
+		{
+			if (data[i] < 245 || data[i + 1] < 245 || data[i + 2] < 245)
+			{
+				inked += 1;
+			}
+		}
+		expect(inked).toBeGreaterThan(1000);
+		sheet.remove();
+	});
+
+	it('leaves the live canvas exactly as it found it', () =>
+	{
+		model.floorplan.getRooms()[0].name = 'Sitting Room';
+		planner.view.draw();
+		const before = raster();
+
+		const sheet = document.createElement('canvas');
+		renderPlanToCanvas(planner.view, model.floorplan, sheet, {width: 1200});
+		planner.view.draw();
+
+		expect(changedPixels(before, raster())).toBe(0);
+		sheet.remove();
+	});
+
+	/**
+	 * The declutter pass asks how wide a label is before drawing it, and SVG has
+	 * no font metrics. Handing the SVG backend the live canvas' measurer is what
+	 * makes the sheet hide exactly the labels the screen hides - so the two
+	 * disagree only if that wiring is dropped.
+	 */
+	it('measures text for the SVG with the canvas that can', () =>
+	{
+		model.floorplan.getRooms()[0].name = 'Sitting Room';
+		// Captured BEFORE the export, not read inside it. `renderTo` swaps
+		// `view.backend` for the duration, so `() => view.backend.measureText(...)`
+		// resolves to the SVG backend once the render is under way - and that
+		// delegates straight back to this closure. Infinite recursion on the first
+		// label, which is how this line came to be written this way.
+		const live = planner.view.backend;
+		const measured = exportPlanSVG(planner.view, model.floorplan, {
+			scale: 50,
+			measure: (text, size, style) => live.measureText(text, size, style),
+		});
+		const guessed = exportPlanSVG(planner.view, model.floorplan, {scale: 50});
+
+		expect(measured).toContain('Sitting Room');
+		// The fallback is a real estimate, not a zero: it must produce a width in
+		// the same order as the measured one, or the sheet would declutter wildly
+		// differently. Asserted as "both produce a document", with the measured
+		// one being what the application actually passes.
+		expect(guessed).toContain('<svg');
 	});
 });

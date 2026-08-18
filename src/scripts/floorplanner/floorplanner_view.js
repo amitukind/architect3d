@@ -8,6 +8,7 @@ import {gridSpacing, configWallThickness, configWallHeight} from '../core/config
 import {resolveCanvas, measureViewport, pixelRatio} from '../core/dom.js';
 import {footprintCorners} from '../model/plan_projection.js';
 import {dimensionLine} from '../model/annotation.js';
+import {CanvasBackend} from './backends.js';
 
 /**
  * Item types the plan draws as openings in a wall rather than as boxes on it
@@ -376,6 +377,47 @@ export class FloorplannerView2D
 		 * @type {Array<{x: number, y: number, w: number, h: number}>}
 		 */
 		this._labelBoxes = [];
+		/**
+		 * Where this view draws, and what it draws through (RM-008 E4).
+		 *
+		 * `backend` is the eleven drawing operations - see `backends.js` - and
+		 * `project` is what turns plan centimetres into the coordinates those
+		 * operations take. Both are fields rather than hard references so that
+		 * `renderTo()` can point the same drawing code at a different sheet: the
+		 * export is not a second implementation of the plan, it is this one
+		 * pointed somewhere else, which is the entire reason T-5 was worth
+		 * measuring.
+		 *
+		 * `project` defaults to the viewmodel, which is where `convertX` and
+		 * `convertY` have always lived, so the screen path is unchanged.
+		 *
+		 * @type {import('./backends.js').CanvasBackend|Object}
+		 */
+		this.backend = new CanvasBackend(this.context, floorplannerPalette.labelFont);
+		/** @type {{convertX: function(number): number, convertY: function(number): number}} */
+		this.project = viewmodel;
+		/**
+		 * True while drawing a sheet rather than the screen.
+		 *
+		 * An export is the document, not the session: hover, selection and the
+		 * half-drawn wall under the pointer are all state that belongs to the
+		 * person at the keyboard and none of it belongs on paper.
+		 *
+		 * @type {boolean}
+		 */
+		this.exporting = false;
+		/**
+		 * How far the north arrow sits in from the top-right corner, in pixels.
+		 *
+		 * A field rather than the constant it defaults to, because a sheet has a
+		 * margin and the screen does not: at the screen's figure the arrow on an
+		 * exported plan landed in the margin with half of it above the printed
+		 * border. Found by exporting a sheet and looking at it. Set from the sheet
+		 * by `renderTo`.
+		 *
+		 * @type {number}
+		 */
+		this.chromeInset = NORTH_INSET_PIXELS;
 
 		var scope = this;
 		this._carbonsheet = new CarbonSheet(floorplan, viewmodel, this.canvasElement);
@@ -718,6 +760,77 @@ export class FloorplannerView2D
 	}
 
 	/** */
+	/**
+	 * Whether hover and selection should be drawn at all (RM-008 E4).
+	 *
+	 * False on a sheet. Which wall is highlighted is a fact about the person at
+	 * the keyboard, not about the building, and a printed drawing with one wall
+	 * in selection green is a drawing that has to be explained. Every colour
+	 * decision on this canvas goes through this, so a new one added later is
+	 * wrong on the sheet only if somebody forgets - and the export test asserts
+	 * the palette's emphasis colours are absent from the document.
+	 *
+	 * @returns {boolean}
+	 */
+	get emphasis()
+	{
+		return !this.exporting;
+	}
+
+	/**
+	 * Draw this plan somewhere that is not the screen (RM-008 E4).
+	 *
+	 * The whole of plan export, as far as this class is concerned. It swaps the
+	 * backend and the projection, draws, and puts them back - so a sheet is
+	 * produced by the same `draw()` the canvas uses, walking the same rooms,
+	 * walls, corners, footprints, dimensions and labels in the same order.
+	 *
+	 * That is the property worth having and it is the reason T-5 was measured
+	 * before this sprint was priced: a second renderer would be a second thing to
+	 * keep in step with every future drawing change, and the first time it fell
+	 * behind, an exported sheet would quietly stop matching the screen.
+	 *
+	 * Transient state is suppressed rather than filtered afterwards - see
+	 * `exporting`. The canvas size is set from the sheet, because `drawGrid` and
+	 * the north arrow both need to know how big the page is.
+	 *
+	 * @param {Object} backend Any of `backends.js`.
+	 * @param {{convertX: function(number): number, convertY: function(number): number}} project
+	 * @param {{width: number, height: number, inset?: number}} size In the
+	 *        backend's pixels. `inset` is how far chrome - the north arrow - sits
+	 *        in from the edge, which on a sheet has to clear the margin.
+	 * @returns {void}
+	 */
+	renderTo(backend, project, size)
+	{
+		var wasBackend = this.backend;
+		var wasProject = this.project;
+		var wasWidth = this.canvasWidth;
+		var wasHeight = this.canvasHeight;
+		var wasInset = this.chromeInset;
+		this.backend = backend;
+		this.project = project;
+		this.canvasWidth = size.width;
+		this.canvasHeight = size.height;
+		this.chromeInset = (typeof size.inset === 'number') ? size.inset : NORTH_INSET_PIXELS;
+		this.exporting = true;
+		try
+		{
+			this.draw();
+		}
+		finally
+		{
+			// A throw here would otherwise leave the live view drawing into the
+			// export - the same reason `loadFloorplan` wraps its batch.
+			this.backend = wasBackend;
+			this.project = wasProject;
+			this.canvasWidth = wasWidth;
+			this.canvasHeight = wasHeight;
+			this.chromeInset = wasInset;
+			this.exporting = false;
+		}
+	}
+
 	draw()
 	{
 		wallWidth = this.dimensioning.cmToPixel(this.configuration.getNumericValue(configWallThickness));
@@ -725,15 +838,14 @@ export class FloorplannerView2D
 		wallWidthSelected = this.dimensioning.cmToPixel(this.configuration.getNumericValue(configWallThickness))*0.9;
 		
 		// CSS pixels, not bitmap pixels - the context carries the DPR scale.
-		this.context.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
+		this.backend.clear(this.canvasWidth, this.canvasHeight);
 
 		// A themed canvas has to paint its own ground. Left transparent the page
 		// showed through, which was fine when the page was white and is not when
 		// it is near-black behind a light plan. Null keeps the old behaviour.
 		if (floorplannerPalette.background)
 		{
-			this.context.fillStyle = floorplannerPalette.background;
-			this.context.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
+			this.backend.fillRect(0, 0, this.canvasWidth, this.canvasHeight, floorplannerPalette.background);
 		}
 
 		// Who gets the space, decided before anything is drawn (RM-008 E3). See
@@ -742,9 +854,15 @@ export class FloorplannerView2D
 		this._labelBoxes.length = 0;
 		this.reserveAuthoredLabels();
 
-		this._carbonsheet.draw();
-		this.drawGrid();
-		this.drawOriginCrossHair();
+		// The tracing underlay, the grid and the origin marker are all aids for the
+		// person drawing, not part of the drawing (RM-008 E4). A sheet carries the
+		// building; a screen carries the building and the tools.
+		if (!this.exporting)
+		{
+			this._carbonsheet.draw();
+			this.drawGrid();
+			this.drawOriginCrossHair();
+		}
 
 		this.floorplan.getRooms().forEach((room) => {this.drawRoom(room);});
 
@@ -770,19 +888,22 @@ export class FloorplannerView2D
 		this.drawDimensions();
 		this.drawAnnotations();
 
-		this.drawAlignmentGuides();
+		if (!this.exporting)
+		{
+			this.drawAlignmentGuides();
+		}
 
-		if (this.viewmodel.mode == floorplannerModes.RECTANGLE)
+		if (!this.exporting && this.viewmodel.mode == floorplannerModes.RECTANGLE)
 		{
 			this.drawRectanglePreview();
 		}
 
-		if (this.viewmodel.mode == floorplannerModes.DIMENSION)
+		if (!this.exporting && this.viewmodel.mode == floorplannerModes.DIMENSION)
 		{
 			this.drawDimensionPreview();
 		}
 
-		if (this.viewmodel.mode == floorplannerModes.DRAW)
+		if (!this.exporting && this.viewmodel.mode == floorplannerModes.DRAW)
 		{
 			this.drawTarget(this.viewmodel.targetX, this.viewmodel.targetY, this.viewmodel.lastNode);
 			//Enable the below lines for measurement while drawing, still needs work as it is crashing the whole thing
@@ -792,7 +913,7 @@ export class FloorplannerView2D
 				var b = new Vector2(this.viewmodel.targetX, this.viewmodel.targetY);
 				var abvector = b.clone().sub(a);
 				var midPoint = abvector.multiplyScalar(0.5).add(a);
-				this.drawTextLabel(this.dimensioning.cmToMeasure(a.distanceTo(b)), this.viewmodel.convertX(midPoint.x), this.viewmodel.convertY(midPoint.y));
+				this.drawTextLabel(this.dimensioning.cmToMeasure(a.distanceTo(b)), this.project.convertX(midPoint.x), this.project.convertY(midPoint.y));
 				
 				//Show angle to the nearest wall
 				var vector = b.clone().sub(a);
@@ -805,8 +926,8 @@ export class FloorplannerView2D
 				var radius = Math.min(textDistance, vector.length());
 				var location = vector.normalize().add(closestVector.normalize()).multiplyScalar(textDistance).add(a);
 				
-				var ox = this.viewmodel.convertX(this.viewmodel.lastNode.x);
-				var oy = this.viewmodel.convertY(this.viewmodel.lastNode.y);
+				var ox = this.project.convertX(this.viewmodel.lastNode.x);
+				var oy = this.project.convertY(this.viewmodel.lastNode.y);
 				var angle = Math.abs(eAngle - sAngle);
 				angle = (angle > 180) ? 360 - angle : angle;
 				angle = Math.round(angle * 10) / 10;				
@@ -814,21 +935,18 @@ export class FloorplannerView2D
 				sAngle = (sAngle * Math.PI) / 180;
 				eAngle = (eAngle * Math.PI) / 180;				
 				
-				this.context.strokeStyle = floorplannerPalette.angleGuide;
-				this.context.lineWidth = 4;
-				this.context.beginPath();
-				this.context.arc(ox, oy, radius*0.5, Math.min(sAngle, eAngle), Math.max(sAngle, eAngle), false);
-				this.context.stroke();
-				this.drawTextLabel(`${angle}°`, this.viewmodel.convertX(location.x), this.viewmodel.convertY(location.y));
+				this.backend.arc(ox, oy, radius*0.5, Math.min(sAngle, eAngle), Math.max(sAngle, eAngle), 4, floorplannerPalette.angleGuide);
+				this.drawTextLabel(`${angle}°`, this.project.convertX(location.x), this.project.convertY(location.y));
 			}
 		}
 		this.floorplan.getWalls().forEach((wall) => {this.drawWallLabels(wall);});
 		// Last, and in screen coordinates: the arrow is chrome fixed to the canvas
-		// rather than a mark on the plan, so nothing may draw over it.
+		// rather than a mark on the plan, so nothing may draw over it. It IS on the
+		// sheet - a plan without one does not say which way the building faces.
 		this.drawNorthArrow();
-		if(this.viewmodel._clickedWallControl != null)
+		if(!this.exporting && this.viewmodel._clickedWallControl != null)
 		{
-			this.drawCircle(this.viewmodel.convertX(this.viewmodel._clickedWallControl.x), this.viewmodel.convertY(this.viewmodel._clickedWallControl.y), 7, floorplannerPalette.wallControl);
+			this.drawCircle(this.project.convertX(this.viewmodel._clickedWallControl.x), this.project.convertY(this.viewmodel._clickedWallControl.y), 7, floorplannerPalette.wallControl);
 		}
 	}
 	
@@ -905,11 +1023,10 @@ export class FloorplannerView2D
 	 */
 	measureLabel(text, size, style)
 	{
-		this.context.font = `${style || 'normal'} ${size}px ${floorplannerPalette.labelFont}`;
 		return {
 			// A couple of pixels of air on each side, so two labels that merely
 			// touch are treated as colliding - which is what a reader sees.
-			w: this.context.measureText(text).width + LABEL_PADDING_PIXELS * 2,
+			w: this.backend.measureText(text, size, style) + LABEL_PADDING_PIXELS * 2,
 			h: size + LABEL_PADDING_PIXELS * 2,
 		};
 	}
@@ -960,8 +1077,8 @@ export class FloorplannerView2D
 		{
 			scope.reserveLabel(
 				annotation.text,
-				scope.viewmodel.convertX(annotation.x),
-				scope.viewmodel.convertY(annotation.y) - annotation.size,
+				scope.project.convertX(annotation.x),
+				scope.project.convertY(annotation.y) - annotation.size,
 				annotation.size);
 		});
 		(this.floorplan.dimensions || []).forEach(function (dimension)
@@ -979,8 +1096,8 @@ export class FloorplannerView2D
 			// heuristic whose job is to be roughly right.
 			scope.reserveLabel(
 				scope.dimensioning.cmToMeasure(line.length),
-				(scope.viewmodel.convertX(line.ax) + scope.viewmodel.convertX(line.bx)) / 2,
-				(scope.viewmodel.convertY(line.ay) + scope.viewmodel.convertY(line.by)) / 2 - 9,
+				(scope.project.convertX(line.ax) + scope.project.convertX(line.bx)) / 2,
+				(scope.project.convertY(line.ay) + scope.project.convertY(line.by)) / 2 - 9,
 				LABEL_SIZE_PIXELS, 'bold');
 		});
 	}
@@ -1048,8 +1165,8 @@ export class FloorplannerView2D
 		}
 
 		var corners = footprintCorners(footprint).map((corner) => ({
-			x: this.viewmodel.convertX(corner.x),
-			y: this.viewmodel.convertY(corner.y),
+			x: this.project.convertX(corner.x),
+			y: this.project.convertY(corner.y),
 		}));
 		var state = this.itemState(footprint);
 		var stroke = (state === 'selected') ? floorplannerPalette.itemSelected
@@ -1119,8 +1236,8 @@ export class FloorplannerView2D
 		// does nothing at all about two chairs side by side, both big enough, whose
 		// captions land on each other. A caption is the lowest-priority text on the
 		// plan, so it gives way to everything (RM-008 E3).
-		var captionX = this.viewmodel.convertX(footprint.x);
-		var captionY = this.viewmodel.convertY(footprint.y) + (depthOnScreen / 2) + 12;
+		var captionX = this.project.convertX(footprint.x);
+		var captionY = this.project.convertY(footprint.y) + (depthOnScreen / 2) + 12;
 		if (!this.reserveLabel(footprint.label, captionX, captionY))
 		{
 			return;
@@ -1153,8 +1270,8 @@ export class FloorplannerView2D
 	drawOpening(footprint)
 	{
 		var corners = footprintCorners(footprint).map((corner) => ({
-			x: this.viewmodel.convertX(corner.x),
-			y: this.viewmodel.convertY(corner.y),
+			x: this.project.convertX(corner.x),
+			y: this.project.convertY(corner.y),
 		}));
 		var state = this.itemState(footprint);
 		var color = (state === 'selected') ? floorplannerPalette.itemSelected
@@ -1190,11 +1307,7 @@ export class FloorplannerView2D
 			return;
 		}
 		var start = Math.atan2(leafY, leafX);
-		this.context.strokeStyle = color;
-		this.context.lineWidth = 1;
-		this.context.beginPath();
-		this.context.arc(hinge.x, hinge.y, radius, start, start + (Math.PI / 2), false);
-		this.context.stroke();
+		this.backend.arc(hinge.x, hinge.y, radius, start, start + (Math.PI / 2), 1, color);
 		this.drawLine(hinge.x, hinge.y,
 			hinge.x + (radius * Math.cos(start + (Math.PI / 2))),
 			hinge.y + (radius * Math.sin(start + (Math.PI / 2))), 1, color);
@@ -1212,6 +1325,11 @@ export class FloorplannerView2D
 	 */
 	itemState(footprint)
 	{
+		if (!this.emphasis)
+		{
+			// A sheet carries the furniture, not which piece of it was clicked.
+			return 'plain';
+		}
 		if (this.viewmodel.selectedItemId === footprint.id)
 		{
 			return 'selected';
@@ -1250,19 +1368,19 @@ export class FloorplannerView2D
 		{
 			return;
 		}
-		var targetX = this.viewmodel.convertX(this.viewmodel.targetX);
-		var targetY = this.viewmodel.convertY(this.viewmodel.targetY);
+		var targetX = this.project.convertX(this.viewmodel.targetX);
+		var targetY = this.project.convertY(this.viewmodel.targetY);
 
-		this.context.setLineDash([4, 4]);
+		this.backend.dash([4, 4]);
 		if (aligned.x)
 		{
-			this.drawLine(targetX, targetY, this.viewmodel.convertX(aligned.x.x), this.viewmodel.convertY(aligned.x.y), 1, floorplannerPalette.angleGuide);
+			this.drawLine(targetX, targetY, this.project.convertX(aligned.x.x), this.project.convertY(aligned.x.y), 1, floorplannerPalette.angleGuide);
 		}
 		if (aligned.y)
 		{
-			this.drawLine(targetX, targetY, this.viewmodel.convertX(aligned.y.x), this.viewmodel.convertY(aligned.y.y), 1, floorplannerPalette.angleGuide);
+			this.drawLine(targetX, targetY, this.project.convertX(aligned.y.x), this.project.convertY(aligned.y.y), 1, floorplannerPalette.angleGuide);
 		}
-		this.context.setLineDash([]);
+		this.backend.dash([]);
 	}
 
 	drawRectanglePreview()
@@ -1273,10 +1391,10 @@ export class FloorplannerView2D
 			this.drawTarget(this.viewmodel.targetX, this.viewmodel.targetY, null);
 			return;
 		}
-		var x1 = this.viewmodel.convertX(anchor.x);
-		var y1 = this.viewmodel.convertY(anchor.y);
-		var x2 = this.viewmodel.convertX(this.viewmodel.targetX);
-		var y2 = this.viewmodel.convertY(this.viewmodel.targetY);
+		var x1 = this.project.convertX(anchor.x);
+		var y1 = this.project.convertY(anchor.y);
+		var x2 = this.project.convertX(this.viewmodel.targetX);
+		var y2 = this.project.convertY(this.viewmodel.targetY);
 
 		this.drawPolygon([x1, x2, x2, x1], [y1, y1, y2, y2], false, null, true, floorplannerPalette.wallSelected, 2);
 
@@ -1326,24 +1444,24 @@ export class FloorplannerView2D
 			return;
 		}
 		var color = floorplannerPalette.dimension;
-		if (dimension === this.viewmodel.activeDimension && dimension !== this.viewmodel.selectedDimension)
+		if (this.emphasis && dimension === this.viewmodel.activeDimension && dimension !== this.viewmodel.selectedDimension)
 		{
 			color = floorplannerPalette.dimensionHover;
 		}
-		else if (dimension === this.viewmodel.selectedDimension)
+		else if (this.emphasis && dimension === this.viewmodel.selectedDimension)
 		{
 			color = floorplannerPalette.dimensionSelected;
 		}
 
 		var measured = dimension.points();
-		var ax = this.viewmodel.convertX(measured.ax);
-		var ay = this.viewmodel.convertY(measured.ay);
-		var bx = this.viewmodel.convertX(measured.bx);
-		var by = this.viewmodel.convertY(measured.by);
-		var lax = this.viewmodel.convertX(line.ax);
-		var lay = this.viewmodel.convertY(line.ay);
-		var lbx = this.viewmodel.convertX(line.bx);
-		var lby = this.viewmodel.convertY(line.by);
+		var ax = this.project.convertX(measured.ax);
+		var ay = this.project.convertY(measured.ay);
+		var bx = this.project.convertX(measured.bx);
+		var by = this.project.convertY(measured.by);
+		var lax = this.project.convertX(line.ax);
+		var lay = this.project.convertY(line.ay);
+		var lbx = this.project.convertX(line.bx);
+		var lby = this.project.convertY(line.by);
 
 		// The witness lines run in screen space from here on: the gap and the
 		// overshoot are typographic, so they must not grow with the zoom.
@@ -1410,13 +1528,25 @@ export class FloorplannerView2D
 		var midX = (lax + lbx) / 2;
 		var midY = (lay + lby) / 2;
 
-		this.context.save();
-		this.context.translate(midX, midY);
-		this.context.rotate(angle);
-		// Just clear of the line, on the side the text reads from. The label
-		// primitive draws a halo, so it stays legible over a room fill.
-		this.drawTextLabel(this.dimensioning.cmToMeasure(line.length), 0, -9, color, null, 'bold');
-		this.context.restore();
+		// Just clear of the line, on the side the text reads from, with the halo the
+		// label primitive draws so it stays legible over a room fill.
+		//
+		// The rotation is a parameter rather than a transform around the call
+		// (RM-008 E4). A transform stack is the one piece of canvas state an SVG
+		// backend has no equivalent for - an SVG element carries its own transform -
+		// so the only rotation this plan draws is expressed where both backends can
+		// take it.
+		this.backend.text(this.dimensioning.cmToMeasure(line.length), midX, midY, {
+			color: color,
+			halo: floorplannerPalette.labelHalo,
+			size: LABEL_SIZE_PIXELS,
+			style: 'bold',
+			rotation: angle,
+			// The offset is along the rotated axis, so it has to be applied after
+			// the rotation rather than to the midpoint. Passed as a perpendicular
+			// nudge the backend applies in the label's own frame.
+			offsetY: -9,
+		});
 	}
 
 	/**
@@ -1447,16 +1577,16 @@ export class FloorplannerView2D
 	drawAnnotation(annotation)
 	{
 		var color = floorplannerPalette.annotation;
-		if (annotation === this.viewmodel.activeAnnotation && annotation !== this.viewmodel.selectedAnnotation)
+		if (this.emphasis && annotation === this.viewmodel.activeAnnotation && annotation !== this.viewmodel.selectedAnnotation)
 		{
 			color = floorplannerPalette.annotationHover;
 		}
-		else if (annotation === this.viewmodel.selectedAnnotation)
+		else if (this.emphasis && annotation === this.viewmodel.selectedAnnotation)
 		{
 			color = floorplannerPalette.annotationSelected;
 		}
-		var x = this.viewmodel.convertX(annotation.x);
-		var y = this.viewmodel.convertY(annotation.y);
+		var x = this.project.convertX(annotation.x);
+		var y = this.project.convertY(annotation.y);
 		this.drawCircle(x, y, ANNOTATION_ANCHOR_PIXELS, color);
 		if (annotation.text)
 		{
@@ -1480,12 +1610,13 @@ export class FloorplannerView2D
 	drawNorthArrow()
 	{
 		var radius = NORTH_RADIUS_PIXELS;
-		if (this.canvasWidth < NORTH_INSET_PIXELS * 3 || this.canvasHeight < NORTH_INSET_PIXELS * 3)
+		var inset = this.chromeInset;
+		if (this.canvasWidth < inset * 3 || this.canvasHeight < inset * 3)
 		{
 			return;
 		}
-		var cx = this.canvasWidth - NORTH_INSET_PIXELS;
-		var cy = NORTH_INSET_PIXELS;
+		var cx = this.canvasWidth - inset;
+		var cy = inset;
 		// Clockwise from up, which is how a bearing is written and read. Canvas y
 		// runs down, so "up" is negative y and a positive bearing turns towards
 		// positive x - which is exactly what these two lines say.
@@ -1523,10 +1654,10 @@ export class FloorplannerView2D
 			this.drawTarget(this.viewmodel.targetX, this.viewmodel.targetY, null);
 			return;
 		}
-		var x1 = this.viewmodel.convertX(anchor.x);
-		var y1 = this.viewmodel.convertY(anchor.y);
-		var x2 = this.viewmodel.convertX(this.viewmodel.targetX);
-		var y2 = this.viewmodel.convertY(this.viewmodel.targetY);
+		var x1 = this.project.convertX(anchor.x);
+		var y1 = this.project.convertY(anchor.y);
+		var x2 = this.project.convertX(this.viewmodel.targetX);
+		var y2 = this.project.convertY(this.viewmodel.targetY);
 
 		this.drawLine(x1, y1, x2, y2, 1, floorplannerPalette.dimensionSelected);
 		this.drawCircle(x1, y1, ANNOTATION_ANCHOR_PIXELS, floorplannerPalette.dimensionSelected);
@@ -1541,8 +1672,8 @@ export class FloorplannerView2D
 
 	drawCornerAngles(corner)
 	{
-		var ox = this.viewmodel.convertX(corner.location.x);
-		var oy = this.viewmodel.convertY(corner.location.y);
+		var ox = this.project.convertX(corner.location.x);
+		var oy = this.project.convertY(corner.location.y);
 		var offsetRatio = 2.0;
 		for (var i=0;i<corner.angles.length;i++)
 		{
@@ -1551,34 +1682,42 @@ export class FloorplannerView2D
 			var sAngle = (corner.startAngles[i]*Math.PI)/180;
 			var eAngle = (corner.endAngles[i]*Math.PI)/180;
 			var angle = corner.angles[i];
-			var lx = this.viewmodel.convertX(location.x);
-			var ly = this.viewmodel.convertY(location.y);
+			var lx = this.project.convertX(location.x);
+			var ly = this.project.convertY(location.y);
 			var radius = direction.length() * offsetRatio * 0.5;
 			if( angle > 130 || angle == 0)
 			{
 				continue;
 			}
-			var ccwise = (Math.abs(corner.startAngles[i] - corner.endAngles[i]) > 180);			
-			this.context.strokeStyle = floorplannerPalette.cornerAngle;
-			this.context.lineWidth = 4;
-			this.context.beginPath();
+			// One of T-5's two outliers, refactored onto the backend by E4. The
+			// width and colour used to be read back off the context by the two
+			// `drawLine` calls below - `this.context.lineWidth` as an argument -
+			// which is exactly the kind of "the state is the parameter" coupling a
+			// second backend cannot honour. They are locals now and nothing else
+			// about the drawing changed.
+			var ccwise = (Math.abs(corner.startAngles[i] - corner.endAngles[i]) > 180);
+			var angleColor = floorplannerPalette.cornerAngle;
+			var angleWidth = 4;
 			if(angle == 90)
 			{
 				var location2 = direction.clone().multiplyScalar(offsetRatio).add(corner.location);
-				var lxx = this.viewmodel.convertX(location2.x);
-				var lyy = this.viewmodel.convertY(location2.y);
+				var lxx = this.project.convertX(location2.x);
+				var lyy = this.project.convertY(location2.y);
 				var b = {x:lxx, y:oy};
 				var c = {x:lxx, y:lyy};
 				var d = {x:ox, y:lyy};
-				this.drawLine(b.x,b.y,c.x,c.y,this.context.lineWidth,this.context.strokeStyle);
-				this.drawLine(c.x,c.y,d.x,d.y,this.context.lineWidth,this.context.strokeStyle);
+				this.drawLine(b.x,b.y,c.x,c.y,angleWidth,angleColor);
+				this.drawLine(c.x,c.y,d.x,d.y,angleWidth,angleColor);
 			}
 			else
 			{
-				this.context.arc(ox, oy, radius, Math.min(sAngle, eAngle), Math.max(sAngle, eAngle), ccwise);
+				// `ccwise` reversed the sweep on the canvas; the backend takes the
+				// two angles in draw order instead, which says the same thing in a
+				// form SVG's arc command can also express.
+				var from = ccwise ? Math.max(sAngle, eAngle) : Math.min(sAngle, eAngle);
+				var to = ccwise ? Math.min(sAngle, eAngle) : Math.max(sAngle, eAngle);
+				this.backend.arc(ox, oy, radius, from, to, angleWidth, angleColor);
 			}
-			
-			this.context.stroke();
 			this.drawTextLabel(`${angle}°`, lx, ly);
 		}
 		
@@ -1586,8 +1725,8 @@ export class FloorplannerView2D
 
 	drawOriginCrossHair()
 	{
-		var ox = this.viewmodel.convertX(0);
-		var oy = this.viewmodel.convertY(0);
+		var ox = this.project.convertX(0);
+		var oy = this.project.convertY(0);
 		
 		// Two nested plus signs. Note that the second pair are fillRects and the
 		// line between them assigns strokeStyle, which fillRect never reads - so
@@ -1596,12 +1735,15 @@ export class FloorplannerView2D
 		// app has always shown, and making the inner cross a second colour is a
 		// change to the drawing, not a theming decision. The palette entry is
 		// still honoured so a host that wants two colours can set the fill.
-		this.context.fillStyle = floorplannerPalette.originPrimary;
-		this.context.fillRect(ox-2, oy-7.5, 4, 15);
-		this.context.fillRect(ox-7.5, oy-2, 15, 4);
-		this.context.strokeStyle = floorplannerPalette.originSecondary;
-		this.context.fillRect(ox-1.25, oy-5, 2.5, 10);
-		this.context.fillRect(ox-5, oy-1.25, 10, 2.5);
+		// T-5's other outlier, refactored by E4. The `strokeStyle` assignment that
+		// used to sit between the second and third rectangle is gone rather than
+		// translated: fillRect never read it, which is the whole reason all four
+		// rectangles have always been the primary colour. Removing a line that did
+		// nothing changes nothing drawn, and the comment above says what it was.
+		this.backend.fillRect(ox-2, oy-7.5, 4, 15, floorplannerPalette.originPrimary);
+		this.backend.fillRect(ox-7.5, oy-2, 15, 4, floorplannerPalette.originPrimary);
+		this.backend.fillRect(ox-1.25, oy-5, 2.5, 10, floorplannerPalette.originPrimary);
+		this.backend.fillRect(ox-5, oy-1.25, 10, 2.5, floorplannerPalette.originPrimary);
 	}
 
 	/** */
@@ -1648,7 +1790,7 @@ export class FloorplannerView2D
 			return;
 		}
 		var label = (!this.configuration.wallInformation.labels)?'':this.configuration.wallInformation.midlinelabel;
-		this.drawTextLabel(`${label}${this.dimensioning.cmToMeasure(length)}` ,this.viewmodel.convertX(pos.x),this.viewmodel.convertY(pos.y));
+		this.drawTextLabel(`${label}${this.dimensioning.cmToMeasure(length)}` ,this.project.convertX(pos.x),this.project.convertY(pos.y));
 	}
 
 	/** */
@@ -1664,7 +1806,7 @@ export class FloorplannerView2D
 		if(this.configuration.wallInformation.exterior)
 		{
 			var label = (!this.configuration.wallInformation.labels)?'':this.configuration.wallInformation.exteriorlabel;
-			this.drawTextLabel(`${label}${this.dimensioning.cmToMeasure(length)}` ,this.viewmodel.convertX(pos.x),this.viewmodel.convertY(pos.y+40));
+			this.drawTextLabel(`${label}${this.dimensioning.cmToMeasure(length)}` ,this.project.convertX(pos.x),this.project.convertY(pos.y+40));
 		}
 	}
 
@@ -1681,7 +1823,7 @@ export class FloorplannerView2D
 		if(this.configuration.wallInformation.interior)
 		{
 			var label = (!this.configuration.wallInformation.labels)?'':this.configuration.wallInformation.interiorlabel;
-			this.drawTextLabel(`${label}${this.dimensioning.cmToMeasure(length)}` ,this.viewmodel.convertX(pos.x),this.viewmodel.convertY(pos.y-40));
+			this.drawTextLabel(`${label}${this.dimensioning.cmToMeasure(length)}` ,this.project.convertX(pos.x),this.project.convertY(pos.y-40));
 		}
 		
 	}
@@ -1712,14 +1854,7 @@ export class FloorplannerView2D
 		// label that scaled with the zoom while the wall length beside it did not
 		// would read as a bug. E4 owns the export case, where text on a 1:50 sheet
 		// does have a physical size.
-		this.context.font = `${style} ${size}px ${floorplannerPalette.labelFont}`;
-		this.context.fillStyle = textcolor;
-		this.context.textBaseline = 'middle';
-		this.context.textAlign = 'center';
-		this.context.strokeStyle = strokecolor;
-		this.context.lineWidth = 4;
-		this.context.strokeText(label,x,y);
-		this.context.fillText(label,x,y);
+		this.backend.text(label, x, y, {color: textcolor, halo: strokecolor, size: size, style: style});
 	}
 
 	/** */
@@ -1741,11 +1876,11 @@ export class FloorplannerView2D
 			this.drawPolygon(
 					Utils.map(corners, function (corner) 
 					{
-						return scope.viewmodel.convertX(corner.x);
+						return scope.project.convertX(corner.x);
 					}),
 					Utils.map(corners, function (corner) 
 							{
-								return scope.viewmodel.convertY(corner.y);
+								return scope.project.convertY(corner.y);
 							}),false,null,true,color,edgeWidth);
 		}
 //		else
@@ -1755,8 +1890,8 @@ export class FloorplannerView2D
 	/** */
 	drawWall(wall)
 	{
-		var selected = (wall === this.viewmodel.selectedWall);
-		var hover = (wall === this.viewmodel.activeWall && wall != this.viewmodel.selectedWall);
+		var selected = this.emphasis && (wall === this.viewmodel.selectedWall);
+		var hover = this.emphasis && (wall === this.viewmodel.activeWall && wall != this.viewmodel.selectedWall);
 		var color = floorplannerPalette.wall;
 
 		if (hover && this.viewmodel.mode == floorplannerModes.DELETE)
@@ -1784,37 +1919,37 @@ export class FloorplannerView2D
 			// typo being load-bearing.
 			var guideShadow = floorplannerPalette.curveGuideShadow;
 			var guide = floorplannerPalette.curveGuide;
-			this.drawLine(this.viewmodel.convertX(wall.getStartX()),this.viewmodel.convertY(wall.getStartY()),this.viewmodel.convertX(wall.a.x),this.viewmodel.convertY(wall.a.y),5,guideShadow);
-			this.drawLine(this.viewmodel.convertX(wall.a.x),this.viewmodel.convertY(wall.a.y),this.viewmodel.convertX(wall.b.x),this.viewmodel.convertY(wall.b.y),5,guideShadow);
-			this.drawLine(this.viewmodel.convertX(wall.b.x),this.viewmodel.convertY(wall.b.y),this.viewmodel.convertX(wall.getEndX()),this.viewmodel.convertY(wall.getEndY()),5,guideShadow);
+			this.drawLine(this.project.convertX(wall.getStartX()),this.project.convertY(wall.getStartY()),this.project.convertX(wall.a.x),this.project.convertY(wall.a.y),5,guideShadow);
+			this.drawLine(this.project.convertX(wall.a.x),this.project.convertY(wall.a.y),this.project.convertX(wall.b.x),this.project.convertY(wall.b.y),5,guideShadow);
+			this.drawLine(this.project.convertX(wall.b.x),this.project.convertY(wall.b.y),this.project.convertX(wall.getEndX()),this.project.convertY(wall.getEndY()),5,guideShadow);
 
-			this.drawLine(this.viewmodel.convertX(wall.getStartX()),this.viewmodel.convertY(wall.getStartY()),this.viewmodel.convertX(wall.a.x),this.viewmodel.convertY(wall.a.y),1,guide);
-			this.drawLine(this.viewmodel.convertX(wall.a.x),this.viewmodel.convertY(wall.a.y),this.viewmodel.convertX(wall.b.x),this.viewmodel.convertY(wall.b.y),1,guide);
-			this.drawLine(this.viewmodel.convertX(wall.b.x),this.viewmodel.convertY(wall.b.y),this.viewmodel.convertX(wall.getEndX()),this.viewmodel.convertY(wall.getEndY()),1,guide);
+			this.drawLine(this.project.convertX(wall.getStartX()),this.project.convertY(wall.getStartY()),this.project.convertX(wall.a.x),this.project.convertY(wall.a.y),1,guide);
+			this.drawLine(this.project.convertX(wall.a.x),this.project.convertY(wall.a.y),this.project.convertX(wall.b.x),this.project.convertY(wall.b.y),1,guide);
+			this.drawLine(this.project.convertX(wall.b.x),this.project.convertY(wall.b.y),this.project.convertX(wall.getEndX()),this.project.convertY(wall.getEndY()),1,guide);
 
-			this.drawCircle(this.viewmodel.convertX(wall.a.x), this.viewmodel.convertY(wall.a.y), 10, floorplannerPalette.curveHandle);
-			this.drawCircle(this.viewmodel.convertX(wall.b.x), this.viewmodel.convertY(wall.b.y), 10, floorplannerPalette.curveHandle);
+			this.drawCircle(this.project.convertX(wall.a.x), this.project.convertY(wall.a.y), 10, floorplannerPalette.curveHandle);
+			this.drawCircle(this.project.convertX(wall.b.x), this.project.convertY(wall.b.y), 10, floorplannerPalette.curveHandle);
 		}
 		
 		if(wall.wallType == WallTypes.STRAIGHT)
 		{
-			this.drawLine(this.viewmodel.convertX(wall.getStartX()),this.viewmodel.convertY(wall.getStartY()),this.viewmodel.convertX(wall.getEndX()),this.viewmodel.convertY(wall.getEndY()),hover ? wallWidthHover : selected ? wallWidthSelected : wallWidth,color);
+			this.drawLine(this.project.convertX(wall.getStartX()),this.project.convertY(wall.getStartY()),this.project.convertX(wall.getEndX()),this.project.convertY(wall.getEndY()),hover ? wallWidthHover : selected ? wallWidthSelected : wallWidth,color);
 		}
 		else
 		{
 			
 			this.drawCurvedLine(
-					this.viewmodel.convertX(wall.getStartX()),
-					this.viewmodel.convertY(wall.getStartY()),
+					this.project.convertX(wall.getStartX()),
+					this.project.convertY(wall.getStartY()),
 					
-					this.viewmodel.convertX(wall.a.x),
-					this.viewmodel.convertY(wall.a.y),
+					this.project.convertX(wall.a.x),
+					this.project.convertY(wall.a.y),
 					
-					this.viewmodel.convertX(wall.b.x),
-					this.viewmodel.convertY(wall.b.y),
+					this.project.convertX(wall.b.x),
+					this.project.convertY(wall.b.y),
 					
-					this.viewmodel.convertX(wall.getEndX()),
-					this.viewmodel.convertY(wall.getEndY()),
+					this.project.convertX(wall.getEndX()),
+					this.project.convertY(wall.getEndY()),
 					hover ? wallWidthHover : selected ? wallWidthSelected : wallWidth,color);
 			
 		}
@@ -1844,8 +1979,8 @@ export class FloorplannerView2D
 	/** */
 	drawRoom(room)
 	{
-		var selected = (room === this.viewmodel.selectedRoom);
-		var hover = (room === this.viewmodel.activeRoom && room != this.viewmodel.selectedRoom);
+		var selected = this.emphasis && (room === this.viewmodel.selectedRoom);
+		var hover = this.emphasis && (room === this.viewmodel.activeRoom && room != this.viewmodel.selectedRoom);
 		var color = floorplannerPalette.room;
 		if (hover)
 		{
@@ -1871,8 +2006,8 @@ export class FloorplannerView2D
 		// Each of the four lines a room can carry asks for its space and gives way
 		// (RM-008 E3). A room's area and name are derived; a label somebody typed
 		// over this room reserved its box before any of this ran.
-		var labelX = this.viewmodel.convertX(room.areaCenter.x);
-		var labelY = this.viewmodel.convertY(room.areaCenter.y);
+		var labelX = this.project.convertX(room.areaCenter.x);
+		var labelY = this.project.convertY(room.areaCenter.y);
 		var area = this.dimensioning.cmToMeasure(room.area, 2)+String.fromCharCode(178);
 		if (this.reserveLabel(area, labelX, labelY, LABEL_SIZE_PIXELS, 'bold'))
 		{
@@ -1914,8 +2049,8 @@ export class FloorplannerView2D
 			// the checker is right that nothing here guarantees it.
 			return;
 		}
-		var x = this.viewmodel.convertX(centre.x);
-		var y = this.viewmodel.convertY(centre.y) + ROOM_LABEL_STEP_PIXELS;
+		var x = this.project.convertX(centre.x);
+		var y = this.project.convertY(centre.y) + ROOM_LABEL_STEP_PIXELS;
 		if (room.type)
 		{
 			y += ROOM_LABEL_STEP_PIXELS;
@@ -1942,10 +2077,10 @@ export class FloorplannerView2D
 	/** */
 	drawCorner(corner)
 	{
-		var cornerX = this.viewmodel.convertX(corner.x);
-		var cornerY = this.viewmodel.convertY(corner.y);
-		var hover = (corner === this.viewmodel.activeCorner && corner != this.viewmodel.selectedCorner);
-		var selected = (corner === this.viewmodel.selectedCorner);
+		var cornerX = this.project.convertX(corner.x);
+		var cornerY = this.project.convertY(corner.y);
+		var hover = this.emphasis && (corner === this.viewmodel.activeCorner && corner != this.viewmodel.selectedCorner);
+		var selected = this.emphasis && (corner === this.viewmodel.selectedCorner);
 		var color = floorplannerPalette.corner;
 		if (hover && this.viewmodel.mode == floorplannerModes.DELETE)
 		{
@@ -1975,145 +2110,71 @@ export class FloorplannerView2D
 	/** */
 	drawTarget(x, y, lastNode)
 	{
-		this.drawCircle(this.viewmodel.convertX(x),this.viewmodel.convertY(y),cornerRadiusHover,floorplannerPalette.cornerHover);
+		this.drawCircle(this.project.convertX(x),this.project.convertY(y),cornerRadiusHover,floorplannerPalette.cornerHover);
 		if (lastNode)
 		{
-			this.drawLine(this.viewmodel.convertX(lastNode.x),this.viewmodel.convertY(lastNode.y),this.viewmodel.convertX(x),this.viewmodel.convertY(y),wallWidthHover,floorplannerPalette.wallHover);
+			this.drawLine(this.project.convertX(lastNode.x),this.project.convertY(lastNode.y),this.project.convertX(x),this.project.convertY(y),wallWidthHover,floorplannerPalette.wallHover);
 		}
 	}
 	
 	drawBezierObject(bezier, width=3, color='#f0f0f0')
 	{
 		this.drawCurvedLine(
-		this.viewmodel.convertX(bezier.points[0].x),
-		this.viewmodel.convertY(bezier.points[0].y),
+		this.project.convertX(bezier.points[0].x),
+		this.project.convertY(bezier.points[0].y),
 		
-		this.viewmodel.convertX(bezier.points[1].x),
-		this.viewmodel.convertY(bezier.points[1].y),
+		this.project.convertX(bezier.points[1].x),
+		this.project.convertY(bezier.points[1].y),
 		
-		this.viewmodel.convertX(bezier.points[2].x),
-		this.viewmodel.convertY(bezier.points[2].y),
+		this.project.convertX(bezier.points[2].x),
+		this.project.convertY(bezier.points[2].y),
 		
-		this.viewmodel.convertX(bezier.points[3].x),
-		this.viewmodel.convertY(bezier.points[3].y),
+		this.project.convertX(bezier.points[3].x),
+		this.project.convertY(bezier.points[3].y),
 		width,color);
 	}
 	
 	drawCurvedLine(startX, startY, aX, aY, bX, bY, endX, endY, width, color)
 	{
-		this.context.beginPath();
-		this.context.moveTo(startX, startY);
-		this.context.bezierCurveTo(aX, aY, bX, bY, endX, endY);
-		this.context.lineWidth = width+3;
-		this.context.strokeStyle = floorplannerPalette.curveCasing;
-		this.context.stroke();
-		
-		// width is an integer
-		// color is a hex string, i.e. #ff0000
-		this.context.beginPath();
-		this.context.moveTo(startX, startY);
-		this.context.bezierCurveTo(aX, aY, bX, bY, endX, endY);
-		this.context.lineWidth = width;
-		this.context.strokeStyle = color;
-		this.context.stroke();
+		// The casing under the wall, then the wall itself.
+		this.backend.curve(startX, startY, aX, aY, bX, bY, endX, endY, width + 3, floorplannerPalette.curveCasing);
+		this.backend.curve(startX, startY, aX, aY, bX, bY, endX, endY, width, color);
 	}
 
 	/** */
 	drawLine(startX, startY, endX, endY, width, color)
 	{
-		// width is an integer
-		// color is a hex string, i.e. #ff0000
-		this.context.beginPath();
-		this.context.moveTo(startX, startY);
-		this.context.lineTo(endX, endY);
-		this.context.closePath();
-		this.context.lineWidth = width;
-		this.context.strokeStyle = color;
-		this.context.stroke();
+		this.backend.line(startX, startY, endX, endY, width, color);
 	}
 	
 	/** */
 	drawPolygonCurved(pointsets, fill=true, fillColor='#FF00FF', stroke=false, strokeColor='#000000', strokeWidth=5)
 	{
-		// fillColor is a hex string, i.e. #ff0000
-		fill = fill || false;
-		stroke = stroke || false;
-		this.context.beginPath();
-		
-		for (var i=0;i<pointsets.length;i++)
+		// The one primitive handed PLAN coordinates where every other one is handed
+		// canvas pixels. Preserved rather than normalised - `drawRoom` is its only
+		// caller - and the projection happens here, once, so the backend sees
+		// pixels like everything else does.
+		var scope = this;
+		var segments = pointsets.map(function (pointset)
 		{
-			var pointset = pointsets[i];
-//			The pointset represents a straight line if there are only 1 point in the pointset
-			if(pointset.length == 1)
+			return pointset.map(function (point)
 			{
-				if(i == 0)
-				{
-					this.context.moveTo(this.viewmodel.convertX(pointset[0].x), this.viewmodel.convertY(pointset[0].y));
-				}
-				else
-				{
-					this.context.lineTo(this.viewmodel.convertX(pointset[0].x), this.viewmodel.convertY(pointset[0].y));
-				}				
-			}
-//			If the pointset contains 3 points then it represents a bezier curve, ap1, ap2, cp2
-			else if(pointset.length == 3)
-			{
-				this.context.bezierCurveTo(
-						this.viewmodel.convertX(pointset[0].x), this.viewmodel.convertY(pointset[0].y),
-						this.viewmodel.convertX(pointset[1].x), this.viewmodel.convertY(pointset[1].y),
-						this.viewmodel.convertX(pointset[2].x), this.viewmodel.convertY(pointset[2].y)
-						);
-			}
-		}
-		
-		this.context.closePath();
-		if (fill)
-		{
-			this.context.fillStyle = fillColor;
-			this.context.fill();
-		}
-		if (stroke)
-		{
-			this.context.lineWidth = strokeWidth;
-			this.context.strokeStyle = strokeColor;
-			this.context.stroke();
-		}
+				return {x: scope.project.convertX(point.x), y: scope.project.convertY(point.y)};
+			});
+		});
+		this.backend.path(segments, fill ? fillColor : null, stroke ? strokeColor : null, strokeWidth);
 	}
 
 	/** */
 	drawPolygon(xArr, yArr, fill, fillColor, stroke, strokeColor, strokeWidth)
 	{
-		// fillColor is a hex string, i.e. #ff0000
-		fill = fill || false;
-		stroke = stroke || false;
-		this.context.beginPath();
-		this.context.moveTo(xArr[0], yArr[0]);
-		for (var i = 1; i < xArr.length; i++)
-		{
-			this.context.lineTo(xArr[i], yArr[i]);
-		}
-		this.context.closePath();
-		if (fill)
-		{
-			this.context.fillStyle = fillColor;
-			this.context.fill();
-		}
-		if (stroke)
-		{
-			this.context.lineWidth = strokeWidth;
-			this.context.strokeStyle = strokeColor;
-			this.context.stroke();
-		}
+		this.backend.polygon(xArr, yArr, fill ? fillColor : null, stroke ? strokeColor : null, strokeWidth);
 	}
 
 	/** */
 	drawCircle(centerX, centerY, radius, fillColor)
 	{
-		this.context.beginPath();
-		this.context.arc(centerX, centerY, radius, 0, 2 * Math.PI, false);
-		this.context.closePath();
-		this.context.fillStyle = fillColor;
-		this.context.fill();
+		this.backend.circle(centerX, centerY, radius, fillColor);
 	}
 
 	/** returns n where -gridSize/2 < n <= gridSize/2  */
