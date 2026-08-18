@@ -54,11 +54,20 @@ booting it in headless Chromium and screenshotting fifteen states, set against
 Coohom's own feature list and Sweet Home 3D's as the free reference. Two of its
 figures came off those pictures: two items placed in 3D and none drawn on the
 plan, and a 40 px plan strip at a phone viewport. Fourteen gaps (Q-1 to Q-14),
-eight programmes E–M in 26 sprints, 44.5 weeks at the single-developer cadence
+eight programmes E–M in 25 sprints, 42 weeks at the single-developer cadence
 RM-001 was planned at, five releases, and the non-goals the brief's three
 constraints — free, no premium, no product linkage — rule out. Proposed, not
 delivered; each programme gets its own drawing before it starts. No code, asset
 or test changed.
+
+Rev B, the same day: the audience was fixed as **web desktop only**, so the
+phone-and-tablet sprint (L1, 2.5 weeks) is withdrawn and Q-7 stays on the log
+as declined rather than deleted — a finding struck from a drawing is the one
+that gets rediscovered as a bug. Before striking it the desktop end of the range
+was measured: at 1024×768, 1280×720 and 1366×768, split view with the catalog
+open, the shell holds with no horizontal overflow and both panes usable. Rev A's
+totals were 26 sprints and 44.5 weeks; the drawing keeps them visible in its
+revision note.
 
 ## [3.0.1] - 2026-08-16
 
