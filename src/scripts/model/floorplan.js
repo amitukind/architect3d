@@ -725,7 +725,8 @@ export class Floorplan extends EventDispatcher
 		this.walls.forEach((wall) => {
 			if(wall.getStart() && wall.getEnd())
 			{
-				floorplans.walls.push({
+				/** @type {Record<string, any>} */
+				var record = {
 					'corner1': wall.getStart().id,
 					'corner2': wall.getEnd().id,
 					'frontTexture': wall.frontTexture,
@@ -733,7 +734,21 @@ export class Floorplan extends EventDispatcher
 					'wallType': wall.wallType.description,
 					'a':{x: wall.a.x, y:wall.a.y},
 					'b':{x: wall.b.x, y:wall.b.y},
-				});
+				};
+				// Only when somebody chose it (RM-008 E2, T-6).
+				//
+				// Every other field here is written unconditionally, which is what
+				// makes the format stable - and it is exactly why an additive field
+				// has to be conditional. A wall whose thickness was never touched
+				// inherits the document's, and writing that number would freeze a
+				// default into every file: a design saved today would stop following
+				// a setting changed tomorrow, and a file written before E2 would not
+				// survive a re-save unchanged.
+				if (wall.hasOwnThickness)
+				{
+					record['thickness'] = wall.thickness;
+				}
+				floorplans.walls.push(record);
 				cornerIds.push(wall.getStart());
 				cornerIds.push(wall.getEnd());
 			}
@@ -934,6 +949,15 @@ export class Floorplan extends EventDispatcher
 				// lower-case 'curved'. Preserved: WallTypes are Symbols and this is
 				// their description, so the file carries the description string.
 				newWall.wallType = (wall.wallType === 'CURVED') ? WallTypes.CURVED : WallTypes.STRAIGHT;
+			}
+			// Additive since RM-008 E2, and absent from every file written before
+			// it. Set through the setter, which is what marks the wall as carrying
+			// a thickness of its own so the next save writes it back; a file
+			// without the field leaves the wall on the document's default, which is
+			// what it has always done.
+			if (typeof wall.thickness === 'number')
+			{
+				newWall.thickness = wall.thickness;
 			}
 		});
 

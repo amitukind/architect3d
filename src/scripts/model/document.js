@@ -264,6 +264,20 @@ function validateFloorplan(floorplan, errors, warnings)
 				errors.push({path: `floorplan.walls[${index}].${end}`, message: `names corner "${id}", which is not in this file`});
 			}
 		});
+
+		// Optional since RM-008 E2 - absent means "follow the document" - so its
+		// absence is never a defect. Present and unusable is, and loudly: a zero
+		// or negative thickness collapses both half edges onto the wall centreline
+		// and takes every room derived from them with it, which is a design that
+		// opens looking empty rather than one that fails to open.
+		if (wall.thickness !== undefined && wall.thickness !== null
+			&& (typeof wall.thickness !== 'number' || !isFinite(wall.thickness) || wall.thickness <= 0))
+		{
+			errors.push({
+				path: `floorplan.walls[${index}].thickness`,
+				message: `must be a positive finite number of centimetres when present, not ${JSON.stringify(wall.thickness)}`,
+			});
+		}
 	});
 
 	// `rooms` holds room metadata keyed by corner-id string. Absent on some files
