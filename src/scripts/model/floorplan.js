@@ -47,6 +47,18 @@ export const defaultFloorPlanTolerance = 10.0;
 export const SAVE_UNITS = 'cm';
 
 /**
+ * How far a corner may sit off the line between its neighbours and still count
+ * as collinear, as a fraction of the distance between them (RM-008 E2).
+ *
+ * A ratio rather than a distance, so the test means the same thing on a
+ * two-metre wall and a twenty-metre one. 0.002 is about a tenth of a degree of
+ * bend across a typical run - tight enough that a corner somebody drew on
+ * purpose survives, loose enough that one left behind by a merge or a split does
+ * not.
+ */
+export const COLLINEAR_SAGITTA_RATIO = 0.002;
+
+/**
  * Choose how to turn a stored coordinate into centimetres.
  *
  * @param {?string} units The file's `units` field, absent on 0.0.2a and older.
@@ -499,6 +511,164 @@ export class Floorplan extends EventDispatcher
 	 * @param {Wall}
 	 *            wall The wall to be removed.
 	 */
+	/**
+	 * Cut a wall in two at the point nearest a position (RM-008 E2).
+	 *
+	 * The wall keeps its start and gains a new end; a second wall runs from there
+	 * to the old end. Both inherit the original's textures and its thickness, and
+	 * the new one is a wall in its own right - so a corridor can be given a
+	 * doorway-width section without redrawing the whole run.
+	 *
+	 * Straight walls only. A curved wall's shape lives in its bezier control
+	 * points, and splitting one means solving for the two sub-curves that
+	 * reproduce it - real work with a visible failure mode, and not what E2 is
+	 * for. It returns null rather than approximating, because a curve silently
+	 * replaced by two straight pieces is worse than a tool that declines.
+	 *
+	 * @param {Wall} wall
+	 * @param {{x: number, y: number}} at Anywhere near the wall; the cut lands at
+	 *        the closest point on it.
+	 * @returns {?Corner} The corner created at the cut, or null if refused.
+	 */
+	splitWall(wall, at)
+	{
+		if (!wall || wall.wallType !== WallTypes.STRAIGHT || !at)
+		{
+			return null;
+		}
+		var start = wall.getStart();
+		var end = wall.getEnd();
+		if (!start || !end)
+		{
+			return null;
+		}
+		var point = Utils.closestPointOnLine(
+			new Vector2(at.x, at.y),
+			new Vector2(start.x, start.y),
+			new Vector2(end.x, end.y));
+
+		// A cut within merge distance of either end is not a cut. `newCorner`
+		// would merge the new corner into that end, leaving one wall and a
+		// second of zero length - which reads as the tool having done nothing,
+		// or worse, having deleted something.
+		if (point.distanceTo(new Vector2(start.x, start.y)) < cornerTolerance
+			|| point.distanceTo(new Vector2(end.x, end.y)) < cornerTolerance)
+		{
+			return null;
+		}
+
+		this.beginBatch(REASON_EDIT);
+		try
+		{
+			var middle = this.newCorner(point.x, point.y);
+			var second = this.newWall(middle, end);
+			second.frontTexture = wall.frontTexture;
+			second.backTexture = wall.backTexture;
+			if (wall.hasOwnThickness)
+			{
+				second.thickness = wall.thickness;
+			}
+			// Re-point the original at the new corner rather than removing and
+			// rebuilding it: the wall keeps its id, so anything holding one - a
+			// bound item, a selection, an undo snapshot - still names a wall that
+			// exists. `setEnd` detaches the old end itself.
+			wall.setEnd(middle);
+			return middle;
+		}
+		finally
+		{
+			this.endBatch();
+		}
+	}
+
+	/**
+	 * Remove a corner where two collinear walls meet, joining them (RM-008 E2).
+	 *
+	 * The inverse of `splitWall`, and the reason a plan does not accumulate
+	 * corners: every split, every wall drawn through another and every merge
+	 * leaves one, and a run of six walls that should be one is six labels, six
+	 * handles and six things to drag by mistake.
+	 *
+	 * Refused unless the corner joins exactly two straight walls whose directions
+	 * agree within {@link COLLINEAR_TOLERANCE_DEGREES}. That is not fussiness: a
+	 * corner between two walls that genuinely turn is a corner somebody drew, and
+	 * removing it changes the shape of their building.
+	 *
+	 * @param {Corner} corner
+	 * @returns {?Wall} The surviving wall, or null if refused.
+	 */
+	joinWallsAt(corner)
+	{
+		if (!corner)
+		{
+			return null;
+		}
+		var walls = corner.wallStarts.concat(corner.wallEnds);
+		if (walls.length !== 2 || walls[0] === walls[1])
+		{
+			return null;
+		}
+		if (walls[0].wallType !== WallTypes.STRAIGHT || walls[1].wallType !== WallTypes.STRAIGHT)
+		{
+			return null;
+		}
+
+		// The far end of each wall - the two points the surviving wall will span.
+		var farOf = function (wall)
+		{
+			return (wall.getStart() === corner) ? wall.getEnd() : wall.getStart();
+		};
+		var a = farOf(walls[0]);
+		var b = farOf(walls[1]);
+		if (!a || !b || a === b)
+		{
+			return null;
+		}
+
+		// Collinear means the corner sits on the line between the two far ends,
+		// which is the same thing as the two directions agreeing and is cheaper
+		// and steadier to compute than comparing two angles across the wrap.
+		var offLine = Utils.pointDistanceFromLine(
+			new Vector2(corner.x, corner.y),
+			new Vector2(a.x, a.y),
+			new Vector2(b.x, b.y));
+		var span = new Vector2(a.x, a.y).distanceTo(new Vector2(b.x, b.y));
+		if (span === 0 || offLine > (span * COLLINEAR_SAGITTA_RATIO))
+		{
+			return null;
+		}
+
+		this.beginBatch(REASON_EDIT);
+		try
+		{
+			var survivor = walls[0];
+			var other = walls[1];
+
+			// Re-point BEFORE removing, and the order is not cosmetic.
+			// `Corner.detachWall` removes a corner the moment its last wall
+			// leaves, so removing the other wall first orphans the far corner it
+			// was reaching - and the survivor is then re-pointed at a corner that
+			// is no longer in the plan. Found by counting corners after a join: two
+			// expected, one left.
+			if (survivor.getStart() === corner)
+			{
+				survivor.setStart(b);
+			}
+			else
+			{
+				survivor.setEnd(b);
+			}
+			// The middle corner now holds only the other wall, so removing that
+			// takes the corner with it - which is the whole point of the join.
+			other.remove();
+			return survivor;
+		}
+		finally
+		{
+			this.endBatch();
+		}
+	}
+
 	/**
 	 * Draw a whole rectangular room in one gesture (RM-008 E2).
 	 *

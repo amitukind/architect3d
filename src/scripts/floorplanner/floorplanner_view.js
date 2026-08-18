@@ -671,6 +671,8 @@ export class FloorplannerView2D
 		// top of everything.
 		this.drawItems();
 
+		this.drawAlignmentGuides();
+
 		if (this.viewmodel.mode == floorplannerModes.RECTANGLE)
 		{
 			this.drawRectanglePreview();
@@ -979,6 +981,40 @@ export class FloorplannerView2D
 	 * room overlaps an old one. The two labels are the same `cmToMeasure` the
 	 * wall labels use, so a rectangle dragged to 4 m reads 4 m before it exists.
 	 */
+	/**
+	 * The dashed lines to whatever the target has lined up with (RM-008 E2).
+	 *
+	 * Drawn from the corner to the target rather than across the whole canvas: a
+	 * full-width rule says "something out there shares this row" and a segment
+	 * says which corner, which is the question somebody squaring a room is
+	 * actually asking.
+	 *
+	 * Dashed, and the dash is restored afterwards - `setLineDash` is context
+	 * state, and leaving it set would dot every wall drawn after this in the same
+	 * pass.
+	 */
+	drawAlignmentGuides()
+	{
+		var aligned = this.viewmodel.alignedTo;
+		if (!aligned || (!aligned.x && !aligned.y))
+		{
+			return;
+		}
+		var targetX = this.viewmodel.convertX(this.viewmodel.targetX);
+		var targetY = this.viewmodel.convertY(this.viewmodel.targetY);
+
+		this.context.setLineDash([4, 4]);
+		if (aligned.x)
+		{
+			this.drawLine(targetX, targetY, this.viewmodel.convertX(aligned.x.x), this.viewmodel.convertY(aligned.x.y), 1, floorplannerPalette.angleGuide);
+		}
+		if (aligned.y)
+		{
+			this.drawLine(targetX, targetY, this.viewmodel.convertX(aligned.y.x), this.viewmodel.convertY(aligned.y.y), 1, floorplannerPalette.angleGuide);
+		}
+		this.context.setLineDash([]);
+	}
+
 	drawRectanglePreview()
 	{
 		var anchor = this.viewmodel.rectangleAnchor;

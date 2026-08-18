@@ -108,7 +108,7 @@ remaining area would cost, is at the top of
 | | |
 |---|---|
 | **Workspace** | <kbd>1</kbd> plan · <kbd>2</kbd> split · <kbd>3</kbd> 3D. In split, drag the divider between the panes. |
-| **Drawing** | <kbd>V</kbd> select · <kbd>W</kbd> draw walls · <kbd>X</kbd> delete · <kbd>S</kbd> snap to grid. Hold <kbd>Shift</kbd> while drawing to snap to the axis. |
+| **Drawing** | <kbd>V</kbd> select · <kbd>W</kbd> draw walls · <kbd>R</kbd> rectangular room · <kbd>X</kbd> delete · <kbd>S</kbd> snap to grid. Hold <kbd>Shift</kbd> while drawing for the grid too. While drawing, type an exact length and angle in the bar at the top. |
 | **Zoom** | Wheel over the plan, or <kbd>+</kbd> / <kbd>-</kbd>. <kbd>Shift</kbd><kbd>F</kbd> frames the whole plan. |
 | **Furniture** | <kbd>A</kbd> opens the catalog. It stays open while you pick, and searches all 168 models. |
 | **Editing** | <kbd>⌘Z</kbd> / <kbd>⌘⇧Z</kbd> undo and redo · <kbd>⌘D</kbd> duplicate · <kbd>Del</kbd> delete. |

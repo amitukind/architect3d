@@ -66,6 +66,63 @@ New public API, all additive: `EVENT_ITEMS_PROJECTED`, `EVENT_ITEM_2D_CLICKED`,
 `Model.itemById` / `projectItemsToPlan` / `dispose` and the three plan-item
 commands.
 
+**RM-008 E2 delivered: drawing to a number, and per-wall thickness.**
+
+Typed length and bearing while drawing, 15° angle snapping, a click-click
+rectangle-room tool, wall split and join, alignment guides off existing corners,
+and a thickness that belongs to the wall and is saved with it.
+
+**The height half of the sprint turned out not to exist.** `Wall.height` does
+not set the height of the wall — measured by building the geometry and reading
+its bounding box, not by reading the code. A wall with `height` 400 and its
+corners at 250 draws a mesh 250 tall; raising the corners to 400 draws one 400
+tall while `height` still says 250. The top comes from the corner elevations.
+So the field is wrong in all three places that read it whenever a corner is
+raised: the wall texture's vertical repeat, the initial placement of a wall
+item, and `HalfEdge.height`, which nothing reads at all. Deriving it from the
+corners fixes all three and stores nothing new — and fails the frozen r98 golden
+for `edge.plain`, which records a texture tiling past the top of a raised wall.
+Three r98 is gone and that capture cannot be regenerated, so this is a parity
+change with a fresh capture attached rather than a tidy-up. Reverted, and pinned
+with the measurement instead. The inspector therefore offers no height field; it
+says height is set per corner and that two walls meeting at one share it.
+
+`thickness` is additive and conditional: written only for a wall that was given
+one, so a design where nobody touched a thickness re-saves byte-identical and a
+file written before E2 still follows the document's setting. Every other key in
+a wall record is unconditional, which is precisely why this one cannot be.
+
+Four bugs, every one found by driving the pointer rather than calling the
+method. `updateTarget()` ran for DRAW and for a MOVE drag and nothing else, so
+every rectangle was measured from the origin and refused as degenerate — a test
+that calls `placeRectangleCorner` directly passes happily, so the suite now
+drives pointer events. The length field read 0 while the plan drew 1.524 m,
+because App's `pointermove` listener is bound before the library exists and so
+runs first, reading the previous event's target; it reads on the next frame now,
+which is when the canvas repaints, so the two numbers come from one state. A
+join removed the wrong corner, because `detachWall` deletes a corner the moment
+its last wall leaves. And a first click with no move before it used a stale
+target.
+
+    branches   70.09 -> 71.20      lines      80.71 -> 81.21
+    statements 80.66 -> 81.16      functions  79.62 -> 78.97
+
+63 new tests, 1,448 total, including the acceptance in all five display units.
+No budget moved. Functions dipped 0.65 and stays 0.97 above its floor: the new
+code adds more functions than the suite calls directly, and the three floors
+that matter here all rose.
+
+Also corrected: the README said Shift snaps to the axis while drawing. It turns
+on grid snapping, and always has.
+
+New public API, all additive: `Wall.thickness` / `hasOwnThickness`,
+`Floorplan.splitWall` / `joinWallsAt` / `newRoomFromRectangle`,
+`Floorplanner2D.drawTarget` / `setDrawTarget` / `placeDrawTarget` /
+`placeRectangleCorner` / `anglesnapmode` / `alignguides`,
+`floorplannerModes.RECTANGLE`, `snapToAngle`, `alignToCorners`,
+`ANGLE_SNAP_DEGREES`, `ALIGN_TOLERANCE_CM`, `COLLINEAR_SAGITTA_RATIO`, and the
+optional `thickness` field in a saved wall.
+
 ### Everything below this line changed no shipped code
 
 `src/`, `public/` and every build artifact were identical to 3.0.1 for all of

@@ -28,6 +28,71 @@ const ITEM_PICK_TOLERANCE_PIXELS = 4;
 export const ANGLE_SNAP_DEGREES = 15;
 
 /**
+ * How close, in centimetres, a drawing target has to be to an existing corner's
+ * row or column before it lines up with it (RM-008 E2).
+ *
+ * The same 25 cm `snapTolerance` defaults to, because it is the same judgement -
+ * "near enough that you meant it" - and two different numbers for one feel is
+ * how snapping starts feeling arbitrary.
+ */
+export const ALIGN_TOLERANCE_CM = 25;
+
+/**
+ * Find corners that share a row or a column with a point (RM-008 E2).
+ *
+ * What a CAD tool draws as a dashed line to the thing you are lining up with,
+ * and what stops a plan being a collection of walls that are almost square with
+ * each other. Returns the corner it aligned to on each axis, so the caller can
+ * both move the point and say WHY it moved - a target that jumps with no
+ * explanation is worse than one that does not jump.
+ *
+ * Nearest wins on each axis independently, which is what lets a point line up
+ * with one corner horizontally and a different one vertically - the common case
+ * when squaring a room off two walls.
+ *
+ * @param {Array<Object>} corners Anything with x and y.
+ * @param {number} x
+ * @param {number} y
+ * @param {?Object} [ignore] A corner to skip - the one being drawn from.
+ * @param {number} [tolerance] Centimetres.
+ * @returns {{x: number, y: number, alignedX: ?Object, alignedY: ?Object}}
+ */
+export function alignToCorners(corners, x, y, ignore, tolerance)
+{
+	var limit = (tolerance === undefined || tolerance === null) ? ALIGN_TOLERANCE_CM : tolerance;
+	var result = {x: x, y: y, alignedX: null, alignedY: null};
+	if (!corners || !corners.length)
+	{
+		return result;
+	}
+	var bestX = limit;
+	var bestY = limit;
+	for (var i = 0; i < corners.length; i++)
+	{
+		var corner = corners[i];
+		if (!corner || corner === ignore)
+		{
+			continue;
+		}
+		var dx = Math.abs(corner.x - x);
+		if (dx <= bestX)
+		{
+			bestX = dx;
+			result.x = corner.x;
+			result.alignedX = corner;
+		}
+		var dy = Math.abs(corner.y - y);
+		if (dy <= bestY)
+		{
+			bestY = dy;
+			result.y = corner.y;
+			result.alignedY = corner;
+		}
+	}
+	return result;
+}
+
+/**
  * Item types positioned by the wall they are attached to, and so not freely
  * draggable on the plan: WallItem (2), InWallItem (3), InWallFloorItem (7),
  * WallFloorItem (9). The same four the catalog calls wall-bound.
@@ -209,6 +274,23 @@ export class Floorplanner2D extends EventDispatcher
 		 *
 		 * @type {?{x: number, y: number}}
 		 */
+		/**
+		 * Line the drawing target up with corners that already exist (RM-008 E2).
+		 *
+		 * On by default, unlike angle snapping, because it only ever moves the
+		 * target within 25 cm and only onto something already in the drawing - so
+		 * the wall you get is the wall you were nearly drawing, squared up.
+		 *
+		 * @type {boolean}
+		 */
+		this.alignguides = true;
+		/**
+		 * The corners the target is currently lined up with, per axis, or nulls.
+		 * The view draws a guide to each; nothing else reads it.
+		 *
+		 * @type {{x: ?Object, y: ?Object}}
+		 */
+		this.alignedTo = {x: null, y: null};
 		this.rectangleAnchor = null;
 		this.shiftkey = false;
 		// Initialization:
@@ -466,6 +548,21 @@ export class Floorplanner2D extends EventDispatcher
 			this.targetY = this.mouseY;
 		}
 		
+		// Lining up with corners that already exist (RM-008 E2).
+		//
+		// Before the two snaps below, so an explicit angle or a grid position wins
+		// over a guide: a guide is a suggestion drawn from what happens to be
+		// nearby, and the other two were asked for.
+		this.alignedTo = {x: null, y: null};
+		if ((this.mode == floorplannerModes.DRAW || this.mode == floorplannerModes.RECTANGLE)
+			&& this.alignguides)
+		{
+			var aligned = alignToCorners(this.floorplan.getCorners(), this.targetX, this.targetY, this.lastNode, undefined);
+			this.targetX = aligned.x;
+			this.targetY = aligned.y;
+			this.alignedTo = {x: aligned.alignedX, y: aligned.alignedY};
+		}
+
 		// Angle snapping wins outright while a wall is being drawn (RM-008 E2).
 		//
 		// It has to: the two branches above constrain the target's POSITION and

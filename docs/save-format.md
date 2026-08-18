@@ -72,9 +72,29 @@ An array. Each wall names the two corners it spans:
 | `frontTexture`, `backTexture` | `{url, stretch, scale}`. When `stretch` is true the map is fitted to the wall and `scale` is ignored — which is why stretched entries are often saved with `scale: 0`. |
 | `wallType` | `"STRAIGHT"` or `"CURVED"`. |
 | `a`, `b` | Bezier control points. Only meaningful when `wallType` is `"CURVED"`, but always written. |
+| `thickness` | Centimetres. **Optional**, and written only for a wall somebody gave a thickness of its own. |
 
 `a` and `b` are centimetres, like everything else in a 2.0.0 file. They always
 were, which in 0.0.2a made them disagree with the corners.
+
+::: tip `thickness` is written only when it was chosen
+Added in RM-008 E2, and absent from every file written before it. A wall with no
+`thickness` follows the document's wall thickness — the value in Settings —
+which is what it has always done and what lets one setting still reach a whole
+design.
+
+That is why the field is conditional rather than always written. Every other key
+in a wall record appears unconditionally, and a `thickness` written for every
+wall would freeze today's default into every file: a design saved now would stop
+following a setting changed later, and a file written before E2 would not
+survive a re-save unchanged. A reader can treat its absence as "ask the
+document".
+
+A positive finite number is required when the key is present. Zero or negative
+collapses both half edges onto the wall centreline and takes every room derived
+from them with it, so `DesignDocument.parse` rejects the file rather than
+opening a design that looks empty.
+:::
 
 **A wall has no `id` field, and will not get one.** In memory it has an
 identity, and since RM-004 B2 that identity survives a load — but it is

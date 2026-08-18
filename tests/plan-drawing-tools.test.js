@@ -12,8 +12,9 @@
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 
 import {Floorplan} from '../src/scripts/model/floorplan.js';
-import {Floorplanner2D, snapToAngle, ANGLE_SNAP_DEGREES} from '../src/scripts/floorplanner/floorplanner.js';
+import {Floorplanner2D, snapToAngle, ANGLE_SNAP_DEGREES, alignToCorners} from '../src/scripts/floorplanner/floorplanner.js';
 import {floorplannerModes} from '../src/scripts/floorplanner/floorplanner_view.js';
+import {WallTypes} from '../src/scripts/core/constants.js';
 import {Configuration, configDimUnit} from '../src/scripts/core/configuration.js';
 import {Dimensioning} from '../src/scripts/core/dimensioning.js';
 import {dimensioningOptions} from '../src/scripts/core/units.js';
@@ -427,5 +428,201 @@ describe('the rectangle tool', () =>
 
 		expect(canvasStub.context.calls.map((call) => call.name)).toContain('stroke');
 		expect(floorplan.getWalls()).toHaveLength(0);
+	});
+});
+
+describe('splitting and joining walls', () =>
+{
+	it('cuts a wall in two at the nearest point, keeping the original\'s identity', () =>
+	{
+		const a = floorplan.newCorner(0, 0);
+		const b = floorplan.newCorner(400, 0);
+		const wall = floorplan.newWall(a, b);
+		const id = wall.id;
+
+		const middle = floorplan.splitWall(wall, {x: 200, y: 60});
+
+		expect(middle).not.toBeNull();
+		expect(middle.x).toBeCloseTo(200, 6);
+		expect(middle.y).toBeCloseTo(0, 6);
+		expect(floorplan.getWalls()).toHaveLength(2);
+		// The wall that was already there is still the wall that was already
+		// there, so a bound item or an undo snapshot still names something real.
+		expect(floorplan.getWalls().some((each) => each.id === id)).toBe(true);
+	});
+
+	it('gives the new wall the original\'s surfaces and thickness', () =>
+	{
+		const wall = floorplan.newWall(floorplan.newCorner(0, 0), floorplan.newCorner(400, 0));
+		wall.thickness = 37;
+		wall.frontTexture = {url: 'rooms/textures/marbletiles.jpg', stretch: false, scale: 300};
+
+		floorplan.splitWall(wall, {x: 200, y: 0});
+
+		const other = floorplan.getWalls().find((each) => each !== wall);
+		expect(other.thickness).toBe(37);
+		expect(other.frontTexture.url).toBe('rooms/textures/marbletiles.jpg');
+	});
+
+	/**
+	 * `newCorner` merges within `cornerTolerance`, so a cut near an end would
+	 * produce one wall and a second of zero length - which reads as the tool
+	 * having done nothing, or as having deleted something.
+	 */
+	it('refuses a cut too close to either end', () =>
+	{
+		const wall = floorplan.newWall(floorplan.newCorner(0, 0), floorplan.newCorner(400, 0));
+
+		expect(floorplan.splitWall(wall, {x: 5, y: 0})).toBeNull();
+		expect(floorplan.splitWall(wall, {x: 396, y: 0})).toBeNull();
+		expect(floorplan.getWalls()).toHaveLength(1);
+	});
+
+	it('declines a curved wall rather than approximating it', () =>
+	{
+		const wall = floorplan.newWall(floorplan.newCorner(0, 0), floorplan.newCorner(400, 0));
+		wall.wallType = WallTypes.CURVED;
+
+		expect(floorplan.splitWall(wall, {x: 200, y: 0})).toBeNull();
+	});
+
+	it('joins two collinear walls back into one', () =>
+	{
+		const wall = floorplan.newWall(floorplan.newCorner(0, 0), floorplan.newCorner(400, 0));
+		const middle = floorplan.splitWall(wall, {x: 200, y: 0});
+		expect(floorplan.getWalls()).toHaveLength(2);
+
+		const survivor = floorplan.joinWallsAt(middle);
+
+		expect(survivor).not.toBeNull();
+		expect(floorplan.getWalls()).toHaveLength(1);
+		expect(floorplan.getCorners()).toHaveLength(2);
+		expect(survivor.wallLength()).toBeCloseTo(400, 6);
+	});
+
+	/**
+	 * A corner between two walls that genuinely turn is a corner somebody drew,
+	 * and removing it changes the shape of their building.
+	 */
+	it('refuses a corner where the walls actually turn', () =>
+	{
+		const a = floorplan.newCorner(0, 0);
+		const b = floorplan.newCorner(400, 0);
+		const c = floorplan.newCorner(400, 400);
+		floorplan.newWall(a, b);
+		floorplan.newWall(b, c);
+
+		expect(floorplan.joinWallsAt(b)).toBeNull();
+		expect(floorplan.getWalls()).toHaveLength(2);
+	});
+
+	it('refuses a corner that is not exactly two straight walls', () =>
+	{
+		const a = floorplan.newCorner(0, 0);
+		const b = floorplan.newCorner(400, 0);
+		floorplan.newWall(a, b);
+
+		// One wall.
+		expect(floorplan.joinWallsAt(b)).toBeNull();
+		// Three.
+		floorplan.newWall(b, floorplan.newCorner(800, 0));
+		floorplan.newWall(b, floorplan.newCorner(400, 400));
+		expect(floorplan.joinWallsAt(b)).toBeNull();
+		expect(floorplan.joinWallsAt(null)).toBeNull();
+	});
+});
+
+describe('alignment guides', () =>
+{
+	it('lines a point up with a corner that shares its row or column', () =>
+	{
+		const corners = [{x: 100, y: 500}, {x: 900, y: 40}];
+
+		const aligned = alignToCorners(corners, 110, 30);
+
+		expect(aligned.x).toBe(100);
+		expect(aligned.y).toBe(40);
+		expect(aligned.alignedX).toBe(corners[0]);
+		expect(aligned.alignedY).toBe(corners[1]);
+	});
+
+	it('leaves a point that is not near anything alone', () =>
+	{
+		const aligned = alignToCorners([{x: 100, y: 500}], 900, 900);
+
+		expect(aligned).toEqual({x: 900, y: 900, alignedX: null, alignedY: null});
+	});
+
+	it('takes the nearest on each axis, independently', () =>
+	{
+		const near = {x: 105, y: 900};
+		const far = {x: 120, y: 900};
+
+		expect(alignToCorners([far, near], 100, 0).alignedX).toBe(near);
+	});
+
+	it('skips the corner being drawn from', () =>
+	{
+		const origin = {x: 100, y: 100};
+
+		const aligned = alignToCorners([origin], 105, 105, origin);
+
+		expect(aligned.alignedX).toBeNull();
+		expect(aligned.x).toBe(105);
+	});
+
+	it('is empty-safe and honours a tolerance', () =>
+	{
+		expect(alignToCorners([], 5, 5).alignedX).toBeNull();
+		expect(alignToCorners(null, 5, 5).x).toBe(5);
+		expect(alignToCorners([{x: 0, y: 0}], 20, 20, null, 5).alignedX).toBeNull();
+		expect(alignToCorners([{x: 0, y: 0}], 20, 20, null, 30).alignedX).not.toBeNull();
+	});
+
+	it('moves the drawing target onto an existing corner\'s column', () =>
+	{
+		const anchor = floorplan.newCorner(300, 800);
+		planner.setMode(floorplannerModes.DRAW);
+		planner.lastNode = floorplan.newCorner(0, 0);
+		planner.mouseX = 310;
+		planner.mouseY = 400;
+
+		planner.updateTarget();
+
+		expect(planner.targetX).toBe(300);
+		expect(planner.alignedTo.x).toBe(anchor);
+	});
+
+	it('can be turned off', () =>
+	{
+		floorplan.newCorner(300, 800);
+		planner.setMode(floorplannerModes.DRAW);
+		planner.lastNode = floorplan.newCorner(0, 0);
+		planner.alignguides = false;
+		planner.mouseX = 310;
+		planner.mouseY = 400;
+
+		planner.updateTarget();
+
+		expect(planner.targetX).toBe(310);
+		expect(planner.alignedTo.x).toBeNull();
+	});
+
+	it('draws a guide to what it lined up with, and leaves the dash pattern clean', () =>
+	{
+		floorplan.newCorner(300, 800);
+		planner.setMode(floorplannerModes.DRAW);
+		planner.lastNode = floorplan.newCorner(0, 0);
+		planner.mouseX = 310;
+		planner.mouseY = 400;
+		planner.updateTarget();
+
+		canvasStub.context.calls.length = 0;
+		planner.view.draw();
+
+		const dashes = canvasStub.context.calls.filter((call) => call.name === 'setLineDash');
+		expect(dashes.length).toBeGreaterThanOrEqual(2);
+		// The last one restores it, or every wall drawn after this is dotted.
+		expect(dashes[dashes.length - 1].args[0]).toEqual([]);
 	});
 });
