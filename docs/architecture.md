@@ -323,6 +323,40 @@ removal. Use `shallowRef` for the slot and `markRaw` for the object — see
 no scene graph and no retained objects; every change repaints the whole canvas.
 `carbonsheet.js` is the image underlay you can trace over.
 
+#### How the plan sees the furniture
+
+It does not, directly — and that is deliberate (RM-008 E1). `BlueprintJS` hands
+`Floorplanner2D` a `Floorplan`, and a `Floorplan` holds walls, corners and rooms
+and has no reference to `Model` or `Scene`. So before E1 the plan could not draw
+a chair even in principle, and the obvious fixes both cost something real:
+passing the `Model` in widens a public constructor to read one list, and giving
+`Floorplan` a back-reference puts the scene inside the layer whose whole
+discipline is plain data with no DOM and no GPU.
+
+What it gets instead is a **projection**. `Model` — the one object that holds
+both halves — derives an array of footprints, each one an id, a centre, half
+extents, a rotation, a type and a label in centimetres, and hands it to the
+floorplan as data on `EVENT_ITEMS_PROJECTED`. The view draws a description of
+the furniture and never touches an item.
+
+Three consequences worth knowing:
+
+- **The plan cannot become a second editor of the scene.** To change an item it
+  asks, through the command interface `Model` installs with
+  `floorplan.setItemCommands` — the same shape as `Scene.setItemLoader`, where
+  the layer takes functions rather than importing the thing that does the work.
+- **It is testable without a canvas**, which is most of why it is a module and
+  not a lookup. `model/plan_projection.js` is pure functions over plain objects.
+- **It can be compared.** "Items in the scene equals footprints on the plan" is
+  a claim a test can make, and does, headlessly and again against a real
+  raster.
+
+Hit-testing uses `footprintContains`, which un-rotates the point about the
+footprint's centre — a rotated rectangle is axis-aligned in its own frame. It
+deliberately does not use `Utils.pointInPolygon`: that is one of four pinned
+constant-returning predicates (see the ledger in `core/utils.js`), and a new
+feature must not be built on a bug that is preserved on purpose.
+
 Everything it paints with comes from **`floorplannerPalette`**, a mutable object
 seeded from the twenty-one exported colour constants. A canvas cannot read a
 stylesheet, so a themed application has to hand it colour strings; the

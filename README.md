@@ -4,8 +4,10 @@ WebGL 3D interior design tool with a 2D floorplanner.
 
 Draw walls by clicking, close a loop to make a room, furnish it from a catalog
 of 168 models, change wall and floor textures, and walk through the result in
-first person. Plan and 3D view side by side, undo on everything, and a dark or
-light theme that reaches the drawing canvas as well as the chrome.
+first person. Plan and 3D view side by side — the furniture is drawn on both,
+and selecting anything in one view selects it in the other — with undo on
+everything, and a dark or light theme that reaches the drawing canvas as well as
+the chrome.
 
 **[Documentation](https://amitukind.github.io/architect3d/docs/)** ·
 **[Live app](https://amitukind.github.io/architect3d/)**
@@ -44,7 +46,7 @@ are checked in under `public/`, which Vite serves at the site root.
 | `npm run dev` | Dev server on port 10001, with hot reload |
 | `npm run build` | Library build &rarr; `dist/`: the ESM entry, the `BP3DJS` IIFE, and the declarations |
 | `npm run build:demo` | Application build &rarr; `dist-demo/` |
-| `npm test` | The vitest suite (886 tests, headless) |
+| `npm test` | The vitest suite (1,385 tests, headless) |
 | `npm run test:coverage` | The same suite, with coverage and its thresholds |
 | `npm run test:browser` | The browser tier: real canvas, real WebGL, axe (needs chromium) |
 | `npm run lint` | ESLint |
@@ -55,8 +57,11 @@ are checked in under `public/`, which Vite serves at the site root.
 | `npm run fixtures` | Regenerate `tests/fixtures/*.blueprint3d` |
 | `npm run parity` | Render eleven states through three r98 and r185 side by side |
 
-Pushing to `master` builds and publishes both the application and the docs to
-GitHub Pages. Nothing deploys from any other branch.
+Nothing deploys automatically. The Deploy workflow is `workflow_dispatch` only —
+GitHub Pages was never enabled for this repository, so a push-triggered deploy
+failed on every push to `master` and trained everyone to ignore a red mark. The
+build, the budgets and the artifact upload are all still in it, ready for
+whenever there is a target; the plan is Cloudflare.
 
 ### Checks
 
@@ -90,9 +95,10 @@ with thorough JSDoc, and `npm run typecheck` makes that JSDoc mean something —
 blocks.
 
 Checking is **opt-in per file**: a file joins by putting `// @ts-check` on its
-first line, or on the first line inside `<script setup>`. Forty files are in so
-far — all of `core/`, all of the composables, the public entry point, and the
-components that were already clean. The ledger of what is in, and what each
+first line, or on the first line inside `<script setup>`. Every file is in, all
+105 of them, with zero errors — the library tier went from 355 errors to none in
+RM-005 C2, so `npm run typecheck` rather than an audit somebody remembers to run
+is what fails on a regression. The ledger of what is in, and what each
 remaining area would cost, is at the top of
 [`tsconfig.json`](./tsconfig.json).
 
@@ -171,7 +177,7 @@ public/        assets the running app loads (models, textures, thumbnails)
 asset-pipeline/ inputs and records that are not served: the 25 pre-migration
                three.js JSON models the .glb files were converted from, the
                .blend authoring files, and the conversion report
-tests/         886 headless tests; see tests/README.md
+tests/         1,385 headless tests; see tests/README.md
 tools/         one-off and migration tooling (conversion, goldens, parity)
 docs/          this documentation site
 ```

@@ -58,10 +58,21 @@ Dispatched on `blueprint.model.floorplan`.
 | `EVENT_CHANGESET` | Something changed, and the payload says what |
 | `EVENT_UPDATED` | The wall graph changed and rooms were re-derived |
 | `EVENT_DELETED` | A corner or wall was removed |
+| `EVENT_ITEMS_PROJECTED` | The plan's view of the furniture was replaced. **`evt.projection` carries the list.** |
 
 `EVENT_UPDATED` is the one to listen to if you care about rooms. Rooms are
 derived, not stored, so this is the only moment the room list is known to be
 current.
+
+`EVENT_ITEMS_PROJECTED` is how the 2D view learns about furniture (RM-008 E1). A
+`Floorplan` holds walls, corners and rooms and has no path to a `Scene`, so the
+plan cannot reach an item; `Model` derives a list of footprints — plain data,
+one per item — and hands it over, dispatching this. Read the current list off
+`floorplan.itemProjection` at any time, or `floorplan.footprintById(id)` for one.
+
+It is deliberately not `EVENT_UPDATED`. That one means the wall graph moved and
+drives a full 3D teardown, rebuild and camera recentre, which is the right cost
+for dragging a wall and an absurd one for dragging a chair.
 
 ## What changed, and why
 
@@ -209,7 +220,16 @@ application holds the most recent one as the placement context.
 
 ## The 2D floorplanner
 
-Dispatched on `blueprint.floorplanner` — which is `null` in widget mode.
+Dispatched on **`blueprint.model.floorplan`** — the model object, not the
+`Floorplanner2D` that raises them. The controller has no listeners of its own
+and is `null` in widget mode; the floorplan is where an application already
+listens, so a consumer needs one subscription rather than two.
+
+::: warning This page said `blueprint.floorplanner` until RM-008 E1
+It was wrong, and it is the kind of wrong that costs an afternoon: a listener
+attached to the controller receives nothing at all, silently. Verified against
+`floorplanner.js`, where every one of these is `this.floorplan.dispatchEvent`.
+:::
 
 | Event | When |
 |---|---|
@@ -223,10 +243,22 @@ Dispatched on `blueprint.floorplanner` — which is `null` in widget mode.
 | `EVENT_CORNER_2D_HOVER` | Pointer entered a corner |
 | `EVENT_WALL_2D_HOVER` | Pointer entered a wall |
 | `EVENT_ROOM_2D_HOVER` | Pointer entered a room |
+| `EVENT_ITEM_2D_CLICKED` | A furniture footprint was clicked. **`evt.id` is the item's `designId`; `evt.item` is the footprint.** |
 | `EVENT_NOTHING_CLICKED` | The click hit nothing |
 
 `EVENT_UPDATED` also comes off the carbon sheet when the underlay moves or
 scales.
+
+`EVENT_ITEM_2D_CLICKED` carries an **id and a footprint, not an item** — the
+plan draws a description of the furniture and never holds it. Resolve it with
+`blueprint.model.itemById(evt.id)`. There is no matching "unselected": a click
+that leaves the furniture has already dispatched `EVENT_NOTHING_CLICKED` or one
+of the other three, and every one of those means "not an item".
+
+Selection made anywhere can be pushed back into either view:
+`Floorplanner2D.showSelection(type, target)` highlights on the plan and
+`Main.showItemSelected(item)` highlights in 3D. Both are inbound only — neither
+dispatches, which is what stops a selection echoing between the two views.
 
 ## What Configuration does, and does not
 
