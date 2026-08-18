@@ -1,5 +1,6 @@
 // @ts-check
 import {EVENT_UPDATED, EVENT_LOADED, EVENT_NEW, EVENT_DELETED, EVENT_ROOM_NAME_CHANGED, EVENT_CHANGESET} from '../core/events.js';
+import {EVENT_ITEMS_PROJECTED} from '../core/events.js';
 import {EVENT_CORNER_ATTRIBUTES_CHANGED, EVENT_WALL_ATTRIBUTES_CHANGED, EVENT_ROOM_ATTRIBUTES_CHANGED, EVENT_MOVED} from '../core/events.js';
 import {ChangeSet, CHANGE_TOPOLOGY, CHANGE_GEOMETRY, REASON_EDIT, REASON_LOAD, newChangeCounts} from '../core/change_set.js';
 import {matchRooms, rekeyInPlace} from './room_matcher.js';
@@ -183,6 +184,23 @@ export class Floorplan extends EventDispatcher
 		// did; every event on this class goes through EventDispatcher.
 
 		this.floorTextures = {};
+		/**
+		 * What the 2D view is allowed to know about the furniture (RM-008 E1, T-1).
+		 *
+		 * Plain data, written by `Model` and read by the plan - never live items,
+		 * and never a reference to the `Scene` that holds them. The measured reason
+		 * this exists at all is that a `Floorplan` has no path to a `Scene`: the 2D
+		 * view is handed this object and nothing else, so before E1 it could not
+		 * draw a chair even in principle.
+		 *
+		 * It sits beside `floorTextures` deliberately - that is the other thing here
+		 * that describes something the floorplan does not own. Empty until `Model`
+		 * fills it, which means a bare `Floorplan` built by a test is still a whole
+		 * `Floorplan`, and that is the property worth protecting.
+		 *
+		 * @type {Array<import('./plan_projection.js').ItemFootprint>}
+		 */
+		this.itemProjection = [];
 		/**
 		 * The {@link CarbonSheet} that handles the background image to show in
 		 * the 2D view
@@ -924,6 +942,55 @@ export class Floorplan extends EventDispatcher
 	/**
 	 * @deprecated
 	 */
+	/**
+	 * Replace the plan's view of the furniture (RM-008 E1).
+	 *
+	 * Called by `Model` whenever the item set or an item's placement changes. The
+	 * event is its own rather than EVENT_UPDATED, because EVENT_UPDATED means the
+	 * wall graph moved and drives a full 3D rebuild and a camera recentre - which
+	 * is the right cost for dragging a wall and an absurd one for dragging a
+	 * chair.
+	 *
+	 * The array is stored as given, not copied. `Model` builds a fresh one on
+	 * every call (`projectItems` maps and sorts), so there is nothing shared to
+	 * defend against, and copying it per item move would be work done to protect
+	 * against a caller that does not exist.
+	 *
+	 * @param {Array<import('./plan_projection.js').ItemFootprint>} projection
+	 * @emits {EVENT_ITEMS_PROJECTED}
+	 */
+	setItemProjection(projection)
+	{
+		this.itemProjection = projection || [];
+		this.dispatchEvent({type: EVENT_ITEMS_PROJECTED, item: this, projection: this.itemProjection});
+	}
+
+	/**
+	 * Which footprint carries an id, or null (RM-008 E1).
+	 *
+	 * The plan hit-tests to an id and the application resolves that id to an item;
+	 * this is the lookup in between, kept here so both the view and any embedder
+	 * ask one question of one object.
+	 *
+	 * @param {string} id
+	 * @returns {?import('./plan_projection.js').ItemFootprint}
+	 */
+	footprintById(id)
+	{
+		if (!id)
+		{
+			return null;
+		}
+		for (var i = 0; i < this.itemProjection.length; i++)
+		{
+			if (this.itemProjection[i].id === id)
+			{
+				return this.itemProjection[i];
+			}
+		}
+		return null;
+	}
+
 	getFloorTexture(uuid)
 	{
 		if (uuid in this.floorTextures)

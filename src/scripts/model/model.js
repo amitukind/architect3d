@@ -1,5 +1,7 @@
 // @ts-check
 import {EVENT_LOADED, EVENT_LOADING, EVENT_GLTF_READY} from '../core/events.js';
+import {EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED, EVENT_ITEM_MOVE_FINISH} from '../core/events.js';
+import {projectItems} from './plan_projection.js';
 import {EventDispatcher, Vector3, Mesh} from 'three';
 import {Floorplan} from './floorplan.js';
 import {Scene} from './scene.js';
@@ -76,6 +78,60 @@ export class Model extends EventDispatcher
 		// the way of the answer to "which runtime is this document on".
 		this.floorplan = new Floorplan(runtime);
 		this.scene = new Scene(this, textureDir);
+
+		/**
+		 * Keep the plan's view of the furniture current (RM-008 E1, T-1).
+		 *
+		 * This class is the only object that holds both halves - `Scene` knows its
+		 * `Model` and `Floorplan` knows neither - so it is the only place that can
+		 * derive one from the other without giving somebody a reference they should
+		 * not have. See `model/plan_projection.js` for why that matters.
+		 *
+		 * Three events, which are the three ways the picture can change: an item
+		 * arrives, an item leaves, an item finishes being moved. There is
+		 * deliberately no fourth for "an item is being dragged" - `Controller`
+		 * marks the projection stale directly during a drag (T-7), because adding
+		 * a dispatch inside a pointermove handler is the shape RM-002 R-05 spent a
+		 * sprint removing.
+		 *
+		 * Held as a field so `dispose()` can take them off again. A `Model` that
+		 * outlives its listeners is how a document keeps a dead scene alive.
+		 */
+		this._reproject = () => {this.projectItemsToPlan();};
+		this.scene.addEventListener(EVENT_ITEM_LOADED, this._reproject);
+		this.scene.addEventListener(EVENT_ITEM_REMOVED, this._reproject);
+		this.scene.addEventListener(EVENT_ITEM_MOVE_FINISH, this._reproject);
+	}
+
+	/**
+	 * Recompute the plan's view of the furniture and hand it over (RM-008 E1).
+	 *
+	 * Public because more than one thing legitimately needs to ask for it: the
+	 * three item events above, `loadDocument` once a design has settled, and
+	 * `Controller` while an item is being dragged. Cheap enough to call freely -
+	 * it maps and sorts an array whose length is the item count - and idempotent,
+	 * which is what lets every one of those callers just call it rather than
+	 * reason about whether somebody else already did.
+	 */
+	projectItemsToPlan()
+	{
+		this.floorplan.setItemProjection(projectItems(this.scene.getItems()));
+	}
+
+	/**
+	 * Stop keeping the plan's projection current.
+	 *
+	 * `BlueprintJS.dispose()` disposes the viewers and the runtime; the model
+	 * outlives both in an embedder that keeps the document. These three listeners
+	 * are the only ones this class holds, and they hold `this`, so leaving them
+	 * attached would keep a whole document reachable from a scene nobody is
+	 * looking at.
+	 */
+	dispose()
+	{
+		this.scene.removeEventListener(EVENT_ITEM_LOADED, this._reproject);
+		this.scene.removeEventListener(EVENT_ITEM_REMOVED, this._reproject);
+		this.scene.removeEventListener(EVENT_ITEM_MOVE_FINISH, this._reproject);
 	}
 
 	/** This design's services (RM-003 A4). @returns {import('../core/design_runtime.js').DesignRuntime} */
@@ -186,6 +242,13 @@ export class Model extends EventDispatcher
 		this.scene.abortPendingLoads();
 
 		this.newRoom(result.document.floorplan, result.document.items, options && options.reason);
+
+		// The furniture of the document just closed is gone and none of the new
+		// document's has arrived yet - every item load is asynchronous. Project
+		// once here so the plan shows an empty room rather than the last design's
+		// chairs; each arrival then re-projects through EVENT_ITEM_LOADED
+		// (RM-008 E1).
+		this.projectItemsToPlan();
 
 		this.dispatchEvent({type: EVENT_LOADED, item: this});
 		return result;

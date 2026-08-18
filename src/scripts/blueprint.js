@@ -15,6 +15,7 @@ export {CHANGE_TOPOLOGY, CHANGE_GEOMETRY, CHANGE_SURFACE, CHANGE_ITEMS, CHANGE_S
 export {REASON_LOAD, REASON_EDIT, REASON_UNDO, REASON_DERIVE} from './core/change_set.js';
 export {EVENT_ROOM_NAME_CHANGED} from './core/events.js';
 export {EVENT_ITEM_LOADING, EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED, EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED} from './core/events.js';
+export {EVENT_ITEMS_PROJECTED, EVENT_ITEM_2D_CLICKED} from './core/events.js';
 export {EVENT_ITEM_MOVE_FINISH} from './core/events.js';
 export {EVENT_CAMERA_MOVED, EVENT_CAMERA_ACTIVE_STATUS, EVENT_FPS_EXIT, EVENT_CAMERA_VIEW_CHANGE} from './core/events.js';
 
@@ -56,6 +57,11 @@ export {WallTypes} from './core/constants.js';
 export {HalfEdge} from './model/half_edge.js';
 export {Corner} from './model/corner.js';
 export {defaultFloorPlanTolerance, Floorplan, SAVE_UNITS} from './model/floorplan.js';
+// What the 2D plan is allowed to know about the furniture (RM-008 E1). A
+// footprint is plain data - the plan draws a description of an item, never the
+// item - which is what lets the 2D view show furniture without a Floorplan
+// gaining a reference to a Scene.
+export {projectItem, projectItems, footprintContains, footprintCorners} from './model/plan_projection.js';
 export {Model} from './model/model.js';
 // Document validation and load ownership (RM-003 A1). `DesignDocument.parse`
 // checks a `.blueprint3d` document without touching anything, which is what

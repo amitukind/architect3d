@@ -92,3 +92,19 @@ export const EVENT_ROOM_2D_DOUBLE_CLICKED = 'ROOM_DOUBLE_CLICKED_2D_EVENT';
 export const EVENT_CORNER_2D_HOVER = 'CORNER_HOVER_2D_EVENT';
 export const EVENT_WALL_2D_HOVER = 'WALL_HOVER_2D_EVENT';
 export const EVENT_ROOM_2D_HOVER = 'ROOM_HOVER_2D_EVENT';
+
+/**
+ * The plan's view of the furniture has been replaced (RM-008 E1).
+ *
+ * Dispatched by `Floorplan` when `Model` hands it a new projection - see
+ * `model/plan_projection.js` for why the plan is given data rather than a
+ * reference to the scene. Carries the list on `projection`.
+ *
+ * A dedicated event rather than EVENT_UPDATED, which means "the wall graph
+ * changed" and drives a full 3D teardown and rebuild. Moving a chair must not
+ * cost that.
+ */
+export const EVENT_ITEMS_PROJECTED = 'ITEMS_PROJECTED_EVENT';
+
+/** An item's footprint was clicked on the 2D plan (RM-008 E1). Carries `id`. */
+export const EVENT_ITEM_2D_CLICKED = 'ITEM_CLICKED_2D_EVENT';
