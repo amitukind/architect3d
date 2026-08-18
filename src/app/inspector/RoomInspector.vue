@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {onBeforeUnmount, ref, watch} from 'vue';
 import TextField from './fields/TextField.vue';
 import {Dimensioning, EVENT_ROOM_ATTRIBUTES_CHANGED} from '../../scripts/blueprint.js';

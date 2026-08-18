@@ -1,3 +1,4 @@
+// @ts-check
 import {ref, watch} from 'vue';
 import {setFloorplannerPalette} from '../../scripts/blueprint.js';
 

@@ -1,9 +1,36 @@
+// @ts-check
 import {EventDispatcher, Vector2, Vector3, Matrix4, Mesh, MeshBasicMaterial, Box3} from 'three';
 import {firstFaceNormal, triangleFanGeometry} from '../core/geometry_builders.js';
+import {disposeObject} from '../core/resource_registry.js';
 import {EVENT_REDRAW} from '../core/events.js';
 import {Utils} from '../core/utils.js';
 import {WallTypes} from '../core/constants.js';
 
+
+
+/**
+ * A wall-picking plane carrying a back-reference to the edge that owns it.
+ *
+ * The `edge` property is a monkey patch - `generatePlane()` says so - and the
+ * raycaster reads it to answer "which wall face did I just click". Same shape
+ * as `RoomPlane` in `room.js` (RM-005 C2).
+ *
+ * @typedef {import('three').Mesh & {edge?: HalfEdge}} EdgePlane
+ */
+/**
+ * JSDoc-only type imports (RM-005 C2).
+ *
+ * These names were already used in the annotations below and resolved to
+ * nothing - 43 TS2304s across eleven files, every one of them a type the
+ * project defines or three exports, named but never brought into scope. A
+ * `@typedef` import costs no runtime code and no bundle bytes: it exists
+ * entirely for the checker, which is the point of writing the JSDoc at all.
+
+ *
+ * @typedef {import('./corner.js').Corner} Corner
+ * @typedef {import('./room.js').Room} Room
+ * @typedef {import('./wall.js').Wall} Wall
+ */
 /**
  * Half Edges are created by Room.
  *
@@ -15,7 +42,9 @@ export class HalfEdge extends EventDispatcher
 {
 	/**
 	 * Constructs a half edge.
-	 * @param {Room} room The associated room. Instance of Room
+	 * @param {?Room} room The associated room, or null for an ORPHAN wall - one
+	 * with no room on either side. `Floorplan.update()` builds a pair of these
+	 * so an orphan still has planes to pick against (RM-005 C2).
 	 * @param {Wall} wall The corresponding wall. Instance of Wall
 	 * @param {boolean} front True if front side. Boolean value
 	 */
@@ -25,7 +54,7 @@ export class HalfEdge extends EventDispatcher
 
 		/**  The minimum point in space calculated from the bounds
 		 * @property {Vector3} min  The minimum point in space calculated from the bounds
-		 * @type {Vector3}
+		 * @type {?Vector3} Null until generatePlane() computes the bounds.
 		 * @see https://threejs.org/docs/#api/en/math/Vector3
 		**/
 		this.min = null;
@@ -33,7 +62,7 @@ export class HalfEdge extends EventDispatcher
 		/**
 		 * The maximum point in space calculated from the bounds
 		 * @property {Vector3} max	 The maximum point in space calculated from the bounds
-		 * @type {Vector3}
+		 * @type {?Vector3} Null until generatePlane() computes the bounds.
 		 * @see https://threejs.org/docs/#api/en/math/Vector3
 		**/
 		this.max = null;
@@ -41,7 +70,7 @@ export class HalfEdge extends EventDispatcher
 		/**
 		 * The center of this half edge
 		 * @property {Vector3} center The center of this half edge
-		 * @type {Vector3}
+		 * @type {?Vector3} Null until generatePlane() computes the bounds.
 		 * @see https://threejs.org/docs/#api/en/math/Vector3
 		**/
 		this.center = null;
@@ -49,7 +78,7 @@ export class HalfEdge extends EventDispatcher
 		/**
 		 * Reference to a Room instance
 		 * @property {Room} room Reference to a Room instance
-		 * @type {Room}
+		 * @type {?Room}
 		**/
 		this.room = room;
 		
@@ -63,14 +92,14 @@ export class HalfEdge extends EventDispatcher
 		/**
 		 * Reference to the next halfedge instance connected to this
 		 * @property {HalfEdge} next Reference to the next halfedge instance connected to this
-		 * @type {HalfEdge}
+		 * @type {?HalfEdge}
 		**/
 		this.next = null;
 		
 		/**
 		 * Reference to the previous halfedge instance connected to this
 		 * @property {HalfEdge} prev Reference to the previous halfedge instance connected to this
-		 * @type {HalfEdge}
+		 * @type {?HalfEdge}
 		**/
 		this.prev = null;
 		
@@ -91,7 +120,8 @@ export class HalfEdge extends EventDispatcher
 		/**
 		 * The plane mesh that will be used for checking intersections of wall items
 		 * @property {Mesh} plane The plane mesh that will be used for checking intersections of wall items
-		 * @type {Mesh}
+		 * @type {?EdgePlane} Null between construction and generatePlane(), and
+		 * again after remove(). `edge` on it is a monkey patch the raycaster reads.
 		 * @see https://threejs.org/docs/#api/en/objects/Mesh
 		 */
 		this.plane = null;
@@ -140,7 +170,19 @@ export class HalfEdge extends EventDispatcher
 		 * @type {boolean}
 		 */
 		this.front = front || false;
-		
+
+		/**
+		 * This face's identity: its wall's, plus which side (RM-003 A3).
+		 *
+		 * Derived rather than assigned, and correctly so - a wall has exactly two
+		 * faces and which one this is is not an accident of construction. It is
+		 * stable because `Wall.id` is now stable, and it is never persisted,
+		 * because a save file records walls and the sides come back with them.
+		 *
+		 * @type {string}
+		 */
+		this.id = `${wall.id}:${this.front ? 'front' : 'back'}`;
+
 		this.offset = wall.thickness / 2.0;
 		this.height = wall.height;
 
@@ -203,8 +245,10 @@ export class HalfEdge extends EventDispatcher
 	}
 	
 	/**
-	 * Transform the {@link Corner} instance to a Vector3 instance using the x and y position returned as x and z
-	 * @param {Corner} corner
+	 * Transform an x,y point to a Vector3 using the y position as z
+	 * @param {{x: number, y: number}} corner Any x,y pair. Documented as `Corner`
+	 * and never given one: every caller passes a `Vector2` from `interiorStart()`
+	 * or its siblings, and the body reads only `.x` and `.y` (RM-005 C2).
 	 * @return {Vector3}
 	 * @see https://threejs.org/docs/#api/en/math/Vector3
 	 */
@@ -219,6 +263,12 @@ export class HalfEdge extends EventDispatcher
 	 */
 	generatePlane()
 	{
+		// Released before it is replaced (RM-003 A0). `Room.updateInteriorCorners()`
+		// calls this once per edge on construction, and a plan being re-derived
+		// builds a fresh HalfEdge each time - so without this line the previous
+		// quad's geometry and material were dropped on every update.
+		disposeObject(this.plane);
+
 		var v1 = this.transformCorner(this.interiorStart());
 		var v2 = this.transformCorner(this.interiorEnd());
 		var v3 = v2.clone();
@@ -242,7 +292,7 @@ export class HalfEdge extends EventDispatcher
 		//Now its setting visibility to true. This is necessary to be detected
 		//with the raycaster objects to click walls and floors.
 		this.plane.visible = true;
-		this.plane.edge = this; // js monkey patch
+		this.plane.edge = this; // js monkey patch, declared by EdgePlane
 
 
 		this.computeTransforms(this.interiorTransform, this.invInteriorTransform, this.interiorStart(), this.interiorEnd());
@@ -258,7 +308,23 @@ export class HalfEdge extends EventDispatcher
 	}
 	
 	/**
-	 * Calculate the transformation matrix for the edge (front/back) baesd on the parameters. 
+	 * Release the intersection plane this half edge owns (RM-003 A0).
+	 *
+	 * The wall is what owns a half edge - the constructor writes itself onto
+	 * `wall.frontEdge` or `wall.backEdge` - so `Floorplan.update()` releases these
+	 * through the wall, immediately before `resetFrontBack()` nulls the pointers
+	 * and makes them unreachable. That was two of the six resources per update.
+	 *
+	 * Idempotent.
+	 */
+	dispose()
+	{
+		disposeObject(this.plane);
+		this.plane = null;
+	}
+
+	/**
+	 * Calculate the transformation matrix for the edge (front/back) baesd on the parameters.
 	 * @param {Matrix4} transform The matrix reference in which the transformation is stored
 	 * @param {Matrix4} invTransform The inverse of the transform that is stored in the invTransform
 	 * @param {Vector2} start The starting point location
@@ -484,7 +550,8 @@ export class HalfEdge extends EventDispatcher
 	}
 
 	/** Get the corners of the half edge.
-	 * @returns {Corner[]} An array of x,y pairs.
+	 * @returns {Vector2[]} An array of x,y pairs - which is what the old tag's own
+	 * description said, while its type said `Corner[]` (RM-005 C2).
 	 */
 	corners()
 	{
@@ -493,18 +560,35 @@ export class HalfEdge extends EventDispatcher
 	
 	/**
 	 * Gets CCW angle from v1 to v2
-	 * @param {Vector2} v1 The point a
-	 * @param {Vector2} v1 The point b
-	 * @return {Object} contains keys x and y with number representing the halfAngles
+	 * @param {?HalfEdge} v1 The previous edge, or null at the start of a run.
+	 * @param {?HalfEdge} v2 The next edge, or null at the end of one.
+	 *
+	 * Both tags used to say `{Vector2} v1` - the same name twice, and the wrong
+	 * type: the body calls `getStart()` and `getEnd()` on them, which is the
+	 * HalfEdge interface, and `interiorStart()` passes `this.prev` (RM-005 C2).
+	 * @return {{x: number, y: number}} keys x and y, the half-angle point. Not a
+	 * `Vector2` - the body builds a plain object and the line that used to make
+	 * one is commented out beside it.
 	 */
 	halfAngleVector(v1, v2)
 	{
-		var v1startX=0.0, v1startY=0.0, v1endX=0.0, v1endY=0.0;
-		var v2startX=0.0, v2startY=0.0, v2endX=0.0, v2endY=0.0;
+		var v1startX, v1startY, v1endX, v1endY;
+		var v2startX, v2startY, v2endX, v2endY;
+
+		// One of the two may be null - the first or last edge of an open run - but
+		// never both, and each arm below extrapolates from whichever survives. The
+		// both-null return is written inside each arm rather than once above it,
+		// because that is the shape the checker can follow: a guard at the top
+		// establishes "at least one", which is not a thing narrowing can express
+		// (RM-005 C2). Neither of these two returns is reachable.
 
 		// make the best of things if we dont have prev or next
 		if (!v1)
 		{
+			if (!v2)
+			{
+				return {x: 0, y: 0};
+			}
 			v1startX = v2.getStart().x - (v2.getEnd().x - v2.getStart().x);
 			v1startY = v2.getStart().y - (v2.getEnd().y - v2.getStart().y);
 
@@ -521,6 +605,10 @@ export class HalfEdge extends EventDispatcher
 
 		if (!v2)
 		{
+			if (!v1)
+			{
+				return {x: 0, y: 0};
+			}
 			v2startX = v1.getEnd().x;
 			v2startY = v1.getEnd().y;
 			v2endX = v1.getEnd().x + (v1.getEnd().x - v1.getStart().x);

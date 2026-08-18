@@ -1,3 +1,4 @@
+// @ts-check
 import {onScopeDispose, ref, watch} from 'vue';
 import {EVENT_MODE_RESET, floorplannerModes} from '../../scripts/blueprint.js';
 

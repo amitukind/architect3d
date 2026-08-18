@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {TooltipRoot, TooltipTrigger, TooltipPortal, TooltipContent, TooltipArrow} from 'reka-ui';
 import {keyChips} from '../composables/useShortcuts.js';
 
@@ -29,7 +30,21 @@ const props = defineProps({
 	label: {type: String, required: true},
 	/** A binding string from the shortcut map, e.g. 'mod+z'. Rendered as chips. */
 	keys: {type: String, default: ''},
-	side: {type: String, default: 'bottom'},
+	side: {
+		/**
+		 * Reka's `TooltipContent` takes a literal union, not a string, so a bare
+		 * `type: String` cannot be handed to it. Naming the four sides here is
+		 * also the honest declaration: they are the only values that work
+		 * (RM-004 B3).
+		 *
+		 * Written as a cast on the constructor rather than as a `@type` above it:
+		 * `StringConstructor` is not assignable to a `PropType` of a literal
+		 * union, so the annotation has to replace the inferred type rather than
+		 * sit beside it.
+		 */
+		type: /** @type {import('vue').PropType<'top'|'right'|'bottom'|'left'>} */ (String),
+		default: 'bottom',
+	},
 	/** Milliseconds before opening. Zero for the tool rail, where the pointer is
 	 * moving between adjacent buttons and a delay makes the whole rail feel
 	 * unresponsive. */

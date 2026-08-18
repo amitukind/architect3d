@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {computed, nextTick, ref, watch} from 'vue';
 import {DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose} from 'reka-ui';
 import {Search, X, Plus} from '@lucide/vue';
@@ -30,15 +31,32 @@ import {Search, X, Plus} from '@lucide/vue';
 
 const props = defineProps({
 	open: {type: Boolean, default: false},
-	sections: {type: Array, required: true},
+	sections: {
+		/**
+		 * A bare `Array` types every element `unknown`, which made this whole
+		 * template uncheckable - eight of this file's nine errors were the one
+		 * missing annotation. Typing the prop is what turns a cluster into zero
+		 * rather than into one (RM-004 B3).
+		 *
+		 * @type {import('vue').PropType<Array<import('../composables/useCatalog.js').CatalogSection>>}
+		 */
+		type: Array,
+		required: true,
+	},
 	/** Where a wall-bound item would land, so the drawer can say. */
 	placement: {type: Object, default: null},
 });
 
-const emit = defineEmits(['update:open', 'add-item']);
+const emit = defineEmits(['update:open', 'add-item', 'prefetch-item']);
 
 const query = ref('');
+// `ref(null)` infers `Ref<null>`, so assigning anything else is an error and
+// reading a property off it is an error on `never`. Both of these hold null
+// most of the time and something else the rest, which is what the annotation
+// has to say (RM-004 B3).
+/** @type {import('vue').Ref<?number>} The section filter, or null for all. */
 const activeSection = ref(null);
+/** @type {import('vue').Ref<?HTMLInputElement>} */
 const searchField = ref(null);
 
 /** Wall-bound item types, matching the list in useCatalog. */
@@ -105,7 +123,7 @@ watch(() => props.open, async function (open)
 				class="a3d-slide fixed inset-y-0 right-0 z-[500] flex w-[380px] max-w-full flex-col border-l border-line bg-surface shadow-float focus:outline-none"
 				@escape-key-down="close"
 				@interact-outside.prevent>
-				<header class="flex flex-none items-center gap-2 border-b border-line px-3 py-2.5">
+				<div class="flex flex-none items-center gap-2 border-b border-line px-3 py-2.5">
 					<div>
 						<DialogTitle class="text-[13px] font-semibold">Furniture</DialogTitle>
 						<DialogDescription class="num text-ink-faint">
@@ -117,7 +135,7 @@ watch(() => props.open, async function (open)
 							<X :size="15" />
 						</button>
 					</DialogClose>
-				</header>
+				</div>
 
 				<div class="flex-none border-b border-line p-3">
 					<div class="relative">
@@ -155,9 +173,15 @@ watch(() => props.open, async function (open)
 								type="button"
 								class="group relative w-full overflow-hidden rounded-lg border border-line-soft bg-sunk p-2 text-left transition-colors hover:border-accent"
 								:title="`Add ${row.item.name}`"
-								@click="pick(row.item)">
+								@click="pick(row.item)"
+								@pointerenter="emit('prefetch-item', row.item)"
+								@focus="emit('prefetch-item', row.item)">
+								<!-- alt="" on purpose: the button is already named "Add {name}"
+								     and the label below repeats it, so a described thumbnail makes
+								     a screen reader say the item three times. axe calls this
+								     image-redundant-alt, and it fired on all 122 of them. -->
 								<img
-									:src="row.item.image" :alt="row.item.name" loading="lazy"
+									:src="row.item.image" alt="" loading="lazy"
 									class="mx-auto h-[86px] w-full object-contain mix-blend-normal">
 								<span class="mt-1 block truncate text-[11px] leading-tight">{{ row.item.name }}</span>
 								<span v-if="needsWall(row.item)" class="block truncate text-[10px] text-ink-faint">
@@ -172,10 +196,10 @@ watch(() => props.open, async function (open)
 					</ul>
 				</div>
 
-				<footer class="flex-none border-t border-line px-3 py-2 text-[11px] text-ink-faint">
+				<div class="flex-none border-t border-line px-3 py-2 text-[11px] text-ink-faint">
 					Items land on the last floor or wall you clicked in 3D. The panel stays open —
 					<kbd>Esc</kbd> to close.
-				</footer>
+				</div>
 			</DialogContent>
 		</DialogPortal>
 	</DialogRoot>

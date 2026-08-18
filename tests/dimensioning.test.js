@@ -25,6 +25,7 @@ import {dimInch, dimFeetAndInch, dimMeter, dimCentiMeter, dimMilliMeter,
 import {Configuration, config, configDimUnit, configWallHeight, configWallThickness,
 	configSystemUI, scale, gridSpacing, snapToGrid, snapTolerance,
 	cornerTolerance, wallInformation} from '../src/scripts/core/configuration.js';
+import {EVENT_CONFIG_CHANGED} from '../src/scripts/core/events.js';
 import {Version} from '../src/scripts/core/version.js';
 import {Utils} from '../src/scripts/core/utils.js';
 import {Floorplan} from '../src/scripts/model/floorplan.js';
@@ -706,14 +707,98 @@ describe('Configuration is a mutable module singleton with no change notificatio
 		expect(captured.scale).toBe(5);
 	});
 
-	it('PRESERVED QUIRK: Configuration has no event surface at all - nothing is notified on change', () =>
+	/**
+	 * FIXED in RM-002 R-03. This block replaces a PRESERVED QUIRK test that
+	 * asserted the opposite - that Configuration had no event surface at all.
+	 *
+	 * That was a genuine characterization of a genuine gap, not a quirk worth
+	 * keeping: Configuration was the one change vector in the library that
+	 * broadcast nothing, so anything caching a config value kept a stale copy
+	 * forever and the settings panel's zoom control read `Number(config.scale)`
+	 * once and displayed 1 while the plan sat at 300%.
+	 *
+	 * The expectation was changed together with the code, deliberately, which is
+	 * what the preserve-or-fix policy asks for. What has NOT changed is the
+	 * snapshotting below: a Wall still reads thickness and height once in its
+	 * constructor and never hears about a later change. Broadcasting a change is
+	 * not the same as reacting to one, and nothing in the model reacts yet.
+	 */
+	it('setValue dispatches EVENT_CONFIG_CHANGED with the key, the new value and the old', () =>
 	{
-		// Not an EventDispatcher, no callbacks, no proxy: every consumer that
-		// caches a config value keeps its stale copy forever (see the Wall tests).
-		expect(Configuration.addEventListener).toBeUndefined();
-		expect(Configuration.dispatchEvent).toBeUndefined();
-		expect(Object.getOwnPropertyNames(Configuration).sort())
-			.toEqual(['getData', 'getNumericValue', 'getStringValue', 'length', 'name', 'prototype', 'setValue']);
+		const seen = [];
+		const listener = (event) => {seen.push(event);};
+		Configuration.addEventListener(EVENT_CONFIG_CHANGED, listener);
+
+		Configuration.setValue(configWallHeight, 275);
+
+		expect(seen).toHaveLength(1);
+		expect(seen[0].key).toBe(configWallHeight);
+		expect(seen[0].value).toBe(275);
+		expect(seen[0].previous).toBe(250);
+
+		Configuration.removeEventListener(EVENT_CONFIG_CHANGED, listener);
+	});
+
+	it('setting a key to the value it already holds dispatches nothing', () =>
+	{
+		// Callers write from watchers and computed setters that re-run for
+		// unrelated reasons. Announcing a no-op write would turn one user action
+		// into a redraw storm, and a two-way bound control into a loop.
+		Configuration.setValue(scale, 2);
+
+		const seen = [];
+		const listener = (event) => {seen.push(event);};
+		Configuration.addEventListener(EVENT_CONFIG_CHANGED, listener);
+
+		Configuration.setValue(scale, 2);
+		expect(seen).toHaveLength(0);
+
+		Configuration.setValue(scale, 3);
+		expect(seen).toHaveLength(1);
+
+		Configuration.removeEventListener(EVENT_CONFIG_CHANGED, listener);
+	});
+
+	it('removeEventListener actually detaches', () =>
+	{
+		let count = 0;
+		const listener = () => {count += 1;};
+		Configuration.addEventListener(EVENT_CONFIG_CHANGED, listener);
+		Configuration.setValue(gridSpacing, 33);
+		expect(count).toBe(1);
+
+		Configuration.removeEventListener(EVENT_CONFIG_CHANGED, listener);
+		Configuration.setValue(gridSpacing, 44);
+		expect(count).toBe(1);
+	});
+
+	it('the value is written before the event fires, so a listener reads the new one', () =>
+	{
+		let observed = null;
+		const listener = () => {observed = Configuration.getNumericValue(configWallThickness);};
+		Configuration.addEventListener(EVENT_CONFIG_CHANGED, listener);
+
+		Configuration.setValue(configWallThickness, 15);
+		expect(observed).toBe(15);
+
+		Configuration.removeEventListener(EVENT_CONFIG_CHANGED, listener);
+	});
+
+	it('a direct write to config still bypasses the event, as it always has', () =>
+	{
+		// getData() hands out the live object and several places write straight to
+		// it. Those writes are invisible to listeners - only setValue announces.
+		// Worth pinning: it is the one way to change configuration silently, and
+		// anybody debugging a control that will not update should look here first.
+		const seen = [];
+		const listener = (event) => {seen.push(event);};
+		Configuration.addEventListener(EVENT_CONFIG_CHANGED, listener);
+
+		config.wallHeight = 999;
+		expect(Configuration.getNumericValue(configWallHeight)).toBe(999);
+		expect(seen).toHaveLength(0);
+
+		Configuration.removeEventListener(EVENT_CONFIG_CHANGED, listener);
 	});
 });
 

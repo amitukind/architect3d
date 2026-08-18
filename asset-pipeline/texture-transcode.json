@@ -1,0 +1,176 @@
+{
+	"encoder": {
+		"isUASTC": false,
+		"qualityLevel": 128,
+		"needSupercompression": true,
+		"generateMipmap": true
+	},
+	"vramFloor": 1048576,
+	"textures": [
+		{
+			"from": "models/js-glb/textures/b_cb-blue-block60x96.jpg",
+			"to": "models/js-glb/textures/b_cb-blue-block60x96.ktx2",
+			"pixels": "512x512",
+			"bytesBefore": 49474,
+			"bytesAfter": 34818,
+			"vramBefore": 1398101,
+			"vramAfter": 349525,
+			"sha256": "53bbdb692869a5c0"
+		},
+		{
+			"from": "models/js-glb/textures/cb-kendallbookcasewalnut_baked.jpg",
+			"to": "models/js-glb/textures/cb-kendallbookcasewalnut_baked.ktx2",
+			"pixels": "512x512",
+			"bytesBefore": 54394,
+			"bytesAfter": 37886,
+			"vramBefore": 1398101,
+			"vramAfter": 349525,
+			"sha256": "e31c1df136de3f49"
+		},
+		{
+			"from": "models/js-glb/textures/cb-rochelle-gray_baked.jpg",
+			"to": "models/js-glb/textures/cb-rochelle-gray_baked.ktx2",
+			"pixels": "512x512",
+			"bytesBefore": 67178,
+			"bytesAfter": 41929,
+			"vramBefore": 1398101,
+			"vramAfter": 349525,
+			"sha256": "5f10822498422982"
+		},
+		{
+			"from": "models/js-glb/textures/cb-scholartable_baked.jpg",
+			"to": "models/js-glb/textures/cb-scholartable_baked.ktx2",
+			"pixels": "512x512",
+			"bytesBefore": 57416,
+			"bytesAfter": 38877,
+			"vramBefore": 1398101,
+			"vramAfter": 349525,
+			"sha256": "0d0e7b7bdd3a3da4"
+		},
+		{
+			"from": "models/js-glb/textures/cb-tecs_baked.jpg",
+			"to": "models/js-glb/textures/cb-tecs_baked.ktx2",
+			"pixels": "512x512",
+			"bytesBefore": 49918,
+			"bytesAfter": 36792,
+			"vramBefore": 1398101,
+			"vramAfter": 349525,
+			"sha256": "a0637be0dc41effd"
+		},
+		{
+			"from": "models/js-glb/textures/closed-door28x80_baked.jpg",
+			"to": "models/js-glb/textures/closed-door28x80_baked.ktx2",
+			"pixels": "512x512",
+			"bytesBefore": 35441,
+			"bytesAfter": 18650,
+			"vramBefore": 1398101,
+			"vramAfter": 349525,
+			"sha256": "27461b87260fe002"
+		},
+		{
+			"from": "models/js-glb/textures/ik-ekero-blue_baked.jpg",
+			"to": "models/js-glb/textures/ik-ekero-blue_baked.ktx2",
+			"pixels": "512x512",
+			"bytesBefore": 31010,
+			"bytesAfter": 22783,
+			"vramBefore": 1398101,
+			"vramAfter": 349525,
+			"sha256": "23cfc173dc789b07"
+		},
+		{
+			"from": "models/js-glb/textures/ore-3legged-white_baked.jpg",
+			"to": "models/js-glb/textures/ore-3legged-white_baked.ktx2",
+			"pixels": "512x512",
+			"bytesBefore": 44458,
+			"bytesAfter": 27209,
+			"vramBefore": 1398101,
+			"vramAfter": 349525,
+			"sha256": "cff280262223631a"
+		},
+		{
+			"from": "models/js-glb/textures/white_wood.jpg",
+			"to": "models/js-glb/textures/white_wood.ktx2",
+			"pixels": "669x1024",
+			"bytesBefore": 98071,
+			"bytesAfter": 46922,
+			"vramBefore": 3653632,
+			"vramAfter": 913408,
+			"sha256": "5f0b77a255f03e6d"
+		},
+		{
+			"from": "rooms/textures/Ground_4K.jpg",
+			"to": "rooms/textures/Ground_4K.ktx2",
+			"pixels": "1024x1024",
+			"bytesBefore": 59111,
+			"bytesAfter": 10401,
+			"vramBefore": 5592405,
+			"vramAfter": 1398101,
+			"sha256": "362685cb2fa03af1"
+		},
+		{
+			"from": "models/js-glb/textures/cb-archnight-white_baked.png",
+			"to": "models/js-glb/textures/cb-archnight-white_baked.ktx2",
+			"pixels": "512x512",
+			"bytesBefore": 191187,
+			"bytesAfter": 55963,
+			"vramBefore": 1398101,
+			"vramAfter": 349525,
+			"qualityLevel": 192,
+			"sha256": "5dd9e0b2a00b8f1e"
+		}
+	],
+	"skipped": [
+		{
+			"name": "models/js-glb/textures/bd-shalebedside-smoke_baked.jpg",
+			"reason": "RMS 3.46 against a 3.0 gate, and 3.02 at maximum quality"
+		},
+		{
+			"name": "models/js-glb/textures/cb-clapboard_baked.jpg",
+			"reason": "RMS 3.21 against a 3.0 gate, and 3.09 at maximum quality"
+		},
+		{
+			"name": "models/js-glb/textures/grey-brown_wood.jpg",
+			"reason": "wood grain - RMS 4.52 against a 3.0 gate"
+		},
+		{
+			"name": "models/js-glb/textures/ik-ekero-orange_baked.jpg",
+			"reason": "RMS 3.65 against a 3.0 gate, and 3.46 at maximum quality"
+		},
+		{
+			"name": "models/js-glb/textures/nyc2.jpg",
+			"reason": "ETC1S wrecks it - RMS 7.00, worst pixel 174 of 255"
+		},
+		{
+			"name": "models/js-glb/textures/oak_wood.jpg",
+			"reason": "wood grain - RMS 4.88 against a 3.0 gate"
+		},
+		{
+			"name": "models/js-glb/textures/ps_7.jpg",
+			"reason": "grows disk by 1793 bytes and saves only 0.15 MB of VRAM"
+		},
+		{
+			"name": "models/js-glb/textures/walnut-marin.jpg",
+			"reason": "wood grain - RMS 4.88 against a 3.0 gate"
+		},
+		{
+			"name": "models/js-glb/textures/we-narrow6white_baked.jpg",
+			"reason": "RMS 3.49 against a 3.0 gate, and 3.23 at maximum quality"
+		},
+		{
+			"name": "rooms/textures/envs/Garden.jpg",
+			"reason": "ETC1S bands the sky - RMS 6.55 against a 3.0 gate, 13.33% of channels off by more than 8"
+		}
+	],
+	"totals": {
+		"considered": 21,
+		"encoded": 11,
+		"disk": {
+			"before": 1989996,
+			"after": 1624568
+		},
+		"vram": {
+			"before": 40541041,
+			"after": 24169329
+		}
+	}
+}

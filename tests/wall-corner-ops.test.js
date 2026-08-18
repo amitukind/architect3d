@@ -608,6 +608,56 @@ describe('Corner.mergeWithIntersected', () => {
 		expect(start.mergeWithIntersected()).toBe(false);
 		expect(floorplan.getWalls().length).toBe(1);
 	});
+
+	/**
+	 * The parameter did nothing until RM-005 C2, and the checker is what said so.
+	 *
+	 * `mergeWithIntersected(updateFloorPlan = true)` used its only parameter in
+	 * exactly one place: as a FOURTH argument to `move()`, which takes three. It
+	 * was discarded, so the `floorplan.update()` on the following line ran
+	 * whatever the caller asked for. TS2554 named it - expected 2-3, got 4 - and
+	 * the argument turned out to be in the wrong call rather than missing from a
+	 * signature: `move()` batches and does not update, and the update the flag is
+	 * about is the next statement.
+	 *
+	 * `Floorplan.newWallsForIntersections` is the caller that passes false. It
+	 * splits a wall at every intersection, merges a new corner at each, and
+	 * updates once at the end of the loop - so with the flag dropped a split
+	 * across N intersections ran N+1 full updates, every one of them rebuilding
+	 * each room. Same shape as RM-003 A2, in a path A2 did not reach.
+	 */
+	it('honours updateFloorPlan, which was silently discarded before', () => {
+		// Counted as a DIFFERENCE, not as an absolute. The flag governs exactly one
+		// statement - the `floorplan.update()` at the end of the wall branch - and
+		// the rest of that branch calls `newWall`, `setEnd` and `move`, each of
+		// which updates or flushes a batch of its own. A first draft asserted zero
+		// updates and measured five, which was the test being wrong about the
+		// claim rather than the fix being wrong.
+		const runs = [true, false].map((flag) =>
+		{
+			const floorplan = new Floorplan();
+			const a = floorplan.newCorner(0, 0);
+			const b = floorplan.newCorner(400, 0);
+			floorplan.newWall(a, b);
+			// A corner sitting ON that wall and not connected to it, so the wall
+			// branch is the one that runs. Positioned behind the setters so the
+			// merge is the only thing that moves it.
+			const loose = floorplan.newCorner(200, 4000);
+			loose._x = 200;
+			loose._y = 0;
+			loose._co.set(200, 0);
+
+			let updates = 0;
+			const real = floorplan.update.bind(floorplan);
+			floorplan.update = (...args) => {updates++; return real(...args);};
+
+			expect(loose.mergeWithIntersected(flag)).toBe(true);
+			return updates;
+		});
+
+		const [withFlag, without] = runs;
+		expect(without, 'updateFloorPlan false did not suppress an update').toBe(withFlag - 1);
+	});
 });
 
 describe('zero-length walls', () => {

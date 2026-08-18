@@ -1,8 +1,11 @@
+// @ts-check
 import {Vector2, Vector3} from 'three';
 import {EVENT_DELETED} from '../core/events.js';
 import {Utils} from '../core/utils.js';
 import {Item} from './item.js';
 
+
+/** @typedef {import('../model/half_edge.js').HalfEdge} HalfEdge */
 /**
  * A Wall Item is an entity to be placed related to a wall.
  */
@@ -13,11 +16,42 @@ export class WallItem extends Item
 		super(model, metadata, geometry, material, position, rotation, scale);
 		/** The currently applied wall edge. */
 		this.currentWallEdge = null;
-		/* TODO:
-         This caused a huge headache.
-         HalfEdges get destroyed/created every time floorplan is edited.
-         This item should store a reference to a wall and front/back,
-         and grab its edge reference dynamically whenever it needs it.
+
+		/**
+		 * One listener, held so it can be taken off again (RM-004 B2).
+		 *
+		 * `changeWallEdge` used to declare this as a fresh closure on every call
+		 * and then `removeEventListener` the NEW one off the old wall - removing a
+		 * function that had never been added, and leaving the previous closure
+		 * subscribed. Every re-bind leaked one, and there was no reference anywhere
+		 * that could detach the item from a wall without destroying the item.
+		 *
+		 * B2 needs exactly that: a wall-bound item now survives a document load,
+		 * and the way it used to die was its own subscription - `reset()` fires
+		 * EVENT_DELETED on every wall, this handler ran, and the item removed
+		 * itself before it could be re-bound. Bound once here so `releaseWall()`
+		 * can undo it.
+		 */
+		// `Item.remove()` takes nothing and removes `this`, which is what this
+		// listener wants - the wall it is attached to has gone (RM-005 C2). The
+		// argument read as "remove that item" and did nothing.
+		this._onWallDeleted = () => {this.remove();};
+		/*
+		 * This used to carry a TODO reading "This caused a huge headache.
+		 * HalfEdges get destroyed/created every time floorplan is edited. This
+		 * item should store a reference to a wall and front/back, and grab its
+		 * edge reference dynamically whenever it needs it."
+		 *
+		 * RM-004 B2 solved it, by a different route than the one suggested.
+		 * Rather than have the item resolve an edge on demand, walls were given
+		 * ids derived from their corner pair, which made `HalfEdge.id`
+		 * (`${wall.id}:front|back`) stable across a load. `Model.newRoom` now
+		 * notes which face a bound item is on before the floorplan is destroyed
+		 * and puts it back on that face afterwards - not merely on the nearest
+		 * one, which is the same answer everywhere except where two walls meet.
+		 *
+		 * Left as a record rather than deleted: the headache was real, and the
+		 * shape of the fix is worth knowing before anybody re-derives it.
 		 */
 
 		/** used for finding rotations */
@@ -41,11 +75,14 @@ export class WallItem extends Item
 	}
 
 	/** Get the closet wall edge.
-	 * @returns The wall edge.
+	 * @returns {?HalfEdge} The nearest wall edge, or null when the design has no
+	 * walls at all - `wallEdges()` is empty, the loop never runs, and there is
+	 * nothing to be nearest to.
 	 */
 	closestWallEdge()
 	{
 		var wallEdges = this.model.floorplan.wallEdges();
+		/** @type {?HalfEdge} */
 		var wallEdge = null;
 		var minDistance = null;
 		var itemX = this.position.x;
@@ -69,6 +106,11 @@ export class WallItem extends Item
 			Utils.removeValue(this.currentWallEdge.wall.items, this);
 			this.redrawWall();
 		}
+		// Detach from the wall FIRST, then release (RM-003 A0). redrawWall() above
+		// rebuilds the wall's faces, which cuts the hole this item used to occupy -
+		// and it reads this item's position and halfSize to do it. Releasing before
+		// that would hand the rebuild a disposed geometry.
+		super.removed();
 	}
 
 	/** */
@@ -97,9 +139,10 @@ export class WallItem extends Item
 	/** */
 	updateSize()
 	{
-		this.wallOffsetScalar = (this.geometry.boundingBox.max.z - this.geometry.boundingBox.min.z) * this.scale.z / 2.0;
-		this.sizeX = (this.geometry.boundingBox.max.x - this.geometry.boundingBox.min.x) * this.scale.x;
-		this.sizeY = (this.geometry.boundingBox.max.y - this.geometry.boundingBox.min.y) * this.scale.y;
+		var box = this.bounds();
+		this.wallOffsetScalar = (box.max.z - box.min.z) * this.scale.z / 2.0;
+		this.sizeX = (box.max.x - box.min.x) * this.scale.x;
+		this.sizeY = (box.max.y - box.min.y) * this.scale.y;
 	}
 
 	/** */
@@ -107,16 +150,40 @@ export class WallItem extends Item
 	{
 		if (this.boundToFloor)
 		{
-			this.position.y = 0.5 * (this.geometry.boundingBox.max.y - this.geometry.boundingBox.min.y) * this.scale.y + 0.01;
+			var box = this.bounds();
+			this.position.y = 0.5 * (box.max.y - box.min.y) * this.scale.y + 0.01;
 		}
 		this.updateSize();
 		this.redrawWall();
 	}
 
 	/** */
+	/**
+	 * Wall-bound: this item holds a `HalfEdge`. Since RM-004 B2 that is a fact to
+	 * be handled on load rather than a reason to discard the item. See
+	 * {@link Item#boundToFloorplan}.
+	 * @returns {boolean}
+	 */
+	get boundToFloorplan()
+	{
+		return true;
+	}
+
 	placeInRoom()
 	{
 		var closestWallEdge = this.closestWallEdge();
+		// Null on a design with no walls, and `changeWallEdge` dereferences it on
+		// its first line - so adding a wall item before drawing a wall was a
+		// TypeError, the same shape as the RoofItem crash RM-005 C2 fixed one file
+		// over (J-5). Both were named by the checker and neither had a test.
+		//
+		// Doing nothing is the honest answer: the item keeps the position it was
+		// created with and attaches to a wall the next time one is nearby, which
+		// is what `placeInRoom` is for.
+		if (!closestWallEdge)
+		{
+			return;
+		}
 		this.changeWallEdge(closestWallEdge);
 		this.updateSize();
 
@@ -149,34 +216,42 @@ export class WallItem extends Item
 	}
 
 	/** */
+	/**
+	 * Let go of the wall this item is on, without destroying the item.
+	 *
+	 * The detach half of `changeWallEdge`, split out because `Model.newRoom`
+	 * needs it on its own: a document load destroys every wall, and an item still
+	 * subscribed to EVENT_DELETED removes itself when that happens. Calling this
+	 * first is what lets the item be re-bound afterwards instead of reloaded.
+	 *
+	 * Safe to call when unbound, and idempotent - it is also the first thing
+	 * `changeWallEdge` does.
+	 */
+	releaseWall()
+	{
+		if (this.currentWallEdge == null)
+		{
+			return;
+		}
+
+		if (this.addToWall)
+		{
+			Utils.removeValue(this.currentWallEdge.wall.items, this);
+			this.redrawWall();
+		}
+		else
+		{
+			Utils.removeValue(this.currentWallEdge.wall.onItems, this);
+		}
+
+		this.currentWallEdge.wall.removeEventListener(EVENT_DELETED, this._onWallDeleted);
+		this.currentWallEdge = null;
+	}
+
 	changeWallEdge(wallEdge)
 	{
-		if (this.currentWallEdge != null)
-		{
-			if (this.addToWall)
-			{
-				Utils.removeValue(this.currentWallEdge.wall.items, this);
-				this.redrawWall();
-			}
-			else
-			{
-				Utils.removeValue(this.currentWallEdge.wall.onItems, this);
-			}
-		}
-
-		var scope = this;
-
-		function __remove(event)
-		{
-			scope.remove(event.item);
-		}
-
-		// handle subscription to wall being removed
-		if (this.currentWallEdge != null)
-		{
-			this.currentWallEdge.wall.removeEventListener(EVENT_DELETED, __remove);
-		}
-		wallEdge.wall.addEventListener(EVENT_DELETED, __remove);
+		this.releaseWall();
+		wallEdge.wall.addEventListener(EVENT_DELETED, this._onWallDeleted);
 
 		// find angle between wall normals
 		var normal2 = new Vector2();
@@ -225,7 +300,8 @@ export class WallItem extends Item
 
 		if (this.boundToFloor)
 		{
-			vec3.y = 0.5 * (this.geometry.boundingBox.max.y - this.geometry.boundingBox.min.y) * this.scale.y + 0.01;
+			var box = this.bounds();
+			vec3.y = 0.5 * (box.max.y - box.min.y) * this.scale.y + 0.01;
 		}
 		else
 		{

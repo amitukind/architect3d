@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {computed, ref, watch} from 'vue';
 import TexturePicker from './TexturePicker.vue';
 import CheckField from './fields/CheckField.vue';

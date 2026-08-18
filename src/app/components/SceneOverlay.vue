@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {Camera, Grid2x2, Sparkles, Lock, LockOpen} from '@lucide/vue';
 
 import AppTip from './AppTip.vue';
@@ -13,7 +14,7 @@ import {RENDER_STUDIO, RENDER_CLASSIC} from '../../scripts/blueprint.js';
  *
  * ## The render style switch
  *
- * `Studio` and `Classic` are the two profiles in `three/render_profile.js`, and
+ * `Studio` and `Classic` are the two profiles in `core/render_profile.js`, and
  * the switch is here rather than buried in settings because the difference is
  * entirely visual and the only way to judge it is to look at the model while
  * flipping it. Classic is what the application looked like through 1.0.0 -

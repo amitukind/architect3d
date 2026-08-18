@@ -76,6 +76,32 @@ An array. Each wall names the two corners it spans:
 `a` and `b` are centimetres, like everything else in a 2.0.0 file. They always
 were, which in 0.0.2a made them disagree with the corners.
 
+**A wall has no `id` field, and will not get one.** In memory it has an
+identity, and since RM-004 B2 that identity survives a load — but it is
+*reconstructed* from `corner1` and `corner2` rather than stored, so nothing was
+added to the format and a file written before B2 loads with exactly the ids a
+file written after it would.
+
+The rule, if you are writing a reader of your own: sort the two corner ids, and
+append `#n` for the second and subsequent walls that span the same pair, counting
+in file order.
+
+```
+wall:0438a3a5-…~3c885e88-…        the usual case
+wall:0438a3a5-…~3c885e88-…#1      a second wall between the same two corners
+```
+
+Sorting is what makes a wall recorded as `b → a` the same wall as one recorded
+`a → b`; the suffix is what keeps two walls spanning one pair from sharing an
+identity, which nothing in the format forbids and which
+`Floorplan.newWall` does not guard against.
+
+This follows the same reasoning as room identity in RM-003 A3, and for the same
+reason: a file identifies a wall by its corners, and that is a description any
+build can read. An id assigned by one build and written down would mean nothing
+to another, and an id that died with the wall could not be brought back by
+drawing it again.
+
 ### `rooms`
 
 Rooms are derived from the wall graph, not stored, so this holds only the
@@ -87,12 +113,29 @@ things a user typed. The key is the room's corner ids joined with commas:
 }
 ```
 
-Move a wall so the loop changes shape and the key no longer matches — the room
-survives, but its name does not follow it.
+The key is a description of the room rather than a name for it, which is
+deliberate: another build reading this file can find the room without needing
+to have been told an identity. What it cannot do on its own is survive an edit —
+move a wall so the loop changes shape and the key no longer matches.
+
+::: tip The name follows the room now
+Since RM-003 A3 the key is rewritten when the room changes shape. Each
+re-derived room is matched to the room it continues by corner overlap, and the
+entry moves with it, so drawing a wall through one side of a room keeps its
+name and its floor texture. See `src/scripts/model/room_matcher.js` for the
+rule.
+
+The file is unaffected: this is still the only key, and it is still derived
+from the corners. A file written before A3 and a file written after are
+byte-identical for the same design.
+:::
 
 ### `newFloorTextures`
 
-Floor textures, keyed the same way, by comma-joined corner ids:
+Floor textures, keyed by the room's corner ids **sorted** and comma-joined —
+which is not quite the `rooms` key above, where they are in traversal order.
+Two spellings of the same relation; they are kept in step by the same matcher
+that rewrites them.
 
 ```json
 {
@@ -132,6 +175,7 @@ An array, one entry per placed object:
 
 ```json
 {
+  "id": "b3f0e59c-…",
   "item_name": "Open Door",
   "item_type": 7,
   "format": "gltf",
@@ -146,6 +190,7 @@ An array, one entry per placed object:
 
 | Field | Meaning |
 |---|---|
+| `id` | This item's identity. Added in RM-003 A3; absent in older files and assigned on load. |
 | `item_type` | Which class builds it. See the table below. |
 | `format` | `"gltf"`, or absent on a pre-migration file. |
 | `model_url` | Relative URL. Rewritten on load if it names one of the 25 converted legacy models. |
@@ -153,6 +198,27 @@ An array, one entry per placed object:
 | `rotation` | Y rotation in radians. X and Z are not stored. |
 | `fixed` | Locked in place. |
 | `material_colors` | Sparse: a `#rrggbb` for each material slot somebody recoloured, `null` for the rest. Absent when nothing was recoloured. |
+
+::: tip `id`, and why items are the only thing that carries one
+Corners have always had one. Walls, rooms and half edges have one too since
+RM-003 A3, and none of them is written here — a file describes a wall by its
+two corners and a room by its corners, which is a description any build can
+read, and the id is reassigned on load.
+
+An item is different because it has nothing to be described by. Two identical
+chairs at the same coordinates are two chairs. The id is what lets undo
+recognise the furniture already on screen instead of re-downloading every model
+in the design, so it has to be in the file for a snapshot to name the same
+item.
+
+Additive and optional. An older file has no `id` on any item, each is assigned
+one on load, and they appear from the next save.
+:::
+
+**Items are written in `id` order**, not in the order they were placed or
+loaded. Item order carries no meaning, and the order they arrive in depends on
+which model file finished downloading first — so two saves of a design nobody
+touched could otherwise differ.
 
 ### Item types
 
@@ -295,6 +361,46 @@ for the `>=` question — a separate function rather than an inverted call,
 because writing `!isVersionHigherThan(check, version)` is precisely how the
 original went wrong.
 
+## Validation
+
+A document is checked in full **before any of it is applied**, so opening a file
+either replaces the design completely or leaves it exactly as it was. There is
+no half-loaded state.
+
+```js
+const result = model.loadDocument(json);
+// { ok, document, errors: [{path, message}], warnings: [{path, message}] }
+if (!result.ok) {
+  console.log(result.errors[0].path);      // 'floorplan.walls[0].corner2'
+  console.log(result.errors[0].message);   // 'names corner "ghost", which is not in this file'
+}
+```
+
+`loadSerialized(json)` is the same operation and still **throws** on a bad
+document — the message names the field. Neither `EVENT_LOADING` nor
+`EVENT_LOADED` fires for a document that fails validation.
+
+What is checked, and nothing beyond it:
+
+| | |
+|---|---|
+| The document | valid JSON, an object, with a `floorplan` object and an `items` array |
+| `corners` | an object; every `x` and `y` a finite number; `elevation` finite when present |
+| `walls` | an array of objects; **every `corner1` and `corner2` must name a corner the file carries** |
+| `rooms` | an object, when present |
+| `items` | an array of objects, each with a `model_url`; positions finite when present |
+
+The reference check is the one that matters most in practice. A wall naming a
+corner that is not in the file used to reach `new Wall(undefined, undefined)`
+and take the load down halfway through, after the previous design was gone.
+
+::: tip Deliberately lenient
+The validator must not be stricter than the files people already have. A
+pre-2.0.0 document has no `units` stamp, no `elevation` on its corners and no
+control points on its walls, and all three stay optional. An unrecognised
+`units` value is a **warning**, not a refusal — see below.
+:::
+
 ## Writing a file by hand
 
 Stamp `"version": "2.0.0"` and `"units": "cm"`, put every coordinate in
@@ -302,4 +408,94 @@ centimetres, and omit `material_colors` unless you mean to override a model's
 own colour. An unrecognised `units` value is read as centimetres with a console
 warning rather than rejected — a design that opens at the wrong scale is a
 better outcome than one that will not open, because the user can see the
-former.
+former. That warning is also on the result, as `warnings[]`, so an application
+can say so rather than leaving it in the console.
+
+## Where the working draft is kept
+
+A `.blueprint3d` file is what a user saves deliberately. Separately from that,
+the application keeps the **working design** in browser storage so an accidental
+reload does not lose twenty minutes of drawing. Same format, different lifetime:
+one slot, overwritten, offered back after a reload rather than restored.
+
+Since RM-003 A5 that slot is **IndexedDB**, not `localStorage`.
+
+| | Before A5 | Now |
+|---|---|---|
+| Store | `localStorage`, key `architect3d.autosave` | IndexedDB, database `architect3d`, store `drafts` |
+| Write | **synchronous, on the main thread** | asynchronous |
+| Ceiling | ~5 MiB per origin, shared with everything else | a share of disk |
+| Over the ceiling | autosave **disabled for the session**, permanently | prune the old record, retry, then report |
+
+The old cap was not theoretical. A furnished design can exceed 5 MiB, and the
+first `QuotaExceededError` turned autosave off for the rest of the session — so
+the larger the design, the sooner it stopped being protected.
+
+### The recovery pointer
+
+One thing is still written synchronously, and it is deliberate. `pagehide` is
+the last moment a page reliably gets and **it cannot await a promise**, so an
+IndexedDB write started there may not finish.
+
+The fix is not to write the document synchronously — that would give back
+everything above. Instead a **pointer** goes into `localStorage` first, under
+`architect3d.draft-pointer`, recording the timestamp the body write is *about
+to* carry:
+
+```json
+{"savedAt": 1755212400000, "bytes": 1048576, "store": "indexeddb"}
+```
+
+Three numbers and a string, well under a kilobyte, and always completes. On the
+next load the two are compared:
+
+| Pointer vs. body | What it means |
+|---|---|
+| no pointer, body present | a clean session; the last write landed |
+| timestamps agree | the last write landed |
+| **pointer newer than body** | the final write did not land — the draft is still restorable, and is older than the user thinks |
+| pointer, no body | the store was cleared underneath, or the first write never landed |
+
+Only the third row is new information, and it is the reason the pointer exists:
+a prompt that says "recovered" about a draft several minutes behind what was on
+screen is a prompt that loses work quietly. The application says how much
+instead.
+
+### If IndexedDB is not there
+
+Private-browsing modes and some embedded webviews do not offer it. The
+`localStorage` implementation stays in the tree as the fallback, selected
+automatically, and behaves exactly as the pre-A5 build did — including the 5 MiB
+cap. A draft written by an older build is read from the old key once, copied
+across, and removed, so the two stores never both hold one.
+
+A store written by a **newer** build is left untouched and reported, never
+migrated on the guess that its shape is close enough.
+
+## Asset URLs are logical names
+
+Every asset path in this file — `model_url` on an item, `url` on a wall or
+floor texture — is a **bare relative string**, and that has always been a
+compatibility contract: those strings are in documents on other people's disks,
+so renaming a file breaks designs that already exist. Vite copies `public/`
+as-is and never hashes it, so the usual answer of content-addressed filenames is
+unavailable here.
+
+Since A5 the string in the file is a *logical name*, and an `AssetResolver`
+decides what is actually fetched:
+
+```js
+import {AssetManifest, AssetResolver, BlueprintJS} from 'architect3d';
+
+const {manifest} = AssetManifest.parse(await (await fetch('asset-manifest.json')).json());
+const blueprint = new BlueprintJS({
+    ...options,
+    assets: new AssetResolver({manifest, base: 'https://cdn.example.com/a3d'}),
+});
+```
+
+**Nothing in the file changes.** A design saved against one deployment opens
+against another, a model can be versioned by giving its manifest entry a
+different `url`, and a CDN becomes a deployment choice rather than a rewrite.
+Omit `assets` and every logical name resolves to itself, which is what the
+library did before A5 and what it still does by default.

@@ -1,26 +1,51 @@
-import {EventDispatcher, TextureLoader, RepeatWrapping, MeshBasicMaterial, MeshPhongMaterial, MeshStandardMaterial, FrontSide, DoubleSide, Vector2, Vector3, Shape, ShapeGeometry, Mesh, SRGBColorSpace} from 'three';
+// @ts-check
+import {EventDispatcher, RepeatWrapping, MeshBasicMaterial, MeshPhongMaterial, MeshStandardMaterial, FrontSide, DoubleSide, Vector2, Vector3, Shape, ShapeGeometry, Mesh, SRGBColorSpace} from 'three';
 import {triangleFanGeometry} from '../core/geometry_builders.js';
 import {EVENT_CHANGED} from '../core/events.js';
+import {acquireTexture, releaseTexture} from './texture_cache.js';
+import {disposeObject} from '../core/resource_registry.js';
 import {Configuration, configWallHeight} from '../core/configuration.js';
-import {renderProfile, isStudio} from './render_profile.js';
+import {renderProfile, isStudio} from '../core/render_profile.js';
+import {runtimeOf} from '../core/design_runtime.js';
 
 export class Floor extends EventDispatcher
 {
-	constructor(scene, room)
+	constructor(scene, room, profile, runtime)
 	{
 		super();
+	/**
+	 * The look this object draws with (RM-002 R-02, P7). Falls back to the shared
+	 * profile, which is what every construction site did before and what the
+	 * parity grid still measures.
+	 */
+		this.renderProfile = profile || renderProfile;
+		/**
+		 * Which document this floor belongs to (RM-003 A4), and where its texture
+		 * URL is resolved (A5). Derived from the room when it is not passed, for
+		 * the same reason `Edge` derives it: `Floor` is public API and the
+		 * three-argument form has to keep working.
+		 * @type {import('../core/design_runtime.js').DesignRuntime}
+		 */
+		this.runtime = runtime || runtimeOf(room && room.floorplan);
 		this.scene = scene;
 		this.room = room;
 		this.floorPlane = null;
 		this.roofPlane = null;
+		// Held so redraw() can give it back. The floor is rebuilt on every
+		// EVENT_CHANGED, and before RM-002 R-04 each rebuild loaded another copy
+		// of the same image and dropped the previous one on the floor, so to speak.
+		/** @type {?import('three').Texture} */
+		this.floorTexture = null;
 		this.changedevent = () => {this.redraw();};
 		this.init();
 	}
 
 	switchWireframe(flag)
 	{
-		this.floorPlane.visible = !flag;
-		this.roofPlane.visible = !flag;
+		// Both planes are null before init() and after dispose(), and this is
+		// public API an embedder can call at either point (RM-005 C2).
+		if (this.floorPlane) { this.floorPlane.visible = !flag; }
+		if (this.roofPlane) { this.roofPlane.visible = !flag; }
 	}
 
 	init()
@@ -35,9 +60,33 @@ export class Floor extends EventDispatcher
 	redraw()
 	{
 		this.removeFromScene();
+		this.releasePlanes();
 		this.floorPlane = this.buildFloor();
 		this.roofPlane = this.buildRoofVaryingHeight();
 		this.addToScene();
+	}
+
+	/**
+	 * Dispose the two planes this floor built, and only those (RM-003 A0).
+	 *
+	 * ## The ownership boundary, stated where it is easiest to get wrong
+	 *
+	 * `addToScene()` puts four meshes into the scene: `this.floorPlane` and
+	 * `this.roofPlane`, which this class built, and `this.room.floorPlane` and
+	 * `this.room.roofPlane`, which the **model** built and which this class only
+	 * borrows for picking. Only the first two are released here. Disposing the
+	 * room's would take out the geometry the raycaster tests against and leave the
+	 * next redraw picking against a dead handle - and it would do it silently,
+	 * because a disposed geometry still has its attributes on the CPU side.
+	 *
+	 * `tests/resource-lifecycle.test.js` asserts exactly this, in both directions.
+	 */
+	releasePlanes()
+	{
+		disposeObject(this.floorPlane);
+		disposeObject(this.roofPlane);
+		this.floorPlane = null;
+		this.roofPlane = null;
 	}
 
 	/**
@@ -54,14 +103,20 @@ export class Floor extends EventDispatcher
 	 */
 	makeRoofMaterial()
 	{
-		return new MeshBasicMaterial({side: FrontSide, color: renderProfile.roofColor});
+		return new MeshBasicMaterial({side: FrontSide, color: this.renderProfile.roofColor});
 	}
 
 	buildFloor()
 	{
 		var textureSettings = this.room.getTexture();
 		// setup texture
-		var floorTexture = new TextureLoader().load(textureSettings.url);
+		releaseTexture(this.floorTexture);
+		// Logical name to physical URL (A5). The document records the logical one -
+		// `newFloorTextures[].url` is in every save file that has a custom floor -
+		// and the resolver decides what is actually fetched. With no manifest it is
+		// the same string, which is what it was before A5.
+		var floorTexture = acquireTexture(this.runtime.assets.resolve(textureSettings.url).url);
+		this.floorTexture = floorTexture;
 		// sRGB (S8). This one matters more than the others: the floor is
 		// MeshPhongMaterial and so the only lit surface in most views, which
 		// makes an untagged floor texture the obvious thing to mistake for the
@@ -85,19 +140,18 @@ export class Floor extends EventDispatcher
 		// leaves it white and lets exposure and tone mapping set the level: with
 		// the classic tint the floor arrives pre-darkened and then gets darkened
 		// again by real shading.
-		var floorMaterialTop = isStudio()
+		var floorMaterialTop = isStudio(this.renderProfile)
 			? new MeshStandardMaterial({
 				map: floorTexture,
 				side: DoubleSide,
 				color: 0xffffff,
-				roughness: renderProfile.floorRoughness,
-				metalness: renderProfile.floorMetalness,
-				envMapIntensity: renderProfile.environmentIntensity,
+				roughness: this.renderProfile.floorRoughness,
+				metalness: this.renderProfile.floorMetalness,
+				envMapIntensity: this.renderProfile.environmentIntensity,
 			})
 			: new MeshPhongMaterial({
 				map: floorTexture,
 				side: DoubleSide,
-				// ambient: 0xffffff, TODO_Ekki
 				color: 0xcccccc,
 				specular: 0x0a0a0a
 			});
@@ -163,6 +217,22 @@ export class Floor extends EventDispatcher
 		this.scene.remove(this.roofPlane);
 		this.scene.remove(this.room.floorPlane);
 		this.scene.remove(this.room.roofPlane);
+	}
+
+	/**
+	 * Detach from the room, release the geometry, and give the texture back.
+	 *
+	 * Separate from removeFromScene(), which redraw() calls between rebuilds and
+	 * which must not release anything - the next line builds the replacement.
+	 * `releasePlanes()` is the part redraw() *does* want, and it calls it itself.
+	 */
+	dispose()
+	{
+		this.room.removeEventListener(EVENT_CHANGED, this.changedevent);
+		this.removeFromScene();
+		this.releasePlanes();
+		releaseTexture(this.floorTexture);
+		this.floorTexture = null;
 	}
 
 	showRoof(flag)

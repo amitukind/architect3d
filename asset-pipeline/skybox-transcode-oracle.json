@@ -1,0 +1,142 @@
+{
+	"note": [
+		"RM-005 C1 pixel oracle: the two Skybox textures rendered through the same",
+		"geometry, camera and sampler state at 1:1, once from the authored JPEG and",
+		"once from the KTX2/ETC1S transcode, and differenced in the framebuffer.",
+		"This is the only measurement in the sprint that looks at what a user sees",
+		"rather than at what the files contain.",
+		"",
+		"Same shape as B4's resize-oracle.json, and not committable as a test for",
+		"the same reason: it needs BOTH versions of a file present, and the point of",
+		"the sprint is that one of them stops existing. Run once, from a temporary",
+		"suite under tests/browser/, chromium with SwiftShader, then deleted.",
+		"",
+		"WHAT DECIDED THE SPRINT",
+		"",
+		"Ground_4K passes and is transcoded. RMS 1.098 against the 3.0 that B4's",
+		"codecRms gate uses, a 99th percentile of 5, and its worst pixels are",
+		"0.178% speckle rather than structure. Its file falls 58 KB -> 10 KB, which",
+		"looked alarming - 0.08 bits per pixel, fifteen times lower than any other",
+		"texture in the pass - and the oracle is what turned that from a worry into",
+		"a number. The image is genuinely low-detail: B4 downscaled it from 4096 to",
+		"1024 with a Lanczos filter, and what came out is smooth enough that ETC1S",
+		"has very little to lose.",
+		"",
+		"Garden refuses and stays a JPEG. A 95th percentile AT the visibility",
+		"threshold and 4.078% of channels past it is not outliers, it is banding -",
+		"in a photograph of sky, which is the content ETC1S handles worst and the",
+		"surface a first-person viewer looks at longest. Refusing costs 2.00 MB of",
+		"the 6.00 MB projected for this pair; taking it would have cost the picture.",
+		"",
+		"That per-asset split is B1's rule rather than a new one: a model that could",
+		"not match the pixel tier shipped unquantised and the decision was recorded",
+		"per file. See REFUSED in tools/encode-textures.mjs, which now carries the",
+		"same numbers so a re-run cannot quietly re-encode it.",
+		"",
+		"UASTC would fix the banding and is ruled out by a different budget: roughly",
+		"1.4 MB on disk against Garden's 250 KB, and public-total has 280 KB spare.",
+		"",
+		"HOW TO READ THE COLUMNS",
+		"rms/p95/p99/max are absolute per-channel differences over RGB, 0-255.",
+		"pctOver8 is the share of channels differing by more than 8, which is about",
+		"where a difference stops being arithmetic and starts being visible on a",
+		"gradient. transcodedTo is three's format constant for what SwiftShader",
+		"actually transcoded to - 37492 is COMPRESSED_RGB8_ETC2."
+	],
+	"encoder": {
+		"isUASTC": false,
+		"qualityLevel": 128,
+		"needSupercompression": true,
+		"generateMipmap": true
+	},
+	"gate": {
+		"codecRms": 3.0,
+		"source": "tools/resize-textures.mjs GATES"
+	},
+	"measurements": [
+		{
+			"name": "rooms/textures/Ground_4K.jpg",
+			"pixels": "1024x1024",
+			"bytes": {
+				"before": 59111,
+				"after": 10401
+			},
+			"vram": {
+				"before": 5592405,
+				"after": 1398101
+			},
+			"rms": 1.098,
+			"p95": 2,
+			"p99": 5,
+			"max": 45,
+			"pctOver8": 0.178,
+			"transcodedTo": 37492,
+			"mipmaps": 11,
+			"verdict": "transcoded"
+		},
+		{
+			"name": "rooms/textures/envs/Garden.jpg",
+			"pixels": "1024x512",
+			"bytes": {
+				"before": 255744,
+				"after": 84627
+			},
+			"vram": {
+				"before": 2796202,
+				"after": 699050
+			},
+			"rms": 4.483,
+			"p95": 8,
+			"p99": 16,
+			"max": 128,
+			"pctOver8": 4.078,
+			"transcodedTo": 37492,
+			"mipmaps": 11,
+			"verdict": "refused \u2014 banding in the sky gradient"
+		}
+	],
+	"correctedByRM006": {
+		"note": [
+			"The measurements above were differenced in a LINEAR-sRGB frame, so they",
+			"describe a picture the application never renders - three/main.js:262 sets",
+			"outputColorSpace to sRGB. The bias runs BOTH WAYS, and this file is the pair",
+			"that shows it: Ground_4K is mostly mid-tone and was over-stated, Garden is a",
+			"photograph of sky and was under-stated by nearly half.",
+			"",
+			"Neither verdict changes, and Garden's is now much better supported than the",
+			"one C1 recorded - 6.552 against a 3.0 gate with 13.33% of channels off by",
+			"more than 8, not 4.483 and 4.08%. `npm run oracle` regenerates these; the two",
+			"rows live in asset-pipeline/model-transcode-oracle.json because that run",
+			"covers every texture the encoder considered, shipped or refused."
+		],
+		"gate": 3,
+		"measurements": [
+			{
+				"name": "rooms/textures/Ground_4K.jpg",
+				"shipped": "compressed",
+				"pixels": "1024x1024",
+				"residual": 0,
+				"rms": 0.761,
+				"p95": 1,
+				"p99": 4,
+				"max": 25,
+				"pctOver8": 0.071,
+				"ownRange": 108,
+				"rmsAsShareOfOwnRange": 0.0071
+			},
+			{
+				"name": "rooms/textures/envs/Garden.jpg",
+				"shipped": "uncompressed",
+				"pixels": "1024x512",
+				"residual": 0,
+				"rms": 6.552,
+				"p95": 13,
+				"p99": 23,
+				"max": 101,
+				"pctOver8": 13.33,
+				"ownRange": 255,
+				"rmsAsShareOfOwnRange": 0.0257
+			}
+		]
+	}
+}

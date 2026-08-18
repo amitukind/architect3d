@@ -1,3 +1,4 @@
+// @ts-check
 import {computed} from 'vue';
 import catalog from '../../catalog/catalog.json';
 
@@ -20,6 +21,32 @@ const WALL_BOUND_TYPES = [2, 3, 7, 9];
 /**
  * @returns {Array<{id: number, heading: string, items: Array<Object>}>}
  */
+/**
+ * One entry in the catalog, as `src/catalog/catalog.json` records it.
+ *
+ * Written down here rather than in the component that renders it, because this
+ * is where the shape is produced - a typedef beside the consumer drifts from the
+ * data the first time the data changes (RM-004 B3).
+ *
+ * @typedef {Object} CatalogItem
+ * @property {string} name Shown under the thumbnail, and used as the item name.
+ * @property {string} image Thumbnail URL, a logical asset name.
+ * @property {string} model The model's logical asset name.
+ * @property {number} type One of the `itemTypes` keys; selects the Item class.
+ * @property {string} [format] `gltf` or `obj`. Absent means the legacy JSON
+ *           format, which `resolveModelUrl` rewrites on the way in.
+ */
+
+/**
+ * A heading and the items under it.
+ *
+ * @typedef {Object} CatalogSection
+ * @property {number} id
+ * @property {string} heading
+ * @property {Array<CatalogItem>} items Never empty - buildSections drops those.
+ */
+
+/** @returns {Array<CatalogSection>} */
 function buildSections()
 {
 	return Object.keys(catalog.itemTypes)

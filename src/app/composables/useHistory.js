@@ -1,6 +1,8 @@
+// @ts-check
 import {computed, onScopeDispose, ref, shallowRef, watch} from 'vue';
 import {EVENT_UPDATED, EVENT_LOADED} from '../../scripts/blueprint.js';
-import {EVENT_ITEM_LOADING, EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED, EVENT_ITEM_MOVE_FINISH} from '../../scripts/blueprint.js';
+import {EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED, EVENT_ITEM_MOVE_FINISH} from '../../scripts/blueprint.js';
+import {REASON_UNDO} from '../../scripts/blueprint.js';
 
 /**
  * Undo and redo.
@@ -62,11 +64,23 @@ const COALESCE_MS = 350;
  *
  * Restoring a snapshot is guarded by counting in-flight item loads rather than
  * by waiting a fixed time - see `holdOff` - which is exact, and exactness is
- * only safe if the count is guaranteed to come back down. It is not:
- * `Scene.addItem` dispatches EVENT_ITEM_LOADING and then hands off to a loader
- * that, on a 404 or a malformed model, resolves nothing and dispatches nothing
- * (there is a note about exactly this in scene.js). A load that never lands
- * would otherwise wedge the history stack shut for the rest of the session.
+ * only safe if the count is guaranteed to come back down.
+ *
+ * ## It is now, and this is no longer load-bearing
+ *
+ * It was not when this was written: `Scene.addItem` called its loaders with a
+ * null onError and nothing around them, so a 404, a malformed model or an
+ * unparseable URL dispatched EVENT_ITEM_LOADING and then dispatched nothing at
+ * all. The count never came back down and the history stack stayed shut for the
+ * rest of the session. This timer existed to survive that, which made it a
+ * workaround wearing the word "backstop".
+ *
+ * RM-002 R-01 gave addItem a real failure path: every call now dispatches
+ * exactly one LOADING and exactly one LOADED, the failure carrying a null item.
+ * Kept anyway, because one path still escapes that guarantee - an embedder's
+ * own `Scene.setItemLoader`, which is arbitrary code under no obligation to
+ * call back. That is a genuine backstop: it should never fire for anything this
+ * repository ships, and if it does, something outside it is misbehaving.
  */
 const SETTLE_BACKSTOP_MS = 8000;
 
@@ -75,11 +89,20 @@ const SETTLE_BACKSTOP_MS = 8000;
  */
 export function useHistory(store)
 {
-	/** Snapshots older than the current one, oldest first. */
+	/**
+	 * Snapshots older than the current one, oldest first.
+	 * @type {import('vue').ShallowRef<string[]>}
+	 */
 	var past = shallowRef([]);
-	/** Snapshots undone away from, most recently undone last. */
+	/**
+	 * Snapshots undone away from, most recently undone last.
+	 * @type {import('vue').ShallowRef<string[]>}
+	 */
 	var future = shallowRef([]);
-	/** The design as it currently stands, or null before the first capture. */
+	/**
+	 * The design as it currently stands, or null before the first capture.
+	 * @type {import('vue').Ref<?string>}
+	 */
 	var present = ref(null);
 
 	var canUndo = computed(() => past.value.length > 0);
@@ -90,8 +113,6 @@ export function useHistory(store)
 	var backstopTimer = null;
 	/** True while a snapshot we applied is still being rebuilt. */
 	var restoring = false;
-	/** Item models the scene has started loading and not yet finished. */
-	var pending = 0;
 	var attached = null;
 
 	function model()
@@ -186,11 +207,16 @@ export function useHistory(store)
 	 * The gate is a count rather than a timeout because a count is exact: it
 	 * closes the moment the last model lands, however long that takes, and does
 	 * not swallow a real edit that happens to arrive while an arbitrary timer is
-	 * still running. `pending` is maintained from EVENT_ITEM_LOADING against
-	 * EVENT_ITEM_LOADED - and note the ordering that makes it work:
-	 * `Model.newRoom` calls `Scene.addItem` for every item BEFORE
-	 * `loadSerialized` dispatches EVENT_LOADED, so by the time this runs the
-	 * count is already complete.
+	 * still running. The ordering that makes it work is that `Model.newRoom` calls
+	 * `Scene.addItem` for every item BEFORE `loadSerialized` dispatches
+	 * EVENT_LOADED, so by the time this runs the count is already complete.
+	 *
+	 * Since RM-003 A1 the count belongs to `scene.loadSession` rather than to this
+	 * composable. It was maintained here, from EVENT_ITEM_LOADING against
+	 * EVENT_ITEM_LOADED, and that was correct only while one document was ever
+	 * loading - a second load starting before the first had settled interleaved
+	 * two documents in one number, and the gate could close on the wrong one's
+	 * last item. The session knows which generation each load belongs to.
 	 */
 	function holdOff()
 	{
@@ -200,13 +226,29 @@ export function useHistory(store)
 		settleIfIdle();
 	}
 
-	/** Close the gate if nothing is still loading. */
+	/**
+	 * Close the gate if nothing is still loading.
+	 *
+	 * Asks the scene's load session rather than a count of its own since RM-003
+	 * A1. The count was correct only while one document was ever loading: a second
+	 * load starting before the first had settled left the two interleaved in one
+	 * number, so the gate could close on the wrong document's last item. The
+	 * session knows which generation each load belongs to and reports `settled`
+	 * for the current one only.
+	 */
 	function settleIfIdle()
 	{
-		if (restoring && pending <= 0)
+		if (restoring && isSettled())
 		{
 			release();
 		}
+	}
+
+	/** Whether the current document has stopped loading things. */
+	function isSettled()
+	{
+		var scene = attached ? attached.scene : null;
+		return scene ? scene.loadSession.settled : true;
 	}
 
 	function release()
@@ -225,9 +267,12 @@ export function useHistory(store)
 	function apply(state)
 	{
 		clearTimeout(coalesceTimer);
-		pending = 0;
 		restoring = true;
-		model().loadSerialized(state);
+		// `undo` rather than the default `load` (RM-003 A2). History is the only
+		// thing that knows a document is being put back rather than opened, and a
+		// consumer that wants to treat the two differently - a viewer that keeps
+		// the camera still when you undo, say - has no other way to find out.
+		model().loadSerialized(state, {reason: REASON_UNDO});
 		// loadSerialized dispatches EVENT_LOADED on its way out, which runs
 		// holdOff below; this covers the case where nothing is listening yet.
 		holdOff();
@@ -251,6 +296,13 @@ export function useHistory(store)
 
 		var entries = past.value.slice();
 		var previous = entries.pop();
+		// canUndo already proved the stack is non-empty; this states the invariant
+		// rather than asserting it away, so a future change that breaks it fails
+		// closed instead of applying `undefined` as a design.
+		if (previous === undefined)
+		{
+			return false;
+		}
 
 		if (present.value !== null)
 		{
@@ -274,6 +326,11 @@ export function useHistory(store)
 
 		var entries = future.value.slice();
 		var next = entries.pop();
+		// As in undo(): canRedo proved this, the checker cannot see it.
+		if (next === undefined)
+		{
+			return false;
+		}
 
 		if (present.value !== null)
 		{
@@ -297,7 +354,6 @@ export function useHistory(store)
 		clearTimeout(coalesceTimer);
 		clearTimeout(backstopTimer);
 		restoring = false;
-		pending = 0;
 		past.value = [];
 		future.value = [];
 		present.value = snapshot();
@@ -316,17 +372,20 @@ export function useHistory(store)
 			// A load - new design, opened file, or our own undo - is the one moment
 			// the stack must not treat as an edit.
 			onLoaded: function () {holdOff();},
-			onItemLoading: function () {pending += 1;},
+			// The session does the counting now, so there is nothing to do when a
+			// load STARTS and the EVENT_ITEM_LOADING subscription is gone. A stale
+			// item - one belonging to a document that has been superseded - still
+			// arrives here on settling, and still must not be recorded as an edit;
+			// the session is what knows the difference, and reports the current
+			// document as settled whatever the stale ones do.
 			onItemSettled: function ()
 			{
-				pending = Math.max(0, pending - 1);
 				settleIfIdle();
 				scheduleCommit();
 			},
 		};
 
 		floorplan.addEventListener(EVENT_UPDATED, attached.onChange);
-		scene.addEventListener(EVENT_ITEM_LOADING, attached.onItemLoading);
 		scene.addEventListener(EVENT_ITEM_LOADED, attached.onItemSettled);
 		scene.addEventListener(EVENT_ITEM_REMOVED, attached.onChange);
 		scene.addEventListener(EVENT_ITEM_MOVE_FINISH, attached.onChange);
@@ -342,7 +401,6 @@ export function useHistory(store)
 			return;
 		}
 		attached.floorplan.removeEventListener(EVENT_UPDATED, attached.onChange);
-		attached.scene.removeEventListener(EVENT_ITEM_LOADING, attached.onItemLoading);
 		attached.scene.removeEventListener(EVENT_ITEM_LOADED, attached.onItemSettled);
 		attached.scene.removeEventListener(EVENT_ITEM_REMOVED, attached.onChange);
 		attached.scene.removeEventListener(EVENT_ITEM_MOVE_FINISH, attached.onChange);
@@ -353,7 +411,6 @@ export function useHistory(store)
 		future.value = [];
 		present.value = null;
 		restoring = false;
-		pending = 0;
 	}
 
 	watch(store.instance, function (blueprint)
@@ -367,5 +424,33 @@ export function useHistory(store)
 
 	onScopeDispose(detach);
 
-	return {canUndo, canRedo, depth, commit, undo, redo, reset};
+	/**
+	 * What the stack is holding, in numbers (RM-003 A3).
+	 *
+	 * Snapshots are the memory cost of this design and the docblock above puts a
+	 * figure on it - "perhaps 20 KB for a furnished plan" - which was an estimate
+	 * nobody could check. `bytes` is the real total, counted from the strings
+	 * actually retained. A2 established that a claim nobody can compute is a
+	 * slogan; this is the same rule applied to the one A3 inherited.
+	 *
+	 * @returns {{past: number, future: number, entries: number, bytes: number, limit: number}}
+	 */
+	function stats()
+	{
+		var held = past.value.concat(future.value);
+		if (present.value !== null)
+		{
+			held = held.concat([present.value]);
+		}
+		var bytes = held.reduce(function (total, entry) {return total + entry.length;}, 0);
+		return {
+			past: past.value.length,
+			future: future.value.length,
+			entries: held.length,
+			bytes: bytes,
+			limit: HISTORY_LIMIT,
+		};
+	}
+
+	return {canUndo, canRedo, depth, commit, undo, redo, reset, stats};
 }

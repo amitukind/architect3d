@@ -1,3 +1,4 @@
+// @ts-check
 import {FloorItem} from './floor_item.js';
 /// <reference path="../../lib/three.d.ts" />
 /// <reference path="../model/model.ts" />

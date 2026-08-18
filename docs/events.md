@@ -27,12 +27,25 @@ Dispatched on `blueprint.model`.
 
 | Event | When | Payload |
 |---|---|---|
-| `EVENT_LOADING` | `loadSerialized()` starts | `{item: model}` |
+| `EVENT_LOADING` | A document has validated and is about to be applied | `{item: model}` |
 | `EVENT_LOADED` | The design is in, items requested | `{item: model}` |
 | `EVENT_GLTF_READY` | `exportForBlender()` finished | `{item, gltf}` — the glTF JSON as a string |
 
 `EVENT_LOADED` fires when the *floorplan* is built and item loads have been
 started, not when the models have arrived. Wait on the item events for that.
+
+::: tip Opening a document is all-or-nothing
+`loadSerialized()` validates the whole document before touching any live state,
+so a file that is not a design leaves the open design exactly as it was — and
+`EVENT_LOADING` is **not** dispatched for a document that fails validation.
+Neither event fires, so a listener that shows a spinner on `LOADING` and hides
+it on `LOADED` cannot be left spinning.
+
+It still throws on a bad document, and the message now names the field. Use
+`model.loadDocument(json)` for the same operation as a value: it returns
+`{ok, document, errors, warnings}`, where each error carries the path to the
+field it is about.
+:::
 
 ## Floorplan
 
@@ -42,12 +55,73 @@ Dispatched on `blueprint.model.floorplan`.
 |---|---|
 | `EVENT_NEW` | A new floorplan replaced the old one |
 | `EVENT_LOADED` | A floorplan finished loading |
+| `EVENT_CHANGESET` | Something changed, and the payload says what |
 | `EVENT_UPDATED` | The wall graph changed and rooms were re-derived |
 | `EVENT_DELETED` | A corner or wall was removed |
 
 `EVENT_UPDATED` is the one to listen to if you care about rooms. Rooms are
 derived, not stored, so this is the only moment the room list is known to be
 current.
+
+## What changed, and why
+
+`EVENT_UPDATED` says *that* something happened. `EVENT_CHANGESET` says **what**,
+and it is what you want if the reaction is expensive.
+
+```js
+import {EVENT_CHANGESET, CHANGE_TOPOLOGY, CHANGE_GEOMETRY, REASON_LOAD} from 'architect3d';
+
+floorplan.addEventListener(EVENT_CHANGESET, ({changes}) => {
+    if (changes.has(CHANGE_TOPOLOGY)) { rebuild(changes.entities(CHANGE_TOPOLOGY)); }
+    else if (changes.has(CHANGE_GEOMETRY)) { nudge(changes.entities(CHANGE_GEOMETRY)); }
+    if (changes.reason === REASON_LOAD) { frameTheView(); }
+});
+```
+
+A `ChangeSet` carries kinds, the entities each kind affects, and a reason.
+
+| Kind | Means | Entities | Emitted today |
+|---|---|---|---|
+| `CHANGE_TOPOLOGY` | Corners or walls added, removed or reconnected; rooms were re-derived | the rooms, as re-derived | yes |
+| `CHANGE_GEOMETRY` | Existing entities moved. The room set is the same objects | the corners whose angles moved | yes |
+| `CHANGE_SURFACE` | Textures, colours, materials | — | no |
+| `CHANGE_ITEMS` | Furniture added, removed, moved | — | no |
+| `CHANGE_SELECTION` | What is selected | — | no |
+| `CHANGE_VIEW` | Configuration, units, render profile | — | no |
+
+| Reason | When |
+|---|---|
+| `REASON_LOAD` | A document was opened |
+| `REASON_EDIT` | A person did something. The default |
+| `REASON_UNDO` | History put a previous state back |
+| `REASON_DERIVE` | The library recomputed something off the back of another change |
+
+The four kinds with no emitter are named because a half-stated vocabulary is
+worse than none — a `switch` needs to know the whole set. `surface` is the one
+that looks like an omission and is not: `Room.setTexture()` and
+`HalfEdge.setTexture()` already dispatch `EVENT_CHANGED` and `EVENT_REDRAW`
+straight to the `Floor` and `Edge` drawing them, so that path is per-entity and
+already incremental. A plan-level broadcast on top would be new traffic that
+autosave and history would start recording.
+
+::: tip Both events fire, always
+Every `EVENT_CHANGESET` is followed by the `EVENT_UPDATED` it derives, at the
+same moment and with the same `item`. The ChangeSet also rides along on the
+legacy payload as `evt.changes`, so a consumer can adopt the typed form without
+changing which event it subscribes to. Nothing that listened before has to move.
+:::
+
+::: warning A corner drag no longer moves the 3D camera
+That is the one intended behaviour change. `Main` reframes on topology changes
+only, and only when the plan's bounding box actually moved — so dragging a
+corner, and adding a corner strictly inside the existing plan, both leave the
+camera where the user put it. Opening a document still frames it.
+
+`three.cameraStats()` reports `{recentred, declined}`, and
+`three.floorplan.projectionStats()` reports what the 3D projection rebuilt.
+Setting `three.floorplan.incremental = false` restores the old full redraw on
+every change, with the ChangeSet still in place.
+:::
 
 ## Corners, walls and rooms
 
@@ -82,6 +156,23 @@ Dispatched on `blueprint.model.scene`.
 | `EVENT_ITEM_LOADED` | The model arrived and is in the scene | `{item}` |
 | `EVENT_ITEM_REMOVED` | An item was deleted | `{item}` |
 | `EVENT_ITEM_MOVE_FINISH` | A drag or rotation settled | `{item}` |
+
+::: warning A LOADED can be for a document you have already left
+Every `EVENT_ITEM_LOADING` is still matched by exactly one `EVENT_ITEM_LOADED`,
+whatever happens — that is RM-002 R-01's guarantee and it is what lets a caller
+count loads in flight. But a model requested by one document can arrive after
+another has been opened, and that arrival is reported rather than swallowed, so
+the count stays balanced.
+
+Those carry **`stale: true`** and a null `item`. The item is not added to the
+scene, and what the loader built for it is disposed. If you are counting loads,
+ignore the flag — the balance is the point. If you are reacting to *content*,
+check `evt.item` for null, as you already must for a failed load.
+
+`scene.loadSession.stats()` is the authoritative answer to "is this document
+still loading": `{generation, inFlight, aborted, failed, settled}`, for the
+current document only.
+:::
 
 `EVENT_ITEM_MOVE_FINISH` is the only signal that a direct manipulation has
 *ended*. The `Controller` mutates an item's position on every `pointermove` and
@@ -137,16 +228,35 @@ Dispatched on `blueprint.floorplanner` — which is `null` in widget mode.
 `EVENT_UPDATED` also comes off the carbon sheet when the underlay moves or
 scales.
 
-## What Configuration does not do
+## What Configuration does, and does not
 
 `Configuration` — the display unit, grid spacing, wall height and thickness,
-the snap settings, the wall-measurement flags — is a plain singleton and
-**dispatches nothing at all**.
+the snap settings, the wall-measurement flags — dispatches
+`EVENT_CONFIG_CHANGED` on every `setValue` that actually changes something,
+carrying `{key, value, previous}`. It fires only on a real change, because
+callers write from watchers that re-run for unrelated reasons and announcing a
+no-op would turn one user action into a redraw storm.
 
-Changing a value takes effect the next time something draws. The application
-calls `floorplanner.redraw()` explicitly after touching it, and there is no
-event you can subscribe to instead. If you build your own UI over the library,
-this is the one piece of state you have to push rather than observe.
+```js
+Configuration.addEventListener(EVENT_CONFIG_CHANGED, ({key, value}) => { … });
+```
+
+What it does *not* do is redraw. The 2D view does not listen, so changing a
+value takes effect the next time something draws, and the application calls
+`floorplanner.redraw()` explicitly after touching it. Subscribe to know; redraw
+to see.
+
+`Configuration` is both a class and a namespace. The statics above read and
+write one module-level default shared by the whole page. A design that wants
+its own settings gets a `Configuration` of its own:
+
+```js
+const blueprint = new BlueprintJS({…opts, configuration: new Configuration({dimUnit: dimMeter})});
+blueprint.configuration.addEventListener(EVENT_CONFIG_CHANGED, …);   // this design only
+```
+
+Each configuration dispatches only its own changes, so a panel bound to one
+design does not wake up for another's.
 
 ## Declared but never fired
 

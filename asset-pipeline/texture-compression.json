@@ -1,0 +1,273 @@
+{
+  "note": [
+    "Produced by asset-pipeline/compress-textures.mjs (RM-002 P6).",
+    "",
+    "Opaque PNGs re-encoded as JPEG. PSNR, mean absolute error and worst",
+    "single-channel difference are measured by decoding both files in chromium",
+    "and comparing them pixel by pixel - they are not estimates.",
+    "",
+    "`heldBack` is the part of the problem that was deliberately not fixed, and",
+    "why. Files under rooms/textures/ have their URLs written into saved",
+    "designs, so renaming one breaks documents that already exist."
+  ],
+  "quality": "JPEG q90",
+  "totals": {
+    "files": 21,
+    "bytesBefore": 6276860,
+    "bytesAfter": 1656942,
+    "saved": 4619918,
+    "savedPercent": 73.6
+  },
+  "converted": [
+    {
+      "from": "rooms/textures/envs/Garden.png",
+      "to": "rooms/textures/envs/Garden.jpg",
+      "pixels": "2048x1024",
+      "bytesBefore": 3516654,
+      "bytesAfter": 864047,
+      "psnr": 38,
+      "meanAbsoluteError": 1.99,
+      "worstChannel": 104
+    },
+    {
+      "from": "models/js-glb/textures/b_cb-blue-block60x96.png",
+      "to": "models/js-glb/textures/b_cb-blue-block60x96.jpg",
+      "pixels": "512x512",
+      "bytesBefore": 284453,
+      "bytesAfter": 49474,
+      "psnr": 45.6,
+      "meanAbsoluteError": 0.85,
+      "worstChannel": 23
+    },
+    {
+      "from": "models/js-glb/textures/ik-ekero-orange_baked.png",
+      "to": "models/js-glb/textures/ik-ekero-orange_baked.jpg",
+      "pixels": "512x512",
+      "bytesBefore": 262312,
+      "bytesAfter": 58917,
+      "psnr": 37.8,
+      "meanAbsoluteError": 1.45,
+      "worstChannel": 78
+    },
+    {
+      "from": "models/js-glb/textures/bd-shalebedside-smoke_baked.png",
+      "to": "models/js-glb/textures/bd-shalebedside-smoke_baked.jpg",
+      "pixels": "512x512",
+      "bytesBefore": 266983,
+      "bytesAfter": 80600,
+      "psnr": 44.6,
+      "meanAbsoluteError": 0.96,
+      "worstChannel": 14
+    },
+    {
+      "from": "models/js-glb/textures/cb-scholartable_baked.png",
+      "to": "models/js-glb/textures/cb-scholartable_baked.jpg",
+      "pixels": "512x512",
+      "bytesBefore": 240099,
+      "bytesAfter": 57416,
+      "psnr": 47.3,
+      "meanAbsoluteError": 0.72,
+      "worstChannel": 10
+    },
+    {
+      "from": "models/js-glb/textures/cb-kendallbookcasewalnut_baked.png",
+      "to": "models/js-glb/textures/cb-kendallbookcasewalnut_baked.jpg",
+      "pixels": "512x512",
+      "bytesBefore": 231666,
+      "bytesAfter": 54394,
+      "psnr": 45.4,
+      "meanAbsoluteError": 0.89,
+      "worstChannel": 16
+    },
+    {
+      "from": "models/js-glb/textures/ik-ekero-blue_baked.png",
+      "to": "models/js-glb/textures/ik-ekero-blue_baked.jpg",
+      "pixels": "512x512",
+      "bytesBefore": 177996,
+      "bytesAfter": 31010,
+      "psnr": 47.8,
+      "meanAbsoluteError": 0.63,
+      "worstChannel": 13
+    },
+    {
+      "from": "models/js-glb/textures/cb-rochelle-gray_baked.png",
+      "to": "models/js-glb/textures/cb-rochelle-gray_baked.jpg",
+      "pixels": "512x512",
+      "bytesBefore": 203836,
+      "bytesAfter": 67178,
+      "psnr": 47.1,
+      "meanAbsoluteError": 0.79,
+      "worstChannel": 11
+    },
+    {
+      "from": "models/js-glb/textures/cb-tecs_baked.png",
+      "to": "models/js-glb/textures/cb-tecs_baked.jpg",
+      "pixels": "512x512",
+      "bytesBefore": 180683,
+      "bytesAfter": 49918,
+      "psnr": 46.3,
+      "meanAbsoluteError": 0.72,
+      "worstChannel": 13
+    },
+    {
+      "from": "models/js-glb/textures/cb-clapboard_baked.png",
+      "to": "models/js-glb/textures/cb-clapboard_baked.jpg",
+      "pixels": "512x512",
+      "bytesBefore": 159361,
+      "bytesAfter": 56325,
+      "psnr": 46.6,
+      "meanAbsoluteError": 0.58,
+      "worstChannel": 16
+    },
+    {
+      "from": "models/js-glb/textures/ore-3legged-white_baked.png",
+      "to": "models/js-glb/textures/ore-3legged-white_baked.jpg",
+      "pixels": "512x512",
+      "bytesBefore": 146698,
+      "bytesAfter": 44458,
+      "psnr": 48.6,
+      "meanAbsoluteError": 0.47,
+      "worstChannel": 13
+    },
+    {
+      "from": "rooms/thumbnails/thumbnail_hardwood.png",
+      "to": "rooms/thumbnails/thumbnail_hardwood.jpg",
+      "pixels": "300x225",
+      "bytesBefore": 105405,
+      "bytesAfter": 29450,
+      "psnr": 41.9,
+      "meanAbsoluteError": 1.56,
+      "worstChannel": 12
+    },
+    {
+      "from": "models/thumbnails/thumbnail_cb-blue-block60x96.png",
+      "to": "models/thumbnails/thumbnail_cb-blue-block60x96.jpg",
+      "pixels": "300x225",
+      "bytesBefore": 91675,
+      "bytesAfter": 17457,
+      "psnr": 42.8,
+      "meanAbsoluteError": 1.11,
+      "worstChannel": 30
+    },
+    {
+      "from": "models/js-glb/textures/we-narrow6white_baked.png",
+      "to": "models/js-glb/textures/we-narrow6white_baked.jpg",
+      "pixels": "512x512",
+      "bytesBefore": 134551,
+      "bytesAfter": 63239,
+      "psnr": 47.8,
+      "meanAbsoluteError": 0.55,
+      "worstChannel": 9
+    },
+    {
+      "from": "models/thumbnails/thumbnail_Screen_Shot_2014-01-28_at_6.49.33_PM.png",
+      "to": "models/thumbnails/thumbnail_Screen_Shot_2014-01-28_at_6.49.33_PM.jpg",
+      "pixels": "300x225",
+      "bytesBefore": 63586,
+      "bytesAfter": 20226,
+      "psnr": 45.6,
+      "meanAbsoluteError": 0.73,
+      "worstChannel": 18
+    },
+    {
+      "from": "models/thumbnails/thumbnail_Screen_Shot_2014-02-21_at_1.24.58_PM.png",
+      "to": "models/thumbnails/thumbnail_Screen_Shot_2014-02-21_at_1.24.58_PM.jpg",
+      "pixels": "300x225",
+      "bytesBefore": 58979,
+      "bytesAfter": 25921,
+      "psnr": 41.6,
+      "meanAbsoluteError": 0.88,
+      "worstChannel": 35
+    },
+    {
+      "from": "models/thumbnails/thumbnail_matera_dresser_5.png",
+      "to": "models/thumbnails/thumbnail_matera_dresser_5.jpg",
+      "pixels": "300x225",
+      "bytesBefore": 46096,
+      "bytesAfter": 20583,
+      "psnr": 43.2,
+      "meanAbsoluteError": 0.75,
+      "worstChannel": 17
+    },
+    {
+      "from": "models/thumbnails/thumbnail_Screen_Shot_2014-10-27_at_8.22.46_PM.png",
+      "to": "models/thumbnails/thumbnail_Screen_Shot_2014-10-27_at_8.22.46_PM.jpg",
+      "pixels": "300x225",
+      "bytesBefore": 25465,
+      "bytesAfter": 13232,
+      "psnr": 45.4,
+      "meanAbsoluteError": 0.39,
+      "worstChannel": 32
+    },
+    {
+      "from": "models/js-glb/textures/closed-door28x80_baked.png",
+      "to": "models/js-glb/textures/closed-door28x80_baked.jpg",
+      "pixels": "512x512",
+      "bytesBefore": 47110,
+      "bytesAfter": 35441,
+      "psnr": 53.5,
+      "meanAbsoluteError": 0.16,
+      "worstChannel": 6
+    },
+    {
+      "from": "models/thumbnails/thumbnail_Screen_Shot_2014-10-27_at_8.04.12_PM.png",
+      "to": "models/thumbnails/thumbnail_Screen_Shot_2014-10-27_at_8.04.12_PM.jpg",
+      "pixels": "300x225",
+      "bytesBefore": 19747,
+      "bytesAfter": 11866,
+      "psnr": 48.8,
+      "meanAbsoluteError": 0.24,
+      "worstChannel": 17
+    },
+    {
+      "from": "models/thumbnails/thumbnail_ore-white.png",
+      "to": "models/thumbnails/thumbnail_ore-white.jpg",
+      "pixels": "300x225",
+      "bytesBefore": 13505,
+      "bytesAfter": 5790,
+      "psnr": 51.3,
+      "meanAbsoluteError": 0.17,
+      "worstChannel": 12
+    }
+  ],
+  "rewroteGlb": [
+    "public/models/js-glb/bd-shalebedside-smoke_baked.glb",
+    "public/models/js-glb/cb-blue-block-60x96.glb",
+    "public/models/js-glb/cb-clapboard_baked.glb",
+    "public/models/js-glb/cb-kendallbookcasewalnut_baked.glb",
+    "public/models/js-glb/cb-rochelle-gray_baked.glb",
+    "public/models/js-glb/cb-scholartable_baked.glb",
+    "public/models/js-glb/cb-tecs_baked.glb",
+    "public/models/js-glb/closed-door28x80_baked.glb",
+    "public/models/js-glb/ik-ekero-blue_baked.glb",
+    "public/models/js-glb/ik-ekero-orange_baked.glb",
+    "public/models/js-glb/ore-3legged-white_baked.glb",
+    "public/models/js-glb/we-narrow6white_baked.glb"
+  ],
+  "rewroteJson": [
+    "src/catalog/catalog.json",
+    "src/catalog/textures.json",
+    "src/scripts/three/skybox.js"
+  ],
+  "heldBack": {
+    "URL is serialized into saved designs": {
+      "files": 4,
+      "bytes": 506459
+    },
+    "has an alpha channel": {
+      "files": 149,
+      "bytes": 989157
+    },
+    "JPEG came out no smaller": {
+      "files": 1,
+      "bytes": 242
+    }
+  },
+  "openQuestions": [
+    "The three 1500x2297 wood textures under models/js-glb/textures are 2.2 MB",
+    "of already-lossy JPEG. Halving them to 750x1148 would be invisible on a",
+    "wardrobe rendered a few hundred pixels tall and would save roughly 1.6 MB,",
+    "but it is a resolution decision rather than a compression one and it",
+    "changes what the renderer samples. Not taken here."
+  ]
+}

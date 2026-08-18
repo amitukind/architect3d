@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {computed, ref, watch} from 'vue';
 
 import CornerInspector from './CornerInspector.vue';
@@ -43,7 +44,17 @@ import {
  */
 
 const props = defineProps({
-	selection: {type: Object, default: null},
+	selection: {
+		/**
+		 * `type: X` with `default: null` still infers `X | undefined` - the default
+		 * does not widen the declared type, so passing an explicit null is an
+		 * error even though null is exactly what the default is (RM-004 B3).
+		 *
+		 * @type {import('vue').PropType<?{type: string, object: *}>}
+		 */
+		type: Object,
+		default: null,
+	},
 	camera: {type: Object, required: true},
 	/** Optional v-model, so a control outside the panel can bring a tab forward -
 	 * the rail's backdrop button points at a group inside Settings. Left
@@ -136,7 +147,7 @@ watch(() => props.selection, (selection) =>
 		<div class="inspector-body">
 			<template v-if="tab === 'selection'">
 				<component
-					:is="component" v-if="component"
+					:is="component" v-if="component && props.selection"
 					:key="props.selection.object.id || props.selection.object"
 					v-bind="bindings"
 					@changed="emit('changed')" />

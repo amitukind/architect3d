@@ -67,6 +67,22 @@ Expectations retired that way so far, all listed as FIX in the ledger:
 | `Version.isVersionHigherThan` compared its arguments backwards, returned `0`/`1`/`false` from one function, and threw on a hand-edited file. Nine quirk tests replaced; the load gate that depended on it now reads the wall record | post-S9 | `dimensioning.test.js`, `serialization.test.js` |
 | Saved coordinates were stored in the **active display unit**, not centimetres. Nineteen quirk tests replaced by save format 2.0.0, which stores canonical cm and stamps `units` | post-S9 | `serialization.test.js`, `save-format-v1.test.js` |
 | `material_colors` held every material's colour on every save, freezing a model's own appearance into every design using it | post-S9 | `items-and-scene.test.js` |
+| A design with no `items` array threw **after** `EVENT_LOADING` and **after** the floorplan had been replaced, leaving the model half-loaded with no `EVENT_LOADED` and the previous design gone. RM-003 A1 validates the whole document first, so it now throws before anything is touched and dispatches neither event | RM-003 A1 | `items-and-scene.test.js` |
+
+**RM-003 A3 retired nothing either.** Three expectations were *updated* rather
+than retired, all for the same additive reason: `Item.getMetaData()` gained an
+`id`, so the three tests pinning its exact key list are one key longer. The
+assertion means what it always meant. Adding a field to the save format is the
+one change that reaches those without changing behaviour.
+
+**RM-003 A2 retired nothing**, which is worth recording because it was the
+sprint most likely to have to. Its risk register named characterization drift as
+the high one: coalescing `EVENT_UPDATED` changes how often it fires, and a test
+asserting a dispatch count would have had to go. None did — the counts the suite
+pinned were all of `EVENT_LOADED`, `EVENT_NEW` and `EVENT_DELETED`, none of
+which moved. One expectation *was* wrong and was corrected rather than retired:
+A2 briefly stopped `loadFloorplan` returning early on a malformed file, and
+`serialization.test.js` caught it inside a minute.
 
 One S0 test **fired as designed** in S4 rather than being retired: the
 zero-length `wallSize` setter produced NaN coordinates that r98's
@@ -85,6 +101,8 @@ tests/
 │                       counter for proving dispose() is complete
 ├─ helpers/renderer.js  the fake WebGLRenderer handed to Main.setRendererFactory,
 │                       shared by the viewer and application suites
+├─ helpers/resources.js counts geometries, materials and textures built, disposed
+│                       and still reachable - the probe behind the A0 leak tests
 ├─ fixtures/*.blueprint3d   frozen design files (generated, see below)
 │
 │  headless data layer (S0, characterization) — environment: node
@@ -114,6 +132,60 @@ tests/
 │                           two sky shader includes, and the two constants the
 │                           flip must not sweep up
 │
+│  document loading (RM-003 A1, contract) — environment: jsdom
+├─ document-loading.test.js  ten documents that are not designs, each of which
+│                           used to empty the open plan; validation results with
+│                           a path per problem; stale item callbacks and the
+│                           load session that rejects them
+│
+│  resource ownership (RM-003 A0, contract) — environment: jsdom
+├─ resource-lifecycle.test.js  who owns a geometry and who gives it back: the
+│                           model's hit-test planes, Edge's six wall meshes,
+│                           Floor's pair, Item's labels and selection box, the
+│                           HUD's rotation handle, and the shared texture cache
+│
+│  typed change and incremental projection (RM-003 A2, contract) — jsdom
+├─ helpers/scene_graph.js   a three scene as a sorted list of mesh descriptions,
+│                           so two of them can be diffed
+├─ change-projection.test.js  the ChangeSet contract; every legacy event walked
+│                           row by row against docs/events.md; the camera gate
+│                           against a REAL Main; and the matrix that matters -
+│                           three designs by ten edit kinds, incremental against
+│                           full redraw, mesh by mesh
+│
+│  identity and history (RM-003 A3, contract) — environment: jsdom
+├─ identity.test.js         the room matcher on its own, because it is the one
+│                           rule here that can be SUBTLY wrong; then the H-5
+│                           measurement inverted - name a room, texture it, draw
+│                           a wall through one side, and both survive
+├─ history-and-selection.test.js  undo that keeps the furniture it already has
+│                           (M-8); a selection that resolves by id and survives a
+│                           re-derivation; and a generated round-trip suite -
+│                           random edit sequences, each undone, asserted
+│                           byte-identical. It found three real defects on its
+│                           first two runs
+│
+│  document isolation (RM-003 A4, contract) — environment: jsdom
+├─ runtime-isolation.test.js  one document's services as one object: that the
+│                           default runtime's configuration, dimensioning and
+│                           render profile ARE the module-level ones by identity,
+│                           so every static still reads what it read; that
+│                           `configurationOf` and `runtimeOf` cannot disagree,
+│                           checked over a table of owners; and that two
+│                           documents share settings and never a lifetime -
+│                           which is the bug this suite caught while it was
+│                           being written
+│
+│  persistence and asset delivery (RM-003 A5, contract) — environment: jsdom
+├─ persistence-and-assets.test.js  the draft repository behind an interface -
+│                           the localStorage implementation that shipped before
+│                           A5, the quota prune-and-retry, and the pointer that
+│                           can tell a write that never landed from one that
+│                           did; then the manifest and the resolver, including
+│                           the claim the whole asset half rests on: the URL a
+│                           browser fetches moves and the name in the document
+│                           does not
+│
 │  the Vue application (S6-S7, contract) — environment: jsdom
 ├─ app-composables.test.js  the blueprint's lifetime, the single selection, the
 │                           camera modes, catalog placement, file IO
@@ -122,6 +194,33 @@ tests/
 │                           symmetry
 └─ app-inspector.test.js    the native panels: each one against a real model
                             object, the texture grid, and the unit switch
+```
+
+`tests/browser/` is a separate project - `npm run test:browser`, config in
+`vitest.browser.config.mjs` - because it needs a real WebGL context and
+`npm test` must stay runnable on a machine with no chromium. It answers the
+questions a stub renderer cannot:
+
+```
+tests/browser/
+├─ viewer-webgl.test.js     the frame composites, and the two render profiles
+│                           are not the same picture
+├─ environment-map.test.js  the PMREM environment actually reaches the materials
+├─ gpu-memory.test.js       renderer.info.memory over edit cycles: the driver's
+│                           own count of what it holds (RM-003 A0)
+├─ incremental-projection.test.js  the incremental path and a full redraw, read
+│                           back as pixels and compared byte for byte (A2)
+├─ plan-canvas.test.js      the 2D canvas under a real 2D context
+├─ plan-coalescing.test.js  one repaint per frame, not one per event
+├─ draft-storage.test.js    the draft store against a REAL IndexedDB, which
+│                           jsdom does not have: a design far larger than the
+│                           5 MiB Web Storage cap, refused by the old path and
+│                           stored by the new one, and M-9 measured on both
+├─ two-designs.test.js      two independent viewers on one page, and (A4) the
+│                           full matrix: two runtimes, two configurations, two
+│                           profiles, one disposed in either order, the survivor
+│                           checked pixel-for-pixel
+└─ accessibility.test.js    the application's keyboard and ARIA surface
 ```
 
 The application and colour-pipeline modules are contract tests, not characterization: the

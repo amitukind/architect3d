@@ -1,0 +1,320 @@
+// @ts-check
+// SAVE_UNITS lives with the code that writes it. No cycle: floorplan.js does not
+// import this module - Model is what puts the two together.
+import {SAVE_UNITS} from './floorplan.js';
+
+/**
+ * Parse, validate and normalise a `.blueprint3d` document (RM-003 A1).
+ *
+ * ## What this exists to stop
+ *
+ * `Model.loadSerialized()` used to parse and then mutate live state directly,
+ * and `Model.newRoom()` called `scene.clearItems()` *before*
+ * `floorplan.loadFloorplan()` - which itself opens with `reset()`. So the open
+ * design was destroyed before the incoming one had been examined at all. Ten
+ * well-formed-JSON documents that are not designs each emptied the current plan,
+ * and `{"items":[]}` did it without even throwing: EVENT_LOADED fired, the
+ * application reported success, and autosave wrote the empty plan over the
+ * draft. Only a JSON *syntax* error was safe, and only by accident.
+ *
+ * ## Validate completely, then apply
+ *
+ * Everything below runs before a single byte of live state is touched. The
+ * atomicity guarantee is therefore structural rather than careful: by the time
+ * anything is mutated, the only way to fail is a bug, not a bad file.
+ *
+ * The RM-003 plan called for building a replacement `Floorplan` off to the side
+ * and swapping it in. That is not what this does, and the reason is worth
+ * recording. `Model.floorplan` is subscribed to by `Main`, `Floorplan3D`,
+ * `Floorplanner2D` and four Vue composables, all by object identity - swapping
+ * the object silently detaches every one of them. Validating the whole document
+ * up front delivers the same guarantee (a bad document never reaches live state)
+ * without touching the identity that half the codebase is holding. The "build
+ * off to the side" step still happens; it happens at the *data* level, which is
+ * what this class returns.
+ *
+ * ## Lenient where the format is lenient
+ *
+ * The validator must not be stricter than the corpus of files people already
+ * have. A pre-2.0.0 document has no `units` stamp, no `elevation` on its
+ * corners, and no control points on its walls; all three are optional here for
+ * exactly the reasons `Floorplan.loadFloorplan` documents. An unknown `units`
+ * value is a **warning**, not a refusal - refusing to open a design is a worse
+ * outcome than opening one whose scale the user can see is wrong, which is the
+ * rule that code already followed with a `console.warn`.
+ */
+
+/**
+ * @typedef {Object} DocumentProblem
+ * @property {string} path Where in the document, in dotted notation.
+ * @property {string} message What is wrong with it, in a sentence.
+ */
+
+/**
+ * A discriminated union rather than four independent properties (RM-005 C2).
+ *
+ * It used to read `{ok: boolean, document: ?DesignDocument, ...}`, which says
+ * the two are unrelated - so `if (!result.ok) { return; }` narrowed nothing and
+ * every use of `result.document` past that guard was a possibly-null. The
+ * comment "Null when `ok` is false" was the whole of the relationship, and a
+ * comment is not a type.
+ *
+ * @typedef {Object} ParseFailure
+ * @property {false} ok
+ * @property {null} document
+ * @property {Array<DocumentProblem>} errors
+ * @property {Array<DocumentProblem>} warnings
+ */
+
+/**
+ * @typedef {Object} ParseSuccess
+ * @property {true} ok
+ * @property {DesignDocument} document
+ * @property {Array<DocumentProblem>} errors
+ * @property {Array<DocumentProblem>} warnings
+ */
+
+/** @typedef {ParseFailure|ParseSuccess} ParseResult */
+
+/**
+ * @param {*} value
+ * @returns {boolean}
+ */
+function isFiniteNumber(value)
+{
+	return typeof value === 'number' && isFinite(value);
+}
+
+/**
+ * @param {*} value
+ * @returns {boolean}
+ */
+function isPlainObject(value)
+{
+	return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * A validated document. Construct through {@link DesignDocument.parse}.
+ */
+export class DesignDocument
+{
+	/**
+	 * @param {Object} data The raw parsed document, already validated.
+	 */
+	constructor(data)
+	{
+		/** The floorplan record, as the file carried it. */
+		this.floorplan = data.floorplan;
+		/** The item records, as the file carried them. */
+		this.items = data.items;
+		/** The `version` stamp, or null on a pre-2.0.0 file. */
+		this.version = (typeof data.floorplan.version === 'string') ? data.floorplan.version : null;
+		/**
+		 * The `units` stamp, or null when the file does not carry one - which means
+		 * pre-2.0.0, where coordinates were written in whatever display unit
+		 * happened to be active at save time. `Floorplan.loadFloorplan` is what
+		 * acts on that; this only records it.
+		 */
+		this.units = (typeof data.floorplan.units === 'string') ? data.floorplan.units : null;
+	}
+
+	/** How many corners, walls and items the document declares. */
+	summary()
+	{
+		return {
+			corners: Object.keys(this.floorplan.corners).length,
+			walls: this.floorplan.walls.length,
+			items: this.items.length,
+			version: this.version,
+			units: this.units,
+		};
+	}
+
+	/**
+	 * Read a `.blueprint3d` document without touching anything.
+	 *
+	 * Never throws - a malformed document is a result, not an exception, because
+	 * the caller has to decide what to do about it and "the file is broken" is not
+	 * an exceptional circumstance for a file-opening function.
+	 *
+	 * Every problem is collected rather than the first one thrown, so a caller can
+	 * show a person what is wrong with their file instead of one arbitrary
+	 * symptom of it.
+	 *
+	 * @param {string} json
+	 * @returns {ParseResult}
+	 */
+	static parse(json)
+	{
+		/** @type {Array<DocumentProblem>} */
+		var errors = [];
+		/** @type {Array<DocumentProblem>} */
+		var warnings = [];
+
+		var data;
+		try
+		{
+			data = JSON.parse(json);
+		}
+		catch (error)
+		{
+			return {
+				ok: false,
+				document: null,
+				errors: [{path: '', message: `not valid JSON: ${error instanceof Error ? error.message : String(error)}`}],
+				warnings: warnings,
+			};
+		}
+
+		if (!isPlainObject(data))
+		{
+			return {
+				ok: false,
+				document: null,
+				errors: [{path: '', message: `a design must be an object, not ${Array.isArray(data) ? 'an array' : String(data === null ? 'null' : typeof data)}`}],
+				warnings: warnings,
+			};
+		}
+
+		validateFloorplan(data.floorplan, errors, warnings);
+		validateItems(data.items, errors);
+
+		if (errors.length)
+		{
+			return {ok: false, document: null, errors: errors, warnings: warnings};
+		}
+
+		return {ok: true, document: new DesignDocument(data), errors: errors, warnings: warnings};
+	}
+}
+
+/**
+ * @param {*} floorplan
+ * @param {Array<DocumentProblem>} errors
+ * @param {Array<DocumentProblem>} warnings
+ */
+function validateFloorplan(floorplan, errors, warnings)
+{
+	if (!isPlainObject(floorplan))
+	{
+		errors.push({path: 'floorplan', message: 'missing - a design must carry a "floorplan" object'});
+		return;
+	}
+
+	if (!isPlainObject(floorplan.corners))
+	{
+		errors.push({path: 'floorplan.corners', message: 'missing - a floorplan must carry a "corners" object, even an empty one'});
+	}
+
+	if (!Array.isArray(floorplan.walls))
+	{
+		errors.push({path: 'floorplan.walls', message: 'missing - a floorplan must carry a "walls" array, even an empty one'});
+	}
+
+	// Nothing below can run without both of the above.
+	if (errors.length)
+	{
+		return;
+	}
+
+	Object.keys(floorplan.corners).forEach(function (id)
+	{
+		var corner = floorplan.corners[id];
+		if (!isPlainObject(corner))
+		{
+			errors.push({path: `floorplan.corners.${id}`, message: 'is not an object'});
+			return;
+		}
+		['x', 'y'].forEach(function (axis)
+		{
+			if (!isFiniteNumber(corner[axis]))
+			{
+				errors.push({path: `floorplan.corners.${id}.${axis}`, message: `must be a finite number, not ${JSON.stringify(corner[axis])}`});
+			}
+		});
+		// elevation is optional - pre-2.0.0 files have none, and loadFloorplan
+		// already treats a falsy value as "leave the default".
+		if (corner.elevation !== undefined && corner.elevation !== null && !isFiniteNumber(corner.elevation))
+		{
+			errors.push({path: `floorplan.corners.${id}.elevation`, message: `must be a finite number, not ${JSON.stringify(corner.elevation)}`});
+		}
+	});
+
+	floorplan.walls.forEach(function (wall, index)
+	{
+		if (!isPlainObject(wall))
+		{
+			errors.push({path: `floorplan.walls[${index}]`, message: 'is not an object'});
+			return;
+		}
+		// The reference check is the one that matters most in practice: a wall
+		// naming a corner that is not in the file used to reach `new Wall(undefined,
+		// undefined)` and take the whole load down halfway through.
+		['corner1', 'corner2'].forEach(function (end)
+		{
+			var id = wall[end];
+			if (typeof id !== 'string' && typeof id !== 'number')
+			{
+				errors.push({path: `floorplan.walls[${index}].${end}`, message: 'missing - a wall must name the corner at each end'});
+				return;
+			}
+			if (!Object.prototype.hasOwnProperty.call(floorplan.corners, String(id)))
+			{
+				errors.push({path: `floorplan.walls[${index}].${end}`, message: `names corner "${id}", which is not in this file`});
+			}
+		});
+	});
+
+	// `rooms` holds room metadata keyed by corner-id string. Absent on some files
+	// and merely assigned by loadFloorplan, so its absence is not a defect - but a
+	// non-object would be assigned and then indexed into.
+	if (floorplan.rooms !== undefined && floorplan.rooms !== null && !isPlainObject(floorplan.rooms))
+	{
+		errors.push({path: 'floorplan.rooms', message: 'must be an object of room metadata when present'});
+	}
+
+	if (typeof floorplan.units === 'string' && floorplan.units !== SAVE_UNITS)
+	{
+		warnings.push({
+			path: 'floorplan.units',
+			message: `declares units "${floorplan.units}", which this build does not know. Reading coordinates as ${SAVE_UNITS}.`,
+		});
+	}
+}
+
+/**
+ * @param {*} items
+ * @param {Array<DocumentProblem>} errors
+ */
+function validateItems(items, errors)
+{
+	if (!Array.isArray(items))
+	{
+		errors.push({path: 'items', message: 'missing - a design must carry an "items" array, even an empty one'});
+		return;
+	}
+
+	items.forEach(function (item, index)
+	{
+		if (!isPlainObject(item))
+		{
+			errors.push({path: `items[${index}]`, message: 'is not an object'});
+			return;
+		}
+		// Only the fields whose absence breaks the load. Everything else has a
+		// documented default in Model.newRoom, and inventing requirements here
+		// would refuse files that open perfectly well today.
+		if (typeof item.model_url !== 'string' || item.model_url === '')
+		{
+			errors.push({path: `items[${index}].model_url`, message: 'missing - an item must name the model to load'});
+		}
+		['xpos', 'ypos', 'zpos'].forEach(function (axis)
+		{
+			if (item[axis] !== undefined && !isFiniteNumber(item[axis]))
+			{
+				errors.push({path: `items[${index}].${axis}`, message: `must be a finite number, not ${JSON.stringify(item[axis])}`});
+			}
+		});
+	});
+}

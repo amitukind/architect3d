@@ -42,10 +42,14 @@ are checked in under `public/`, which Vite serves at the site root.
 | Command | What it does |
 |---|---|
 | `npm run dev` | Dev server on port 10001, with hot reload |
-| `npm run build` | Library build &rarr; `dist/bp3djs.js`, an IIFE exposing the `BP3DJS` global |
+| `npm run build` | Library build &rarr; `dist/`: the ESM entry, the `BP3DJS` IIFE, and the declarations |
 | `npm run build:demo` | Application build &rarr; `dist-demo/` |
-| `npm test` | The vitest suite (870 tests, headless) |
+| `npm test` | The vitest suite (886 tests, headless) |
+| `npm run test:coverage` | The same suite, with coverage and its thresholds |
+| `npm run test:browser` | The browser tier: real canvas, real WebGL, axe (needs chromium) |
 | `npm run lint` | ESLint |
+| `npm run typecheck` | Type-check the JSDoc and the SFC templates (`vue-tsc`) |
+| `npm run budget` | Check the built output against `tools/budget.json` |
 | `npm run docs` | The documentation site, with hot reload |
 | `npm run docs:build` | The documentation site &rarr; `docs/.vitepress/dist` |
 | `npm run fixtures` | Regenerate `tests/fixtures/*.blueprint3d` |
@@ -53,6 +57,44 @@ are checked in under `public/`, which Vite serves at the site root.
 
 Pushing to `master` builds and publishes both the application and the docs to
 GitHub Pages. Nothing deploys from any other branch.
+
+### Checks
+
+`npm install` also installs a **pre-commit hook** — it lints the files you
+staged and runs the test suites that import them. That is deliberate rather than
+incidental: CI runs on `dev` and `master` only, to conserve Actions minutes, so
+without a local hook nothing at all runs before a merge. It costs nothing and
+takes a couple of seconds.
+
+`git commit --no-verify` skips a single commit, and `SKIP_SIMPLE_GIT_HOOKS=1`
+skips the hook wherever it is set. To avoid *installing* it at all — which is
+what CI does — set `SKIP_INSTALL_SIMPLE_GIT_HOOKS=1` before `npm ci`.
+
+CI then runs two jobs in parallel. The first is the type check, the suite with
+coverage thresholds, ESLint, all three builds and the size budgets. The second
+is the browser tier — `npm run test:browser`, which needs chromium
+(`npx playwright install chromium`) and is the only thing here that checks the
+renderers produce anything: the plan is rasterised into a real canvas and its
+pixels read back, the 3D view is composited through a real WebGL2 context, and
+axe-core runs over the booted application. The coverage floor, the budget limits and
+the set of type-checked files are all committed and all ratchets — extend them
+when a change earns it, and never relax one to make a build pass. The full gate
+ladder, including the browser-based tier that is not built yet, is
+[RM-002 §13](./docs/public/roadmap.html).
+
+### Types
+
+There are no `.ts` files and there is not meant to be one. The library is ESM
+with thorough JSDoc, and `npm run typecheck` makes that JSDoc mean something —
+`vue-tsc` checks the annotations *and* the SFC templates against their script
+blocks.
+
+Checking is **opt-in per file**: a file joins by putting `// @ts-check` on its
+first line, or on the first line inside `<script setup>`. Forty files are in so
+far — all of `core/`, all of the composables, the public entry point, and the
+components that were already clean. The ledger of what is in, and what each
+remaining area would cost, is at the top of
+[`tsconfig.json`](./tsconfig.json).
 
 
 ## Using it
@@ -85,6 +127,26 @@ output is checked against. See
 what each one changes.
 
 
+## Installing it
+
+```bash
+npm install architect3d three bezier-js
+```
+
+`three` and `bezier-js` are **peer dependencies** — the library uses whichever
+copy you already have, so `instanceof` works across the boundary and you are not
+shipping two engines. The peer range is `three >= 0.185.0`, the version the suite
+runs against; three breaks in minor releases, so anything lower is untested
+rather than unsupported.
+
+| Entry | What it is |
+|---|---|
+| `architect3d` | ESM, ~81 kB gzipped, three and bezier-js external |
+| `architect3d/iife` | One self-executing bundle exposing `BP3DJS`, three included — for a plain `<script>` tag |
+| `architect3d/source/*` | The unbundled sources, if you would rather build them yourself |
+
+Types are generated from the JSDoc and ship with the package.
+
 ## Documentation
 
 | | |
@@ -109,7 +171,7 @@ public/        assets the running app loads (models, textures, thumbnails)
 asset-pipeline/ inputs and records that are not served: the 25 pre-migration
                three.js JSON models the .glb files were converted from, the
                .blend authoring files, and the conversion report
-tests/         828 headless tests; see tests/README.md
+tests/         886 headless tests; see tests/README.md
 tools/         one-off and migration tooling (conversion, goldens, parity)
 docs/          this documentation site
 ```

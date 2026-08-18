@@ -28,7 +28,7 @@ import App from '../src/app/App.vue';
 
 import textures from '../src/catalog/textures.json';
 import {Main} from '../src/scripts/three/main.js';
-import {Configuration, configDimUnit} from '../src/scripts/core/configuration.js';
+import {Configuration, configDimUnit, gridSpacing} from '../src/scripts/core/configuration.js';
 import {dimCentiMeter, dimMeter} from '../src/scripts/core/units.js';
 import {Dimensioning} from '../src/scripts/core/dimensioning.js';
 import {WallTypes} from '../src/scripts/core/constants.js';
@@ -499,6 +499,48 @@ describe('the inspector inside the app', () =>
 
 		expect(tab(wrapper, 'Settings').classes()).toContain('is-active');
 		expect(wrapper.find('.settings').exists()).toBe(true);
+
+		wrapper.unmount();
+	});
+
+	it('follows a configuration change made from outside the panel (RM-002 R-03)', async () =>
+	{
+		// Snap-to-grid and grid resolution are writable from the plan overlay as
+		// well as from here. Before Configuration had an event, this panel read
+		// them once at mount: changing the grid density on the plan and then
+		// opening Settings showed the old number, indefinitely.
+		const wrapper = await mountApp();
+
+		const gridField = wrapper.get('.settings').findAll('label')
+			.find((entry) => entry.text().includes('Grid resolution'));
+		expect(gridField).toBeTruthy();
+
+		const before = gridField.find('input').element.value;
+
+		// Write through the library, exactly as the plan overlay's density control
+		// does - not through this panel.
+		Configuration.setValue(gridSpacing, 137);
+		await nextTick();
+
+		expect(gridField.find('input').element.value).not.toBe(before);
+		expect(Number(gridField.find('input').element.value))
+			.toBeCloseTo(Dimensioning.cmToMeasureRaw(137), 5);
+
+		wrapper.unmount();
+	});
+
+	it('follows a snap-to-grid change made from outside the panel', async () =>
+	{
+		const wrapper = await mountApp();
+
+		Configuration.setValue('snapToGrid', false);
+		await nextTick();
+		const box = wrapper.get('.settings').findAll('input[type="checkbox"]')[0];
+		expect(box.element.checked).toBe(false);
+
+		Configuration.setValue('snapToGrid', true);
+		await nextTick();
+		expect(box.element.checked).toBe(true);
 
 		wrapper.unmount();
 	});

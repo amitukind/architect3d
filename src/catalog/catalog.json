@@ -61,14 +61,14 @@
 	"items": [
 		{
 			"name": "Closed Door",
-			"image": "models/thumbnails/thumbnail_Screen_Shot_2014-10-27_at_8.04.12_PM.png",
+			"image": "models/thumbnails/thumbnail_Screen_Shot_2014-10-27_at_8.04.12_PM.jpg",
 			"model": "models/js-glb/closed-door28x80_baked.glb",
 			"type": 7,
 			"format": "gltf"
 		},
 		{
 			"name": "Open Door",
-			"image": "models/thumbnails/thumbnail_Screen_Shot_2014-10-27_at_8.22.46_PM.png",
+			"image": "models/thumbnails/thumbnail_Screen_Shot_2014-10-27_at_8.22.46_PM.jpg",
 			"model": "models/js-glb/open_door.glb",
 			"type": 7,
 			"format": "gltf"
@@ -103,7 +103,7 @@
 		},
 		{
 			"name": "Dresser - Dark Wood",
-			"image": "models/thumbnails/thumbnail_matera_dresser_5.png",
+			"image": "models/thumbnails/thumbnail_matera_dresser_5.jpg",
 			"model": "models/js-glb/DWR_MATERA_DRESSER2.glb",
 			"type": 1,
 			"format": "gltf"
@@ -187,7 +187,7 @@
 		},
 		{
 			"name": "Floor Lamp",
-			"image": "models/thumbnails/thumbnail_ore-white.png",
+			"image": "models/thumbnails/thumbnail_ore-white.jpg",
 			"model": "models/js-glb/ore-3legged-white_baked.glb",
 			"type": 1,
 			"format": "gltf"
@@ -201,7 +201,7 @@
 		},
 		{
 			"name": "Side Table",
-			"image": "models/thumbnails/thumbnail_Screen_Shot_2014-02-21_at_1.24.58_PM.png",
+			"image": "models/thumbnails/thumbnail_Screen_Shot_2014-02-21_at_1.24.58_PM.jpg",
 			"model": "models/js-glb/GUSossingtonendtable.glb",
 			"type": 1,
 			"format": "gltf"
@@ -215,14 +215,14 @@
 		},
 		{
 			"name": "Dining table",
-			"image": "models/thumbnails/thumbnail_Screen_Shot_2014-01-28_at_6.49.33_PM.png",
+			"image": "models/thumbnails/thumbnail_Screen_Shot_2014-01-28_at_6.49.33_PM.jpg",
 			"model": "models/js-glb/BlakeAvenuejoshuatreecheftable.glb",
 			"type": 1,
 			"format": "gltf"
 		},
 		{
 			"name": "Blue Rug",
-			"image": "models/thumbnails/thumbnail_cb-blue-block60x96.png",
+			"image": "models/thumbnails/thumbnail_cb-blue-block60x96.jpg",
 			"model": "models/js-glb/cb-blue-block-60x96.glb",
 			"type": 8,
 			"format": "gltf"

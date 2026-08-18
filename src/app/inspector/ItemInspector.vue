@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {onBeforeUnmount, reactive, ref, watch} from 'vue';
 import NumberField from './fields/NumberField.vue';
 import CheckField from './fields/CheckField.vue';
@@ -33,6 +34,9 @@ const {unit} = useDisplayUnit();
 const name = ref('');
 const dimensions = reactive({width: 0, height: 0, depth: 0});
 const flags = reactive({proportional: false, fixed: false});
+// `ref([])` infers `Ref<never[]>`, so filling it is an error and reading from
+// it is an error on `never` - one omission producing four (RM-004 B3).
+/** @type {import('vue').Ref<Array<{index: number, label: string, color: string}>>} */
 const materials = ref([]);
 
 function readBack()

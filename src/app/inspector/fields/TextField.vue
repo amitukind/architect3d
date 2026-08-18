@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 /**
  * A labelled text input (sprint S7).
  *
@@ -15,6 +16,21 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['update:modelValue']);
+/**
+ * Read the control's value from the event, typed (RM-004 B3).
+ *
+ * `Event.target` is `EventTarget | null` and `EventTarget` declares no `value`,
+ * so the inline `$event.target.value` this replaces was two type errors in a
+ * template nothing was checking. Narrowed in a handler rather than asserted in
+ * the template: the element is known to be the input this component renders,
+ * and a handler is where saying so belongs.
+ */
+/** @param {Event} event */
+function onInput(event)
+{
+	const input = /** @type {HTMLInputElement} */ (event.target);
+	emit('update:modelValue', input.value);
+}
 </script>
 
 <template>
@@ -23,6 +39,6 @@ const emit = defineEmits(['update:modelValue']);
 		<input
 			class="field-input" type="text" :value="props.modelValue"
 			:placeholder="props.placeholder" :disabled="props.disabled"
-			@input="emit('update:modelValue', $event.target.value)">
+			@input="onInput">
 	</label>
 </template>

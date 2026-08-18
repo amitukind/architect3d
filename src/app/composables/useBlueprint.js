@@ -1,5 +1,7 @@
+// @ts-check
 import {inject, provide, markRaw, shallowRef} from 'vue';
 import {BlueprintJS} from '../../scripts/blueprint.js';
+import {assetResolver} from './useAssets.js';
 
 /**
  * Owns the one BlueprintJS instance and its lifetime.
@@ -46,9 +48,13 @@ const BLUEPRINT_KEY = Symbol('architect3d.blueprint');
  */
 export function createBlueprintStore()
 {
+	/** @type {import('vue').ShallowRef<?any>} */
 	var instance = shallowRef(null);
+	/** @type {import('vue').ShallowRef<?any>} */
 	var model = shallowRef(null);
+	/** @type {import('vue').ShallowRef<?any>} */
 	var three = shallowRef(null);
+	/** @type {import('vue').ShallowRef<?any>} */
 	var floorplanner = shallowRef(null);
 
 	/**
@@ -74,11 +80,18 @@ export function createBlueprintStore()
 			threeCanvasElement: null,
 			textureDir: options.textureDir || 'models/textures/',
 			widget: Boolean(options.widget),
+			// Where this deployment's assets live (RM-003 A5). The shared resolver,
+			// which is identity until `loadManifest()` installs a manifest into it -
+			// so a viewer mounted before the fetch lands still loads everything, and
+			// picks up the indirection when it arrives.
+			assets: assetResolver(),
 		}));
 
 		instance.value = blueprint;
 		model.value = markRaw(blueprint.model);
-		three.value = markRaw(blueprint.three);
+		// Non-null immediately after construction; BlueprintJS only clears it in
+		// dispose(), and the property is declared nullable for that reason alone.
+		three.value = blueprint.three ? markRaw(blueprint.three) : null;
 		floorplanner.value = blueprint.floorplanner ? markRaw(blueprint.floorplanner) : null;
 
 		return blueprint;

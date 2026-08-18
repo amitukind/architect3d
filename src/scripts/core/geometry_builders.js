@@ -1,3 +1,4 @@
+// @ts-check
 import {BufferAttribute, BufferGeometry} from 'three';
 
 /**
@@ -25,7 +26,7 @@ import {BufferAttribute, BufferGeometry} from 'three';
  * four-point quad case, where it yields `(0,1,2)` and `(0,2,3)` - the same two
  * triangles the old code pushed by hand.
  *
- * @param {Vector3[]} points Fan vertices, in order. Fewer than three yields an
+ * @param {import('three').Vector3[]} points Fan vertices, in order. Fewer than three yields an
  *   empty (but valid) geometry rather than throwing, matching the legacy code's
  *   tolerance for degenerate rooms mid-edit.
  * @returns {BufferGeometry} Indexed, with a `position` attribute and nothing else.
@@ -62,7 +63,7 @@ export function triangleFanGeometry(points)
  * so the value is computed on demand from the position attribute instead.
  *
  * @param {BufferGeometry} geometry Must be indexed and hold at least one triangle.
- * @returns {Vector3} Unit normal, or a zero vector for a degenerate triangle.
+ * @returns {import('three').Vector3} Unit normal, or a zero vector for a degenerate triangle.
  */
 export function firstFaceNormal(geometry, target)
 {

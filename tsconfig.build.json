@@ -1,0 +1,30 @@
+{
+  "//": [
+    "Declaration emit for the published library (RM-002 R-06 / P4).",
+    "",
+    "  npx tsc -p tsconfig.build.json",
+    "",
+    "Produces .d.ts files for src/scripts alone - the tree `files` in package.json",
+    "actually publishes. src/app is the application, not the package, so it is",
+    "excluded here even though the checking config covers it.",
+    "",
+    "This is not wired into the build yet. P4 is the phase that adds `types` to",
+    "package.json and ships the output; this config exists now because P2 is where",
+    "the JSDoc became trustworthy enough to generate types FROM, and it is worth",
+    "proving that works while the reason is fresh. Types generated today describe",
+    "the 13 opted-in files precisely and the rest loosely - they improve as the",
+    "opt-in ledger in tsconfig.json shrinks."
+  ],
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "declarationMap": true,
+    "allowImportingTsExtensions": false,
+    "rootDir": "./src/scripts",
+    "outDir": "./dist/types"
+  },
+  "include": ["src/scripts/**/*.js"],
+  "exclude": ["node_modules", "dist", "dist-demo"]
+}

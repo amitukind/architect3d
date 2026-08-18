@@ -1,12 +1,15 @@
+// @ts-check
 import {EventDispatcher, Vector2, Vector3, WebGLRenderer, PerspectiveCamera, OrthographicCamera} from 'three';
 import {ColorManagement, SRGBColorSpace} from 'three';
 import {Plane} from 'three';
 import {PCFSoftShadowMap, ACESFilmicToneMapping, NoToneMapping, PMREMGenerator} from 'three';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {PointerLockControls} from './pointerlockcontrols.js';
+import {describeFrom} from '../core/texture_formats.js';
 
-import {EVENT_UPDATED, EVENT_WALL_CLICKED, EVENT_NOTHING_CLICKED, EVENT_FLOOR_CLICKED, EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED, EVENT_GLTF_READY} from '../core/events.js';
-import {EVENT_CAMERA_ACTIVE_STATUS, EVENT_FPS_EXIT, EVENT_CAMERA_VIEW_CHANGE} from '../core/events.js';
+import {EVENT_CHANGESET, EVENT_WALL_CLICKED, EVENT_NOTHING_CLICKED, EVENT_FLOOR_CLICKED, EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED, EVENT_GLTF_READY} from '../core/events.js';
+import {CHANGE_TOPOLOGY} from '../core/change_set.js';
+import {EVENT_FPS_EXIT, EVENT_CAMERA_VIEW_CHANGE} from '../core/events.js';
 import {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY} from '../core/constants.js';
 import {resolveElement, elementBox, measureViewport, pixelRatio} from '../core/dom.js';
 
@@ -17,8 +20,22 @@ import {HUD} from './hud.js';
 import {Floorplan3D} from './floorPlan.js';
 import {Lights} from './lights.js';
 import {Skybox} from './skybox.js';
-import {renderProfile, isStudio, setRenderProfile} from './render_profile.js';
+import {isStudio, setRenderProfile} from '../core/render_profile.js';
+import {runtimeOf} from '../core/design_runtime.js';
 
+
+/**
+ * JSDoc-only type imports (RM-005 C2).
+ *
+ * These names were already used in the annotations below and resolved to
+ * nothing - 43 TS2304s across eleven files, every one of them a type the
+ * project defines or three exports, named but never brought into scope. A
+ * `@typedef` import costs no runtime code and no bundle bytes: it exists
+ * entirely for the checker, which is the point of writing the JSDoc at all.
+
+ *
+ * @typedef {import('../model/model.js').Model} Model
+ */
 // --- S8: colour management, on ---------------------------------------------
 //
 // r152 turned this on by default and S4 turned it back off, so that the engine
@@ -39,6 +56,28 @@ import {renderProfile, isStudio, setRenderProfile} from './render_profile.js';
 // renderer exists.
 ColorManagement.enabled = true;
 
+/**
+ * Half a millimetre, in the centimetres the model is measured in.
+ *
+ * The tolerance the camera gate compares plan extents with (RM-003 A2). Exact
+ * equality would very nearly do - the same corners run through the same
+ * arithmetic give the same float - but "very nearly" is how a camera ends up
+ * twitching once in a thousand edits, and half a millimetre is far below
+ * anything a person can see moving in a framed 3D view.
+ */
+const EXTENT_EPSILON = 0.05;
+
+/**
+ * @param {{center: Vector3, size: Vector3}} a
+ * @param {{center: Vector3, size: Vector3}} b
+ * @returns {boolean} Whether the two bounding boxes are the same one.
+ */
+function sameExtent(a, b)
+{
+	return a.center.distanceToSquared(b.center) < EXTENT_EPSILON * EXTENT_EPSILON
+		&& a.size.distanceToSquared(b.size) < EXTENT_EPSILON * EXTENT_EPSILON;
+}
+
 export class Main extends EventDispatcher
 {
 	/**
@@ -46,44 +85,83 @@ export class Main extends EventDispatcher
 	 * @param {(HTMLElement|string)} element The container to render into, or its
 	 * element id / CSS selector. The string form is the deprecated back-compat
 	 * path.
-	 * @param {string} canvasElement Unused; kept for signature compatibility.
+	 * @param {?string} canvasElement Unused; kept for signature compatibility.
 	 * @param {Object} opts
 	 */
 	constructor(model, element, canvasElement, opts)
 	{
 		super();
-		var options = {resize: true,pushHref: false,spin: true,spinSpeed: .00002,clickPan: true,canMoveFixedItems: false};
+		var options = {resize: true,pushHref: false,spin: true,spinSpeed: .00002,clickPan: true,canMoveFixedItems: false,renderProfile: null};
 		for (var opt in options)
 		{
-			if (options.hasOwnProperty(opt) && opts.hasOwnProperty(opt))
+			// Object.prototype.hasOwnProperty.call, not obj.hasOwnProperty. Identical for a plain object and correct for one that is not - a key literally named "hasOwnProperty" shadows the method and turns the guard into a TypeError. `opts` is supplied by the embedder, which
+			// is exactly the object whose keys this code does not control.
+			if (Object.prototype.hasOwnProperty.call(options, opt)
+				&& Object.prototype.hasOwnProperty.call(opts, opt))
 			{
 				options[opt] = opts[opt];
 			}
 		}
 
 		this.pauseRender = true;
+		/**
+		 * Which document this viewer is showing (RM-003 A4).
+		 *
+		 * Reached through the model's floorplan, which is a hop that already
+		 * existed - `Main` has held a `Model` since the beginning. Nothing about
+		 * the constructor had to change to get it.
+		 *
+		 * @type {import('../core/design_runtime.js').DesignRuntime}
+		 */
+		this.runtime = runtimeOf(model && model.floorplan);
+		/**
+		 * The look this viewer draws with (RM-002 R-02, P7).
+		 *
+		 * `null` in the options - the default - means this document's profile,
+		 * which for a document that asked for no profile of its own is the shared
+		 * module one: what every Main did before and what `npm run parity`
+		 * measures. Pass `createRenderProfile(RENDER_STUDIO)` here or on the
+		 * runtime for a viewer whose look is its own, which is what makes a
+		 * classic-beside-studio comparison expressible.
+		 */
+		this.renderProfile = options.renderProfile || this.runtime.renderProfile;
 		this.model = model;
 		this.scene = model.scene;
 		this.element = resolveElement(element, '3D viewer container');
 		this.canvasElement = canvasElement;
+		/** @type {Record<string, any>} The merged options, defaults included. */
 		this.options = options;
 		this._disposed = false;
 
+		/** @type {?HTMLElement} The element the camera controls listen on. */
 		this.domElement = null;
+		/** @type {?OrthographicCamera} */
 		this.orthocamera = null;
+		/** @type {?PerspectiveCamera} */
 		this.perspectivecamera = null;
+		/** @type {?(PerspectiveCamera|OrthographicCamera)} Whichever of the two is live. */
 		this.camera = null;
 		this.savedcameraposition = null;
+		/** @type {?PerspectiveCamera} */
 		this.fpscamera = null;
 
 		this.cameraNear = 10;
 		this.cameraFar = 10000;
 
+		/** @type {?OrbitControls} */
 		this.controls = null;
+		/** @type {?PointerLockControls} */
 		this.fpscontrols = null;
 		this.firstpersonmode = false;
 
+		/** @type {?WebGLRenderer} */
 		this.renderer = null;
+		// Annotated because init() assigns it through a `scope` alias rather than
+		// through `this`, so inference sees only this line and concludes the
+		// property is permanently null - which made getController() useless to
+		// every caller the type checker looked at.
+		/** @type {?Controller} */
+		/** @type {?Controller} */
 		this.controller = null;
 
 		this.needsUpdate = false;
@@ -92,14 +170,21 @@ export class Main extends EventDispatcher
 		this.mouseOver = false;
 		this.hasClicked = false;
 
+		/** @type {?HUD} */
 		this.hud = null;
+		/** @type {?Lights} */
 		this.lights = null;
+		/** @type {?Skybox} */
 		this.skybox = null;
 		this.environmentTexture = null;
 
+		/** @type {?number} Null until the first resize measures the element. */
 		this.heightMargin = null;
+		/** @type {?number} */
 		this.widthMargin = null;
+		/** @type {?number} */
 		this.elementHeight = null;
+		/** @type {?number} */
 		this.elementWidth = null;
 
 		// Removed in S2: five $.Callbacks lists (itemSelected / itemUnselected /
@@ -108,10 +193,21 @@ export class Main extends EventDispatcher
 		// dispatched by itemIsSelected() and friends replaced them - so they were
 		// jQuery's last foothold in this file and nothing but dead weight.
 
+		/** @type {?Floorplan3D} The 3D projection of the plan, built by init(). */
 		this.floorplan = null;
 
+		/**
+		 * The plan extent the camera was last framed against, or null before the
+		 * first framing (RM-003 A2). Compared on every topology change; see
+		 * onModelChanged.
+		 *
+		 * @type {?{center: Vector3, size: Vector3}}
+		 */
+		this._lastFramedExtent = null;
+		this._cameraStats = {recentred: 0, declined: 0};
+
 		var scope = this;
-		this.updatedevent = ()=>{scope.centerCamera();};
+		this.updatedevent = (evt)=>{scope.onModelChanged(evt.changes);};
 		this.gltfreadyevent = (o)=>{scope.gltfReady(o);};
 
 		this.clippingPlaneActive = new Plane(new Vector3(0, 0, 1), 0.0);
@@ -133,6 +229,12 @@ export class Main extends EventDispatcher
 	 *
 	 * @param {?function(Main): Object} fn
 	 */
+	/**
+	 * @type {?function(Main): Object} The test seam, declared so it is a
+	 * member rather than a property invented at first assignment (RM-005 C2).
+	 */
+	static _rendererFactory = null;
+
 	static setRendererFactory(fn)
 	{
 		Main._rendererFactory = (typeof fn === 'function') ? fn : null;
@@ -195,8 +297,8 @@ export class Main extends EventDispatcher
 	 */
 	applyToneMapping(renderer)
 	{
-		renderer.toneMapping = isStudio() ? ACESFilmicToneMapping : NoToneMapping;
-		renderer.toneMappingExposure = renderProfile.toneMappingExposure;
+		renderer.toneMapping = isStudio(this.renderProfile) ? ACESFilmicToneMapping : NoToneMapping;
+		renderer.toneMappingExposure = this.renderProfile.toneMappingExposure;
 	}
 
 	/**
@@ -220,7 +322,7 @@ export class Main extends EventDispatcher
 	buildEnvironment()
 	{
 		this.environmentTexture = null;
-		if (!isStudio() || !renderProfile.environment)
+		if (!isStudio(this.renderProfile) || !this.renderProfile.environment)
 		{
 			this.scene.getScene().environment = null;
 			return;
@@ -230,7 +332,7 @@ export class Main extends EventDispatcher
 		// viewer is fully functional without an environment - it is ambient light,
 		// not geometry - so this degrades rather than throws, which is what lets
 		// the mount/unmount suite run headless.
-		if (typeof this.renderer.compile !== 'function')
+		if (!this.renderer || typeof this.renderer.compile !== 'function')
 		{
 			return;
 		}
@@ -260,7 +362,7 @@ export class Main extends EventDispatcher
 	 */
 	applyRenderProfile(mode)
 	{
-		setRenderProfile(mode);
+		setRenderProfile(mode, undefined, this.renderProfile);
 
 		this.applyToneMapping(this.renderer);
 
@@ -275,14 +377,14 @@ export class Main extends EventDispatcher
 		{
 			var wasEnvironment = this.skybox.useEnvironment;
 			this.skybox.dispose();
-			this.skybox = new Skybox(this.scene, this.renderer);
+			this.skybox = new Skybox(this.scene, this.renderer, this.renderProfile);
 			this.skybox.toggleEnvironment(wasEnvironment);
 		}
 
 		if (this.lights)
 		{
 			this.lights.dispose();
-			this.lights = new Lights(this.scene, this.model.floorplan);
+			this.lights = new Lights(this.scene, this.model.floorplan, this.renderProfile);
 			this.lights.updateShadowCamera();
 		}
 
@@ -310,7 +412,10 @@ export class Main extends EventDispatcher
 		var orthoWidth = initialSize.width;
 		var orthoHeight = initialSize.height;
 
-		scope.domElement = scope.element;
+		// `element` is the container the renderer canvas goes into, and `domElement`
+		// is what OrbitControls and PointerLockControls listen on - they take an
+		// HTMLElement, which is what this is (RM-005 C2).
+		scope.domElement = /** @type {HTMLElement} */ (scope.element);
 
 		scope.fpscamera = new PerspectiveCamera(60, 1, 1, 10000 );
 		scope.perspectivecamera = new PerspectiveCamera(45, 10, scope.cameraNear, scope.cameraFar);
@@ -318,8 +423,20 @@ export class Main extends EventDispatcher
 
 		scope.camera = scope.perspectivecamera;
 
-		scope.renderer = scope.getARenderer();
-		scope.domElement.appendChild(scope.renderer.domElement);
+		var renderer = scope.getARenderer();
+		scope.renderer = renderer;
+		// Through the local from here on. `getARenderer()` cannot return null - it
+		// either builds a WebGLRenderer or calls the test factory - but the FIELD
+		// is nullable because dispose() clears it, and narrowing once beats
+		// narrowing at each of the four uses below (RM-005 C2).
+		if (scope.domElement) { scope.domElement.appendChild(renderer.domElement); }
+
+		// The first real renderer on the page describes the device, so a `Scene`
+		// building its KTX2 loader does not have to open a second WebGL context
+		// just to ask what formats this GPU supports (RM-004 B5). Idempotent and
+		// first-caller-wins: a second viewport must not change the answer, since
+		// a texture already transcoded for one format cannot be re-transcoded.
+		describeFrom(renderer);
 
 		// Before the Skybox, which reads scene.fog, and before Lights - both are
 		// cheap to build and neither depends on the environment, but keeping the
@@ -327,7 +444,7 @@ export class Main extends EventDispatcher
 		// a physically based material exists with nothing to reflect.
 		scope.buildEnvironment();
 
-		scope.skybox = new Skybox(scope.scene, scope.renderer);
+		scope.skybox = new Skybox(scope.scene, scope.renderer, scope.renderProfile);
 
 		scope.controls = new OrbitControls(scope.camera, scope.domElement);
 		scope.controls.autoRotate = this.options['spin'];
@@ -345,24 +462,33 @@ export class Main extends EventDispatcher
 		scope.fpscontrols.characterHeight = 160;
 
 		this.scene.add(scope.fpscontrols.getObject());
-		this.fpscontrols.getObject().position.set(0, 200, 0);
+		scope.fpscontrols.getObject().position.set(0, 200, 0);
 
 		this._fpsUnlockEvent = function(){
 			scope.switchFPSMode(false);
 			scope.dispatchEvent({type:EVENT_FPS_EXIT});
 		};
-		this.fpscontrols.addEventListener('unlock', this._fpsUnlockEvent);
+		scope.fpscontrols.addEventListener('unlock', this._fpsUnlockEvent);
 
 
 		scope.hud = new HUD(scope, scope.scene);
-		scope.controller = new Controller(scope, scope.model, scope.camera, scope.element, scope.controls, scope.hud);
+		scope.controller = new Controller(scope, scope.model, scope.camera, /** @type {HTMLElement} */ (scope.element), scope.controls, scope.hud);
 
 		// handle window resizing
 		scope.updateWindowSize();
 
 		// Container-driven, with the window listener kept as the fallback for a
 		// container that has no layout size of its own (see core/dom.js).
-		this._resizeEvent = () => {scope.updateWindowSize();};
+		//
+		// Deferred to a frame since P6, for the reason FloorplannerView2D's
+		// containerResized() spells out: `renderer.setSize()` writes style.width
+		// and style.height on the canvas, and doing that from inside a
+		// ResizeObserver callback watching that canvas' own container is what makes
+		// the browser report `ResizeObserver loop completed with undelivered
+		// notifications`. The animation loop is already running, so this needs no
+		// scheduler of its own - it raises a flag the loop clears.
+		this._resizePending = false;
+		this._resizeEvent = () => {scope._deferResize();};
 		this._resizeObserver = null;
 		if (scope.options.resize)
 		{
@@ -376,15 +502,19 @@ export class Main extends EventDispatcher
 		// setup camera nicely
 		scope.centerCamera();
 
-		scope.model.floorplan.addEventListener(EVENT_UPDATED, this.updatedevent);
+		scope.model.floorplan.addEventListener(EVENT_CHANGESET, this.updatedevent);
 		scope.model.addEventListener(EVENT_GLTF_READY, this.gltfreadyevent);
 
-		scope.lights = new Lights(scope.scene, scope.model.floorplan);
-		scope.floorplan = new Floorplan3D(scope.scene, scope.model.floorplan, scope.controls);
+		scope.lights = new Lights(scope.scene, scope.model.floorplan, scope.renderProfile);
+		scope.floorplan = new Floorplan3D(scope.scene, scope.model.floorplan, scope.controls, scope.renderProfile);
 
 		function animate()
 		{
-			scope.renderer.setAnimationLoop(function(){scope.render();});
+			renderer.setAnimationLoop(function()
+			{
+				scope.applyPendingResize();
+				scope.render();
+			});
 			scope.render();
 		}
 		scope.switchFPSMode(false);
@@ -426,28 +556,39 @@ export class Main extends EventDispatcher
 			this._resizeObserver.disconnect();
 			this._resizeObserver = null;
 		}
-		window.removeEventListener('resize', this._resizeEvent);
+		// All four are assigned by init(), so a dispose() before one is a dispose
+		// with nothing to unbind - `removeEventListener` will not take undefined
+		// and there is nothing to take (RM-005 C2).
+		if (this._resizeEvent) { window.removeEventListener('resize', this._resizeEvent); }
+		if (this._mouseEnterEvent) { this.element.removeEventListener('mouseenter', this._mouseEnterEvent); }
+		if (this._mouseLeaveEvent) { this.element.removeEventListener('mouseleave', this._mouseLeaveEvent); }
+		if (this._clickEvent) { this.element.removeEventListener('click', this._clickEvent); }
 
-		this.element.removeEventListener('mouseenter', this._mouseEnterEvent);
-		this.element.removeEventListener('mouseleave', this._mouseLeaveEvent);
-		this.element.removeEventListener('click', this._clickEvent);
-
-		this.model.floorplan.removeEventListener(EVENT_UPDATED, this.updatedevent);
+		this.model.floorplan.removeEventListener(EVENT_CHANGESET, this.updatedevent);
 		this.model.removeEventListener(EVENT_GLTF_READY, this.gltfreadyevent);
 
 		if (this.controller)
 		{
 			this.controller.dispose();
 		}
+		if (this.hud)
+		{
+			this.hud.dispose();
+		}
 		if (this.fpscontrols)
 		{
-			this.fpscontrols.removeEventListener('unlock', this._fpsUnlockEvent);
+			if (this._fpsUnlockEvent) { this.fpscontrols.removeEventListener('unlock', this._fpsUnlockEvent); }
 			this.scene.remove(this.fpscontrols.getObject());
 			this.fpscontrols.dispose();
 		}
 		if (this.controls)
 		{
 			this.controls.dispose();
+		}
+		if (this.floorplan)
+		{
+			this.floorplan.dispose();
+			this.floorplan = null;
 		}
 		if (this.skybox)
 		{
@@ -479,9 +620,32 @@ export class Main extends EventDispatcher
 				canvas.parentNode.removeChild(canvas);
 			}
 		}
+
+		// No clearTextureCache() here, as of RM-003 A0.
+		//
+		// It used to be the last line of this method, and the comment it carried
+		// said it "becomes R-02's problem" once two simultaneous viewers were a
+		// supported configuration. P7 made them supported and shipped
+		// tests/browser/two-designs.test.js to prove it, so the condition arrived.
+		//
+		// The call was always redundant for this viewer's own images and always
+		// destructive to anybody else's. Every holder - each Edge, each Floor -
+		// releases its handles above, and the cache is refcounted, so a master
+		// whose last handle just went is already disposed by the time we get here.
+		// What clearTextureCache() added was disposing the masters still held by
+		// OTHER viewers, forcing each of them to re-fetch and re-decode every image
+		// it was using on its next redraw.
+		//
+		// The export stays, for an embedder tearing down a whole page. It is
+		// teardown, not eviction, and it is nobody's business to call it from the
+		// disposal of one viewer among several.
 	}
 	exportForBlender()
 	{
+		if (!this.skybox || !this.controller)
+		{
+			return;
+		}
 		this.skybox.setEnabled(false);
 		this.controller.showGroundPlane(false);
 		this.model.exportForBlender();
@@ -490,6 +654,10 @@ export class Main extends EventDispatcher
 	gltfReady(o)
 	{
 		this.dispatchEvent({type:EVENT_GLTF_READY, item: this, gltf: o.gltf});
+		if (!this.skybox || !this.controller)
+		{
+			return;
+		}
 		this.skybox.setEnabled(true);
 		this.controller.showGroundPlane(true);
 	}
@@ -522,6 +690,10 @@ export class Main extends EventDispatcher
 	spin()
 	{
 		var scope = this;
+		if (!scope.controls)
+		{
+			return;
+		}
 		scope.controls.autoRotate = scope.options.spin && !scope.mouseOver && !scope.hasClicked;
 	}
 
@@ -543,19 +715,24 @@ export class Main extends EventDispatcher
 	dataUrl()
 	{
 		this.render(true);
-		return this.renderer.domElement.toDataURL('image/png');
+		return this.renderer ? this.renderer.domElement.toDataURL('image/png') : '';
 	}
 
 	stopSpin()
 	{
 		this.hasClicked = true;
-		this.controls.autoRotate = false;
+		if (this.controls) { this.controls.autoRotate = false; }
 	}
 
-	options()
-	{
-		return this.options;
-	}
+	// Removed in RM-005 C2: `options()`, a method with the same name as the
+	// field the constructor sets - the second of these found in this sprint,
+	// after `Controller.selectedObject()`. An own property shadows a prototype
+	// method, so it was unreachable, and its body returned that same field
+	// rather than recursing. Nothing called it.
+	//
+	// It also typed `this.options` as a function for the whole file, which is
+	// why `this.options.resize` and `options['spin']` read as errors in code
+	// that works.
 
 	getModel()
 	{
@@ -608,24 +785,59 @@ export class Main extends EventDispatcher
 		this.needsUpdate = true;
 	}
 
-	rotatePressed()
-	{
-		this.controller.rotatePressed();
-	}
-
-	rotateReleased()
-	{
-		this.controller.rotateReleased();
-	}
+	// Removed in RM-005 C2: `rotatePressed()` and `rotateReleased()`, which
+	// called `this.controller.rotatePressed()` and `.rotateReleased()`.
+	// `Controller` has neither method and never has - so both of these were a
+	// TypeError waiting for a caller, and there is no caller anywhere in src or
+	// tests. The checker named it the moment `controller` stopped being `any`:
+	// "Property 'rotatePressed' does not exist on type 'Controller'".
+	//
+	// Deleted rather than implemented, because what they would DO is a design
+	// question - the HUD already owns the rotate handle and drives rotation
+	// through Controller's own state machine.
 
 	setCursorStyle(cursorStyle)
 	{
-		this.domElement.style.cursor = cursorStyle;
+		if (this.domElement) { this.domElement.style.cursor = cursorStyle; }
+	}
+
+	/**
+	 * Note that the viewer needs resizing, without resizing it here (P6).
+	 *
+	 * Called from the ResizeObserver, where writing to the canvas' style would
+	 * provoke the loop notification. The measurement is deliberately not taken
+	 * yet either: by the time the frame runs, layout has settled, so measuring
+	 * then is if anything more accurate than measuring mid-observation.
+	 */
+	_deferResize()
+	{
+		this._resizePending = true;
+	}
+
+	/**
+	 * Resize if the observer asked for one. Called once per animation frame.
+	 *
+	 * Outside `render()` on purpose: `render()` returns early while paused, and a
+	 * pane that is resized while hidden and shown at the new size would otherwise
+	 * come back at the old one.
+	 */
+	applyPendingResize()
+	{
+		if (!this._resizePending)
+		{
+			return;
+		}
+		this._resizePending = false;
+		this.updateWindowSize();
 	}
 
 	updateWindowSize()
 	{
 		var scope = this;
+		if (!scope.orthocamera || !scope.perspectivecamera || !scope.fpscamera || !scope.renderer)
+		{
+			return;
+		}
 
 		// Viewport-relative, so these line up with the clientX/clientY the
 		// Controller normalizes against. jQuery's .offset() was document-relative
@@ -675,11 +887,79 @@ export class Main extends EventDispatcher
 		scope.needsUpdate = true;
 	}
 
+	/**
+	 * Recentre the camera, but only when the plan it is framing actually moved
+	 * (RM-003 A2, M-5).
+	 *
+	 * ## The finding
+	 *
+	 * This class subscribed to `EVENT_UPDATED` and called `centerCamera()` for
+	 * every one, and `EVENT_UPDATED` is what a corner drag dispatches. So dragging
+	 * a corner in the 2D view yanked the 3D camera back to the plan's centre on
+	 * every pointermove - the most visible symptom of finding H-4, and the one a
+	 * person notices without being told to look.
+	 *
+	 * ## The gate
+	 *
+	 * Topology only, and only on a real extent change. A drag is a `geometry`
+	 * change and does not reach `centerCamera()` at all. A topology change that
+	 * leaves the bounding box where it was - adding a corner inside the existing
+	 * plan, splitting a wall - does reach here and is declined, which is the one
+	 * intended behaviour change in this sprint. Opening a document moves the
+	 * extent (usually from nothing to something) and still frames it.
+	 *
+	 * @param {?import('../core/change_set.js').ChangeSet} changes
+	 */
+	onModelChanged(changes)
+	{
+		if (changes && !changes.has(CHANGE_TOPOLOGY))
+		{
+			this._cameraStats.declined += 1;
+			return;
+		}
+		var extent = this.planExtent();
+		if (this._lastFramedExtent && sameExtent(this._lastFramedExtent, extent))
+		{
+			this._cameraStats.declined += 1;
+			return;
+		}
+		this.centerCamera();
+	}
+
+	/**
+	 * The bounding box the camera frames: where the plan is and how big it is.
+	 * @returns {{center: Vector3, size: Vector3}}
+	 */
+	planExtent()
+	{
+		return {center: this.model.floorplan.getCenter(), size: this.model.floorplan.getSize()};
+	}
+
+	/**
+	 * How often the camera has reframed and how often it has declined to
+	 * (RM-003 A2). `recentred` is M-5's camera half: it must not move during a
+	 * drag.
+	 *
+	 * @returns {{recentred: number, declined: number}}
+	 */
+	cameraStats()
+	{
+		return Object.assign({}, this._cameraStats);
+	}
+
 	centerCamera()
 	{
 		var scope = this;
+		if (!scope.controls || !scope.camera)
+		{
+			return;
+		}
 		var yOffset = 150.0;
 		var pan = scope.model.floorplan.getCenter();
+		// Recorded before pan is mutated below - pan IS the centre, until the line
+		// after next writes the camera's height into it.
+		scope._lastFramedExtent = scope.planExtent();
+		scope._cameraStats.recentred += 1;
 		pan.y = yOffset;
 		scope.controls.target = pan;
 		var distance = scope.model.floorplan.getSize().z * 1.5;
@@ -694,8 +974,14 @@ export class Main extends EventDispatcher
 	{
 		var scope = this;
 		ignoreMargin = ignoreMargin || false;
-		var widthHalf = scope.elementWidth / 2;
-		var heightHalf = scope.elementHeight / 2;
+		if (!scope.camera)
+		{
+			return new Vector2();
+		}
+		// Null until the first resize measures the element; a projection asked for
+		// before that gets the same answer the arithmetic already gave with null.
+		var widthHalf = (scope.elementWidth || 0) / 2;
+		var heightHalf = (scope.elementHeight || 0) / 2;
 		var vector = new Vector3();
 		vector.copy(vec3);
 		vector.project(scope.camera);
@@ -705,8 +991,8 @@ export class Main extends EventDispatcher
 		vec2.y = - (vector.y * heightHalf) + heightHalf;
 		if (!ignoreMargin)
 		{
-			vec2.x += scope.widthMargin;
-			vec2.y += scope.heightMargin;
+			vec2.x += (scope.widthMargin || 0);
+			vec2.y += (scope.heightMargin || 0);
 		}
 		return vec2;
 	}
@@ -721,6 +1007,10 @@ export class Main extends EventDispatcher
 	switchWireframe(flag)
 	{
 		this.model.switchWireframe(flag);
+		if (!this.floorplan)
+		{
+			return;
+		}
 		this.floorplan.switchWireframe(flag);
 		this.render(true);
 	}
@@ -732,6 +1022,13 @@ export class Main extends EventDispatcher
 
 	switchView(viewpoint)
 	{
+		// Null before init() and after dispose(), which is the whole of every guard
+		// in this file: a viewer that has not been built has nothing to do here, and
+		// one that has been torn down must not resurrect anything (RM-005 C2).
+		if (!this.camera || !this.controls)
+		{
+			return;
+		}
 		var center = this.model.floorplan.getCenter();
 		var size = this.model.floorplan.getSize();
 		var distance = this.controls.object.position.distanceTo(this.controls.target);
@@ -763,7 +1060,7 @@ export class Main extends EventDispatcher
 			this.dispatchEvent({type:EVENT_CAMERA_VIEW_CHANGE, view: VIEW_ISOMETRY});
 		}
 		this.camera.position.copy(center);
-		this.controls.dispatchEvent({type:EVENT_CAMERA_ACTIVE_STATUS});
+		this.controls.signalCameraActive();
 		this.controls.needsUpdate = true;
 		this.controls.update();
 		this.render(true);
@@ -771,13 +1068,17 @@ export class Main extends EventDispatcher
 
 	lockView(locked)
 	{
-		this.controls.enableRotate = locked;
+		if (this.controls) { this.controls.enableRotate = locked; }
 		this.render(true);
 	}
 
 	// Send in a value between -1 to 1
 	changeClippingPlanes(clipRatio, clipRatio2)
 	{
+		if (!this.renderer || !this.controls)
+		{
+			return;
+		}
 		var size = this.model.floorplan.getSize();
 		size.z = size.z + (size.z * 0.25);
 		size.z = size.z * 0.5;
@@ -789,7 +1090,7 @@ export class Main extends EventDispatcher
 			this.clippingEnabled = true;
 			this.renderer.clippingPlanes = this.globalClippingPlane;
 		}
-		this.controls.dispatchEvent({type:EVENT_CAMERA_ACTIVE_STATUS});
+		this.controls.signalCameraActive();
 		this.controls.needsUpdate = true;
 		this.controls.update();
 		this.render(true);
@@ -798,7 +1099,15 @@ export class Main extends EventDispatcher
 	resetClipping()
 	{
 		this.clippingEnabled = false;
-		this.renderer.clippingPlanes = this.clippingEmpty;
+		if (!this.renderer || !this.controls)
+		{
+			return;
+		}
+		// `clippingEmpty` is a frozen shared constant and `clippingPlanes` is
+		// mutable, so it is copied rather than aliased - which is what the reader
+		// would want anyway: nothing should be able to push a plane into the
+		// empty sentinel (RM-005 C2).
+		this.renderer.clippingPlanes = this.clippingEmpty.slice();
 		this.controls.needsUpdate = true;
 		this.controls.update();
 		this.render(true);
@@ -806,6 +1115,10 @@ export class Main extends EventDispatcher
 
 	switchOrthographicMode(flag)
 	{
+		if (!this.camera || !this.controls || !this.controller || !this.orthocamera || !this.perspectivecamera)
+		{
+			return;
+		}
 		if(flag)
 		{
 			this.camera = this.orthocamera;
@@ -829,11 +1142,15 @@ export class Main extends EventDispatcher
 
 	switchFPSMode(flag)
 	{
+		if (!this.fpscontrols || !this.controls || !this.controller || !this.skybox || !this.floorplan)
+		{
+			return;
+		}
 		this.firstpersonmode = flag;
 		this.fpscontrols.enabled = flag;
 		this.controls.enabled = !flag;
 		this.controller.enabled = !flag;
-		this.controls.dispatchEvent({type:EVENT_CAMERA_ACTIVE_STATUS});
+		this.controls.signalCameraActive();
 
 		if(flag)
 		{
@@ -854,6 +1171,10 @@ export class Main extends EventDispatcher
 	shouldRender()
 	{
 		var scope = this;
+		if (!scope.controls || !scope.controller)
+		{
+			return false;
+		}
 		// Do we need to draw a new frame
 		if (scope.controls.needsUpdate || scope.controller.needsUpdate || scope.needsUpdate || scope.model.scene.needsUpdate)
 		{
@@ -878,6 +1199,10 @@ export class Main extends EventDispatcher
 	{
 		var scope = this;
 		forced = (forced)? forced : false;
+		if (!scope.renderer || !scope.camera)
+		{
+			return;
+		}
 		if(this.pauseRender && !forced)
 		{
 			return;
@@ -888,8 +1213,11 @@ export class Main extends EventDispatcher
 		{
 			// No argument: the controls keep their own clock now. THREE.Clock was
 			// deprecated in r183 in favour of a Timer that 0.185.1 does not ship.
-			scope.fpscontrols.update();
-			scope.renderer.render(scope.scene.getScene(), scope.fpscamera);
+			if (scope.fpscontrols && scope.fpscamera)
+			{
+				scope.fpscontrols.update();
+				scope.renderer.render(scope.scene.getScene(), scope.fpscamera);
+			}
 
 		}
 		else

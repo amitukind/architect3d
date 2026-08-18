@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {Box, ChevronUp, ChevronDown, ChevronLeft, ChevronRight} from '@lucide/vue';
 import AppTip from './AppTip.vue';
 import {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY} from '../../scripts/blueprint.js';

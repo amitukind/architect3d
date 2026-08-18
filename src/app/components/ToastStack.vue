@@ -1,4 +1,5 @@
 <script setup>
+// @ts-check
 import {CircleAlert, CircleCheck, Info, X} from '@lucide/vue';
 import {useToasts, TOAST_ERROR, TOAST_SUCCESS} from '../composables/useToasts.js';
 

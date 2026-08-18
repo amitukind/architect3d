@@ -1,3 +1,4 @@
+// @ts-check
 import {EventDispatcher, Vector2} from 'three';
 // bezier-js v3+ is ESM and exports Bezier as a NAMED export; v2 was a default
 // export. Upgraded in S1 (2.4.0 -> 6.x); the APIs this file uses - the 8-scalar
@@ -6,7 +7,7 @@ import {EventDispatcher, Vector2} from 'three';
 import {Bezier} from 'bezier-js';
 import {WallTypes} from '../core/constants.js';
 import {EVENT_ACTION,EVENT_MOVED,EVENT_DELETED} from '../core/events.js';
-import {Configuration,configWallThickness,configWallHeight} from '../core/configuration.js';
+import {configurationOf,configWallThickness,configWallHeight} from '../core/configuration.js';
 import {Utils} from '../core/utils.js';
 
 
@@ -24,8 +25,15 @@ export class Wall extends EventDispatcher
 	 * Constructs a new wall.
 	 * @param start Start corner.
 	 * @param end End corner.
+	 * @param {?Object} [aa] Curve control point, or null for a straight wall.
+	 * @param {?Object} [bb] Curve control point, or null for a straight wall.
+	 * @param {string} [id] An assigned identity. Omitted for a wall an EDITING
+	 *        action creates, which gets a fresh one; supplied by
+	 *        `Floorplan.loadFloorplan`, which derives it from the corner pair the
+	 *        file already records. Same shape as `Floorplan.newCorner`'s optional
+	 *        id, and for the same reason.
 	 */
-	constructor(start, end, aa, bb)
+	constructor(start, end, aa, bb, id)
 	{
 		super();
 		this.start = start;
@@ -71,7 +79,26 @@ export class Wall extends EventDispatcher
 		
 		this._bezier = new Bezier(start.location.x,start.location.y , this._a.x,this._a.y , this._b.x,this._b.y , end.location.x,end.location.y);
 
-		this.id = this.getUuid();
+		/**
+		 * This wall's identity, assigned rather than derived (RM-003 A3).
+		 *
+		 * It used to be `getUuid()` - the two corner ids joined - computed once
+		 * here and never recomputed. Frozen at construction, so it became a lie the
+		 * moment either corner was merged into another, and two walls between the
+		 * same pair of corners collided on it.
+		 *
+		 * `getUuid()` still returns the derived pair, because that is what the save
+		 * file records and what a reader of an old file has. This is the handle
+		 * everything in memory should use.
+		 *
+		 * RM-004 B2 made it survive a document load as well as an edit, by letting
+		 * the load path supply one. A wall created by drawing still gets a fresh
+		 * guid here - it has no file to be named by, and two walls drawn between
+		 * the same corners in one session must still differ.
+		 *
+		 * @type {string}
+		 */
+		this.id = id || Utils.guide();
 
 		this.start.attachStart(this);
 		this.end.attachEnd(this);
@@ -97,11 +124,16 @@ export class Wall extends EventDispatcher
 		/** The back-side texture. */
 		this.backTexture = defaultWallTexture;
 
+		// A Wall has no floorplan of its own; it reaches one through its start
+		// corner, which is what makes the model layer need no new plumbing for
+		// P7. `Floorplan.newWall` is the only construction site.
+		var configuration = configurationOf(start && start.floorplan);
+
 		/** Wall thickness. */
-		this.thickness = Configuration.getNumericValue(configWallThickness);
+		this.thickness = configuration.getNumericValue(configWallThickness);
 
 		/** Wall height. */
-		this.height = Configuration.getNumericValue(configWallHeight);
+		this.height = configuration.getNumericValue(configWallHeight);
 
 		/** Actions to be applied after movement. */
 
@@ -188,10 +220,32 @@ export class Wall extends EventDispatcher
 		this._bezier.points[3].x = this.end.location.x;
 		this._bezier.points[3].y = this.end.location.y;
 		this._bezier.update();
-		if(this.getStart() || this.getEnd())
+		// Name the corners whose geometry this moved (RM-003 A2).
+		//
+		// It used to call `update(false)` with no payload at all - "something
+		// geometric changed, work out what" - which was survivable only because
+		// every consumer reacted to every change by rebuilding everything. A
+		// consumer that reacts per entity can do nothing with an unnamed change.
+		//
+		// The two corners are the right answer for both callers: a control point
+		// moved between them, or one of them moved and dragged the control vectors
+		// with it. In the second case they are already in the corner's own change
+		// and the union costs nothing - see Corner.move(), which batches the whole
+		// gesture so this echo does not become a third announcement.
+		//
+		// Worth stating what this does NOT currently fix, so nobody credits it with
+		// more than it does: bending a wall changes no mesh in the 3D view today.
+		// Only HalfEdge's centre and length read the bezier, and the wall planes
+		// are built from the corner offsets, so a curved wall is drawn as a
+		// straight quad. `tests/change-projection.test.js` pins that under "curving
+		// a wall - and the picture does not move". This is the payload being
+		// correct, not a bug being fixed.
+		var anchor = this.getStart() || this.getEnd();
+		if (anchor)
 		{
-			(this.getStart() != null) ? this.getStart().floorplan.update(false) : (this.getEnd() != null) ? this.getEnd().floorplan.update(false) : false;
-		}		
+			var moved = [this.getStart(), this.getEnd()].filter(function (corner) {return corner != null;});
+			anchor.floorplan.update(false, moved);
+		}
 	}
 
 	getUuid()

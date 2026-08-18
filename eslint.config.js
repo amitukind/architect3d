@@ -63,6 +63,23 @@ export default [
 				prompt: 'readonly',
 				location: 'readonly',
 				ResizeObserver: 'readonly',
+				// Added by RM-005 C2. `resolveCanvas` checks `instanceof` rather than
+				// casting, so a caller handing the floorplanner a <div> gets a message
+				// naming the problem instead of `getContext is not a function`.
+				HTMLCanvasElement: 'readonly',
+				// Added by RM-003 A5. `fetch` is how the asset resolver warms the
+				// HTTP cache and how the application collects its manifest;
+				// `TextEncoder` is what makes a byte count a byte count rather than
+				// a UTF-16 code-unit count, which matters when the number is being
+				// compared against a storage quota. Both are in every environment
+				// this runs in, jsdom included.
+				fetch: 'readonly',
+				TextEncoder: 'readonly',
+				// The draft store, also A5. `indexedDB` is reached through `window`
+				// everywhere in src/, but the IDB event and cursor types appear in
+				// annotations.
+				indexedDB: 'readonly',
+				URLSearchParams: 'readonly',
 			},
 		},
 		rules: {
@@ -113,6 +130,7 @@ export default [
 				document: 'readonly',
 				console: 'readonly',
 				navigator: 'readonly',
+				HTMLElement: 'readonly',
 				requestAnimationFrame: 'readonly',
 				cancelAnimationFrame: 'readonly',
 				setTimeout: 'readonly',
@@ -162,8 +180,52 @@ export default [
 	},
 
 	{
+		// The browser tier (RM-002 P5). These run inside chromium, not Node, so
+		// they get the DOM rather than `process` - a test here reaching for a Node
+		// global is a mistake the linter should catch, which is why this is a
+		// separate block rather than the Node one widened.
+		files: ['tests/browser/**/*.js'],
+		languageOptions: {
+			ecmaVersion: 2022,
+			sourceType: 'module',
+			globals: {
+				window: 'readonly',
+				document: 'readonly',
+				navigator: 'readonly',
+				console: 'readonly',
+				location: 'readonly',
+				fetch: 'readonly',
+				setTimeout: 'readonly',
+				setInterval: 'readonly',
+				clearInterval: 'readonly',
+				clearTimeout: 'readonly',
+				requestAnimationFrame: 'readonly',
+				cancelAnimationFrame: 'readonly',
+				Image: 'readonly',
+				Uint8Array: 'readonly',
+				DataView: 'readonly',
+				TextDecoder: 'readonly',
+				URL: 'readonly',
+				PointerEvent: 'readonly',
+			},
+		},
+		rules: {
+			'no-console': 'off',
+			quotes: ['error', 'single'],
+			semi: ['error', 'always'],
+			'no-mixed-spaces-and-tabs': ['error', 'smart-tabs'],
+		},
+	},
+
+	{
 		// Tests and tooling: Node environment.
 		files: ['tests/**/*.js', 'tools/**/*.mjs', '*.config.js', '*.config.mjs', 'docs/.vitepress/*.mjs'],
+		// tests/browser/ is excluded so that the block above is the ONLY one that
+		// applies to it. Flat config merges `globals` from every matching entry
+		// rather than letting the last one win, so without this the browser tests
+		// would quietly also get `process` and `Buffer` - and the whole point of
+		// giving them their own block is that reaching for one is a mistake.
+		ignores: ['tests/browser/**'],
 		languageOptions: {
 			ecmaVersion: 2022,
 			sourceType: 'module',

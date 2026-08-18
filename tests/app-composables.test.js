@@ -611,6 +611,64 @@ describe('useDesignIO', () =>
 
 		expect(io.lastError.value).toContain('broken.blueprint3d');
 	});
+
+	it('a failed open leaves the design that is on screen alone', async () =>
+	{
+		// RM-003 A1, at the application level. This is the whole point of the
+		// sprint: the toast used to say "Could not open that design" *after* the
+		// design had been emptied, and the worst case did not even say that -
+		// `{"items":[]}` reported success over an emptied plan.
+		blueprint.model.scene.setItemLoader(() => {});
+		blueprint.model.loadSerialized(JSON.stringify({
+			floorplan: {
+				corners: {
+					c1: {x: 0, y: 0}, c2: {x: 400, y: 0}, c3: {x: 400, y: 400}, c4: {x: 0, y: 400},
+				},
+				walls: [
+					{corner1: 'c1', corner2: 'c2'}, {corner1: 'c2', corner2: 'c3'},
+					{corner1: 'c3', corner2: 'c4'}, {corner1: 'c4', corner2: 'c1'},
+				],
+				rooms: {}, units: 'cm', version: '2.0.0',
+			},
+			items: [],
+		}));
+		const before = blueprint.model.exportSerialized();
+		expect(blueprint.model.floorplan.getWalls().length).toBeGreaterThan(0);
+
+		const file = new window.File(['{"items":[]}'], 'nearly.blueprint3d', {type: 'text/plain'});
+		await io.openDesign(file);
+
+		expect(io.lastError.value).toContain('nearly.blueprint3d');
+		expect(blueprint.model.exportSerialized()).toBe(before);
+	});
+
+	it('says which field is wrong', async () =>
+	{
+		// "Could not open that design" is true and useless. The structured result
+		// carries a path per problem, and the toast shows the first.
+		const broken = JSON.stringify({
+			floorplan: {corners: {c1: {x: 0, y: 0}}, walls: [{corner1: 'c1', corner2: 'ghost'}], rooms: {}},
+			items: [],
+		});
+		const file = new window.File([broken], 'ghost.blueprint3d', {type: 'text/plain'});
+		await io.openDesign(file);
+
+		expect(io.lastError.value).toContain('floorplan.walls[0].corner2');
+		expect(io.lastError.value).toContain('ghost');
+	});
+
+	it('loadDesign reports failure without destroying anything', () =>
+	{
+		// The autosave recovery path goes through this rather than openDesign, so
+		// it needs the same guarantee - a corrupt draft must not take the working
+		// design with it.
+		const before = blueprint.model.exportSerialized();
+
+		expect(io.loadDesign('{"floorplan":{}}', 'the recovered draft')).toBe(false);
+
+		expect(io.lastError.value).toContain('the recovered draft');
+		expect(blueprint.model.exportSerialized()).toBe(before);
+	});
 });
 
 describe('the display unit is not reset by mounting', () =>

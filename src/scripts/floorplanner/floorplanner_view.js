@@ -1,18 +1,32 @@
+// @ts-check
 import {Vector2} from 'three';
 import {WallTypes} from '../core/constants.js';
 import {Utils} from '../core/utils.js';
 import {EVENT_UPDATED} from '../core/events.js';
 
-import {Dimensioning} from '../core/dimensioning.js';
-import {Configuration, gridSpacing, configWallThickness, wallInformation} from '../core/configuration.js';
-import {resolveElement, measureViewport, pixelRatio} from '../core/dom.js';
+import {gridSpacing, configWallThickness} from '../core/configuration.js';
+import {resolveCanvas, measureViewport, pixelRatio} from '../core/dom.js';
 import {CarbonSheet} from './carbonsheet.js';
 
+
+/**
+ * JSDoc-only type imports (RM-005 C2).
+ *
+ * These names were already used in the annotations below and resolved to
+ * nothing - 43 TS2304s across eleven files, every one of them a type the
+ * project defines or three exports, named but never brought into scope. A
+ * `@typedef` import costs no runtime code and no bundle bytes: it exists
+ * entirely for the checker, which is the point of writing the JSDoc at all.
+
+ *
+ * @typedef {import('../model/floorplan.js').Floorplan} Floorplan
+ * @typedef {import('./floorplanner.js').Floorplanner2D} Floorplanner2D
+ */
 /** */
 export const floorplannerModes = {MOVE: 0,DRAW: 1,DELETE: 2};
 
 // grid parameters
-//export const gridSpacing = Dimensioning.cmToPixel(25);//20; // pixels
+//export const gridSpacing = this.dimensioning.cmToPixel(25);//20; // pixels
 export const gridWidth = 1;
 export const gridColor = '#f1f1f1';
 
@@ -158,6 +172,34 @@ export function setFloorplannerPalette(values)
 }
 
 /**
+ * Ask for an animation frame, or say there is no frame clock to ask.
+ *
+ * Read off `window` at call time rather than captured at module load, because
+ * the jsdom suites install and remove their stubs between tests and a captured
+ * reference would keep pointing at a torn-down one. Returns null where there is
+ * no rAF at all - a non-visual jsdom, a server render - and the caller draws
+ * synchronously instead, which is what the view did everywhere before P6.
+ *
+ * @returns {?number} the frame handle, or null if there is no frame clock
+ */
+function requestFrame(callback)
+{
+	if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function')
+	{
+		return window.requestAnimationFrame(callback);
+	}
+	return null;
+}
+
+function cancelFrame(handle)
+{
+	if (handle !== null && typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function')
+	{
+		window.cancelAnimationFrame(handle);
+	}
+}
+
+/**
  * The View to be used by a Floorplanner to render in/interact with.
  */
 export class FloorplannerView2D
@@ -170,10 +212,21 @@ export class FloorplannerView2D
 	 */
 	constructor(floorplan, viewmodel, canvas)
 	{
-		this.canvasElement = resolveElement(canvas, 'floorplanner canvas');
+		this.canvasElement = resolveCanvas(canvas, 'floorplanner canvas');
 		/** Kept for back-compat: callers used to read `.canvas` as an element id. */
 		this.canvas = (typeof canvas === 'string') ? canvas : this.canvasElement.id;
-		this.context = this.canvasElement.getContext('2d');
+		// Non-null by construction (RM-005 C2). `getContext('2d')` returns null
+		// only when the canvas already holds a context of another kind - a webgl
+		// one, say - which for this canvas is a programming error and not a state
+		// to draw around. Throwing here means the ~90 draw calls downstream do not
+		// each have to ask, and the message names the canvas rather than surfacing
+		// as `Cannot read properties of null` inside a render loop.
+		var context = this.canvasElement.getContext('2d');
+		if (!context)
+		{
+			throw new Error('architect3d: the floorplanner canvas already has a context that is not 2d.');
+		}
+		this.context = context;
 		this.floorplan = floorplan;
 		this.viewmodel = viewmodel;
 
@@ -182,14 +235,23 @@ export class FloorplannerView2D
 		this.canvasWidth = 0;
 		this.canvasHeight = 0;
 		this._pixelRatio = 1;
+		/** @type {?HTMLElement} The canvas's parent, measured for sizing. */
 		this._container = this.canvasElement.parentElement;
 		this._disposed = false;
 
+		/** Handle of the frame `invalidate()` has scheduled, or null. See invalidate. */
+		this._frame = null;
+		/** Size a deferred resize will apply before it draws, or null. See containerResized. */
+		this._pendingResize = null;
+
 		var scope = this;
 		this._carbonsheet = new CarbonSheet(floorplan, viewmodel, this.canvasElement);
+		// Coalesced (P6): the sheet has eight setters and each one dispatches, so
+		// dragging its opacity or nudging its origin used to be one full repaint
+		// per slider step.
 		this._carbonSheetUpdatedEvent = function()
 		{
-			scope.draw();
+			scope.invalidate();
 		};
 		this._carbonsheet.addEventListener(EVENT_UPDATED, this._carbonSheetUpdatedEvent);
 
@@ -222,6 +284,31 @@ export class FloorplannerView2D
 		return this._carbonsheet;
 	}
 
+	/**
+	 * This design's settings, reached through the plan being drawn (RM-002 R-02, P7).
+	 *
+	 * The 2D view is per-Floorplan by construction - it is handed one and draws
+	 * it - so the plan is the natural place to ask, and no new plumbing was
+	 * needed to get here. Reading through a getter rather than caching the
+	 * reference keeps a view correct if the floorplan it draws is ever swapped.
+	 *
+	 * @returns {import('../core/configuration.js').Configuration}
+	 */
+	get configuration()
+	{
+		return this.floorplan.configuration;
+	}
+
+	/**
+	 * Unit and scale conversion for this design (P7).
+	 *
+	 * @returns {import('../core/dimensioning.js').Dimensioning}
+	 */
+	get dimensioning()
+	{
+		return this.floorplan.dimensioning;
+	}
+
 	orientationChange()
 	{
 		this.handleWindowResize();
@@ -236,6 +323,9 @@ export class FloorplannerView2D
 	handleWindowResize()
 	{
 		var size = measureViewport(this._container, window.innerWidth, window.innerHeight);
+		// This measurement is newer than anything containerResized deferred, so it
+		// supersedes it rather than being undone by it a frame later.
+		this._pendingResize = null;
 		this._resizeCanvas(size.width, size.height);
 		this.draw();
 	}
@@ -244,6 +334,21 @@ export class FloorplannerView2D
 	 * ResizeObserver callback. Unlike handleWindowResize this is a no-op when the
 	 * measured size has not actually changed, which keeps the observer from
 	 * re-triggering itself through the canvas it just resized.
+	 *
+	 * ## Why the resize itself is deferred, and not just the draw (P6)
+	 *
+	 * This used to size the canvas inside the callback. Writing `style.width` on
+	 * an element the observer's own target contains is a layout change made
+	 * during resize-observation, and the browser answers it the only way it can:
+	 * it defers the follow-up delivery to the next frame and reports
+	 * `ResizeObserver loop completed with undelivered notifications` as a window
+	 * error. Nothing was dropped and nothing was wrong, but a page cannot tell
+	 * that error apart from a real one, and P5's browser tier had to swallow it
+	 * by exact message to keep every layout test from failing on it.
+	 *
+	 * Measuring is still done here - the observer callback is the moment the
+	 * measurement is correct - and only the write is moved to the frame, where it
+	 * is an ordinary layout change like any other.
 	 */
 	containerResized()
 	{
@@ -252,7 +357,115 @@ export class FloorplannerView2D
 		{
 			return;
 		}
-		this._resizeCanvas(size.width, size.height);
+		this._pendingResize = size;
+		this.invalidate();
+	}
+
+	/**
+	 * Ask for a redraw on the next animation frame (P6, RM-002 R-05).
+	 *
+	 * ## What this changes
+	 *
+	 * `view.draw()` used to be called synchronously from fourteen sites, three of
+	 * them reached from `pointermove`. A drag therefore repainted the whole
+	 * canvas - grid, carbon sheet, every room, every wall, every corner and every
+	 * dimension label - once per pointer event, on the input thread, and a mouse
+	 * that reports at 1000 Hz got 1000 full repaints a second for a display that
+	 * can show 60. The work past the first one per frame was thrown away
+	 * unpainted.
+	 *
+	 * Calling this instead marks the view dirty and schedules exactly one
+	 * `draw()` for the next frame. Further calls before that frame runs are free.
+	 *
+	 * ## What it does not change
+	 *
+	 * `draw()` is untouched: still synchronous, still public, still the way to
+	 * say "paint now". Embedders call it, `handleWindowResize()` calls it, and
+	 * the browser tier reads pixels straight after it. Deferring *that* would
+	 * have made a documented API return before doing its job.
+	 *
+	 * The distinction is between the two kinds of caller. Something reacting to
+	 * input, where the next event is milliseconds away, wants `invalidate()`.
+	 * Something that has just been told to redraw and whose caller will look at
+	 * the result wants `draw()`.
+	 *
+	 * ## Ordering
+	 *
+	 * Coalescing moves a draw to after the mutations that follow it in the same
+	 * task, which is the behaviour change RM-002 flagged as needing its own
+	 * review. It is safe here because `draw()` reads the model afresh every time
+	 * - it holds no display list - so a later draw of the same frame's final
+	 * state is the picture the immediate draws were converging on anyway.
+	 */
+	invalidate()
+	{
+		if (this._disposed || this._frame !== null)
+		{
+			return;
+		}
+
+		var scope = this;
+		var handle = requestFrame(function ()
+		{
+			scope._frame = null;
+			scope._runFrame();
+		});
+
+		if (handle === null)
+		{
+			// No frame clock. Behave exactly as the direct call used to.
+			this._runFrame();
+			return;
+		}
+		this._frame = handle;
+	}
+
+	/**
+	 * Run whatever `invalidate()` scheduled, now, and report whether there was
+	 * anything to run.
+	 *
+	 * For callers that need the canvas current before they look at it: a test
+	 * asserting on pixels, or a host about to read the canvas back into an image.
+	 * Without it the only way to wait out a coalesced draw is to await a frame,
+	 * which is neither synchronous nor deterministic.
+	 *
+	 * @returns {boolean} true if a scheduled draw was pending and has now run
+	 */
+	flush()
+	{
+		if (this._frame === null)
+		{
+			return false;
+		}
+		cancelFrame(this._frame);
+		this._frame = null;
+		this._runFrame();
+		return true;
+	}
+
+	/**
+	 * The scheduled work: apply a deferred resize if one is waiting, then draw.
+	 *
+	 * The disposal check is the point of this being a method rather than a
+	 * closure body. A frame scheduled on the last pointermove before a component
+	 * unmounts still fires, and by then the carbon sheet is disposed and the
+	 * canvas is detached - `dispose()` cancels the frame, and this is the second
+	 * line of defence for a frame that was already in flight.
+	 */
+	_runFrame()
+	{
+		if (this._disposed)
+		{
+			return;
+		}
+
+		var size = this._pendingResize;
+		this._pendingResize = null;
+		if (size && (size.width !== this.canvasWidth || size.height !== this.canvasHeight))
+		{
+			this._resizeCanvas(size.width, size.height);
+		}
+
 		this.draw();
 	}
 
@@ -299,7 +512,7 @@ export class FloorplannerView2D
 		// The inverse of what zoom() does: it reads
 		// `(unScaledOrigin + centre) * scale - centre`, so this is that solved for
 		// the unscaled value against the NEW centre.
-		var scale = Configuration.getNumericValue('scale') || 1;
+		var scale = this.configuration.getNumericValue('scale') || 1;
 		var centreX = cssWidth / 2.0;
 		var centreY = cssHeight / 2.0;
 		this.viewmodel.unScaledOriginX = ((this.viewmodel.originX + centreX) / scale) - centreX;
@@ -347,6 +560,13 @@ export class FloorplannerView2D
 		}
 		this._disposed = true;
 
+		// Before anything else is torn down. A frame scheduled by the last
+		// pointermove is still queued at this point, and letting it run would draw
+		// through a disposed carbon sheet into a detached canvas.
+		cancelFrame(this._frame);
+		this._frame = null;
+		this._pendingResize = null;
+
 		if (this._resizeObserver)
 		{
 			this._resizeObserver.disconnect();
@@ -367,9 +587,9 @@ export class FloorplannerView2D
 	/** */
 	draw()
 	{
-		wallWidth = Dimensioning.cmToPixel(Configuration.getNumericValue(configWallThickness));
-		wallWidthHover = Dimensioning.cmToPixel(Configuration.getNumericValue(configWallThickness))*0.7;
-		wallWidthSelected = Dimensioning.cmToPixel(Configuration.getNumericValue(configWallThickness))*0.9;
+		wallWidth = this.dimensioning.cmToPixel(this.configuration.getNumericValue(configWallThickness));
+		wallWidthHover = this.dimensioning.cmToPixel(this.configuration.getNumericValue(configWallThickness))*0.7;
+		wallWidthSelected = this.dimensioning.cmToPixel(this.configuration.getNumericValue(configWallThickness))*0.9;
 		
 		// CSS pixels, not bitmap pixels - the context carries the DPR scale.
 		this.context.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
@@ -405,7 +625,7 @@ export class FloorplannerView2D
 				var b = new Vector2(this.viewmodel.targetX, this.viewmodel.targetY);
 				var abvector = b.clone().sub(a);
 				var midPoint = abvector.multiplyScalar(0.5).add(a);
-				this.drawTextLabel(Dimensioning.cmToMeasure(a.distanceTo(b)), this.viewmodel.convertX(midPoint.x), this.viewmodel.convertY(midPoint.y));
+				this.drawTextLabel(this.dimensioning.cmToMeasure(a.distanceTo(b)), this.viewmodel.convertX(midPoint.x), this.viewmodel.convertY(midPoint.y));
 				
 				//Show angle to the nearest wall
 				var vector = b.clone().sub(a);
@@ -454,10 +674,10 @@ export class FloorplannerView2D
 		// The DPR scale is the identity for everything drawn here, so a reset means
 		// "back to the DPR transform", never "back to 1:1".
 		this.context.setTransform(dpr, 0, 0, dpr, 0, 0);
-		if(Configuration.getNumericValue('scale') != 1)
+		if(this.configuration.getNumericValue('scale') != 1)
 		{
 			this.context.translate(originx, originy);
-			this.context.scale(Configuration.getNumericValue('scale'), Configuration.getNumericValue('scale'));
+			this.context.scale(this.configuration.getNumericValue('scale'), this.configuration.getNumericValue('scale'));
 			this.context.translate(-originx, -originy);
 		}
 		this.draw();
@@ -560,7 +780,7 @@ export class FloorplannerView2D
 
 	drawWallLabelsMiddle(wall)
 	{
-		if(! wallInformation.midline)
+		if(! this.configuration.wallInformation.midline)
 		{
 			return;
 		}
@@ -571,8 +791,8 @@ export class FloorplannerView2D
 			// dont draw labels on walls this short
 			return;
 		}
-		var label = (!wallInformation.labels)?'':wallInformation.midlinelabel;
-		this.drawTextLabel(`${label}${Dimensioning.cmToMeasure(length)}` ,this.viewmodel.convertX(pos.x),this.viewmodel.convertY(pos.y));
+		var label = (!this.configuration.wallInformation.labels)?'':this.configuration.wallInformation.midlinelabel;
+		this.drawTextLabel(`${label}${this.dimensioning.cmToMeasure(length)}` ,this.viewmodel.convertX(pos.x),this.viewmodel.convertY(pos.y));
 	}
 
 	/** */
@@ -585,10 +805,10 @@ export class FloorplannerView2D
 			// dont draw labels on walls this short
 			return;
 		}
-		if(wallInformation.exterior)
+		if(this.configuration.wallInformation.exterior)
 		{
-			var label = (!wallInformation.labels)?'':wallInformation.exteriorlabel;
-			this.drawTextLabel(`${label}${Dimensioning.cmToMeasure(length)}` ,this.viewmodel.convertX(pos.x),this.viewmodel.convertY(pos.y+40));
+			var label = (!this.configuration.wallInformation.labels)?'':this.configuration.wallInformation.exteriorlabel;
+			this.drawTextLabel(`${label}${this.dimensioning.cmToMeasure(length)}` ,this.viewmodel.convertX(pos.x),this.viewmodel.convertY(pos.y+40));
 		}
 	}
 
@@ -602,14 +822,26 @@ export class FloorplannerView2D
 			// dont draw labels on walls this short
 			return;
 		}
-		if(wallInformation.interior)
+		if(this.configuration.wallInformation.interior)
 		{
-			var label = (!wallInformation.labels)?'':wallInformation.interiorlabel;
-			this.drawTextLabel(`${label}${Dimensioning.cmToMeasure(length)}` ,this.viewmodel.convertX(pos.x),this.viewmodel.convertY(pos.y-40));
+			var label = (!this.configuration.wallInformation.labels)?'':this.configuration.wallInformation.interiorlabel;
+			this.drawTextLabel(`${label}${this.dimensioning.cmToMeasure(length)}` ,this.viewmodel.convertX(pos.x),this.viewmodel.convertY(pos.y-40));
 		}
 		
 	}
 
+	/**
+	 * @param {string} label
+	 * @param {number} x
+	 * @param {number} y
+	 * @param {?string} [textcolor] Null or absent means "use the theme".
+	 * @param {?string} [strokecolor] Same.
+	 * @param {string} [style]
+	 *
+	 * The two colour parameters default to `null` in the signature, which types
+	 * them AS null - so every caller passing a real colour was an error and the
+	 * two assignments below were too (RM-005 C2).
+	 */
 	drawTextLabel(label, x, y, textcolor=null, strokecolor=null, style='normal')
 	{
 		// Defaulting through the palette rather than in the signature: a default
@@ -774,7 +1006,7 @@ export class FloorplannerView2D
 		// '#00FF0000' is an eight-digit hex with a zero alpha: a transparent halo,
 		// i.e. no halo. Kept - the room label sits on the room's own fill, which
 		// is already a flat colour, and a halo there would read as a smudge.
-		this.drawTextLabel(Dimensioning.cmToMeasure(room.area, 2)+String.fromCharCode(178), this.viewmodel.convertX(room.areaCenter.x), this.viewmodel.convertY(room.areaCenter.y), floorplannerPalette.area, '#00FF0000', 'bold');
+		this.drawTextLabel(this.dimensioning.cmToMeasure(room.area, 2)+String.fromCharCode(178), this.viewmodel.convertX(room.areaCenter.x), this.viewmodel.convertY(room.areaCenter.y), floorplannerPalette.area, '#00FF0000', 'bold');
 		this.drawTextLabel(room.name, this.viewmodel.convertX(room.areaCenter.x), this.viewmodel.convertY(room.areaCenter.y+30), floorplannerPalette.roomName, '#00FF0000', 'bold italic');
 	}
 
@@ -958,7 +1190,7 @@ export class FloorplannerView2D
 	/** returns n where -gridSize/2 < n <= gridSize/2  */
 	calculateGridOffset(n)
 	{
-		var gspacing = Dimensioning.cmToPixel(Configuration.getNumericValue(gridSpacing));
+		var gspacing = this.dimensioning.cmToPixel(this.configuration.getNumericValue(gridSpacing));
 		if (n >= 0)
 		{
 			return (n + (gspacing) / 2.0) % (gspacing) - (gspacing) / 2.0;
@@ -989,12 +1221,12 @@ export class FloorplannerView2D
 	 */
 	drawGrid()
 	{
-		var gspacing = Dimensioning.cmToPixel(Configuration.getNumericValue(gridSpacing));
+		var gspacing = this.dimensioning.cmToPixel(this.configuration.getNumericValue(gridSpacing));
 		var offsetX = this.calculateGridOffset(-this.viewmodel.originX);
 		var offsetY = this.calculateGridOffset(-this.viewmodel.originY);
 		var width = this.canvasWidth;
 		var height = this.canvasHeight;
-		var scale = Configuration.getNumericValue('scale');
+		var scale = this.configuration.getNumericValue('scale');
 		if(scale < 1.0)
 		{
 			width = width / scale;
