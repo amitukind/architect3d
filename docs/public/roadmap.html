@@ -4140,7 +4140,7 @@ if(this.halfSize.x &lt; 1.0)
     <div class="sprint-head">
       <span class="sprint-no">F1</span>
       <h3>A door is five numbers</h3>
-      <div class="meta"><span class="chip acc">proposed</span><span class="chip crit">Q-2</span><span class="chip">U-1</span><span class="chip">U-2</span><span class="chip">U-4</span><span class="chip">3 wk</span></div>
+      <div class="meta"><span class="chip ok">done</span><span class="chip crit">Q-2</span><span class="chip">U-1</span><span class="chip">U-2</span><span class="chip">U-4</span><span class="chip">3 wk</span></div>
     </div>
     <p class="goal"><strong>Objective.</strong> Width, height, sill, hinge and swing on the item and in the file, with the plan symbol, the wall hole and the 3D frame all derived from them.</p>
     <ul>
@@ -4156,6 +4156,23 @@ if(this.halfSize.x &lt; 1.0)
         <li><strong>M-25 = openings are numbers.</strong> Every door and window in a fixture round-trips width, height, sill, hinge and swing through the file, and its wall hole matches them to the centimetre</li>
         <li><strong>M-35 = no opening exceeds its wall.</strong> For every fixture and every generated opening, the wall mesh's height equals the corner elevations &mdash; the assertion U-2 would have failed</li>
         <li>A file written before F1 opens with its mesh doors unchanged and re-saves byte-identical</li>
+      </ul>
+    </div>
+
+    <div class="gate">
+      <div class="g-head">LANDED &mdash; F1</div>
+      <ul>
+        <li><strong>The description landed first and alone, before a single triangle.</strong> That was the sprint's stated first commit and it was worth holding to: U-4 is the finding, and a procedural door sized from a loaded mesh's bounding box would have been the same defect wearing a new file's name. Seven fields &mdash; kind, width, height, sill, hinge, swing, style &mdash; written explicitly, absent from every older file, read back exactly, and the wall's hole cut from the same numbers rather than from a bounding box.</li>
+
+        <li><strong>M-35 is met, measured on the geometry <code>Edge</code> actually builds.</strong> Every hole is clamped to its wall now. The browser tier places the exact item U-2 was measured with &mdash; the Kenney wall doorway, 300&nbsp;&times;&nbsp;387 &mdash; into a 400&nbsp;&times;&nbsp;250 wall and asserts the drawn wall is <strong>250</strong> where it was <strong>387</strong>. The item is not resized: the clamp is on the hole, not on somebody's furniture.</li>
+
+        <li><strong>The item's extent is its numbers, not its geometry, and a door is why.</strong> A door's leaf is drawn <em>open</em>: a 90&nbsp;cm door standing 90&deg; open has a bounding box 86&nbsp;cm deep. A size read off that would cut an 86&nbsp;cm hole through the wall, hand the plan an 86&nbsp;cm-deep footprint to draw, and give it an 86&nbsp;cm-deep target to pick. The leaf sticking out is drawing; the extent is the opening.</li>
+
+        <li><strong>One bug found by placing a door in a live page.</strong> <code>WallItem.boundMove</code> decides an in-wall item's height from its own size &mdash; <code>sizeY / 2 + tolerance</code> &mdash; which put a 210&nbsp;cm door's centre at 125 and its bottom 20&nbsp;cm above the floor. A door hanging in the air, visible only in 3D. The height of an opening is its sill; the sideways clamp is inherited unchanged, so a door still cannot be dragged past the end of its wall.</li>
+
+        <li><strong>Type 10, and nothing existing moved.</strong> Appended rather than filling the gaps at 5 and 6, because an item type number is written into every save file and a number that once meant something else is a trap where a gap is only untidy. The characterization test that pinned &ldquo;exactly eight types&rdquo; was re-checked and re-pinned to assert the eight individually plus the addition. Catalog meshes are untouched, and the generated openings live in their own <code>openings.json</code> &mdash; <code>catalog.json</code> is the list of model <em>files</em> this build ships, and six suites assert exactly that over it.</li>
+
+        <li><strong>Coverage up on three of four.</strong> Statements 82.44 &rarr; 82.59, lines 82.50 &rarr; 82.65, functions 80.23 &rarr; 80.36, branches 73.23 &rarr; 73.21. 39 new headless tests and 4 in the browser tier, 1,632 and 88; <code>items/opening.js</code> at 98.03 statements. Four budgets raised for 2.6&nbsp;KB gzipped of library code &mdash; two of them had been sitting at 0.3&nbsp;% headroom since E4 and were raised back to the 5&nbsp;% they were set with, because a limit that fails on the next commit whatever it is trains people to raise it without reading it.</li>
       </ul>
     </div>
   </div>

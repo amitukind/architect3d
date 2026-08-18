@@ -80,6 +80,10 @@
  *           (2, 3, 7, 9) are drawn against the wall run rather than as free
  *           boxes.
  * @property {string} label The item's name, for the caption.
+ * @property {?{kind: string, width: number, height: number, sill: number, hinge: string, swing: number}} opening
+ *           The five numbers and two choices, for a parametric opening
+ *           (RM-008 F1); null for every other item. What lets the plan draw
+ *           *this* door's swing rather than a convention.
  * @property {boolean} fixed Locked in place.
  * @property {?string} edgeId The half edge a wall-bound item is attached to, or
  *           null. Lets the plan draw an opening in the right wall without
@@ -139,6 +143,26 @@ export function projectItem(item)
 		label: (typeof metadata.itemName === 'string') ? metadata.itemName : '',
 		fixed: Boolean(item && item.fixed),
 		edgeId: (edge && typeof edge.id === 'string') ? edge.id : null,
+		/**
+		 * The five numbers, for an opening that has them (RM-008 F1).
+		 *
+		 * Copied rather than referenced, like everything else here: a footprint is
+		 * a plain-data description that the 2D view may hold until the next
+		 * projection, and handing it a live object would let the view read a state
+		 * the drawing was not made from.
+		 *
+		 * Null for every other item, which is every item in every design written
+		 * before F1 - so `drawOpening` keeps its old behaviour for a mesh door and
+		 * draws this door's actual swing for a parametric one.
+		 */
+		opening: (item && item.opening) ? {
+			kind: item.opening.kind,
+			width: item.opening.width,
+			height: item.opening.height,
+			sill: item.opening.sill,
+			hinge: item.opening.hinge,
+			swing: item.opening.swing,
+		} : null,
 	};
 }
 

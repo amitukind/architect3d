@@ -8,6 +8,7 @@ import {gridSpacing, configWallThickness, configWallHeight} from '../core/config
 import {resolveCanvas, measureViewport, pixelRatio} from '../core/dom.js';
 import {footprintCorners} from '../model/plan_projection.js';
 import {dimensionLine} from '../model/annotation.js';
+import {OPENING_DOOR as OPENING_KIND_DOOR, OPENING_WINDOW as OPENING_KIND_WINDOW} from '../items/opening.js';
 import {CanvasBackend} from './backends.js';
 
 /**
@@ -1260,10 +1261,12 @@ export class FloorplannerView2D
 	 * draws the hole `three/edge.js:471` already cuts in the 3D wall - the same
 	 * opening, drawn the way a plan draws one.
 	 *
-	 * The swing is a convention, not a measurement: nothing in the model records
-	 * a hinge side or an opening angle yet. That is F1's work (RM-007 Q-2), and
-	 * until then every door swings the same way and the arc says "door" rather
-	 * than "this door opens like this".
+	 * The swing was a convention until RM-008 F1 (RM-009 U-4): nothing in the
+	 * model recorded a hinge side or an opening angle, so every door swung the
+	 * same way and the arc said "door" rather than "this door opens like this".
+	 * A footprint that carries an `opening` now says both, and this draws them.
+	 * One that does not - every mesh door, in every design written before F1 -
+	 * keeps the convention, which is what it has always had.
 	 *
 	 * @param {import('../model/plan_projection.js').ItemFootprint} footprint
 	 */
@@ -1284,6 +1287,26 @@ export class FloorplannerView2D
 		this.drawLine(corners[0].x, corners[0].y, corners[1].x, corners[1].y, 2, color);
 		this.drawLine(corners[3].x, corners[3].y, corners[2].x, corners[2].y, 2, color);
 
+		var opening = footprint.opening;
+		if (opening)
+		{
+			if (opening.kind === OPENING_KIND_DOOR && opening.swing > 0)
+			{
+				this.drawDoorSwing(corners, color, opening);
+			}
+			else if (opening.kind === OPENING_KIND_WINDOW)
+			{
+				// A sash line down the middle of the reveal, which is how a plan says
+				// "window" rather than "hole".
+				this.drawLine(
+					(corners[0].x + corners[3].x) / 2, (corners[0].y + corners[3].y) / 2,
+					(corners[1].x + corners[2].x) / 2, (corners[1].y + corners[2].y) / 2,
+					1, color);
+			}
+			// An archway is drawn as the reveal alone, which is what an archway is.
+			return;
+		}
+
 		if (footprint.type === ITEM_TYPE_IN_WALL_FLOOR)
 		{
 			this.drawDoorSwing(corners, color);
@@ -1291,26 +1314,48 @@ export class FloorplannerView2D
 	}
 
 	/**
-	 * The quarter circle a door leaf sweeps.
+	 * The arc a door leaf sweeps, and the leaf at the end of it.
+	 *
+	 * With an `opening` it is *this* door's arc: hinged on the side the
+	 * description names, through the angle it names, at the width it names. That
+	 * is RM-008 F1's whole claim in one method - the plan symbol and the 3D leaf
+	 * are two drawings of one number rather than two conventions that happen to
+	 * agree.
+	 *
+	 * Without one it is the convention it has always been: hinged on the first
+	 * corner, ninety degrees. Every mesh door in every design written before F1
+	 * lands here.
 	 *
 	 * @param {Array<{x: number, y: number}>} corners In canvas pixels.
 	 * @param {string} color
+	 * @param {?{hinge: string, swing: number}} [opening]
 	 */
-	drawDoorSwing(corners, color)
+	drawDoorSwing(corners, color, opening)
 	{
-		var hinge = corners[0];
-		var leafX = corners[1].x - corners[0].x;
-		var leafY = corners[1].y - corners[0].y;
+		// Corner 0 to 1 is the wall run; the hinge is at one end of it. A
+		// right-hand door hinges at the other, which reverses both the leaf
+		// direction and the sweep.
+		var right = Boolean(opening && opening.hinge === 'right');
+		var hinge = right ? corners[1] : corners[0];
+		var far = right ? corners[0] : corners[1];
+		var leafX = far.x - hinge.x;
+		var leafY = far.y - hinge.y;
 		var radius = Math.sqrt((leafX * leafX) + (leafY * leafY));
 		if (radius < 4)
 		{
 			return;
 		}
+		var sweep = (opening && typeof opening.swing === 'number')
+			? (opening.swing * Math.PI / 180) : (Math.PI / 2);
+		// Into the room, which for corner 0-to-1 is the direction corner 3 lies -
+		// the same sense the old convention drew, so a mesh door is unmoved.
+		var direction = right ? -1 : 1;
 		var start = Math.atan2(leafY, leafX);
-		this.backend.arc(hinge.x, hinge.y, radius, start, start + (Math.PI / 2), 1, color);
+		var end = start + direction * sweep;
+		this.backend.arc(hinge.x, hinge.y, radius, Math.min(start, end), Math.max(start, end), 1, color);
 		this.drawLine(hinge.x, hinge.y,
-			hinge.x + (radius * Math.cos(start + (Math.PI / 2))),
-			hinge.y + (radius * Math.sin(start + (Math.PI / 2))), 1, color);
+			hinge.x + (radius * Math.cos(end)),
+			hinge.y + (radius * Math.sin(end)), 1, color);
 	}
 
 	/**

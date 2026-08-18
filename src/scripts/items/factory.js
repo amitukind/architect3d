@@ -7,8 +7,20 @@ import {InWallFloorItem} from './in_wall_floor_item.js';
 import {OnFloorItem} from './on_floor_item.js';
 import {WallFloorItem} from './wall_floor_item.js';
 import {RoofItem} from './roof_item.js';
+import {ParametricOpening} from './parametric_opening.js';
 
-export const item_types = {1: FloorItem, 2: WallItem, 3: InWallItem, 7: InWallFloorItem, 8: OnFloorItem, 9: WallFloorItem, 0: Item, 4: RoofItem};
+/**
+ * Which class each item type number builds.
+ *
+ * 10 is RM-008 F1's parametric opening, appended rather than filling one of the
+ * gaps at 5 and 6: the numbers are compared across the library/application
+ * boundary and are written into every save file, so a number that once meant
+ * something else is a trap, and a gap is only untidy.
+ */
+export const item_types = {1: FloorItem, 2: WallItem, 3: InWallItem, 7: InWallFloorItem, 8: OnFloorItem, 9: WallFloorItem, 0: Item, 4: RoofItem, 10: ParametricOpening};
+
+/** The item type a generated door, window or archway carries (RM-008 F1). */
+export const ITEM_TYPE_PARAMETRIC_OPENING = 10;
 
 /** Factory class to create items. */
 export class Factory

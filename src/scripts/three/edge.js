@@ -468,17 +468,48 @@ export class Edge extends EventDispatcher
 		var spoints = [new Vector2(points[0].x, points[0].y),new Vector2(points[1].x, points[1].y),new Vector2(points[2].x, points[2].y),new Vector2(points[3].x, points[3].y)];
 		var shape = new Shape(spoints);
 
-		// add holes for each wall item
+		// The hole each item cuts, clamped to the wall it is cut into (RM-008 F1).
+		//
+		// Two changes here, and the second is the finding. An item that describes
+		// its own opening - `ParametricOpening`, whose whole point is that a door
+		// is five numbers rather than a mesh - is asked for its rectangle instead
+		// of being measured, because a door's leaf is drawn OPEN and its bounding
+		// box is therefore 86 cm deep for a 90 cm door.
+		//
+		// And every hole is clamped. RM-009 U-2 measured what happens without it:
+		// `ShapeGeometry` triangulates a contour and its holes together, so a hole
+		// taller than the wall is merged into the OUTLINE rather than cut out of
+		// it. A 300 x 387 opening in a 400 x 250 wall produces a mesh 387 tall -
+		// the wall grows 137 cm to swallow it, nothing warns, and the plan is
+		// unaffected because it draws the graph rather than the mesh. Seven of the
+		// ten catalog openings are that size, which is why none of them was ever
+		// noticed to be unusable.
+		var wallTop = Math.max(this.edge.getStart().elevation, this.edge.getEnd().elevation);
 		this.wall.items.forEach((item) => {
 			var pos = item.position.clone();
 			pos.applyMatrix4(transform);
 			var halfSize = item.halfSize;
-			var min = halfSize.clone().multiplyScalar(-1);
-			var max = halfSize.clone();
-			min.add(pos);
-			max.add(pos);
-
-			var holePoints = [new Vector2(min.x, min.y),new Vector2(max.x, min.y),new Vector2(max.x, max.y),new Vector2(min.x, max.y)];
+			var halfWidth = halfSize.x;
+			var bottom = pos.y - halfSize.y;
+			var top = pos.y + halfSize.y;
+			if (typeof item.wallOpening === 'function')
+			{
+				var opening = item.wallOpening();
+				halfWidth = opening.width / 2;
+				bottom = opening.bottom;
+				top = opening.top;
+			}
+			// Clamped into (0, wallTop). A hole with no height left is not drawn at
+			// all, which is the honest outcome for an opening that does not fit.
+			bottom = Math.max(0, Math.min(bottom, wallTop));
+			top = Math.max(bottom, Math.min(top, wallTop));
+			if (top - bottom < 1e-6)
+			{
+				return;
+			}
+			var holePoints = [
+				new Vector2(pos.x - halfWidth, bottom), new Vector2(pos.x + halfWidth, bottom),
+				new Vector2(pos.x + halfWidth, top), new Vector2(pos.x - halfWidth, top)];
 			shape.holes.push(new Path(holePoints));
 		});
 

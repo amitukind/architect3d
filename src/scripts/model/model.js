@@ -593,7 +593,11 @@ export class Model extends EventDispatcher
 				return;
 			}
 			var matColors = (item.material_colors) ? item.material_colors : [];
-			var metadata = {itemName: item.item_name,resizable: item.resizable,format: item.format, itemType: item.item_type, modelUrl: item.model_url, materialColors: matColors, designId: item.id};
+			// `opening` is RM-008 F1's description - five numbers and two choices -
+			// and is present only on a parametric door, window or archway. Passed
+			// through as it was read: `normaliseOpening` is what completes it, once,
+			// where the item is built.
+			var metadata = {itemName: item.item_name,resizable: item.resizable,format: item.format, itemType: item.item_type, modelUrl: item.model_url, materialColors: matColors, designId: item.id, opening: item.opening};
 			this.scene.addItem(item.item_type,item.model_url,metadata,position,item.rotation,scale,item.fixed);
 		});
 	}

@@ -26,6 +26,7 @@ import SurfaceInspector from '../src/app/inspector/SurfaceInspector.vue';
 import TexturePicker from '../src/app/inspector/TexturePicker.vue';
 import DimensionInspector from '../src/app/inspector/DimensionInspector.vue';
 import AnnotationInspector from '../src/app/inspector/AnnotationInspector.vue';
+import OpeningInspector from '../src/app/inspector/OpeningInspector.vue';
 import App from '../src/app/App.vue';
 
 import textures from '../src/catalog/textures.json';
@@ -391,6 +392,109 @@ describe('AnnotationInspector (RM-008 E3)', () =>
 		await wrapper.find('.btn-danger').trigger('click');
 
 		expect(floorplan.annotations).toHaveLength(0);
+
+		wrapper.unmount();
+	});
+});
+
+describe('OpeningInspector (RM-008 F1)', () =>
+{
+	/**
+	 * A stand-in for the item, carrying the two things the panel touches:
+	 * `opening` to read and `setOpening` to write. A real `ParametricOpening`
+	 * needs a model, a scene and a generated mesh, none of which this panel is
+	 * about - and `tests/parametric-openings.test.js` builds the real one.
+	 */
+	function anOpening(overrides)
+	{
+		const item = {
+			opening: Object.assign({
+				kind: 'door', width: 90, height: 210, sill: 0, hinge: 'left', swing: 90, style: 'plain',
+			}, overrides || {}),
+			changes: [],
+			setOpening(changes)
+			{
+				this.changes.push(changes);
+				Object.assign(this.opening, changes);
+				return this.opening;
+			},
+		};
+		return item;
+	}
+
+	it('shows the numbers in the active display unit', () =>
+	{
+		const item = anOpening();
+		const wrapper = mount(OpeningInspector, {props: {item}});
+
+		expect(wrapper.find('.inspector-heading').text()).toBe('Door');
+		expect(fieldNamed(wrapper, 'Width').element.value).toBe('90');
+		expect(fieldNamed(wrapper, 'Sill').element.value).toBe('0');
+
+		wrapper.unmount();
+	});
+
+	it('writes a width through to the item', async () =>
+	{
+		const item = anOpening();
+		const wrapper = mount(OpeningInspector, {props: {item}});
+
+		await setField(wrapper, 'Width', 110);
+
+		expect(item.opening.width).toBe(110);
+
+		wrapper.unmount();
+	});
+
+	/**
+	 * The control RM-009 U-4 says had nowhere to live: the file recorded a single
+	 * y rotation, so a hinge side could not be expressed at all, and the plan drew
+	 * the same arc for every door.
+	 */
+	it('sets the hinge side, which the file could not carry before F1', async () =>
+	{
+		const item = anOpening();
+		const wrapper = mount(OpeningInspector, {props: {item}});
+
+		const right = wrapper.findAll('.segment').find((button) => button.text() === 'Right');
+		await right.trigger('click');
+
+		expect(item.opening.hinge).toBe('right');
+
+		wrapper.unmount();
+	});
+
+	it('offers a hinge and a swing for a door and neither for a window', () =>
+	{
+		const door = mount(OpeningInspector, {props: {item: anOpening()}});
+		const window_ = mount(OpeningInspector, {props: {item: anOpening({kind: 'window'})}});
+
+		expect(door.findAll('.segment')).toHaveLength(2);
+		expect(window_.find('.inspector-heading').text()).toBe('Window');
+		expect(window_.findAll('.segment')).toHaveLength(0);
+
+		door.unmount();
+		window_.unmount();
+	});
+
+	it('shows what the item took, not what it was handed', async () =>
+	{
+		const item = anOpening();
+		// The real setter refuses a width of zero; this one says so the same way.
+		item.setOpening = (changes) =>
+		{
+			if (changes.width !== undefined && changes.width <= 0)
+			{
+				return item.opening;
+			}
+			Object.assign(item.opening, changes);
+			return item.opening;
+		};
+		const wrapper = mount(OpeningInspector, {props: {item}});
+
+		await setField(wrapper, 'Width', 0);
+
+		expect(fieldNamed(wrapper, 'Width').element.value).toBe('90');
 
 		wrapper.unmount();
 	});

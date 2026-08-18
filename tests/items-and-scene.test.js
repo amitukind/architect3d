@@ -196,8 +196,24 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('Factory registry (written into every save file)', () => {
-	it('maps exactly the eight numeric item types 0,1,2,3,4,7,8,9', () => {
-		expect(Object.keys(item_types)).toEqual(['0', '1', '2', '3', '4', '7', '8', '9']);
+	/**
+	 * The eight original numbers, still meaning the same eight classes.
+	 *
+	 * This assertion used to read `toEqual([...eight])`, and RM-008 F1 added a
+	 * ninth: type 10, the parametric opening. Re-checked rather than relaxed. What
+	 * the pin is FOR is that a type number, once written into a save file, cannot
+	 * change its meaning - so the eight are asserted individually and 10 is
+	 * asserted as the addition it is. Appending rather than filling the gaps at 5
+	 * and 6 is the same argument: a number that once meant something else is a
+	 * trap, and a gap is only untidy.
+	 */
+	it('keeps the eight original numeric item types, and adds 10', () => {
+		expect(Object.keys(item_types).sort((a, b) => Number(a) - Number(b)))
+			.toEqual(['0', '1', '2', '3', '4', '7', '8', '9', '10']);
+		expect(item_types[10].name).toBe('ParametricOpening');
+		// The gaps stay gaps.
+		expect(item_types[5]).toBeUndefined();
+		expect(item_types[6]).toBeUndefined();
 	});
 
 	it('maps 0 to Item', () => {

@@ -15,6 +15,8 @@ import {disposeMaterial} from '../core/resource_registry.js';
 import {Utils} from '../core/utils.js';
 import {mergeMeshes} from '../core/geometry_merge.js';
 import {resolveModelUrl} from '../core/legacy_models.js';
+import {ITEM_TYPE_PARAMETRIC_OPENING} from '../items/factory.js';
+import {buildOpeningGeometry, normaliseOpening} from '../items/opening.js';
 import {Factory} from '../items/factory.js';
 import {EVENT_ITEM_LOADING, EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED} from '../core/events.js';
 
@@ -358,20 +360,28 @@ export class Scene extends EventDispatcher
 		
 		var scope = this;
 
+		// A parametric opening has no file to name (RM-008 F1), so the legacy URL
+		// shim below is skipped for it - `resolveModelUrl` on an absent filename
+		// would invent one.
+		var parametric = (itemType === ITEM_TYPE_PARAMETRIC_OPENING);
+
 		// Designs saved before S3 name models in the retired three.js JSON
 		// format. Rewriting here rather than in Model.newRoom covers every way an
 		// item can be created, and mutating metadata means the item carries the
 		// new URL into its next save - so a file needs the shim exactly once.
-		var resolved = resolveModelUrl(fileName, metadata.format);
-		fileName = resolved.url;
-		metadata.format = resolved.format;
-		if (resolved.converted)
+		if (!parametric)
 		{
-			// modelUrl is what Item.getMetaData() writes back out, so updating it
-			// here is what makes the next save glb-native. A design therefore needs
-			// the shim exactly once, however many times it is opened.
-			metadata.modelUrl = fileName;
-			metadata.legacyConverted = true;
+			var resolved = resolveModelUrl(fileName, metadata.format);
+			fileName = resolved.url;
+			metadata.format = resolved.format;
+			if (resolved.converted)
+			{
+				// modelUrl is what Item.getMetaData() writes back out, so updating it
+				// here is what makes the next save glb-native. A design therefore needs
+				// the shim exactly once, however many times it is opened.
+				metadata.modelUrl = fileName;
+				metadata.legacyConverted = true;
+			}
 		}
 
 		// Which document asked (RM-003 A1). Stamped before the load starts, checked
@@ -379,7 +389,7 @@ export class Scene extends EventDispatcher
 		// path - goes through the session exactly once.
 		var generation = this.loadSession.started();
 
-		var loaderCallback = function (geometry, materials)
+		var buildItem = function (geometry, materials)
 		{
 			if (!scope.loadSession.finished(generation))
 			{
@@ -411,6 +421,22 @@ export class Scene extends EventDispatcher
 				item.placeInRoom();
 			}
 		};
+		// Its mesh is built from the five numbers rather than downloaded, and then
+		// it takes exactly the path every other item takes (RM-008 F1). One
+		// construction site, one placement, one event, one session check - which
+		// is why this is a short-circuit into the callback and not a second
+		// version of it.
+		if (parametric)
+		{
+			var wall = newItemDefinitions && newItemDefinitions.edge && newItemDefinitions.edge.wall;
+			metadata.wallThickness = wall ? wall.thickness : undefined;
+			var built = buildOpeningGeometry(normaliseOpening(metadata.opening), metadata.wallThickness);
+			this.dispatchEvent({type: EVENT_ITEM_LOADING});
+			buildItem(built.geometry, built.materials);
+			return;
+		}
+
+		var loaderCallback = buildItem;
 		var gltfCallback = function(gltfModel)
 		{
 			// S3 built a restoreLegacyTextureEncoding() here, undoing GLTFLoader's

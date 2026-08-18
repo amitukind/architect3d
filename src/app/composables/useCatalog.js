@@ -1,6 +1,8 @@
 // @ts-check
 import {computed} from 'vue';
 import catalog from '../../catalog/catalog.json';
+import openings from '../../catalog/openings.json';
+import {ITEM_TYPE_PARAMETRIC_OPENING} from '../../scripts/blueprint.js';
 
 /**
  * The furniture palette, read straight from the catalog.
@@ -46,10 +48,43 @@ const WALL_BOUND_TYPES = [2, 3, 7, 9];
  * @property {Array<CatalogItem>} items Never empty - buildSections drops those.
  */
 
+/**
+ * The generated openings, as a section (RM-008 F1).
+ *
+ * A second source rather than more rows in `catalog.json`, and the reason is
+ * what that file is: the list of model FILES this build ships. Six suites
+ * assert exactly that over it - every thumbnail exists, every format is glTF,
+ * and there is a frozen r98 merge reading for each model - and a parametric
+ * opening has no file at all. Merging it in would have meant weakening all six
+ * to accommodate rows that are not what they are about.
+ *
+ * First in the list, because a door is the first thing anybody puts in a wall.
+ *
+ * @returns {CatalogSection}
+ */
+function openingSection()
+{
+	return {
+		id: ITEM_TYPE_PARAMETRIC_OPENING,
+		heading: openings.heading,
+		items: openings.items.map((entry) => ({
+			name: entry.name,
+			// No model and no thumbnail: there is no file. The drawer draws a
+			// generated tile for a row with no image, which is also what makes the
+			// section look different from the mesh catalog - because it is.
+			image: '',
+			model: '',
+			type: ITEM_TYPE_PARAMETRIC_OPENING,
+			format: 'parametric',
+			opening: entry.opening,
+		})),
+	};
+}
+
 /** @returns {Array<CatalogSection>} */
 function buildSections()
 {
-	return Object.keys(catalog.itemTypes)
+	return [openingSection()].concat(Object.keys(catalog.itemTypes)
 		.map((key) => Object.assign({id: Number(key)}, catalog.itemTypes[key]))
 		.sort((a, b) => a.order - b.order)
 		.map((type) => ({
@@ -57,7 +92,7 @@ function buildSections()
 			heading: type.heading,
 			items: catalog.items.filter((item) => item.type === type.id),
 		}))
-		.filter((section) => section.items.length > 0);
+		.filter((section) => section.items.length > 0));
 }
 
 /**
@@ -67,7 +102,7 @@ function buildSections()
 export function useCatalog(store, placementContext)
 {
 	var sections = computed(buildSections);
-	var count = computed(() => catalog.items.length);
+	var count = computed(() => catalog.items.length + openings.items.length);
 
 	/**
 	 * Add one catalog entry to the scene.
@@ -99,6 +134,16 @@ export function useCatalog(store, placementContext)
 			itemType: entry.type,
 			format: entry.format,
 		};
+
+		// A parametric opening carries its five numbers instead of a model URL
+		// (RM-008 F1). The catalog row states only what differs from the kind's
+		// defaults, and `normaliseOpening` fills the rest in where the item is
+		// built - so a row is "a door" or "a door, hinged right", not a full record
+		// repeated six times.
+		if (entry.opening)
+		{
+			metadata.opening = entry.opening;
+		}
 
 		if (WALL_BOUND_TYPES.indexOf(entry.type) !== -1 && context.wall)
 		{

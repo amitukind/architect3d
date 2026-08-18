@@ -404,7 +404,10 @@ function validateItems(items, errors)
 		// Only the fields whose absence breaks the load. Everything else has a
 		// documented default in Model.newRoom, and inventing requirements here
 		// would refuse files that open perfectly well today.
-		if (typeof item.model_url !== 'string' || item.model_url === '')
+		// A parametric opening names no model, because it has none to name
+		// (RM-008 F1): its mesh is built from `opening`. Every other item must
+		// still say what to load, which is the check this has always been.
+		if (!isPlainObject(item.opening) && (typeof item.model_url !== 'string' || item.model_url === ''))
 		{
 			errors.push({path: `items[${index}].model_url`, message: 'missing - an item must name the model to load'});
 		}
@@ -415,5 +418,32 @@ function validateItems(items, errors)
 				errors.push({path: `items[${index}].${axis}`, message: `must be a finite number, not ${JSON.stringify(item[axis])}`});
 			}
 		});
+
+		// The opening description, additive since RM-008 F1 and absent from every
+		// older file. Only the two numbers whose absence cannot be defaulted are
+		// checked: `normaliseOpening` fills in a missing width or hinge from the
+		// kind, but a width of "wide" or a height of -50 is a file saying something
+		// it cannot mean, and a hole with no area cuts nothing and draws nothing.
+		if (item.opening !== undefined && item.opening !== null)
+		{
+			if (!isPlainObject(item.opening))
+			{
+				errors.push({path: `items[${index}].opening`, message: 'must be an object when present'});
+			}
+			else
+			{
+				['width', 'height'].forEach(function (field)
+				{
+					var value = item.opening[field];
+					if (value !== undefined && value !== null && (!isFiniteNumber(value) || value <= 0))
+					{
+						errors.push({
+							path: `items[${index}].opening.${field}`,
+							message: `must be a positive number of centimetres when present, not ${JSON.stringify(value)}`,
+						});
+					}
+				});
+			}
+		}
 	});
 }

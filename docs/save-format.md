@@ -312,6 +312,47 @@ loaded. Item order carries no meaning, and the order they arrive in depends on
 which model file finished downloading first — so two saves of a design nobody
 touched could otherwise differ.
 
+### `opening` — a door that is numbers
+
+Present only on a **parametric opening**, item type 10, added by RM-008 F1 and
+absent from every file written before it. An item that carries one names no
+`model_url`, because there is no model: its mesh is generated.
+
+```json
+{
+  "kind": "door",
+  "width": 90,
+  "height": 210,
+  "sill": 0,
+  "hinge": "left",
+  "swing": 90,
+  "style": "plain"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `kind` | `"door"`, `"window"` or `"arch"`. Anything else is read as a door. |
+| `width`, `height` | Centimetres. The rectangle cut in the wall is exactly these. |
+| `sill` | Height of the opening's **bottom** above the floor, in centimetres. A door's is 0. The *centre* — which is what the item's `ypos` holds — is derived from the sill and the height and is never stored twice. |
+| `hinge` | `"left"` or `"right"`. |
+| `swing` | Degrees the leaf stands open, 0–180. Ignored for a window and an archway. |
+| `style` | A name the generator understands. `"plain"` today. |
+
+::: tip Why this exists
+Before F1 a door's size was a **scale factor on a mesh**: "900 mm wide" was
+recorded as "0.927 times whatever `closed-door28x80_baked.glb` happens to be",
+a window's height above the floor was never stated at all, and `rotation` is a
+single y angle — so a hinge side had nowhere to live. RM-009 U-4 has the
+measurement. Every field above is read back exactly and the wall's hole is cut
+from these numbers, not from the mesh's bounding box.
+
+An opening taller than its wall is **trimmed to fit**. Without that, an
+oversized hole is merged into the wall's outline rather than cut out of it, and
+the wall grows to swallow it — RM-009 U-2 measured a 400 × 250 wall becoming
+387 cm tall.
+:::
+
 ### Item types
 
 | `item_type` | Class | Behaviour |
@@ -324,6 +365,7 @@ touched could otherwise differ.
 | 7 | `InWallFloorItem` | Cuts a hole and stays on the floor (a door) |
 | 8 | `OnFloorItem` | Renders under other items (a rug) |
 | 9 | `WallFloorItem` | Wall-bound and floor-bound |
+| 10 | `ParametricOpening` | A door, window or archway generated from its numbers (RM-008 F1). Names no model; carries `opening` |
 
 The numbering is not contiguous — there is no type 5 or 6, and 7/8/9 are not
 the order you would guess. It is the registry in

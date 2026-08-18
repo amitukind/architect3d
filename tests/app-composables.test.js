@@ -475,11 +475,23 @@ describe('useCatalog', () =>
 		blueprint.model.scene.addItem = (...args) => {added.push(args);};
 	});
 
+	/**
+	 * The eight mesh sections, in the demo's order, with the generated openings
+	 * ahead of them.
+	 *
+	 * The list used to be the eight alone. RM-008 F1 puts "Doors & Windows"
+	 * first, and re-checking says that is right rather than incidental: a door is
+	 * the first thing anybody puts in a wall, and it is a separate source because
+	 * `catalog.json` is the list of model FILES this build ships and a parametric
+	 * opening has none. The eight are still asserted in their order, which is what
+	 * the pin was for.
+	 */
 	it('offers every catalog item, grouped and ordered as the demo grouped them', () =>
 	{
 		const headings = catalog.sections.value.map((section) => section.heading);
 
 		expect(headings).toEqual([
+			'Doors & Windows',
 			'Floor Items', 'Ceiling Items', 'Wall Items', 'In Wall Items',
 			'In Wall Floor Items', 'On Floor Items', 'Wall-Floor Items', 'Anywhere Items',
 		]);

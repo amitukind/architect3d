@@ -6,6 +6,7 @@ import CornerInspector from './CornerInspector.vue';
 import RoomInspector from './RoomInspector.vue';
 import Wall2DInspector from './Wall2DInspector.vue';
 import ItemInspector from './ItemInspector.vue';
+import OpeningInspector from './OpeningInspector.vue';
 import DimensionInspector from './DimensionInspector.vue';
 import AnnotationInspector from './AnnotationInspector.vue';
 import SurfaceInspector from './SurfaceInspector.vue';
@@ -90,8 +91,30 @@ const INSPECTORS = {
 	[SELECTION_ANNOTATION]: AnnotationInspector,
 };
 
+/**
+ * Which panel a selection gets.
+ *
+ * One special case, and it is a selection *kind* rather than a type: a
+ * parametric opening is an item like any other - it selects, undoes and
+ * projects like one - but there is nothing useful to say about it in the item
+ * panel, whose controls are a mesh's scale and colour. It has five numbers
+ * instead, so it gets a panel about those (RM-008 F1). Asked of the object
+ * rather than of `item_type`, so an embedder's own parametric item lands here
+ * too.
+ */
 const component = computed(() =>
-	(props.selection ? INSPECTORS[props.selection.type] || null : null));
+{
+	if (!props.selection)
+	{
+		return null;
+	}
+	if (props.selection.type === SELECTION_ITEM && props.selection.object
+		&& typeof props.selection.object.setOpening === 'function')
+	{
+		return OpeningInspector;
+	}
+	return INSPECTORS[props.selection.type] || null;
+});
 
 /**
  * Each inspector takes the model object under the name it uses, so its own

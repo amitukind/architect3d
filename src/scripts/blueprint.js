@@ -63,6 +63,9 @@ export {defaultFloorPlanTolerance, Floorplan, SAVE_UNITS} from './model/floorpla
 // item - which is what lets the 2D view show furniture without a Floorplan
 // gaining a reference to a Scene.
 export {projectItem, projectItems, footprintContains, footprintCorners} from './model/plan_projection.js';
+export {ITEM_TYPE_PARAMETRIC_OPENING} from './items/factory.js';
+export {ParametricOpening} from './items/parametric_opening.js';
+export {OPENING_DOOR, OPENING_WINDOW, OPENING_ARCH, OPENING_KINDS, OPENING_DEFAULTS, HINGE_LEFT, HINGE_RIGHT, newOpening, normaliseOpening, openingRectangle, clampOpening, buildOpeningGeometry, openingToJSON} from './items/opening.js';
 export {Dimension, TextAnnotation, dimensionLine, DEFAULT_DIMENSION_OFFSET, DEFAULT_ANNOTATION_TEXT, DEFAULT_ANNOTATION_SIZE, ANNOTATION_SIZES} from './model/annotation.js';
 export {Model} from './model/model.js';
 // Document validation and load ownership (RM-003 A1). `DesignDocument.parse`

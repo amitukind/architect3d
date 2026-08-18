@@ -327,6 +327,72 @@ New public API, all additive: `CanvasBackend`, `SvgBackend`, `planBounds`,
 `FloorplannerView2D.renderTo` / `backend` / `project` / `exporting` / `emphasis`,
 and `useDesignIO`'s `savePlanSVG` / `savePlanPNG` / `printPlan`.
 
+**RM-008 F1 delivered: a door is five numbers.**
+
+Width, height, sill, hinge side and swing on the item and in the file, with the
+plan symbol, the wall hole and the 3D frame all derived from them. Nine generated
+openings in the catalog — doors, windows, archways — and a panel that edits the
+numbers rather than a mesh's scale.
+
+**The data model landed first and alone**, before a single triangle was
+generated, because RM-009 U-4 is the finding and geometry drawn from a mesh's
+bounding box would be the same defect wearing a new file's name. A door's size
+used to be a scale factor: "900 mm wide" was recorded as "0.927 times whatever
+`closed-door28x80_baked.glb` happens to be". A window's height above the floor
+was derived at placement and never stated. And `rotation` is a single y angle, so
+a hinge side had nowhere to live at all — which is why the plan drew the same
+swing arc for every door since E1 and said so in its own docblock.
+
+**An oversized opening used to make the wall taller.** RM-009 U-2: `ShapeGeometry`
+triangulates a contour and its holes together, so a hole taller than the wall is
+merged into the outline rather than cut out of it. A 300 × 387 opening in a
+400 × 250 wall produced a mesh 387 cm tall — the wall grew 137 cm to swallow it,
+nothing warned, and the plan was unaffected because it draws the graph rather
+than the mesh. Seven of the ten catalog openings are that size, which is exactly
+why none of them had ever been noticed to be unusable. Every hole is clamped to
+its wall now, and the browser tier asserts the wall's height rather than the
+opening's.
+
+The item's extent comes from its numbers, not its geometry, and the reason is
+worth stating: **a door's leaf is drawn open**. A 90 cm door standing 90° open has
+a bounding box 86 cm deep, so a size read off it would cut an 86 cm hole through
+the wall, hand the plan an 86 cm-deep footprint to draw and give it an 86 cm-deep
+target to pick.
+
+**One bug found by placing a door in a live page.** `WallItem.boundMove` decides
+an in-wall item's height from its own size — `sizeY / 2 + tolerance` — which put
+a 210 cm door's centre at 125 and therefore its bottom 20 cm above the floor. The
+height of an opening is its sill, and the centre is derived from the sill and the
+height; the sideways clamp is inherited unchanged, so a door still cannot be
+dragged past the end of its wall.
+
+Type **10**, appended rather than filling the gaps at 5 and 6: item type numbers
+are written into every save file, so a number that once meant something else is a
+trap and a gap is only untidy. Catalog meshes are untouched — a design with mesh
+doors opens unchanged and re-saves byte-identical — and the generated openings
+live in their own `openings.json`, because `catalog.json` is the list of model
+*files* this build ships and six suites assert exactly that over it.
+
+    branches   73.23 -> 73.21      lines      82.50 -> 82.65
+    statements 82.44 -> 82.59      functions  80.23 -> 80.36
+
+39 new headless tests and 4 in the browser tier, 1,632 and 88. `items/opening.js`
+is at 98.03 statements.
+
+Four budgets **raised**, with the reasons in `tools/budget.json`: 2.6 KB gzipped
+of library code for the description, the clamp and the generator. `demo-js-gzip`
+and `lib-iife-gzip` had both been sitting at 0.3 % headroom after E1–E4 spent the
+4.6 % they were set with, and both were raised back to that 5 % rather than to
+just-enough — a limit at 0.3 % fails on the next commit whatever it is, which
+trains people to raise it without reading it.
+
+New public API, all additive: `ParametricOpening`,
+`ITEM_TYPE_PARAMETRIC_OPENING`, `newOpening`, `normaliseOpening`,
+`openingRectangle`, `clampOpening`, `buildOpeningGeometry`, `openingToJSON`,
+`OPENING_DOOR` / `OPENING_WINDOW` / `OPENING_ARCH` / `OPENING_KINDS` /
+`OPENING_DEFAULTS` / `HINGE_LEFT` / `HINGE_RIGHT`, `ItemFootprint.opening`, and
+the optional `opening` field on a saved item.
+
 ### Everything below this line changed no shipped code
 
 `src/`, `public/` and every build artifact were identical to 3.0.1 for all of
