@@ -45,6 +45,21 @@ rather than assumed: both runtime peers are unchanged at `three` 0.185.1 and
 and nothing shipped behaves differently. All three are inside budget. Recorded
 because the commit message describes a smaller change than the one that landed.
 
+**RM-007, the first product drawing, added to `docs/public/roadmap.html`.**
+Six programmes took the code from a 2014 demo to a tool with gates, budgets and
+an instrument for everything it ships; none of them asked what a person
+designing their own home needs from it. RM-007 does — an audit of what the
+application can do today, read as a user rather than as a build and measured by
+booting it in headless Chromium and screenshotting fifteen states, set against
+Coohom's own feature list and Sweet Home 3D's as the free reference. Two of its
+figures came off those pictures: two items placed in 3D and none drawn on the
+plan, and a 40 px plan strip at a phone viewport. Fourteen gaps (Q-1 to Q-14),
+eight programmes E–M in 26 sprints, 44.5 weeks at the single-developer cadence
+RM-001 was planned at, five releases, and the non-goals the brief's three
+constraints — free, no premium, no product linkage — rule out. Proposed, not
+delivered; each programme gets its own drawing before it starts. No code, asset
+or test changed.
+
 ## [3.0.1] - 2026-08-16
 
 No shipped code changed — `src/` is byte-identical to 3.0.0 and so is every

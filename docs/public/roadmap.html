@@ -252,6 +252,13 @@ footer .credit a:hover{text-decoration:underline}
   <a href="#correction">29 · Executive summary</a>
   <a href="#correction-findings">30 · Decision log</a>
   <a href="#correction-sprints">31 · Sprint D1</a>
+
+  <div class="toc-head mono" style="margin-top:22px">PRODUCT RM-007</div>
+  <a href="#product">32 · Executive summary</a>
+  <a href="#product-audit">33 · Audit — what is there</a>
+  <a href="#product-gaps">34 · Decision log</a>
+  <a href="#product-programmes">35 · Programmes E–M &amp; effort</a>
+  <a href="#product-risks">36 · Risks &amp; non-goals</a>
 </nav>
 
 <main>
@@ -3270,6 +3277,384 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
 </section>
 
 
+<!-- ===================================================================
+ PRODUCT ROADMAP RM-007 — the seventh drawing in this set.
+ RM-001 to RM-006 above are engineering programmes and are closed.
+ This is the first product drawing: what the application would need
+ to be a floor and house planner anyone can use, and what each part
+ costs. Programmes E–M below are proposed, not delivered; each gets
+ its own drawing (RM-008 onward) before it starts.
+ =================================================================== -->
+
+<!-- ======================= 32 RM-007 EXECUTIVE SUMMARY ======================= -->
+<header class="sheet">
+  <div class="sheet-body">
+    <div class="eyebrow">PRODUCT ROADMAP · DRAWING Nº RM-007</div>
+    <h1>A planner for anyone's home</h1>
+    <p class="lede">Six programmes took a 2014 demo to a tool with gates, budgets and an instrument for everything it ships. None of them asked what a person who wants to design their own home needs from it. This drawing does. It audits what the application can do today, sets that against a Coohom-class planner and the free reference the field already has, and lays out <strong>eight programmes, 44.5 weeks</strong>, from a floorplan demo to a floor and house planner anyone can use &mdash; 2D and 3D, fully customisable, free without a catch.</p>
+  </div>
+  <div class="titleblock">
+    <div><div class="tb-k">PROJECT</div><div class="tb-v">architect3d</div></div>
+    <div><div class="tb-k">SUCCEEDS</div><div class="tb-v">RM-006 — delivered</div></div>
+    <div><div class="tb-k">BRANCH</div><div class="tb-v">amit @ 8510642</div></div>
+    <div><div class="tb-k">SCOPE</div><div class="tb-v">8 programmes · 26 sprints · 44.5 wk</div></div>
+    <div><div class="tb-k">DATE</div><div class="tb-v">2026-08-18</div></div>
+    <div><div class="tb-k">REV</div><div class="tb-v">A · proposed</div></div>
+  </div>
+</header>
+
+<section id="product">
+  <div class="sec-eyebrow">§ 32 · EXECUTIVE SUMMARY</div>
+  <h2>What it takes to be the planner people reach for</h2>
+  <p class="sec-sub">The aim, in the words it was given: a floor planner like Coohom but not that deep &mdash; one anyone can use to design their home and view it in 3D, with everything a person may need, no premium tier, no product linkages, absolutely free. Every finding below was produced by reading the tree at <code>8510642</code> or by running the application in Chromium and looking at what it drew.</p>
+
+  <div class="stats">
+    <div class="stat"><div class="v">0 of 2</div><div class="k">items placed in 3D that appear on the 2D plan. Two were added, the status bar counted two, the plan drew neither &mdash; the plan view has no code path for items at all (<code>floorplanner_view.js:588</code>)</div></div>
+    <div class="stat"><div class="v">5 + 2</div><div class="k">wall and floor textures offered, two of them the same image at different scales. No paint colour, no ceiling material, no normal or roughness map anywhere</div></div>
+    <div class="stat"><div class="v">1</div><div class="k">storey. <code>Model</code> owns one <code>Floorplan</code> (<code>model.js:77</code>) and the save format has no word for a level. Stairs are three furniture models</div></div>
+    <div class="stat"><div class="v">390 px</div><div class="k">at a phone viewport the inspector takes the screen and the plan is a 40 px strip at 10 %. The stylesheet has two media queries and neither is a breakpoint</div></div>
+    <div class="stat"><div class="v">44.5 wk</div><div class="k">eight programmes at the single-developer cadence RM-001 was planned at. &plusmn;40 % at this altitude; each programme is re-estimated in its own drawing before it starts</div></div>
+  </div>
+
+  <p><strong>What is already there is not small, and this roadmap gets all of it for free.</strong> A library that draws walls, straight and curved, joins them into rooms with names and areas, slopes them by corner elevation, textures both faces of each wall and every floor, cuts holes for doors and windows, and renders the lot lit, shadowed, tone-mapped and fogged, in orbit, orthographic and first-person &mdash; with undo across everything, autosave to IndexedDB with honest recovery, five display units, a traceable backdrop image, OBJ and glTF export, and a catalog of 168 models. Under it, the things a product programme usually has to build first and never gets to: 1,333 headless and 62 browser tests, coverage and size ratchets, an asset pipeline that compresses, measures and refuses, stable identity for walls and rooms across edits, one change event per gesture. RM-001 to RM-006 bought that. What they did not buy is a single feature a homeowner would notice, and that is what the next 44.5 weeks are for.</p>
+
+  <p><strong>&ldquo;Like Coohom, but not that deep&rdquo; is a precise brief once Coohom is read literally.</strong> Its own floor-planner page names the product: draw or upload a layout, edit walls, rooms, doors and windows, wall thickness, door and window sizing, thousands of furniture models, 2D and 3D, high-resolution renders, 360&deg; panoramas and walkthroughs, templates, a project dashboard, multi-storey with stairs, custom units, export of 2D drawings and renders. Behind that sits a 600,000-model commercial catalog, a cloud render farm, an AI that drafts a plan from a photo, and a login. <em>Not that deep</em> means the first list without the second. Everything in the first list is buildable on what is here, in the browser, against a static host, with no server and no account &mdash; and the four things in the second list are the four this roadmap declines by name (&sect; 36).</p>
+
+  <p><strong>The three constraints decide the architecture, and it is the one the project already has.</strong> <em>Free, no premium</em> means nothing lives behind a login, so there is no login: designs live in the browser and in files the person owns, and sharing is a file or a URL. <em>No product linkages</em> means the catalog is a data file of CC0 assets with the licence recorded per item, not a feed &mdash; which the pipeline already treats it as. <em>Anyone</em> means a phone and a tablet, offline after first load, no install, and a first hour that needs no manual. Local-first on a static host is what <code>src/app</code> is today; the roadmap keeps it, and it is why the effort is 44.5 weeks and not a company.</p>
+
+  <p><strong>The shape.</strong> Five releases, each one a person can use: <em>Plan any home</em> (13 wk) puts furniture, doors and windows on the plan, makes drawing precise, makes openings parametric and gives designs a home; <em>Make it yours</em> (9 wk) is materials, colours and a catalog worth browsing; <em>The whole house</em> (7.5 wk) is levels, stairwells and a roof; <em>Show it</em> (5 wk) is light, photos, panoramas and sharing; <em>Everyone</em> (10 wk) is phones, tablets, offline, help and languages. The first sprint is <strong>E1 &mdash; furniture on the plan</strong>: the most visible gap, the best contained, and 2.5 weeks.</p>
+</section>
+
+<!-- ======================= 33 RM-007 AUDIT ======================= -->
+<section id="product-audit">
+  <div class="sec-eyebrow">§ 33 · AUDIT</div>
+  <h2>What the application can do today</h2>
+  <p class="sec-sub">Read the way a person uses it, not the way a build checks it. <span class="chip ok">present</span> works and is reachable from the interface; <span class="chip warn">partial</span> exists in the library or the model but is not exposed, not persisted or not finished; <span class="chip crit">missing</span> has no code path. The last column is where to look.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Area</th><th>Today</th><th>Verdict</th><th>Where</th></tr></thead>
+    <tbody>
+      <tr><td>Drawing walls</td><td>Click-to-draw, drag corners and walls, delete, snap to grid, Shift for axis, curved walls with control points, corner elevation for slopes, walls split at intersections, corners merge</td><td><span class="chip ok">present</span></td><td><code>floorplanner/floorplanner.js</code></td></tr>
+      <tr><td>Rooms</td><td>Derived from closed loops, named, area shown, name and floor texture survive edits</td><td><span class="chip ok">present</span></td><td><code>model/floorplan.js:1079</code> · <code>room_matcher.js</code></td></tr>
+      <tr><td>Wall geometry</td><td>Thickness and height are fields on every wall and both views honour them; the inspector offers only straight/curved and length, and the file stores neither</td><td><span class="chip warn">partial</span></td><td><code>model/wall.js:133</code> · <code>half_edge.js:186</code> · <code>Wall2DInspector.vue</code></td></tr>
+      <tr><td>Doors &amp; windows</td><td>Two doors, one window and seven Kenney doorways as in-wall items; the wall is cut for them; size by the item's width/height; no sill, hinge, swing or style</td><td><span class="chip warn">partial</span></td><td><code>three/edge.js:471</code> · <code>catalog.json</code> types 3, 7</td></tr>
+      <tr><td>Furniture in 3D</td><td>168 models placed on the last clicked floor or wall, dragged, rotated with a HUD handle, resized, recoloured per material slot, locked, duplicated, deleted; wall items slide along walls</td><td><span class="chip ok">present</span></td><td><code>three/controller.js</code> · <code>items/*.js</code> · <code>ItemInspector.vue</code></td></tr>
+      <tr><td>Furniture on the plan</td><td>Nothing. The 2D view draws walls, corners, rooms, labels, grid and the backdrop; it has no reference to the scene</td><td><span class="chip crit">missing</span></td><td><code>floorplanner_view.js:588&ndash;660</code></td></tr>
+      <tr><td>Surfaces</td><td>Five wall and two floor textures, stretch or tile at a scale; a room's walls retextured together; ceilings drawn in one flat colour; no colour picker, no ceiling material, no PBR maps</td><td><span class="chip warn">partial</span></td><td><code>catalog/textures.json</code> · <code>three/floor.js:104</code></td></tr>
+      <tr><td>Light &amp; look</td><td>Hemisphere, key and fill lights with shadows; PMREM environment; ACES tone mapping; fog; two profiles (Studio, Classic); no sun position, no lamp that emits, no ambient occlusion</td><td><span class="chip warn">partial</span></td><td><code>three/lights.js</code> · <code>core/render_profile.js</code></td></tr>
+      <tr><td>Cameras</td><td>Orbit, orthographic, six preset views, lock, first-person walkthrough (WASD, pointer lock), clipping planes, wireframe</td><td><span class="chip ok">present</span></td><td><code>three/main.js:1023</code> · <code>useCameraViews.js</code></td></tr>
+      <tr><td>Measurement &amp; annotation</td><td>Wall lengths interior, exterior and midline, corner angles, room area; live cursor readout; no dimension lines, no text, no north, no per-room ceiling height</td><td><span class="chip warn">partial</span></td><td><code>floorplanner_view.js:752&ndash;845</code></td></tr>
+      <tr><td>Precision</td><td>Grid snap, axis snap while drawing, typed length after the fact for straight walls; no typed length while drawing, no angle snap, no rectangle-room tool, no guides</td><td><span class="chip warn">partial</span></td><td><code>floorplanner.js:330</code> · <code>Wall2DInspector.vue:108</code></td></tr>
+      <tr><td>Save, open, undo</td><td><code>.blueprint3d</code> file save and open, 50-deep snapshot undo, autosave draft to IndexedDB with a lost-tail warning, offered back rather than restored</td><td><span class="chip ok">present</span></td><td><code>useDesignIO.js</code> · <code>useHistory.js:51</code> · <code>draft_repository.js</code></td></tr>
+      <tr><td>Export</td><td>OBJ and glTF of the scene; no picture of the 3D view, no PNG, SVG or PDF of the plan</td><td><span class="chip warn">partial</span></td><td><code>useDesignIO.js:225&ndash;245</code></td></tr>
+      <tr><td>Projects &amp; templates</td><td>One default design, one draft, one file dialog; no library, no thumbnails, no starter plans, no share link</td><td><span class="chip crit">missing</span></td><td><code>designs/default-design.js</code></td></tr>
+      <tr><td>Levels</td><td>One storey. Three stair models climb to nothing</td><td><span class="chip crit">missing</span></td><td><code>model/model.js:77</code></td></tr>
+      <tr><td>Catalog</td><td>168 items in eight <em>placement</em> types &mdash; not rooms or categories &mdash; searchable by name; 142 are the Kenney furniture kit, 25 are baked models from the 2014 demo, one is a duck; twelve are Kenney wall and floor segments filed as furniture; no dimensions, tags or licence recorded</td><td><span class="chip warn">partial</span></td><td><code>catalog/catalog.json</code> · <code>CatalogDrawer.vue</code></td></tr>
+      <tr><td>Devices</td><td>Pointer events on both canvases, so touch draws and drags; no pinch, no two-finger orbit, no layout below desktop width</td><td><span class="chip crit">missing</span></td><td><code>styles/app.css</code> · <code>useZoom2D.js:110</code></td></tr>
+      <tr><td>Backdrop tracing</td><td>An image under the plan with real width and height, anchor, offset and opacity &mdash; the honest way to bring a scanned plan in</td><td><span class="chip ok">present</span></td><td><code>floorplanner/carbonsheet.js</code> · <code>CarbonSheetPanel.vue</code></td></tr>
+      <tr><td>Help, languages, offline</td><td>Status-bar hints and a shortcuts dialog; developer documentation only; English only; nothing loads without the network</td><td><span class="chip crit">missing</span></td><td><code>StatusBar.vue</code> · no service worker</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Measured on the day</h3>
+  <p>The application was booted in headless Chromium at 1440&times;900 and 390&times;844, driven through fifteen states and screenshotted at each. What the pictures showed, beyond the table:</p>
+  <ul>
+    <li><strong>Two items placed, none on the plan.</strong> A chair and a bed were added from the catalog and selected in 3D, with their dimension labels drawn in the viewport and the status bar reading <em>2 items</em>. The plan beside them showed an empty room. This is the finding a first-time user makes in their first five minutes.</li>
+    <li><strong>The split view does not re-frame.</strong> Zoom-to-fit runs once at mount, at full width; switching to Split leaves the plan half off the left edge and the 3D room cropped. Small, and the kind of thing that reads as broken.</li>
+    <li><strong>Wall labels read <code>m:5m</code>.</strong> The prefix is the midline flag, and nobody outside this repository knows that.</li>
+    <li><strong>Selecting a wall in 3D highlights it on the plan and opens the surface picker</strong> &mdash; the cross-view selection is already right, and is what E1 builds the other direction on.</li>
+    <li><strong>The phone viewport is unusable, not merely cramped.</strong> The rail, the top bar and a 300 px inspector leave a 40 px plan at 10 % zoom.</li>
+    <li><strong>The console warns <em>Texture marked for update but no image data found</em> on every frame</strong> until the images land. Harmless, and a sign that a needsUpdate is being set on a clone before its source has decoded; worth one look under E1 rather than a finding of its own.</li>
+  </ul>
+
+  <h3>The foundation is the asset &mdash; and two of its rules will be felt</h3>
+  <p>The gates, the pipeline and the identity work mean the product programmes below do not start by building scaffolding. Two of the standing rules will bite, and are worth naming before they do. <strong>The size budgets are ratchets</strong> that may move up with a recorded reason and never down to pass; a catalog that triples and a material library that goes from seven images to ninety will need <code>public-total</code> and <code>demo-total</code> raised, several times, each with the reason in the commit &mdash; and they will need a budget that does not exist yet, <em>first-load payload</em>, so that growing the tree never grows what a person downloads before their first wall. <strong>The polygon predicates are pinned constants</strong> (<code>core/utils.js:44</code>): furniture cannot collide with anything today because <code>pointInPolygon</code> returns false and <code>polygonPolygonIntersect</code> returns false, by a preserved bug the ledger says is left alone on purpose. Collision is a feature people expect from a room planner, and J4 takes it as the deliberate re-baseline the ledger asks for &mdash; new predicate, feature flag, characterization tests updated in the same commit &mdash; not as a fix.</p>
+</section>
+
+<!-- ======================= 34 RM-007 DECISION LOG ======================= -->
+<section id="product-gaps">
+  <div class="sec-eyebrow">§ 34 · DECISION LOG</div>
+  <h2>Fourteen gaps, ranked by what a person hits first</h2>
+  <p class="sec-sub">Severity here is not risk to the build; it is how soon someone designing their own home runs into it and whether they can work around it. Each row names the programme that closes it. Coohom's own feature page and Sweet Home 3D's &mdash; the free, open reference &mdash; were used as the checklist of what a planner is expected to do; neither was used for how.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Nº</th><th>Finding</th><th>Hit</th><th>Where</th><th>Programme</th></tr></thead>
+    <tbody>
+      <tr><td style="white-space:nowrap">Q-1</td><td>Furniture, doors and windows are invisible on the plan</td><td><span class="chip crit">first 5 min</span></td><td><code>floorplanner_view.js:588</code></td><td>E1</td></tr>
+      <tr><td style="white-space:nowrap">Q-2</td><td>Doors and windows are three baked meshes and seven kit pieces, with no width, height, sill, hinge or swing of their own</td><td><span class="chip crit">first hour</span></td><td><code>catalog.json</code> · <code>in_wall_item.js</code></td><td>F1</td></tr>
+      <tr><td style="white-space:nowrap">Q-3</td><td>One storey; stairs go nowhere; there is no roof, so there is no house</td><td><span class="chip crit">first house</span></td><td><code>model.js:77</code></td><td>G1 · G2 · F3</td></tr>
+      <tr><td style="white-space:nowrap">Q-4</td><td>Seven textures, no colour picker for walls, no ceiling material, no PBR</td><td><span class="chip crit">first hour</span></td><td><code>textures.json</code> · <code>edge.js:282</code></td><td>H1</td></tr>
+      <tr><td style="white-space:nowrap">Q-5</td><td>The catalog is browsed by placement type, not by room; no dimensions, tags or licence; twelve wall segments filed as furniture</td><td><span class="chip warn">first hour</span></td><td><code>catalog.json</code> · <code>useCatalog.js:44</code></td><td>J1 · J2</td></tr>
+      <tr><td style="white-space:nowrap">Q-6</td><td>One design at a time: no library, no thumbnails, no starter plans</td><td><span class="chip warn">second visit</span></td><td><code>useDesignIO.js</code> · <code>draft_repository.js</code></td><td>K1</td></tr>
+      <tr><td style="white-space:nowrap">Q-7</td><td>No phone or tablet layout, no pinch, no two-finger orbit</td><td><span class="chip crit">first tap</span></td><td><code>app.css</code> · <code>InspectorPanel.vue:130</code></td><td>L1</td></tr>
+      <tr><td style="white-space:nowrap">Q-8</td><td>Nothing draws to a number: no typed length while drawing, no angle snap, no rectangle room, no dimension lines, no text</td><td><span class="chip warn">first real plan</span></td><td><code>floorplanner.js:330</code></td><td>E2 · E3</td></tr>
+      <tr><td style="white-space:nowrap">Q-9</td><td>Per-wall thickness and height exist, are honoured, and cannot be set or saved</td><td><span class="chip">low</span></td><td><code>wall.js:133</code> · <code>save-format.md</code></td><td>E2</td></tr>
+      <tr><td style="white-space:nowrap">Q-10</td><td>The 3D view cannot take a picture: no image export, no panorama, no sun, no lamp that lights, no ambient occlusion</td><td><span class="chip warn">when showing someone</span></td><td><code>useDesignIO.js:225</code> · <code>lights.js</code></td><td>H2 · H3</td></tr>
+      <tr><td style="white-space:nowrap">Q-11</td><td>Furniture passes through walls and through other furniture; the predicates that would stop it are pinned constants</td><td><span class="chip warn">first sofa</span></td><td><code>floor_item.js:57</code> · <code>utils.js:44</code></td><td>J4</td></tr>
+      <tr><td style="white-space:nowrap">Q-12</td><td>No multi-select, copy/paste, mirror, align, group, stack, or item-to-item snap</td><td><span class="chip warn">first room set</span></td><td><code>controller.js</code> · <code>useItemActions.js</code></td><td>J4</td></tr>
+      <tr><td style="white-space:nowrap">Q-13</td><td>The plan cannot leave the app: no PNG, SVG or PDF, no scale bar</td><td><span class="chip warn">when printing</span></td><td><code>useDesignIO.js:219</code></td><td>E4</td></tr>
+      <tr><td style="white-space:nowrap">Q-14</td><td>No offline, no share without a file, no help written for users, one language</td><td><span class="chip">low each</span></td><td>&mdash;</td><td>K2 · K3 · L2 · L3</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Q-1 · The plan does not show the furniture <span class="chip crit">high</span> <span class="chip acc">measured</span></h3>
+  <p>Every planner people compare this to &mdash; Coohom, Planner 5D, HomeByMe, Floorplanner, Sweet Home 3D &mdash; is used mostly from the top-down view, with the 3D as the check. Here the plan is a wall editor. <code>FloorplannerView2D.draw()</code> walks rooms, walls, corners, the target and the grid; the word <em>item</em> does not occur in <code>src/scripts/floorplanner/</code>. The data is all there: every item knows its footprint (<code>Item.getCorners('x','z')</code>), its rotation and its wall edge, and <code>Model</code> holds the scene and the floorplan side by side. This is a drawing layer and a hit-test, not a model change &mdash; which is why it is first and why it is 2.5 weeks and not five.</p>
+
+  <h3>Q-2 · Doors and windows are furniture <span class="chip crit">high</span></h3>
+  <p>An in-wall item cuts a hole the size of its bounding box (<code>edge.js:471&ndash;482</code>) and that is the whole door model: no sill height as a number, no hinge side, no swing arc on the plan, no frame that follows the wall's thickness. Coohom lists <em>door and window sizing</em> and <em>wall thickness</em> as first-screen features, and Sweet Home 3D computes the wall hole from a parametric opening. F1 replaces the three baked meshes and seven kit pieces as the default with a procedural opening &mdash; frame, leaf or sash, glass &mdash; that takes width, height, sill, hinge and swing, draws its symbol on the plan, and saves as numbers. The catalog models stay for anyone who prefers them.</p>
+
+  <h3>Q-3 · One storey <span class="chip crit">high</span></h3>
+  <p><code>Model</code> constructs one <code>Floorplan</code> and one <code>Scene</code> (<code>model.js:77&ndash;78</code>); every composable, both views and the file assume it. Adding levels touches every layer, which is exactly why it is programme G and not sprint E2: it should land on a single-level editor that is already complete, behind a flag, with a single-level file byte-identical before and after. Stairs (F3) and stairwells and a roof (G2) are what turn <em>floor</em> planner into <em>house</em> planner, and the brief said both.</p>
+
+  <h3>Q-4 · Seven textures <span class="chip crit">high</span></h3>
+  <p>The surface picker offers five wall images and two floor images, and <code>Checker</code> and <code>Bricks</code> are the same JPEG. There is no way to paint a wall a colour, which is the first thing most people do; ceilings are one flat tint from the render profile; and every material is a single albedo, so the studio profile's lighting has nothing to catch on. H1 is a material model with albedo, normal and roughness, a colour picker that works on any surface, and a CC0 library of about ninety materials from ambientCG and Poly Haven &mdash; each one through the resize, encode and oracle pipeline that already exists, each one inside the 3.0 RMS gate or shipped uncompressed under B1's rule.</p>
+
+  <h3>Q-7 · No phone, no tablet <span class="chip crit">high</span> <span class="chip acc">measured</span></h3>
+  <p>At 390&times;844 the shell renders the desktop layout smaller: a 52 px rail, a 300 px inspector, and what is left for the plan. The pointer handling underneath is already unified &mdash; touch draws walls today &mdash; so this is a shell problem, not a library one. It sits in the last release because a floor plan is designed at a desk more often than on a bus; <strong>if the audience is mobile-first, L1 moves into release 1 and adds 2.5 weeks there.</strong> That is the one sequencing decision in this drawing that depends on who the users are rather than on the code.</p>
+
+  <h3>Q-11 · Furniture goes through walls <span class="chip warn">med</span></h3>
+  <p><code>FloorItem.isValidPosition</code> is documented in the predicate ledger as intentionally inert: <code>pointInPolygon</code> is constant-false, so no item is ever &ldquo;in a room&rdquo;, so the early <code>return true</code> always fires and placement is left to the user. Blueprint3d meant that; a person furnishing a bedroom does not. J4 turns collision on as a re-baseline &mdash; <code>pointInPolygon2</code>, the sibling that works, is already used for room detection (<code>room.js:277</code>) &mdash; with a warning highlight rather than a hard stop, so a rug can still go under a bed.</p>
+
+  <p><strong>The rest are smaller in code than in experience</strong>, and each is one sprint or less: Q-5 is a metadata pass over a JSON file plus a browsing UI; Q-6 is a second IndexedDB store and a grid of thumbnails; Q-8 and Q-9 are the drawing tools every CAD user assumes and per-wall fields the model already carries; Q-10 is a render-to-texture and a sun vector; Q-12 is controller work on selection; Q-13 is the plan drawn again into an SVG string at scale; Q-14 is four independent, deferrable pieces.</p>
+</section>
+
+<!-- ======================= 35 RM-007 PROGRAMMES ======================= -->
+<section id="product-programmes">
+  <div class="sec-eyebrow">§ 35 · PROGRAMMES</div>
+  <h2>Eight programmes, five releases, 44.5 weeks</h2>
+  <p class="sec-sub">High level on purpose. Each programme names its sprints and their cost at the single-developer cadence RM-001 was planned at, and stops there: the sprint contents, gates and rollback are for the programme's own drawing, written against the tree of the day it starts, as RM-002 to RM-006 were. Programme letters continue from D and skip I, as drawing revisions do. Effort is &plusmn;40 % at this altitude &mdash; the range narrows to what RM-004 and RM-005 achieved only once a programme is measured.</p>
+
+  <div class="timeline">
+    <div class="tl"><div class="n">Release 1 · 13 wk</div><div class="t">Plan any home<br>E · F1 · F2 · K1</div></div>
+    <div class="tl"><div class="n">Release 2 · 9 wk</div><div class="t">Make it yours<br>H1 · J1 · J2 · J4</div></div>
+    <div class="tl"><div class="n">Release 3 · 7.5 wk</div><div class="t">The whole house<br>F3 · G1 · G2</div></div>
+    <div class="tl"><div class="n">Release 4 · 5 wk</div><div class="t">Show it<br>H2 · H3 · K2</div></div>
+    <div class="tl"><div class="n">Release 5 · 10 wk</div><div class="t">Everyone<br>L · J3 · K3 · M</div></div>
+  </div>
+  <p class="risk-note">Every release is one a person can use, in that order, and none waits on a later one. Programmes are grouped by what they change; releases are grouped by what a person gets. The two are deliberately not the same list.</p>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">E</span>
+      <h3>The plan is the product</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip crit">Q-1</span><span class="chip">Q-8</span><span class="chip">Q-9</span><span class="chip">Q-13</span><span class="chip">7 wk</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Make the 2D plan the place a design is made, not just where walls are drawn: everything in the design visible on it, drawing to a number, annotation, and a way out onto paper.</p>
+    <div class="tw"><table>
+      <thead><tr><th>Sprint</th><th>What</th><th class="num">Effort</th></tr></thead>
+      <tbody>
+        <tr><td>E1</td><td>Furniture, doors and windows drawn on the plan as footprints and symbols; select, move and rotate them there; selection mirrored both ways between plan and 3D; re-frame on layout change; wall-label prefixes made legible</td><td class="num">2.5 wk</td></tr>
+        <tr><td>E2</td><td>Precision drawing: typed length and angle while drawing, 15&deg; angle snap, rectangle-room tool, wall split and join, alignment guides; per-wall thickness and height in the inspector and in the file (additive fields)</td><td class="num">2 wk</td></tr>
+        <tr><td>E3</td><td>Annotation: dimension lines, text labels, room type with a styled label, north arrow, per-room ceiling height</td><td class="num">1.5 wk</td></tr>
+        <tr><td>E4</td><td>Plan export: PNG and SVG at a chosen scale, print to PDF with a scale bar and title block</td><td class="num">1 wk</td></tr>
+      </tbody>
+    </table></div>
+    <div class="gate">
+      <div class="g-head">METRICS THIS PROGRAMME ADDS</div>
+      <ul>
+        <li><strong>M-23 &mdash; plan parity.</strong> Items in the scene equals footprints on the plan, for every fixture design, in a headless test and in the browser tier</li>
+        <li><strong>M-24 &mdash; round trip.</strong> Per-wall thickness and height written by 3.x are read back exactly, and a 2.0.0 file loads with the configured defaults, byte-identical on re-save when nothing was set</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">F</span>
+      <h3>Openings and structure</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip crit">Q-2</span><span class="chip">Q-3</span><span class="chip">6 wk</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Doors, windows, openings, half walls, columns and stairs as things with numbers, generated in the browser, so a design never depends on a mesh the catalog happens to have.</p>
+    <div class="tw"><table>
+      <thead><tr><th>Sprint</th><th>What</th><th class="num">Effort</th></tr></thead>
+      <tbody>
+        <tr><td>F1</td><td>Parametric doors and windows: procedural frame, leaf or sash and glass; width, height, sill, hinge side and swing in the inspector; swing arcs and sash symbols on the plan; a handful of styles; saved as numbers; catalog meshes remain an option</td><td class="num">3 wk</td></tr>
+        <tr><td>F2</td><td>Openings without a mesh (archway, pass-through), half walls via per-wall height, columns and beams as parametric items; an audit of wall joins at thickness</td><td class="num">1.5 wk</td></tr>
+        <tr><td>F3</td><td>Parametric stairs &mdash; straight, L, U &mdash; with a footprint on the plan and a stairwell hint for G2</td><td class="num">1.5 wk</td></tr>
+      </tbody>
+    </table></div>
+    <div class="gate">
+      <div class="g-head">METRICS THIS PROGRAMME ADDS</div>
+      <ul>
+        <li><strong>M-25 &mdash; openings are numbers.</strong> Every door and window in a fixture design round-trips width, height, sill, hinge and swing through the file, and its wall hole matches them to the centimetre</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">G</span>
+      <h3>Levels</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip crit">Q-3</span><span class="chip warn">after E and F</span><span class="chip">6 wk</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> A house, not a floor: storeys stacked in 3D and switched on the plan, stairwells that cut through, and a roof over the lot.</p>
+    <div class="tw"><table>
+      <thead><tr><th>Sprint</th><th>What</th><th class="num">Effort</th></tr></thead>
+      <tbody>
+        <tr><td>G1</td><td>Levels in the model with elevation and height; <code>levels[]</code> in the file, additive, a single-level file unchanged; level switcher on the plan with the level below ghosted; 3D stacked with per-level visibility; behind a flag until the fixture suite covers it</td><td class="num">3.5 wk</td></tr>
+        <tr><td>G2</td><td>Stairwells and floor openings; a simple roof generator (flat, gable, hip) over the footprint; an exterior view</td><td class="num">2.5 wk</td></tr>
+      </tbody>
+    </table></div>
+    <div class="gate">
+      <div class="g-head">METRICS THIS PROGRAMME ADDS</div>
+      <ul>
+        <li><strong>M-26 &mdash; two levels, one file.</strong> A two-storey fixture saves, loads and renders both levels; every existing single-level fixture is byte-identical on re-save</li>
+      </ul>
+    </div>
+    <p class="risk-note"><b>The widest change in this drawing.</b> It touches <code>Model</code>, both views, the controller, undo, autosave and the file. It goes last among the structural programmes for that reason, and it does not start until E and F have settled the single-level editor it multiplies.</p>
+  </div>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">H</span>
+      <h3>Surfaces and light</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip crit">Q-4</span><span class="chip">Q-10</span><span class="chip">7 wk</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Any surface any colour or material, lit like a room, and a picture at the end of it.</p>
+    <div class="tw"><table>
+      <thead><tr><th>Sprint</th><th>What</th><th class="num">Effort</th></tr></thead>
+      <tbody>
+        <tr><td>H1</td><td>A material model (albedo, normal, roughness) for walls, floors and ceilings; a colour picker on every surface; per-surface scale, rotation and offset; a CC0 library of about ninety materials from ambientCG and Poly Haven through the existing resize, encode and oracle pipeline; budgets raised with recorded reasons</td><td class="num">3 wk</td></tr>
+        <tr><td>H2</td><td>Sun by time of day and orientation; light-emitting lamps by catalog metadata; ambient occlusion and softer shadows behind the profile switch; a <em>Photo</em> capture &mdash; supersampled, high-resolution, saved as PNG</td><td class="num">2.5 wk</td></tr>
+        <tr><td>H3</td><td>360&deg; panorama export from any point; walkthrough with wall collision, eye height and a teleport click</td><td class="num">1.5 wk</td></tr>
+      </tbody>
+    </table></div>
+    <div class="gate">
+      <div class="g-head">METRICS THIS PROGRAMME ADDS</div>
+      <ul>
+        <li><strong>M-27 &mdash; extends M-20.</strong> Every shipped material image passes the 3.0 RMS oracle gate or ships uncompressed, and the count of measured images equals the count of shipped ones</li>
+        <li><strong>M-28 &mdash; frame budget.</strong> The furnished fixture holds 30 fps under Studio on the browser tier's software renderer, or the added effect is off by default</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">J</span>
+      <h3>Catalog</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip">Q-5</span><span class="chip">Q-11</span><span class="chip">Q-12</span><span class="chip">7.5 wk</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Enough furniture to furnish a home, found by room, with the licence on every item; and the handling &mdash; select, copy, mirror, align, stack, snap, collide &mdash; that makes placing it quick.</p>
+    <div class="tw"><table>
+      <thead><tr><th>Sprint</th><th>What</th><th class="num">Effort</th></tr></thead>
+      <tbody>
+        <tr><td>J1</td><td>Metadata: room categories, tags, real dimensions, source and licence per item; browse by room, filter, favourites and recent; thumbnails rendered by a tool rather than collected; the twelve wall segments moved out of furniture</td><td class="num">1.5 wk</td></tr>
+        <tr><td>J2</td><td>Breadth: CC0 packs (further Kenney kits, Quaternius, Poly Haven models) curated to 400&ndash;600 items through Draco, KTX2, oracle and budget; packs loaded lazily by manifest so first load does not grow</td><td class="num">2 wk</td></tr>
+        <tr><td>J3</td><td>Bring your own model: GLB, glTF and OBJ from disk, a scale-and-orient step, stored with the design and bundled on export</td><td class="num">1.5 wk</td></tr>
+        <tr><td>J4</td><td>Manipulation: multi-select, group, copy and paste, mirror, align and distribute, item-to-item and item-to-wall snapping, stacking on surfaces, elevation for free items; collision warning as the deliberate re-baseline of the polygon predicates</td><td class="num">2.5 wk</td></tr>
+      </tbody>
+    </table></div>
+    <div class="gate">
+      <div class="g-head">METRICS THIS PROGRAMME ADDS</div>
+      <ul>
+        <li><strong>M-29 &mdash; every item accounted for.</strong> Category, dimensions and licence present on 100 % of catalog rows, checked in the asset-integrity suite</li>
+        <li><strong>M-30 &mdash; first-load budget.</strong> A new <code>first-load</code> limit in <code>budget.json</code>, set at today's payload plus the shell's growth, that no pack may enter</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">K</span>
+      <h3>Projects and sharing, without a server</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip">Q-6</span><span class="chip">Q-14</span><span class="chip">3.5 wk</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Many designs, starter plans, a link to send &mdash; and none of it behind a login, because there is no login.</p>
+    <div class="tw"><table>
+      <thead><tr><th>Sprint</th><th>What</th><th class="num">Effort</th></tr></thead>
+      <tbody>
+        <tr><td>K1</td><td>A project library in IndexedDB with thumbnails, rename and duplicate; templates (studio, one-, two- and three-bedroom, duplex) and sample designs</td><td class="num">1.5 wk</td></tr>
+        <tr><td>K2</td><td>Share: a compressed design in the URL, a read-only viewer mode, a <code>.zip</code> bundle carrying custom assets</td><td class="num">1 wk</td></tr>
+        <tr><td>K3</td><td>Offline: a service worker, assets cached as they are used, an install prompt</td><td class="num">1 wk</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">L</span>
+      <h3>Everyone, every device</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip crit">Q-7</span><span class="chip">Q-14</span><span class="chip">5.5 wk</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> The same tool on a tablet and a phone, learnable in the first ten minutes, in more than one language, and operable without a mouse.</p>
+    <div class="tw"><table>
+      <thead><tr><th>Sprint</th><th>What</th><th class="num">Effort</th></tr></thead>
+      <tbody>
+        <tr><td>L1</td><td>Responsive shell: tablet and phone layouts (bottom-sheet inspector, collapsible rail, one pane at a time), pinch zoom on the plan, two-finger orbit and pan in 3D, larger targets</td><td class="num">2.5 wk</td></tr>
+        <tr><td>L2</td><td>Onboarding and help: a first-run tour, contextual hints, help pages written for users rather than developers</td><td class="num">1 wk</td></tr>
+        <tr><td>L3</td><td>Internationalisation scaffold and the first two languages</td><td class="num">1 wk</td></tr>
+        <tr><td>L4</td><td>Keyboard-only drawing and moving, focus order, reduced motion &mdash; beyond what axe already checks</td><td class="num">1 wk</td></tr>
+      </tbody>
+    </table></div>
+    <div class="gate">
+      <div class="g-head">METRICS THIS PROGRAMME ADDS</div>
+      <ul>
+        <li><strong>M-31 &mdash; usable at 390 and 820.</strong> The browser tier boots the application at phone and tablet viewports and draws a room in each; today it cannot</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">M</span>
+      <h3>Ship, and keep it fast</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip">cross-cutting</span><span class="chip">2 wk</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> A public address, and a tool that stays quick as designs and the catalog grow. Spread across the releases rather than a block of its own.</p>
+    <div class="tw"><table>
+      <thead><tr><th>Sprint</th><th>What</th><th class="num">Effort</th></tr></thead>
+      <tbody>
+        <tr><td>M1</td><td>Cloudflare Pages: the deploy job re-targeted, previews per branch, the address in the README</td><td class="num">0.5 wk</td></tr>
+        <tr><td>M2</td><td>Large-design performance: instanced furniture, a cached static layer under the 2D draw, a 200-wall, 150-item fixture in the browser tier with a frame budget</td><td class="num">1 wk</td></tr>
+        <tr><td>M3</td><td>The <code>first-load</code> budget and lazy packs wired through the manifest; a Lighthouse floor</td><td class="num">0.5 wk</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <h3>What comes first</h3>
+  <p><strong>E1.</strong> It is the finding a new user makes in five minutes, it needs no change to the model or the file, the data it draws already exists on every item, and the cross-view selection it completes is half built. It is also the sprint that teaches the most about the rest of E: once items are on the plan, typed lengths, dimension lines and a PNG of the plan are drawn against a plan that means something. Before E1 there is the drawing for programme E &mdash; RM-008 &mdash; measured against the tree of the day it starts, in the shape of the six that precede this one.</p>
+
+  <h3>If time is short</h3>
+  <p>The roadmap is 44.5 weeks because the brief is <em>everything a person may need</em>. It contracts without breaking. In the order they should go:</p>
+  <div class="tw"><table>
+    <thead><tr><th>Drop</th><th>What is lost</th><th class="num">Saved</th></tr></thead>
+    <tbody>
+      <tr><td>L3</td><td>Languages other than English</td><td class="num">1 wk</td></tr>
+      <tr><td>H3</td><td>Panoramas and the walkthrough polish; the walkthrough itself stays</td><td class="num">1.5 wk</td></tr>
+      <tr><td>J3</td><td>Bringing your own model; the catalog still grows</td><td class="num">1.5 wk</td></tr>
+      <tr><td>K3</td><td>Offline; the app still runs from cache in most browsers, just not by promise</td><td class="num">1 wk</td></tr>
+      <tr><td>G2</td><td>Roof and stairwells; levels still stack, stairs still draw</td><td class="num">2.5 wk</td></tr>
+      <tr><td colspan="2"><strong>All five</strong> &mdash; still a multi-level planner with materials, openings, a catalog, projects and a phone layout</td><td class="num"><strong>7.5 wk</strong></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ======================= 36 RM-007 RISKS & NON-GOALS ======================= -->
+<section id="product-risks">
+  <div class="sec-eyebrow">§ 36 · RISKS &amp; NON-GOALS</div>
+  <h2>What could go wrong, and what this is not</h2>
+  <p class="sec-sub">Seven risks, all of them things the six earlier programmes either created on purpose or would recognise; and the list of what the brief's three constraints rule out, so it is not rediscovered one feature request at a time.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Risk</th><th>Where it bites</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td>The size budgets are ratchets and the asset tree will triple</td><td>H1, J2 &mdash; every pack and material library</td><td>Raise up with the reason in the commit, as the rule allows; never lower; add <code>first-load</code> (M-30) so the tree can grow while the first download does not; packs lazy by manifest</td></tr>
+      <tr><td>The save format grows four times &mdash; per-wall fields, openings, levels, materials</td><td>E2, F1, G1, H1</td><td>Every field additive; a 3.0.0 format version whose reader takes 2.0.0 files unchanged; the fixture suite gains one file per addition and the byte-identical re-save test on the old ones</td></tr>
+      <tr><td>Levels touch every layer at once</td><td>G1</td><td>Last of the structural programmes; behind a flag; single-level files byte-identical; its own drawing before a line is written</td></tr>
+      <tr><td>A CC0 catalog looks low-poly beside a commercial one</td><td>J2, and every screenshot</td><td>Say so; procedural openings and PBR surfaces carry the realism a room needs; the Kenney kit is coherent, which matters more than polygon count at room scale</td></tr>
+      <tr><td>PBR, more lights and occlusion on an integrated GPU</td><td>H1, H2</td><td>The profile switch already exists; every effect behind it and off by default where M-28 fails; measured on the browser tier's software renderer, which is the floor</td></tr>
+      <tr><td>Re-baselining the polygon predicates</td><td>J4</td><td>A new predicate under a flag, the ledger updated, the characterization tests changed in the same commit, and the room-detection tests untouched because room detection never used the broken ones</td></tr>
+      <tr><td>44.5 weeks at one developer&rsquo;s cadence</td><td>everything</td><td>Each release is usable on its own; the contraction table above; each programme's drawing re-estimates before it starts, so the number is corrected five times rather than discovered once</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Non-goals</h3>
+  <p>Named so that they stay named. <strong>Accounts and cloud storage</strong> &mdash; a login is the first thing a free tool grows and the first thing that stops being free. <strong>An AI that drafts a plan from a photo</strong> &mdash; the backdrop tracer is the honest version, and it works today. <strong>DWG import</strong> &mdash; a closed format; DXF may come later as a K-programme item once there is a plan worth importing into. <strong>Kitchen and wardrobe configurators</strong> &mdash; the depth the brief declined. <strong>A cloud render farm</strong> &mdash; H2's Photo is what one browser can do well; a path tracer in the browser is a research sprint, not a promise. <strong>Collaboration, comments, multi-user</strong> &mdash; a server. <strong>Product catalogs, prices, links to buy</strong> &mdash; the brief, in its own words. <strong>A 600,000-model library</strong> &mdash; 500 items a person can find beat 600,000 they cannot, and the pipeline measures every one of the 500.</p>
+
+  <p style="margin-top:16px">Forty-four and a half weeks, and the first of them draws the furniture on the plan. What is worth carrying out of this drawing is not the number &mdash; it will be corrected by each programme's own sheet &mdash; but the shape: <strong>local-first, static, CC0, no login</strong> is not a constraint the brief imposed on the architecture; it is the architecture the project already has, and the reason a Coohom-class planner without Coohom's company behind it is a plan and not a wish.</p>
+</section>
+
+
 <footer>
   <p><strong>Method &mdash; RM-004.</strong> Three measurements against the working tree at <code>3cf1c24</code> on branch <code>amit</code>, all of them produced by running something rather than by reading code. <em>The payload</em> &mdash; every one of the 370 manifest entries read and gzipped at level 9, and every <code>.glb</code> walked chunk by chunk, splitting the BIN into buffer views an accessor points at, views an image points at, and the remainder, then a census of accessor <code>componentType</code> per attribute semantic and of index width against each primitive's <code>POSITION</code> count. <em>Wall identity</em> &mdash; three fixtures loaded, censused, round-tripped through <code>saveFloorplan()</code> and <code>loadFloorplan()</code> and intersected, plus a constructed two-walls-one-pair case run through the same round trip. <em>The type ledger</em> &mdash; <code>npx vue-tsc --noEmit --checkJs</code>, bucketed by area, by error code and by file. <strong>What was not run:</strong> no codec. Draco, meshopt and KTX2 are named throughout and none has been executed against this catalog, which is why M-12 carries no target and why B1's first task is the trial rather than its conclusion. Two repository inaccuracies were found and are recorded in §21 G-3 rather than fixed, since this is a planning pass: <code>tsconfig.json</code>'s SFC subtotal disagrees with the tree <em>and</em> with its own itemisation.</p>
   <p><strong>Sources &mdash; RM-004.</strong> <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_mesh_quantization/README.md">KHR_mesh_quantization</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_draco_mesh_compression/README.md">KHR_draco_mesh_compression</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_meshopt_compression/README.md">EXT_meshopt_compression</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_texture_basisu/README.md">KHR_texture_basisu</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/specification/2.0/README.md#binary-gltf-layout">glTF 2.0 &mdash; Binary glTF layout</a> &middot; <a href="https://threejs.org/docs/#examples/en/loaders/DRACOLoader">three.js &mdash; DRACOLoader</a> &middot; <a href="https://threejs.org/docs/#examples/en/loaders/KTX2Loader">three.js &mdash; KTX2Loader</a> &middot; <a href="https://www.typescriptlang.org/tsconfig/#checkJs">TypeScript &mdash; checkJs</a></p>
@@ -3278,7 +3663,9 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
   <p><strong>Sources &mdash; RM-005.</strong> <a href="https://threejs.org/docs/#api/en/textures/CompressedTexture">three.js &mdash; CompressedTexture</a> &middot; <a href="https://threejs.org/docs/#api/en/textures/Source">three.js &mdash; Source</a> &middot; <a href="https://github.com/KhronosGroup/KTX-Specification">KTX 2.0 container specification</a> &middot; <a href="https://www.typescriptlang.org/tsconfig/#checkJs">TypeScript &mdash; checkJs</a> &middot; <a href="https://www.typescriptlang.org/docs/handbook/jsdoc-supported-types.html">TypeScript &mdash; JSDoc reference</a></p>
   <p><strong>Method &mdash; RM-006.</strong> One measurement, run twenty-one times, against the working tree at <code>3d21b81</code> on branch <code>amit</code>. Every GPU texture the encoder has ever considered &mdash; the eleven now shipping as KTX2, the eight refused here, <code>ps_7.jpg</code> and <code>envs/Garden.jpg</code> &mdash; was rendered from its authored source and from its transcode through one <code>WebGLRenderer</code> under SwiftShader, same plane, same orthographic camera at 1:1, <code>NearestFilter</code>, no mipmaps, both textures tagged sRGB and the renderer outputting sRGB, and the two frames read back with <code>gl.readPixels</code> and differenced per channel over RGB. Sources for the eighteen were recovered with <code>git log --diff-filter=D</code> and <code>git show</code> against the parent of the commit that deleted each one; provenance was checked by re-encoding one with the shipped settings and comparing SHA-256 against the committed container, which matches byte for byte. The encoder sweep re-encoded each failing texture at <code>qualityLevel</code> 128, 192 and 255 and once as UASTC, and measured all four the same way. <strong>What was not run:</strong> no on-screen-size sweep. The gate is defined at 1:1 &mdash; <code>codecRms</code> in <code>tools/resize-textures.mjs</code> compares the decoded output against the pixels that went into the encoder &mdash; and re-measuring at the size furniture happens to be drawn at, in order to let a failure pass, would be moving the threshold rather than meeting it. <strong>Three repository inaccuracies were found and, unlike a planning pass, all three were fixed here:</strong> the Linear-sRGB frame behind C1's published figures, the one-directional repointer, and the &ldquo;1 bit per pixel&rdquo; claim in <code>tools/encode-textures.mjs</code>. The superseded oracle figures are kept in place with a corrected column written beside them rather than overwritten, because what C1 decided and why is still the record.</p>
   <p><strong>Sources &mdash; RM-006.</strong> <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_texture_basisu/README.md">KHR_texture_basisu</a> &middot; <a href="https://github.com/KhronosGroup/KTX-Specification">KTX 2.0 container specification</a> &middot; <a href="https://threejs.org/docs/#manual/en/introduction/Color-management">three.js &mdash; Color management</a> &middot; <a href="https://threejs.org/docs/#api/en/textures/CompressedTexture">three.js &mdash; CompressedTexture</a> &middot; <a href="https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_etc/">WEBGL_compressed_texture_etc</a></p>
-  <p>architect3d &middot; Delivery &amp; precision program RM-004 rev A &middot; <strong>delivered</strong>, all five sprints &middot; residual program RM-005 rev A &middot; <strong>delivered</strong>, both sprints &middot; correction program RM-006 rev A &middot; <strong>delivered</strong> &middot; successor to hardening program RM-003</p>
+  <p><strong>Method &mdash; RM-007.</strong> Two kinds of measurement against the working tree at <code>8510642</code> on branch <code>amit</code>, and one comparison. <em>The code</em> &mdash; every file under <code>src/scripts</code> and <code>src/app</code> read for what it does rather than what it says, with the line references in &sect; 33 and &sect; 34 pointing at that tree; the catalog and texture lists counted by script (168 items in eight placement types, 142 of them Kenney, 25 baked, one duck; five wall and two floor textures, two of them one file). <em>The application</em> &mdash; booted under Vite in headless Chromium at 1440&times;900 and 390&times;844, driven through fifteen states (plan, split, 3D, catalog open, two items added, item selected, walls drawn, wall selected on the plan and in 3D, walkthrough attempted, shortcuts dialog) and screenshotted at each; the &ldquo;0 of 2&rdquo; and &ldquo;40 px strip&rdquo; figures are read off those pictures. <em>The comparison</em> &mdash; Coohom's own floor-planner page and Sweet Home 3D's feature page were read for what a planner is expected to do, and used as a checklist and nothing more; no figure in this drawing comes from either. Effort is at the single-developer cadence RM-001 was planned at, stated at &plusmn;40 % because nothing here has been measured against a sprint yet; every programme gets its own drawing before it starts.</p>
+  <p><strong>Sources &mdash; RM-007.</strong> <a href="https://www.coohom.com/case/floor-planner">Coohom &mdash; Floor Planner</a> &middot; <a href="https://www.sweethome3d.com/features.jsp">Sweet Home 3D &mdash; Features</a> &middot; <a href="https://kenney.nl/assets/furniture-kit">Kenney &mdash; Furniture Kit (CC0)</a> &middot; <a href="https://polyhaven.com/">Poly Haven (CC0)</a> &middot; <a href="https://ambientcg.com/">ambientCG (CC0)</a> &middot; <a href="https://quaternius.com/">Quaternius (CC0)</a> &middot; <a href="https://threejs.org/docs/">three.js documentation</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API">MDN &mdash; Service Worker API</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API">MDN &mdash; IndexedDB</a></p>
+  <p>architect3d &middot; Delivery &amp; precision program RM-004 rev A &middot; <strong>delivered</strong>, all five sprints &middot; residual program RM-005 rev A &middot; <strong>delivered</strong>, both sprints &middot; correction program RM-006 rev A &middot; <strong>delivered</strong> &middot; product roadmap RM-007 rev A &middot; <strong>proposed</strong>, eight programmes, 44.5 weeks &middot; successor to hardening program RM-003</p>
   <p class="credit">Created by <a href="https://amitukind.com" target="_blank" rel="noopener noreferrer">Amit Verma</a></p>
 </footer>
 
