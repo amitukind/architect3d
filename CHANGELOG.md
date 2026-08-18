@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-08-16
+
+No shipped code changed — `src/` is byte-identical to 3.0.0 and so is every
+build artifact. This exists because 3.0.0's own commit fails `npm run
+test:coverage`, which both CI and deploy run, so the tag was a trap for anyone
+who checked it out.
+
+**Branch coverage was under its floor** — 66.86% against 68 — and had been since
+RM-005 C2, whose defensive guards added branches that nothing exercised and
+whose close-out ran every gate except this one. Three new suites close it, all
+of them covering paths that were genuinely untested rather than padding:
+`core/texture_formats.js` was at 27.9% branches and decides whether a KTX2 may
+be transcoded at all; `Corner`'s `y` setter had never been called by any test;
+and `Wall.distanceFrom`, `oppositeCorner`, `getClosestCorner` and
+`updateAttachedRooms` were all at zero including every failure branch.
+
+    branches   66.86 -> 68.41    lines      79.29 -> 80.08
+    statements 79.18 -> 80.00    functions  78.44 -> 79.17
+
+Floors are unchanged. Raising them to capture the gain would put statements at
+exactly its own threshold, which recreates the failure.
+
 ## [3.0.0] - 2026-08-16
 
 **A major, for one line.** `Item.remove(child)` now detaches the child instead
