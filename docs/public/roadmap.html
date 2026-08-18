@@ -265,6 +265,12 @@ footer .credit a:hover{text-decoration:underline}
   <a href="#plan-findings">38 · Decision log</a>
   <a href="#plan-sprints">39 · Sprints E1–E4</a>
   <a href="#plan-risks">40 · Risks &amp; compatibility</a>
+
+  <div class="toc-head mono" style="margin-top:22px">PROGRAMME F RM-009</div>
+  <a href="#openprog">41 · Executive summary</a>
+  <a href="#open-findings">42 · Decision log</a>
+  <a href="#open-sprints">43 · Sprints F1–F3</a>
+  <a href="#open-risks">44 · Risks &amp; compatibility</a>
 </nav>
 
 <main>
@@ -3487,6 +3493,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
         <li><strong>M-25 &mdash; openings are numbers.</strong> Every door and window in a fixture design round-trips width, height, sill, hinge and swing through the file, and its wall hole matches them to the centimetre</li>
       </ul>
     </div>
+    <p class="corr">Re-drawn by RM-009 (the programme's own drawing, 2026-08-19) at the same <strong>6 weeks</strong>, with two corrections. F2's &ldquo;half walls via per-wall height&rdquo; is <strong>withdrawn</strong>: RM-008 E2 measured that <code>Wall.height</code> does not set a wall's height and declined the parity change that would make it, so half walls are built on the corners instead (U-5). And the audit F2 was given turned up two things rather than one &mdash; interior faces that do not meet at a corner where thickness changes, and a room area that is the centreline area and reads 5.2 % high at the default wall thickness (U-7). M-35, M-36 and M-37 are added there.</p>
   </div>
 
   <div class="sprint">
@@ -3989,6 +3996,240 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
   <p style="margin-top:16px">First commit of E1 is the projection and its headless test, before a single line of drawing code &mdash; because the contract is the part that is expensive to change later, and it is the part that makes the rest of the programme testable at all.</p>
 </section>
 
+<!-- ======================= RM-009 · PROGRAMME F ======================= -->
+<header class="sheet">
+  <div class="sheet-body">
+    <div class="eyebrow">PROGRAMME F · DRAWING Nº RM-009</div>
+    <h1>A door is a number, not a mesh</h1>
+    <p class="lede">RM-007 put programme F after E because a plan you can draw and read still cannot say how wide the door is. Measuring the catalog before writing any of it found something sharper than a missing feature: <strong>ten of 168 items cut a wall at all, and seven of those ten are unusable</strong> &mdash; they arrive between 3.0 and 3.9 metres tall and are cut into a wall 2.5 metres high. And an opening larger than its wall does not fail; <strong>it makes the wall taller</strong>. Three sprints, 6 weeks, and the first decision is a data model rather than a geometry generator.</p>
+  </div>
+  <div class="titleblock">
+    <div><div class="tb-k">PROJECT</div><div class="tb-v">architect3d</div></div>
+    <div><div class="tb-k">PARENT</div><div class="tb-v">RM-007 rev B · programme F</div></div>
+    <div><div class="tb-k">BRANCH</div><div class="tb-v">amit @ ea31d45</div></div>
+    <div><div class="tb-k">SCOPE</div><div class="tb-v">3 sprints · 6 wk</div></div>
+    <div><div class="tb-k">DATE</div><div class="tb-v">2026-08-19</div></div>
+    <div><div class="tb-k">REV</div><div class="tb-v">A · proposed</div></div>
+  </div>
+</header>
+
+<section id="openprog">
+  <div class="sec-eyebrow">§ 41 · EXECUTIVE SUMMARY</div>
+  <h2>What measuring the openings changed about the openings</h2>
+  <p class="sec-sub">Seven measurements against the tree at <code>ea31d45</code>, four of them run in headless Chromium against the library as the dev server serves it. Two contradict a plan this document set already carries, and one of those two is RM-007's.</p>
+
+  <div class="stats">
+    <div class="stat"><div class="v">10 of 168</div><div class="k">catalog items that cut a hole in a wall &mdash; every door, window and opening the application has</div></div>
+    <div class="stat"><div class="v">7 of 10</div><div class="k">of those that arrive 303&ndash;387 cm tall, measured in a live page, and are cut into a wall 250 cm high</div></div>
+    <div class="stat"><div class="v">+137 cm</div><div class="k">how much taller a 400&times;250 wall becomes when a 300&times;387 opening is cut into it. It does not fail; the hole is merged into the outline</div></div>
+    <div class="stat"><div class="v">0</div><div class="k">fields in the save file for a door's width, height, sill, hinge side or swing. There is a mesh URL and three scale factors</div></div>
+  </div>
+
+  <p><strong>The finding that shapes the programme.</strong> An opening in this application is a mesh with a scale factor. <code>Edge.createShape</code> (<code>three/edge.js:471</code>) walks the wall's items, takes each one's <code>halfSize</code>, and pushes an axis-aligned rectangle into the wall shape's holes &mdash; so <strong>the frame and the hole are the same rectangle</strong>, and the size of both is whatever mesh the catalog happens to ship, multiplied by whatever scale the file happens to carry. A person who wants a 900&nbsp;mm door has no way to ask for one, and the file has nowhere to record that they did.</p>
+
+  <p><strong>Which is why F1 is a data model first and geometry second.</strong> Width, height, sill height, hinge side and swing angle are five numbers. Once they are on the item and in the file, the plan symbol, the wall hole and the 3D frame are all *derived* from the same five &mdash; which is the property M-25 asserts and the property the current arrangement cannot have, because a mesh's bounding box is the only thing anything reads. The geometry generator is the easy half and it comes second deliberately: a procedural door drawn from a mesh's dimensions would be the same bug in a new file.</p>
+
+  <p><strong>The correction.</strong> RM-007 &sect;&nbsp;35 prices F2 as &ldquo;half walls via <em>per-wall height</em>&rdquo;. RM-008 E2 then measured that <code>Wall.height</code> is not the height of a wall &mdash; the drawn top comes from the two corners' elevations &mdash; and declined to derive it, because doing so fails a frozen r98 golden and three r98 is gone. So F2 cannot be built as RM-007 states it. It is re-drawn below around the corners, which are where a height already lives and already saves, and the parity change stays declined.</p>
+
+  <p><strong>What is cheap, and what is not.</strong> The generator is cheap: a door leaf, a frame and a pane are boxes, and <code>ShapeGeometry</code> is already in the tree cutting wall outlines. What is not cheap is the item model &mdash; <code>Item</code> is 1,100 lines with a size that is read off a loaded mesh, and a parametric item has no mesh to read. That is the seam this programme has to open carefully, and it is why F1 carries three weeks for what looks like a day of geometry.</p>
+</section>
+
+<section id="open-findings">
+  <div class="sec-eyebrow">§ 42 · DECISION LOG</div>
+  <h2>Seven findings, four of them run in a browser</h2>
+  <p class="sec-sub">Each row was produced against <code>ea31d45</code>. Where a size is quoted it was read off a live <code>Item</code> after the loader had finished with it, not off the file on disk &mdash; because the two differ, and the difference is finding U-3.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Nº</th><th>Finding</th><th>Severity</th><th>Method</th><th>Sprint</th></tr></thead>
+    <tbody>
+      <tr><td style="white-space:nowrap">U-1</td><td>Ten of 168 catalog items cut a wall, and seven of the ten are 303&ndash;387 cm tall</td><td><span class="chip crit">shapes F1</span></td><td>loaded in-browser, <code>halfSize</code> read</td><td>F1</td></tr>
+      <tr><td style="white-space:nowrap">U-2</td><td>An opening bigger than its wall does not cut it &mdash; it extends the wall to fit</td><td><span class="chip crit">high</span></td><td><code>ShapeGeometry</code> bounding box</td><td>F1</td></tr>
+      <tr><td style="white-space:nowrap">U-3</td><td>Any model under two units wide is multiplied by 300, and 142 of 168 items are</td><td><span class="chip warn">med</span></td><td><code>item.js:636</code>, sizes read live</td><td>F1 · J1</td></tr>
+      <tr><td style="white-space:nowrap">U-4</td><td>The file has no width, height, sill, hinge or swing &mdash; a mesh URL and three scale factors</td><td><span class="chip crit">shapes F1</span></td><td><code>item.js:1062</code>, read</td><td>F1</td></tr>
+      <tr><td style="white-space:nowrap">U-5</td><td>RM-007's &ldquo;half walls via per-wall height&rdquo; cannot be built: E2 measured that the field does nothing</td><td><span class="chip crit">correction</span></td><td>RM-008 E2, geometry measured</td><td>F2</td></tr>
+      <tr><td style="white-space:nowrap">U-6</td><td>Nothing in the tree generates geometry from numbers. F1 writes the first</td><td><span class="chip">low</span></td><td>grep for geometry constructors</td><td>F1 · F3</td></tr>
+      <tr><td style="white-space:nowrap">U-7</td><td>At mixed wall thickness the interior faces do not meet, and a room's stated area is its centreline area &mdash; 5.2 % over at 10 cm walls</td><td><span class="chip warn">med</span></td><td>constructed plan, polygons compared</td><td>F2</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>U-1 · Ten items cut a wall, and seven of them cannot be used <span class="chip crit">shapes F1</span> <span class="chip acc">measured</span></h3>
+  <p>The catalog holds 168 items in eight placement types. Only types 3 (<code>InWallItem</code>) and 7 (<code>InWallFloorItem</code>) reach <code>Edge.createShape</code>'s hole loop, and there are <strong>eight and two of them</strong>. That is the whole door-and-window vocabulary of the application. Each was loaded into a live page against a 400&nbsp;&times;&nbsp;400&nbsp;cm room whose walls are 250&nbsp;cm high, and its <code>halfSize</code> read after the loader had finished:</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Item</th><th>Source</th><th class="num">Width</th><th class="num">Height</th><th class="num">Depth</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td>Closed Door</td><td>legacy</td><td class="num">97</td><td class="num">222</td><td class="num">8</td><td><span class="chip ok">a door</span></td></tr>
+      <tr><td>Open Door</td><td>legacy</td><td class="num">97</td><td class="num">222</td><td class="num">8</td><td><span class="chip ok">a door</span></td></tr>
+      <tr><td>Window</td><td>legacy</td><td class="num">123</td><td class="num">170</td><td class="num">15</td><td><span class="chip ok">a window</span></td></tr>
+      <tr><td>Doorway, Doorwayfront, Doorwayopen</td><td>Kenney</td><td class="num">146</td><td class="num">303</td><td class="num">34</td><td><span class="chip crit">taller than the wall</span></td></tr>
+      <tr><td>Walldoorway, Walldoorwaywide</td><td>Kenney</td><td class="num">300</td><td class="num">387</td><td class="num">27</td><td><span class="chip crit">taller than the wall</span></td></tr>
+      <tr><td>Wallwindow, Wallwindowslide</td><td>Kenney</td><td class="num">300</td><td class="num">387</td><td class="num">27</td><td><span class="chip crit">taller than the wall</span></td></tr>
+      <tr><td colspan="6" style="opacity:.7">Centimetres, measured after loading. The wall they are cut into is 250 cm high.</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><strong>The four Kenney wall pieces measure identically</strong> &mdash; 300&nbsp;&times;&nbsp;387&nbsp;&times;&nbsp;27 for a doorway, a wide doorway, a window and a sliding window. They are not doors and windows at all: they are <em>wall panels with an opening in them</em>, authored as a full wall segment, and they have been typed as in-wall items. So the application ships one door at one size, one window at one size, and eight things that cannot be used. RM-007 J1 already plans to move &ldquo;the twelve wall segments&rdquo; out of furniture; this is the same mistake seen from the other end, and F1 makes it moot for openings by not needing a mesh at all.</p>
+
+  <h3>U-2 · An oversized opening makes the wall taller <span class="chip crit">high</span> <span class="chip acc">measured</span></h3>
+  <p>The obvious expectation is that a hole bigger than its shape throws, or produces nothing. It does neither. <code>Edge.createShape</code> builds a <code>Shape</code> from the wall outline and pushes each opening in as a <code>Path</code> in <code>shape.holes</code>; <code>ShapeGeometry</code> then triangulates the contour and its holes together. Run against the exact numbers above:</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Wall 400 &times; 250 with&hellip;</th><th class="num">Triangles</th><th class="num">Mesh top</th><th>What happened</th></tr></thead>
+    <tbody>
+      <tr><td>no opening</td><td class="num">2</td><td class="num">250</td><td>a rectangle</td></tr>
+      <tr><td>the legacy door, 97 &times; 222</td><td class="num">6</td><td class="num">250</td><td>cut correctly</td></tr>
+      <tr><td>a Kenney wall doorway, 300 &times; 387</td><td class="num">4</td><td class="num"><strong>387</strong></td><td>the hole was <strong>merged into the outline</strong></td></tr>
+    </tbody>
+  </table></div>
+
+  <p>The wall grows by 137&nbsp;cm to swallow the opening. Nothing errors, nothing warns, and the plan view is unaffected because it draws the graph rather than the mesh &mdash; so this is visible only in 3D, and only as &ldquo;that wall is the wrong height&rdquo;. <strong>F1 clamps an opening to its wall and says so</strong>, which is a two-line guard; the reason it is a finding rather than a bug fix is that it explains why the seven unusable items were never noticed to be unusable.</p>
+
+  <h3>U-3 · Everything under two units wide is multiplied by 300 <span class="chip warn">med</span> <span class="chip acc">measured</span></h3>
+  <p><code>Item.initObject</code> (<code>items/item.js:636</code>) reads, in full:</p>
+  <pre><code>// An ugly hack to increase the size of gltf models
+if(this.halfSize.x &lt; 1.0)
+{
+    this.resize(this.getHeight()*300, this.getWidth()*300, this.getDepth()*300);
+}</code></pre>
+  <p>Its own comment names it. <strong>142 of the 168 catalog items come from the Kenney kit</strong>, authored in a unit system where a chair is under a unit wide, so effectively the whole catalog goes through this branch. Measured live, after the hack:</p>
+  <div class="tw"><table>
+    <thead><tr><th>Item</th><th class="num">W</th><th class="num">H</th><th class="num">D</th><th>What that is</th></tr></thead>
+    <tbody>
+      <tr><td>Stairs</td><td class="num">547</td><td class="num">402</td><td class="num">237</td><td>a flight 5.5 m wide and 4 m tall</td></tr>
+      <tr><td>Stairscorner</td><td class="num">532</td><td class="num">402</td><td class="num">428</td><td>&mdash;</td></tr>
+      <tr><td>Table</td><td class="num">252</td><td class="num">98</td><td class="num">134</td><td>a table a metre high</td></tr>
+      <tr><td>Chair <span class="chip ok">legacy</span></td><td class="num">46</td><td class="num">79</td><td class="num">51</td><td>a chair, and not scaled</td></tr>
+    </tbody>
+  </table></div>
+  <p>A single blanket multiplier cannot be right for a kit whose pieces have different intended sizes, and 300 in particular reads as &ldquo;three metres per unit&rdquo; where the kit is authored at roughly one. <strong>This is not F's to fix</strong> and the drawing says so: per-item real dimensions are RM-007 <strong>J1</strong>, which already plans them. What F owes is that its own work does not depend on the hack &mdash; a parametric door has no mesh, so it does not go near this branch, and F3's stairs replace the four items in the table above rather than scaling them.</p>
+
+  <h3>U-4 · The file has no door in it <span class="chip crit">shapes F1</span> <span class="chip acc">measured</span></h3>
+  <p><code>Item.getMetaData</code> (<code>items/item.js:1062</code>) writes exactly this per item:</p>
+  <pre><code>{id, item_name, item_type, format, model_url,
+ xpos, ypos, zpos, rotation, scale_x, scale_y, scale_z, fixed, material_colors?}</code></pre>
+  <p>Three consequences, and each one is a sprint task rather than an observation. <strong>Size is a scale factor</strong>, so &ldquo;900&nbsp;mm wide&rdquo; is recorded as &ldquo;0.927 times whatever <code>closed-door28x80_baked.glb</code> happens to be&rdquo;, and a design opened after that file is re-exported silently changes size. <strong>There is no sill</strong>: a window's height above the floor is the y of its centre, which is derived from the mesh at placement and never stated. And <strong><code>rotation</code> is a single number</strong> &mdash; the y angle &mdash; so a hinge side and a swing angle have nowhere to live at all, which is why the plan's door symbol has drawn the same arc for every door since RM-008 E1 and said so in its own docblock.</p>
+
+  <h3>U-5 · Half walls cannot be built the way RM-007 says <span class="chip crit">correction</span> <span class="chip acc">measured</span></h3>
+  <p>RM-007 &sect;&nbsp;35 prices F2 as &ldquo;openings without a mesh, <strong>half walls via per-wall height</strong>, columns and beams&rdquo;. RM-008 E2 measured what <code>Wall.height</code> does: a wall with <code>height</code> 400 and its corners at 250 draws a mesh <strong>250</strong> tall, and raising the corners to 400 draws one 400 tall while <code>height</code> still reads 250. The drawn top comes from the corner elevations and from nothing else. E2 wrote the derivation, found it fails the frozen r98 golden for <code>edge.plain</code>, and reverted it &mdash; that is a parity change needing a fresh capture, and three r98 is gone.</p>
+  <p>So a per-wall height field would be a second number that does not reach the geometry, which is precisely the defect E2 declined to entrench. <strong>F2 builds half walls on the corners instead</strong>: a half wall is a wall whose two corners are at 110&nbsp;cm, the room inspector already sets a room's corners in one gesture (E3), and the file already carries corner elevations and always has. Nothing is added to the format, the parity change stays declined, and the feature is the same feature.</p>
+  <p>The cost of that choice is stated rather than hidden: <strong>a corner is shared</strong>, so lowering one end of a half wall lowers the wall next to it. F2 therefore needs a corner split &mdash; give this wall its own corner at the same place &mdash; and that is the sprint's real task, not the height field.</p>
+
+  <h3>U-6 · Nothing here generates geometry from numbers yet <span class="chip">low</span> <span class="chip acc">measured</span></h3>
+  <p>Every mesh in the tree is loaded or extruded from the plan: <code>ShapeGeometry</code> for wall faces and floors, a triangle fan for roof planes, <code>PlaneGeometry</code> for the item size labels, and glTF for everything else. <strong>There is no procedural item</strong>, so F1 writes the first one and F3 the second, and the two share the seam. That is an argument for building the door generator behind a small, dull interface &mdash; numbers in, a <code>BufferGeometry</code> and a material list out &mdash; rather than inside <code>Item</code>, so that F3's stairs and any later parametric object are the second caller of something rather than the second copy of it.</p>
+
+  <h3>U-7 · Wall joins at mixed thickness, and the area a room reports <span class="chip warn">med</span> <span class="chip acc">measured</span></h3>
+  <p>RM-007 asks F2 for &ldquo;an audit of wall joins at thickness&rdquo;, and E2 made mixed thickness reachable. A 400&nbsp;&times;&nbsp;400 room with one wall at 40&nbsp;cm and the next at 10:</p>
+  <div class="tw"><table>
+    <thead><tr><th>&nbsp;</th><th>Interior face runs</th><th>At the shared corner</th></tr></thead>
+    <tbody>
+      <tr><td>wall A, 40 cm</td><td><code>20,20 &rarr; 380,20</code></td><td>ends at y = 20</td></tr>
+      <tr><td>wall B, 10 cm</td><td><code>395,5 &rarr; 395,395</code></td><td>starts at y = 5</td></tr>
+      <tr><td colspan="3" style="opacity:.7">The room's interior polygon is <code>20,20 | 395,5 | 395,395 | 5,395</code> &mdash; one point per corner, taken from one wall.</td></tr>
+    </tbody>
+  </table></div>
+  <p>The two interior faces <strong>do not meet</strong>: the room's floor runs to <code>395,5</code>, which is 15&nbsp;cm inside wall A's inner face. On screen that is a notch of floor drawn over a wall. It is invisible today only because nobody has had per-wall thickness for long.</p>
+  <p><strong>And a second thing fell out of the same measurement.</strong> <code>Room.updateArea</code> walks <code>this.corners</code> &mdash; the wall <em>centrelines</em> &mdash; so the area on the plan and in the inspector is neither the inside nor the outside of the room. A 400&nbsp;&times;&nbsp;400 room at the default 10&nbsp;cm walls reports <strong>16.00 m&sup2;</strong> where the floor a person can stand on is <strong>15.21</strong>: over by 5.2 %, and by about 19 % at 40&nbsp;cm walls. Usable floor area is one of the two or three numbers anybody actually wants from a plan. F2 fixes it, and keeps the centreline figure available, because that is what a builder measures.</p>
+</section>
+
+<section id="open-sprints">
+  <div class="sec-eyebrow">§ 43 · SPRINTS</div>
+  <h2>Three sprints, six weeks</h2>
+  <p class="sec-sub">Effort at the same single-developer cadence as every drawing in this set. RM-007's figures are kept; what changes is what F2 contains, for the reason U-5 gives.</p>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">F1</span>
+      <h3>A door is five numbers</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip crit">Q-2</span><span class="chip">U-1</span><span class="chip">U-2</span><span class="chip">U-4</span><span class="chip">3 wk</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Width, height, sill, hinge and swing on the item and in the file, with the plan symbol, the wall hole and the 3D frame all derived from them.</p>
+    <ul>
+      <li><strong>The data model first, and alone in its own commit.</strong> An <code>Opening</code> description &mdash; width, height, sill, hinge side, swing angle, style &mdash; carried by the item, written explicitly to the file (T-6), absent from every older one, and read back exactly. Nothing is generated until this round-trips.</li>
+      <li><strong>The hole comes from the numbers, not the mesh.</strong> <code>Edge.createShape</code> asks the item for its opening rectangle rather than its bounding box, and clamps it to the wall &mdash; U-2's silent wall-stretching becomes a clamp and a console note.</li>
+      <li><strong>Then the geometry.</strong> A generator behind a dull interface &mdash; numbers in, geometry and materials out &mdash; producing a frame, a leaf or sash and a pane, in a handful of styles. Deliberately the second commit, not the first: a procedural door sized from a mesh's bounding box would be U-4 again in a new file.</li>
+      <li><strong>The plan symbol follows.</strong> The swing arc drawn since E1 becomes <em>this</em> door's swing: hinge side and angle, drawn from the same five numbers, and a sash symbol for a window. E1's own docblock says the arc is a convention until F1; this is where it stops being one.</li>
+      <li><strong>Catalog meshes stay.</strong> A parametric door is a new item type, not a replacement, so every existing design opens unchanged and anybody who wants a mesh door keeps one.</li>
+    </ul>
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE</div>
+      <ul>
+        <li><strong>M-25 = openings are numbers.</strong> Every door and window in a fixture round-trips width, height, sill, hinge and swing through the file, and its wall hole matches them to the centimetre</li>
+        <li><strong>M-35 = no opening exceeds its wall.</strong> For every fixture and every generated opening, the wall mesh's height equals the corner elevations &mdash; the assertion U-2 would have failed</li>
+        <li>A file written before F1 opens with its mesh doors unchanged and re-saves byte-identical</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">F2</span>
+      <h3>Openings, half walls and the join audit</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip">Q-3</span><span class="chip crit">U-5</span><span class="chip">U-7</span><span class="chip">1.5 wk</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> A hole with nothing in it, a wall that stops at waist height, and the two things per-wall thickness broke.</p>
+    <ul>
+      <li><strong>Openings without a mesh</strong> &mdash; archway, pass-through, serving hatch &mdash; which F1 makes nearly free: they are the same five numbers with no leaf and no pane.</li>
+      <li><strong>Half walls on the corners, not on a height field</strong> (U-5). A wall is lowered by lowering its corners, which already save and already draw; the sprint's real work is a <strong>corner split</strong>, so lowering one wall does not lower its neighbour. RM-007's per-wall height is withdrawn rather than deferred, and E2's declined parity change stays declined.</li>
+      <li><strong>Columns and beams as parametric items</strong>, on F1's generator, since they are boxes with numbers and no mesh should be involved.</li>
+      <li><strong>The join audit, with two things to fix</strong> (U-7): interior faces that do not meet at a corner where thickness changes, and a room area that is the centreline area and is over by 5.2 % at 10 cm walls and about 19 % at 40. Usable floor area becomes the number on the plan; the centreline figure stays available.</li>
+    </ul>
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE</div>
+      <ul>
+        <li><strong>M-36 = the room is the floor.</strong> A room's reported area equals its interior polygon's area for every fixture, at every wall thickness, and a 400 &times; 400 room at 10 cm walls reads 15.21 m&sup2;</li>
+        <li>Two walls of different thickness meeting at a corner produce interior faces that share a point &mdash; asserted on the polygon, not on a picture</li>
+        <li>A half wall lowers its own corners and no others</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">F3</span>
+      <h3>Stairs</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip">Q-3</span><span class="chip">U-3</span><span class="chip">U-6</span><span class="chip">1.5 wk</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> A flight of stairs with a rise, a going and a width, and a footprint on the plan that says which way is up.</p>
+    <ul>
+      <li>Straight, L and U flights on F1's generator &mdash; the second caller, which is the test of whether that interface was worth having.</li>
+      <li>Rise, going, width, tread count and handrail in the inspector; the going and the rise are what a building code is written in, so they are what the fields say.</li>
+      <li>A plan footprint with the tread lines and an up arrow, drawn through E4's backend so it exports, and a <strong>stairwell hint</strong> &mdash; the rectangle a floor above would need to open &mdash; recorded for G2 rather than acted on.</li>
+      <li>The four catalog stair meshes, which measure 5.5 m wide and 4 m tall (U-3), are superseded rather than scaled.</li>
+    </ul>
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE</div>
+      <ul>
+        <li><strong>M-37 = a flight is its numbers.</strong> Tread count &times; going equals the flight's plan length and tread count &times; rise equals its height, for every generated flight, to the millimetre</li>
+        <li>A stair round-trips through the file and appears on an exported sheet at the right size</li>
+      </ul>
+    </div>
+  </div>
+
+  <p style="margin-top:16px">Six weeks, unchanged from RM-007, and the shape inside them has moved: <strong>F1 is the only sprint here that decides anything</strong>. The opening description in U-4 is what F2's archways and F3's stairs both build on, and it is the reason this drawing exists before the code rather than after it &mdash; the same argument RM-008 made for E1's projection, and it held.</p>
+</section>
+
+<section id="open-risks">
+  <div class="sec-eyebrow">§ 44 · RISKS &amp; COMPATIBILITY</div>
+  <h2>What could go wrong, and what must not change</h2>
+
+  <div class="tw"><table>
+    <thead><tr><th>Risk</th><th>Where</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td>A parametric item and a mesh item become two incompatible kinds of furniture</td><td>F1</td><td>The parametric one is a new item type on the existing <code>Item</code> base, so selection, undo, the plan projection and the file all reach it unchanged. What differs is where its geometry comes from</td></tr>
+      <tr><td>The generator is written inside <code>Item</code> and F3 copies it</td><td>F1, F3</td><td>U-6 is the reason it goes behind an interface in F1 with stairs named as the second caller. If the interface is wrong, F3 is where that is discovered, and 1.5 weeks is a cheap place to discover it</td></tr>
+      <tr><td>Fixing the room area changes a number every existing design shows</td><td>F2</td><td>It does, and that is the point &mdash; it is currently wrong by 5.2 % at the default thickness. The centreline figure stays available; the change is recorded as a visible one with the before and after stated, not slipped in</td></tr>
+      <tr><td>The corner split leaves orphaned corners</td><td>F2</td><td>The same path <code>splitWall</code> already uses (E2), which keeps identity and was built with the join-removal bug that sprint found; the split is asserted on the graph rather than on the drawing</td></tr>
+      <tr><td>Clamping an opening to its wall silently shrinks somebody's door</td><td>F1</td><td>It is a clamp with a console note and a plan symbol that shows the clamped size, which is strictly better than U-2's silent wall-stretching. M-35 asserts the wall's height instead of the opening's</td></tr>
+      <tr><td>The &times;300 hack is inherited rather than avoided</td><td>F1, F3</td><td>Parametric items have no loaded mesh and do not reach <code>initObject</code>'s branch. Fixing it for the catalog stays RM-007 J1's, named here so it is a decision and not an oversight</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>What must not change</h3>
+  <p>The <strong>save format</strong> stays readable by any build that reads 2.0.0: the opening description is additive and written explicitly, and a file with mesh doors in it opens and re-saves byte-identical. <strong><code>Wall.height</code> stays as it is</strong> &mdash; pinned by E2 with the measurement beside it &mdash; because deriving it is a parity change with a fresh capture attached and three r98 is gone; F2 works on the corners instead. The <strong>one-way arrow</strong> holds: a generator produces geometry for <code>src/scripts/three</code> and the model layer keeps holding numbers. The <strong>preserved polygon predicates</strong> are untouched again; collision remains RM-007 J4's re-baseline. And <strong>no metric moves down</strong>: the coverage floors and the budgets are ratchets, and <code>items/item.js</code> at 63.60 % statements and <code>items/floor_item.js</code> at 36.00 are the two least-covered files this programme touches, which is why each sprint above carries its own test budget rather than an intention.</p>
+
+  <p style="margin-top:16px">First commit of F1 is the opening description and its round-trip test, before a single triangle is generated &mdash; because U-4 is the finding, and geometry drawn from a mesh's bounding box would be the same defect wearing a new file's name.</p>
+</section>
+
 
 <footer>
   <p><strong>Method &mdash; RM-004.</strong> Three measurements against the working tree at <code>3cf1c24</code> on branch <code>amit</code>, all of them produced by running something rather than by reading code. <em>The payload</em> &mdash; every one of the 370 manifest entries read and gzipped at level 9, and every <code>.glb</code> walked chunk by chunk, splitting the BIN into buffer views an accessor points at, views an image points at, and the remainder, then a census of accessor <code>componentType</code> per attribute semantic and of index width against each primitive's <code>POSITION</code> count. <em>Wall identity</em> &mdash; three fixtures loaded, censused, round-tripped through <code>saveFloorplan()</code> and <code>loadFloorplan()</code> and intersected, plus a constructed two-walls-one-pair case run through the same round trip. <em>The type ledger</em> &mdash; <code>npx vue-tsc --noEmit --checkJs</code>, bucketed by area, by error code and by file. <strong>What was not run:</strong> no codec. Draco, meshopt and KTX2 are named throughout and none has been executed against this catalog, which is why M-12 carries no target and why B1's first task is the trial rather than its conclusion. Two repository inaccuracies were found and are recorded in §21 G-3 rather than fixed, since this is a planning pass: <code>tsconfig.json</code>'s SFC subtotal disagrees with the tree <em>and</em> with its own itemisation.</p>
@@ -4000,9 +4241,11 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
   <p><strong>Sources &mdash; RM-006.</strong> <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_texture_basisu/README.md">KHR_texture_basisu</a> &middot; <a href="https://github.com/KhronosGroup/KTX-Specification">KTX 2.0 container specification</a> &middot; <a href="https://threejs.org/docs/#manual/en/introduction/Color-management">three.js &mdash; Color management</a> &middot; <a href="https://threejs.org/docs/#api/en/textures/CompressedTexture">three.js &mdash; CompressedTexture</a> &middot; <a href="https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_etc/">WEBGL_compressed_texture_etc</a></p>
   <p><strong>Method &mdash; RM-007.</strong> Two kinds of measurement against the working tree at <code>8510642</code> on branch <code>amit</code>, and one comparison. <em>The code</em> &mdash; every file under <code>src/scripts</code> and <code>src/app</code> read for what it does rather than what it says, with the line references in &sect; 33 and &sect; 34 pointing at that tree; the catalog and texture lists counted by script (168 items in eight placement types, 142 of them Kenney, 25 baked, one duck; five wall and two floor textures, two of them one file). <em>The application</em> &mdash; booted under Vite in headless Chromium at 1440&times;900 and 390&times;844, driven through fifteen states (plan, split, 3D, catalog open, two items added, item selected, walls drawn, wall selected on the plan and in 3D, walkthrough attempted, shortcuts dialog) and screenshotted at each; the &ldquo;0 of 2&rdquo; and &ldquo;40 px strip&rdquo; figures are read off those pictures, and rev B added 1024&times;768, 1280&times;720 and 1366&times;768 with the split view and the catalog open, reading the plan canvas width and <code>scrollWidth</code> against the viewport (462, 505 and 334 px of plan; no overflow at any). <em>The comparison</em> &mdash; Coohom's own floor-planner page and Sweet Home 3D's feature page were read for what a planner is expected to do, and used as a checklist and nothing more; no figure in this drawing comes from either. Effort is at the single-developer cadence RM-001 was planned at, stated at &plusmn;40 % because nothing here has been measured against a sprint yet; every programme gets its own drawing before it starts.</p>
   <p><strong>Method &mdash; RM-008.</strong> Seven measurements against the working tree at <code>1d53fc8</code> on branch <code>amit</code>, five of them run in headless Chromium against the library as the dev server serves it rather than read off the source. <em>The structure</em> &mdash; a <code>Model</code> constructed in the page and its own properties and its floorplan's read back, which is how &ldquo;a Floorplan has no path to a Scene&rdquo; became a fact rather than an inference. <em>The two selection directions</em> &mdash; the application driven to one click each way, screenshots of the <em>other</em> pane captured immediately before and after, differenced per channel at a tolerance of 6; both returned zero changed pixels, which is what corrects RM-007. <em>The cost</em> &mdash; plans of 1, 4, 16 and 36 rooms built through the real <code>Floorplan</code> and drawn 60 times each after a warm-up, and item footprints drawn 60 times at 20, 60 and 150 into a 1200&times;800 canvas. <em>The coverage</em> &mdash; <code>coverage-summary.json</code> from <code>npm run test:coverage</code>, per file. <em>The primitive surface</em> &mdash; all 77 <code>this.context.*</code> calls in <code>floorplanner_view.js</code> attributed to their enclosing method by script. Effort is at the same single-developer cadence as every drawing in this set, and it is the first in the set to have <strong>raised</strong> its own estimate on the strength of a measurement.</p>
+  <p><strong>Method &mdash; RM-009.</strong> Seven measurements against the working tree at <code>ea31d45</code> on branch <code>amit</code>, four of them run in headless Chromium against the library as the dev server serves it. <em>The openings</em> &mdash; each of the ten wall-cutting catalog items loaded into a live page onto a wall of a 400&nbsp;&times;&nbsp;400 room, and its <code>halfSize</code> read <em>after</em> the loader had finished with it, which is the only reading that includes the &times;300 branch; the same method applied to four ordinary items for U-3. <em>The oversized hole</em> &mdash; <code>Shape</code>, <code>Path</code> and <code>ShapeGeometry</code> called with the exact numbers those items produced, and the resulting bounding box and triangle count read; that is the three.js primitive <code>Edge.createShape</code> uses, exercised directly rather than through the viewer. <em>The joins</em> &mdash; a plan constructed headlessly with two walls of different thickness, its half-edge interior points and its room polygon compared, and the room's stated area compared against the shoelace area of its own interior corners. <em>The file</em> &mdash; <code>Item.getMetaData</code> read, and the catalog counted by script (168 items in eight placement types, 142 from <code>models/gltf/</code>, ten of types 3 and 7). <strong>What was not run:</strong> no renderer. U-2 is asserted about the geometry <code>Edge</code> builds and not about what a frame looks like, because the failure is a mesh that is the wrong size and a picture would only show that it is; and no procedural door was written, so every figure about the generator is an estimate rather than a measurement. <strong>Two planning inaccuracies were found and are recorded rather than fixed</strong>, since this is a planning pass: RM-007's per-wall height for half walls (U-5), which E2 had already measured out from under it, and the &times;300 hack (U-3), which belongs to J1.</p>
+  <p><strong>Sources &mdash; RM-009.</strong> <a href="https://kenney.nl/assets/furniture-kit">Kenney &mdash; Furniture Kit (CC0)</a> &middot; <a href="https://threejs.org/docs/#api/en/extras/core/Shape">three.js &mdash; Shape</a> &middot; <a href="https://threejs.org/docs/#api/en/geometries/ShapeGeometry">three.js &mdash; ShapeGeometry</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/specification/2.0/README.md">glTF 2.0 specification</a></p>
   <p><strong>Sources &mdash; RM-008.</strong> <a href="https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D">MDN &mdash; CanvasRenderingContext2D</a> &middot; <a href="https://www.w3.org/TR/SVG2/">W3C &mdash; SVG 2</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame">MDN &mdash; requestAnimationFrame</a></p>
   <p><strong>Sources &mdash; RM-007.</strong> <a href="https://www.coohom.com/case/floor-planner">Coohom &mdash; Floor Planner</a> &middot; <a href="https://www.sweethome3d.com/features.jsp">Sweet Home 3D &mdash; Features</a> &middot; <a href="https://kenney.nl/assets/furniture-kit">Kenney &mdash; Furniture Kit (CC0)</a> &middot; <a href="https://polyhaven.com/">Poly Haven (CC0)</a> &middot; <a href="https://ambientcg.com/">ambientCG (CC0)</a> &middot; <a href="https://quaternius.com/">Quaternius (CC0)</a> &middot; <a href="https://threejs.org/docs/">three.js documentation</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API">MDN &mdash; Service Worker API</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API">MDN &mdash; IndexedDB</a></p>
-  <p>architect3d &middot; Delivery &amp; precision program RM-004 rev A &middot; <strong>delivered</strong>, all five sprints &middot; residual program RM-005 rev A &middot; <strong>delivered</strong>, both sprints &middot; correction program RM-006 rev A &middot; <strong>delivered</strong> &middot; product roadmap RM-007 rev B &middot; <strong>proposed</strong>, eight programmes, 42 weeks &middot; programme E RM-008 rev A &middot; <strong>delivered</strong>, all four sprints &middot; successor to hardening program RM-003</p>
+  <p>architect3d &middot; Delivery &amp; precision program RM-004 rev A &middot; <strong>delivered</strong>, all five sprints &middot; residual program RM-005 rev A &middot; <strong>delivered</strong>, both sprints &middot; correction program RM-006 rev A &middot; <strong>delivered</strong> &middot; product roadmap RM-007 rev B &middot; <strong>proposed</strong>, eight programmes, 42 weeks &middot; programme E RM-008 rev A &middot; <strong>delivered</strong>, all four sprints &middot; programme F RM-009 rev A &middot; <strong>proposed</strong>, three sprints, 6 weeks &middot; successor to hardening program RM-003</p>
   <p class="credit">Created by <a href="https://amitukind.com" target="_blank" rel="noopener noreferrer">Amit Verma</a></p>
 </footer>
 
