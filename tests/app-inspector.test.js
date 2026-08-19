@@ -982,6 +982,77 @@ describe('SurfaceInspector', () =>
 		wrapper.unmount();
 	});
 
+	it('tints a wall, and offers to clear the tint only once there is one', async () =>
+	{
+		const {floorplan} = buildSquareRoom();
+		const edge = floorplan.wallEdges()[0];
+		const wrapper = mount(SurfaceInspector, {
+			props: {selection: {type: SELECTION_WALL, object: edge}},
+		});
+
+		// Nothing to clear until something is tinted - a button that undoes a
+		// thing nobody has done is a button that has to be explained.
+		expect(wrapper.find('.btn-outline').exists()).toBe(false);
+
+		const swatch = wrapper.find('input[type="color"]');
+		swatch.element.value = '#204060';
+		await swatch.trigger('change');
+
+		expect(edge.getMaterial().color).toBe('#204060');
+		expect(wrapper.find('.btn-outline').exists()).toBe(true);
+
+		await wrapper.find('.btn-outline').trigger('click');
+		expect(edge.getMaterial().color).toBe('#ffffff');
+		expect(wrapper.find('.btn-outline').exists()).toBe(false);
+
+		wrapper.unmount();
+	});
+
+	it('turns and slides a wall\'s tile', async () =>
+	{
+		const {floorplan} = buildSquareRoom();
+		const edge = floorplan.wallEdges()[0];
+		const wrapper = mount(SurfaceInspector, {
+			props: {selection: {type: SELECTION_WALL, object: edge}},
+		});
+
+		const sliders = wrapper.findAll('input[type="range"]');
+		expect(sliders).toHaveLength(3);
+
+		await sliders[0].setValue('90');
+		await sliders[1].setValue('0.25');
+
+		expect(edge.getMaterial().rotation).toBe(90);
+		expect(edge.getMaterial().offsetX).toBeCloseTo(0.25, 10);
+
+		wrapper.unmount();
+	});
+
+	/** RM-007's gap Q-4 names "no ceiling material", and this is the control. */
+	it('tints a room\'s ceiling, and clearing it writes nothing at all', async () =>
+	{
+		const {floorplan} = buildSquareRoom();
+		const room = floorplan.getRooms()[0];
+		const wrapper = mount(SurfaceInspector, {
+			props: {selection: {type: SELECTION_FLOOR, object: room}},
+		});
+
+		const swatches = wrapper.findAll('input[type="color"]');
+		// Two: the floor's tint and the ceiling's.
+		expect(swatches).toHaveLength(2);
+
+		swatches[1].element.value = '#804020';
+		await swatches[1].trigger('change');
+		expect(room.getCeiling()).toEqual({color: '#804020'});
+
+		// Back to white is back to "no ceiling material", not a white one.
+		swatches[1].element.value = '#ffffff';
+		await swatches[1].trigger('change');
+		expect(room.getCeiling()).toBeNull();
+
+		wrapper.unmount();
+	});
+
 	it('retextures a floor, and its room\'s walls only when asked', async () =>
 	{
 		const {floorplan} = buildSquareRoom();

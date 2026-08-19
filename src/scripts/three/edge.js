@@ -6,6 +6,8 @@ import {EVENT_REDRAW, EVENT_CAMERA_MOVED, EVENT_CAMERA_ACTIVE_STATUS} from '../c
 import {isStudio} from '../core/render_profile.js';
 import {acquireTexture, releaseTexture} from './texture_cache.js';
 import {runtimeOf} from '../core/design_runtime.js';
+import {applySurfaceTransform, acquireSurfaceMaps, releaseSurfaceMaps} from './surface_material.js';
+import {colorValue, multiplyHex, NO_TINT} from '../model/surface.js';
 
 /**
  * The hand-painted vignette every wall is lit with. One image, one decode -
@@ -89,6 +91,15 @@ export class Edge extends EventDispatcher
 		// throwaway `new TextureLoader()` that used to sit here loaded nothing and
 		// was overwritten on the next line of init().
 		this.texture = null;
+		/**
+		 * The extra maps this side carries, or nulls (RM-011 H1). Beside
+		 * `this.texture` because they are released together and for the same
+		 * reason - the cache hands out clones and every clone has to be given back.
+		 * @type {?{normalMap: ?import('three').Texture, roughnessMap: ?import('three').Texture}}
+		 */
+		this.surfaceMaps = null;
+		/** @type {?import('../model/surface.js').SurfaceMaterial} */
+		this.surfaceMaterial = null;
 
 		// One decode for the whole scene, not one per wall (RM-002 R-04). Every
 		// Edge asks for the same URL, and every Edge used to get its own copy.
@@ -139,6 +150,11 @@ export class Edge extends EventDispatcher
 		// Both handles go back, so the last wall using an image releases it.
 		releaseTexture(this.texture);
 		this.texture = null;
+		// And the surface's own maps, which are cache handles exactly like the two
+		// beside them (RM-011 H1). A normal map shared by four walls is one upload
+		// and four handles; missing this line makes it one upload and a leak.
+		releaseSurfaceMaps(this.surfaceMaps);
+		this.surfaceMaps = null;
 		releaseTexture(this.lightMap);
 		/** @type {?import('three').Texture} */
 		this.lightMap = null;
@@ -312,6 +328,12 @@ export class Edge extends EventDispatcher
 			this.texture.repeat.set(width / scale, height / scale);
 			this.texture.needsUpdate = true;
 		}
+
+		// What this side is made of, beyond the image (RM-011 H1).
+		var material = this.edge.getMaterial();
+		applySurfaceTransform(this.texture, material);
+		this.surfaceMaterial = material;
+		this.surfaceMaps = acquireSurfaceMaps(this.runtime, material, this.surfaceMaps, callback);
 	}
 
 	/**
@@ -361,6 +383,22 @@ export class Edge extends EventDispatcher
 			material.lightMapIntensity = this.renderProfile.wallLightMapIntensity;
 		}
 
+		// The maps a surface may carry, and studio only (RM-011 H1, W-1). A
+		// classic wall is `MeshBasicMaterial` and has no slot to put either of
+		// these in - it is unlit, so a normal map has no light to bend and a
+		// roughness map has no specular term to modulate. That is not a gap to
+		// fill later: filling it means moving the default profile, which is a
+		// parity change against goldens captured from a three r98 that no longer
+		// exists. The colour applies to both, because a tint is a multiply.
+		if (this.surfaceMaps && this.surfaceMaps.normalMap)
+		{
+			material.normalMap = this.surfaceMaps.normalMap;
+		}
+		if (this.surfaceMaps && this.surfaceMaps.roughnessMap)
+		{
+			material.roughnessMap = this.surfaceMaps.roughnessMap;
+		}
+
 		return material;
 	}
 
@@ -375,7 +413,10 @@ export class Edge extends EventDispatcher
 			return;			
 		}
 
-		var color = 0xFFFFFF;
+		// The surface's own tint, white unless somebody picked one (RM-011 H1).
+		// It was a literal `0xFFFFFF` here, which is what "no colour picker for
+		// walls" looked like in the code.
+		var color = colorValue(this.surfaceMaterial ? this.surfaceMaterial.color : NO_TINT);
 		var wallMaterial = isStudio(this.renderProfile) ? this.makeStudioWallMaterial(color, FrontSide) : new MeshBasicMaterial({
 			color: color,
 			side: FrontSide,
@@ -411,8 +452,16 @@ export class Edge extends EventDispatcher
 			opacity: 1.0,
 			wireframe: false,
 		});
-		var fillerMaterial = isStudio(this.renderProfile) ? this.makeStudioWallMaterial(this.fillerColor, DoubleSide, false) : new MeshBasicMaterial({
-			color: this.fillerColor,
+		// The filler is the top of this wall, so a tinted wall has a tinted top
+		// (RM-011 H1). Multiplied into the filler's own 0xdddddd rather than
+		// replacing it, so an untinted wall's filler is exactly the shade it has
+		// always been - and a wall painted dark blue does not keep a light grey
+		// edge, which is what the first draft of this did and what anybody would
+		// have called a bug.
+		var fillerColor = multiplyHex(this.fillerColor,
+			colorValue(this.surfaceMaterial ? this.surfaceMaterial.color : NO_TINT));
+		var fillerMaterial = isStudio(this.renderProfile) ? this.makeStudioWallMaterial(fillerColor, DoubleSide, false) : new MeshBasicMaterial({
+			color: fillerColor,
 			side: DoubleSide,
 			map: this.texture,
 			transparent: true,
@@ -442,7 +491,7 @@ export class Edge extends EventDispatcher
 		this.basePlanes.push(this.resources.registerObject(this.buildFillerUniformHeight(this.edge, 0, BackSide, this.baseColor)));
 		if(this.edge.wall.start.getAttachedRooms().length < 2 || this.edge.wall.end.getAttachedRooms().length < 2)
 		{
-			this.planes.push(this.resources.registerObject(this.buildFillerVaryingHeights(this.edge, DoubleSide, this.fillerColor)));
+			this.planes.push(this.resources.registerObject(this.buildFillerVaryingHeights(this.edge, DoubleSide, fillerColor)));
 		}
 
 		// sides

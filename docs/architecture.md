@@ -223,6 +223,22 @@ up. Two questions the getters do not answer are asked explicitly instead —
 `scene.getItems()` for the storey being edited (the plan, the item count, what a
 click in 3D can hit).
 
+**A surface is a material, not just a picture** (RM-011 H1). A wall side and a
+floor carried `{url, stretch, scale}` and nothing else; they now also carry a
+tint, a rotation, an offset and up to two more maps, and a room's *ceiling* has a
+surface of its own for the first time. `model/surface.js` is the description and
+the one place that decides what reaches the file — every key is written only when
+it differs from its default, so a design nobody recoloured re-saves
+byte-identical. `three/surface_material.js` is the seam on the other side: it
+turns those numbers into texture state, and it is a module rather than a method
+because `Edge` and `Floor` need the same arithmetic.
+
+The tint applies under both render profiles because a tint is a multiply; **the
+maps are `studio`-only**, because `classic` draws walls with an unlit
+`MeshBasicMaterial` that has no slot for either (RM-011 W-1). That is a recorded
+decision, not a gap — moving the library's default profile is a parity change
+against goldens that cannot be recaptured.
+
 **A floor gets a hole where the stairs from below arrive** (RM-010 G2), derived
 rather than authored: the flight already computes the rectangle, and the storey
 above cuts it out of whichever room it lands in. It is clamped to that room

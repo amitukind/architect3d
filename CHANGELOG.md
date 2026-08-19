@@ -1087,6 +1087,69 @@ pair's colour space and renders the output to match, which keeps the path
 transparent. **The oracle reproduces its own report byte-identically after all
 three changes**, which is how both were visible.
 
+**RM-011 H1: a surface is a material.** The sprint's second slice, and four of
+the five clauses in RM-007's gap Q-4 — *"seven textures, no colour picker for
+walls, no ceiling material, no PBR"*.
+
+**A material is beside the texture, not instead of it.** A wall side carried
+`{url, stretch, scale}` and a floor `{url, scale}`; both now also carry a tint,
+a rotation, an offset and up to two more maps, in the same record. A build that
+has never heard of materials opens the file and draws the right texture at the
+right scale, which is the promise `levels` and `roof` make one layer up.
+
+**Written only where somebody changed something.** `model/surface.js` is the one
+place that decides what reaches the file, so the byte-identity promise is a
+property of one function rather than of three call sites agreeing — every key is
+written when it differs from its default and not otherwise. **A tint is a
+multiply, so white is not a colour, it is the absence of one**: clearing a tint
+writes nothing rather than writing white, and "I cleared it" and "I never touched
+it" are the same file. Asserted over all four fixtures, per surface record rather
+than by grepping the string — an item legitimately has a `rotation`, and a test
+that greps would be asserting that furniture cannot turn.
+
+**A ceiling has a material for the first time.** It was one colour out of the
+render profile, shared by every room in the building and settable by nobody. It
+gets its own collection keyed like `newFloorTextures`, pruned like it, and
+carried across a room rebuild like it — a ceiling somebody chose would otherwise
+be the one attribute that did not survive moving a wall. Written only when a room
+has one, so no existing file gains a `ceilings` key.
+
+**The maps are Studio-only, and that is the recorded decision** (W-1). `classic`
+draws walls with an unlit `MeshBasicMaterial`: no light for a normal map to bend,
+no specular term for a roughness map to modulate. The tint applies under both,
+because a multiply needs no light. The alternative is moving the library's
+default profile, which is a parity change against r98 goldens that cannot be
+recaptured — so this is a choice rather than a gap, and it is asserted in both
+profiles rather than worked around.
+
+**Two things found by driving it.** Picking a different image used to throw away
+the material — the first draft of `setTexture` built a fresh three-key object,
+so recolouring a wall and then changing its brick discarded the colour. And a
+tinted wall kept a light grey top: the filler is the top of a wall and was left
+at the profile's `0xdddddd`, which anybody would have called a bug. It is
+multiplied by the tint now, so an untinted wall's filler is exactly the shade it
+has always been.
+
+`three/surface_material.js` is the seam on the other side, a module rather than a
+method because `Edge` and `Floor` need the same arithmetic. Its maps go through
+the texture cache like every other texture, so a normal map shared by four walls
+is one upload — and they are released on teardown, because the leak A0 found was
+this shape. They are tagged as **data, not colour**: decoding a normal map
+through a transfer function is the error H1's own encode trial nearly recorded as
+a codec verdict.
+
+**42 new tests, 1,986 headless and 127 browser.** Coverage up on all four:
+statements 85.94 → 86.04, branches 76.93 → 77.01, functions 83.32 → 83.54,
+lines 85.90 → 86.01.
+
+**One budget raised, and it is the one RM-011 said was certain.** `lib-esm-gzip`
+73,700 → 78,300: the ESM entry went 72,813 → 74,533, **1,720 bytes** for four
+clauses of Q-4, which is the cheapest feature-per-byte of the seven raises in
+that file. W-4 measured 887 bytes of headroom against a five-sprint history of
+3.1–5.7 KB per sprint, so the only question was by how much. `public-total` did
+**not** move — the material library is not in this commit, and the trial says
+what it will cost when it is.
+
 ## [3.0.1] - 2026-08-16
 
 No shipped code changed — `src/` is byte-identical to 3.0.0 and so is every

@@ -5,6 +5,7 @@ import {disposeObject} from '../core/resource_registry.js';
 import {EVENT_REDRAW} from '../core/events.js';
 import {Utils} from '../core/utils.js';
 import {WallTypes} from '../core/constants.js';
+import {normaliseSurface, writeSurfaceMaterial} from './surface.js';
 
 
 
@@ -222,7 +223,12 @@ export class HalfEdge extends EventDispatcher
 	 */
 	setTexture(textureUrl, textureStretch, textureScale)
 	{
-		var texture = {url: textureUrl, stretch: textureStretch, scale: textureScale};
+		// The material this side already carries is kept (RM-011 H1). Picking a
+		// different image is not a decision to throw away the colour you tinted it
+		// or the angle you turned it to - and the first draft of this did exactly
+		// that, because it built a fresh three-key object.
+		var texture = writeSurfaceMaterial(
+			{url: textureUrl, stretch: textureStretch, scale: textureScale}, this.getTexture());
 		if (this.front)
 		{
 			this.wall.frontTexture = texture;
@@ -233,6 +239,42 @@ export class HalfEdge extends EventDispatcher
 		}
 
 		this.dispatchEvent({type:EVENT_REDRAW, item: this});
+	}
+
+	/**
+	 * Change what this side is made of, keeping the image it is made of (H1).
+	 *
+	 * The other half of `setTexture`: that one changes the picture and keeps the
+	 * material, this one changes the material and keeps the picture. Both write
+	 * the whole record back, so there is one shape of object on a wall however it
+	 * got there.
+	 *
+	 * @param {Object} changes Any of `color`, `rotation`, `offsetX`, `offsetY`,
+	 *   `normalMap`, `roughnessMap`.
+	 * @returns {import('./surface.js').SurfaceMaterial} what the side now carries
+	 */
+	setMaterial(changes)
+	{
+		var current = this.getTexture();
+		var material = normaliseSurface(Object.assign({}, current, changes || {}));
+		var texture = writeSurfaceMaterial(
+			{url: current.url, stretch: current.stretch, scale: current.scale}, material);
+		if (this.front)
+		{
+			this.wall.frontTexture = texture;
+		}
+		else
+		{
+			this.wall.backTexture = texture;
+		}
+		this.dispatchEvent({type:EVENT_REDRAW, item: this});
+		return material;
+	}
+
+	/** What this side is made of, defaults filled in (H1). */
+	getMaterial()
+	{
+		return normaliseSurface(this.getTexture());
 	}
 	
 	/**

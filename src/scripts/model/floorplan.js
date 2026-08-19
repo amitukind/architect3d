@@ -20,6 +20,7 @@ import {Wall} from './wall.js';
 import {deriveWallIds} from '../core/wall_identity.js';
 import {Room} from './room.js';
 import {Dimension, TextAnnotation, dimensionLine} from './annotation.js';
+import {writeSurfaceMaterial, surfaceToJSON} from './surface.js';
 
 
 /**
@@ -198,6 +199,15 @@ export class Floorplan extends EventDispatcher
 		// did; every event on this class goes through EventDispatcher.
 
 		this.floorTextures = {};
+		/**
+		 * What each room's ceiling is made of, by room uuid (RM-011 H1).
+		 *
+		 * Empty unless somebody has said otherwise, which is what makes it
+		 * conditional in the file. See `getCeilingSurface`.
+		 *
+		 * @type {Record<string, Object>}
+		 */
+		this.ceilingSurfaces = {};
 		/**
 		 * What the 2D view is allowed to know about the furniture (RM-008 E1, T-1).
 		 *
@@ -1091,6 +1101,14 @@ export class Floorplan extends EventDispatcher
 		}
 
 		floorplans.newFloorTextures = this.floorTextures;
+		// Additive and conditional, per RM-011 H1: a design where nobody has given
+		// a ceiling a material of its own writes no `ceilings` key and is byte-
+		// identical to the file it was before this sprint. Same rule as `levels`,
+		// `roof`, `dimensions`, `annotations` and `north` above it.
+		if (Object.keys(this.ceilingSurfaces).length)
+		{
+			floorplans.ceilings = this.ceilingSurfaces;
+		}
 		return floorplans;
 	}
 
@@ -1320,6 +1338,7 @@ export class Floorplan extends EventDispatcher
 		{
 			this.floorTextures = floorplan.newFloorTextures;
 		}
+		this.ceilingSurfaces = ('ceilings' in floorplan && floorplan.ceilings) ? floorplan.ceilings : {};
 		this.metaroomsdata = floorplan.rooms;
 	}
 
@@ -1738,9 +1757,53 @@ export class Floorplan extends EventDispatcher
 	/**
 	 * @deprecated
 	 */
-	setFloorTexture(uuid, url, scale)
+	/**
+	 * @param {string} uuid
+	 * @param {string} url
+	 * @param {number} scale
+	 * @param {Object} [material] What this floor says about itself beyond the
+	 *   image, if anything. Written conditionally (RM-011 H1).
+	 */
+	setFloorTexture(uuid, url, scale, material)
 	{
-		this.floorTextures[uuid] = {url: url,scale: scale};
+		this.floorTextures[uuid] = writeSurfaceMaterial({url: url, scale: scale}, material);
+	}
+
+	/**
+	 * The ceiling surfaces, by room uuid (RM-011 H1).
+	 *
+	 * Its own collection beside `floorTextures`, for the reason `Room.getCeiling`
+	 * gives: a room has two horizontal surfaces and they are not the same one. It
+	 * is empty in every design written before H1 and is written to the file only
+	 * when it has something in it, which is what keeps those designs
+	 * byte-identical on re-save.
+	 *
+	 * @param {string} uuid
+	 * @returns {?Object}
+	 */
+	getCeilingSurface(uuid)
+	{
+		return this.ceilingSurfaces[uuid] || null;
+	}
+
+	/**
+	 * @param {string} uuid
+	 * @param {?Object} material Null removes it, which is how a ceiling goes back
+	 *   to the profile's colour without leaving an empty record behind.
+	 * @returns {?Object}
+	 */
+	setCeilingSurface(uuid, material)
+	{
+		var record = (material === null) ? null : surfaceToJSON(material);
+		if (record)
+		{
+			this.ceilingSurfaces[uuid] = record;
+		}
+		else
+		{
+			delete this.ceilingSurfaces[uuid];
+		}
+		return record;
 	}
 
 	/** clear out obsolete floor textures */
@@ -1755,6 +1818,18 @@ export class Floorplan extends EventDispatcher
 			if (!Utils.hasValue(uuids, uuid))
 			{
 				delete this.floorTextures[uuid];
+			}
+		}
+		// The ceiling collection is keyed the same way and pruned the same way
+		// (RM-011 H1). A room's uuid is derived from its corners - finding H-5 -
+		// so a room that is edited into a different room takes its floor's record
+		// with it and must take its ceiling's too, or the file grows an entry per
+		// wall anybody ever moved.
+		for (var ceiling in this.ceilingSurfaces)
+		{
+			if (!Utils.hasValue(uuids, ceiling))
+			{
+				delete this.ceilingSurfaces[ceiling];
 			}
 		}
 	}
@@ -2152,6 +2227,11 @@ export class Floorplan extends EventDispatcher
 		});
 		rekeyInPlace(this.metaroomsdata, nameMoves);
 		rekeyInPlace(this.floorTextures, textureMoves);
+		// And the ceiling, which is keyed identically (RM-011 H1). A3 carries a
+		// room's identity across a rebuild so a room that gains a corner keeps its
+		// name and its floor; a ceiling somebody chose is the same kind of thing
+		// and would otherwise be the one attribute that did not survive.
+		rekeyInPlace(this.ceilingSurfaces, textureMoves);
 	}
 
 	/**

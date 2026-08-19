@@ -10,6 +10,7 @@ import {WallTypes} from '../core/constants.js';
 
 import {Utils} from '../core/utils.js';
 import {HalfEdge} from './half_edge.js';
+import {normaliseSurface} from './surface.js';
 
 
 /**
@@ -352,8 +353,64 @@ export class Room extends EventDispatcher
 	setTexture(textureUrl, textureStretch, textureScale)
 	{
 		var uuid = this.getUuid();
-		this.floorplan.setFloorTexture(uuid, textureUrl, textureScale);
+		// The material survives a change of image, the same way a wall side's does
+		// (RM-011 H1). `setFloorTexture` builds the record; what it is handed is
+		// what this floor already said about itself.
+		this.floorplan.setFloorTexture(uuid, textureUrl, textureScale, this.getTexture());
 		this.dispatchEvent({type:EVENT_CHANGED, item: this});
+	}
+
+	/**
+	 * Change what this floor is made of, keeping the image (RM-011 H1).
+	 *
+	 * @param {Object} changes Any of the material keys in `model/surface.js`.
+	 * @returns {import('./surface.js').SurfaceMaterial}
+	 */
+	setMaterial(changes)
+	{
+		var current = this.getTexture();
+		var material = normaliseSurface(Object.assign({}, current, changes || {}));
+		this.floorplan.setFloorTexture(this.getUuid(), current.url, current.scale, material);
+		this.dispatchEvent({type:EVENT_CHANGED, item: this});
+		return material;
+	}
+
+	/** What this floor is made of, defaults filled in (H1). */
+	getMaterial()
+	{
+		return normaliseSurface(this.getTexture());
+	}
+
+	/**
+	 * What the lid on this room is made of (RM-011 H1).
+	 *
+	 * RM-007's gap Q-4 names *"no ceiling material"* and it was literal: a
+	 * ceiling was one flat colour out of the render profile, shared by every room
+	 * in the building and settable by nobody. It gets a surface of its own now,
+	 * kept in its own collection rather than beside the floor's, because a room
+	 * has two horizontal surfaces and they are not the same one - and because a
+	 * design with no ceiling material written writes no collection at all.
+	 *
+	 * @returns {?Object} the record, or null when this ceiling is the profile's
+	 */
+	getCeiling()
+	{
+		return this.floorplan.getCeilingSurface(this.getUuid());
+	}
+
+	/**
+	 * @param {?Object} changes Null clears it back to the profile's colour.
+	 * @returns {?Object}
+	 */
+	setCeiling(changes)
+	{
+		var uuid = this.getUuid();
+		var result = (changes === null)
+			? this.floorplan.setCeilingSurface(uuid, null)
+			: this.floorplan.setCeilingSurface(uuid,
+				Object.assign({}, this.getCeiling() || {}, changes));
+		this.dispatchEvent({type:EVENT_CHANGED, item: this});
+		return result;
 	}
 
 	generateRoofPlane()

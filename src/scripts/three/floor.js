@@ -7,6 +7,8 @@ import {disposeObject} from '../core/resource_registry.js';
 import {Configuration, configWallHeight} from '../core/configuration.js';
 import {renderProfile, isStudio} from '../core/render_profile.js';
 import {runtimeOf} from '../core/design_runtime.js';
+import {applySurfaceTransform, acquireSurfaceMaps, releaseSurfaceMaps} from './surface_material.js';
+import {colorValue, normaliseSurface, multiplyHex} from '../model/surface.js';
 
 export class Floor extends EventDispatcher
 {
@@ -36,6 +38,11 @@ export class Floor extends EventDispatcher
 		// of the same image and dropped the previous one on the floor, so to speak.
 		/** @type {?import('three').Texture} */
 		this.floorTexture = null;
+		/**
+		 * The normal and roughness maps this floor carries, or nulls (RM-011 H1).
+		 * @type {?{normalMap: ?import('three').Texture, roughnessMap: ?import('three').Texture}}
+		 */
+		this.surfaceMaps = null;
 		this.changedevent = () => {this.redraw();};
 		this.init();
 	}
@@ -108,7 +115,22 @@ export class Floor extends EventDispatcher
 	 */
 	makeRoofMaterial()
 	{
-		return new MeshBasicMaterial({side: FrontSide, color: this.renderProfile.roofColor});
+		// The room's own ceiling surface, if it has been given one (RM-011 H1).
+		// RM-007's Q-4 names "no ceiling material" and it was literal: this
+		// returned one colour out of the profile, shared by every room in the
+		// building and settable by nobody. A ceiling with nothing said about it
+		// still gets exactly that colour, which is what keeps every existing
+		// design and the frozen r98 golden for this method unchanged.
+		var ceiling = this.room.getCeiling();
+		if (!ceiling)
+		{
+			return new MeshBasicMaterial({side: FrontSide, color: this.renderProfile.roofColor});
+		}
+		var surface = normaliseSurface(ceiling);
+		return new MeshBasicMaterial({
+			side: FrontSide,
+			color: multiplyHex(this.renderProfile.roofColor, colorValue(surface.color)),
+		});
 	}
 
 	buildFloor()
@@ -131,6 +153,12 @@ export class Floor extends EventDispatcher
 		floorTexture.wrapT = RepeatWrapping;
 		floorTexture.repeat.set(1, 1);
 
+		// What this floor is made of, beyond the image (RM-011 H1).
+		var surface = this.room.getMaterial();
+		applySurfaceTransform(floorTexture, surface);
+		this.surfaceMaps = acquireSurfaceMaps(this.runtime, surface, this.surfaceMaps,
+			() => {this.scene.needsUpdate = true;});
+
 		// Phong in classic, Standard in studio.
 		//
 		// The floor is the one surface in the scene that has always been lit, so
@@ -145,21 +173,39 @@ export class Floor extends EventDispatcher
 		// leaves it white and lets exposure and tone mapping set the level: with
 		// the classic tint the floor arrives pre-darkened and then gets darkened
 		// again by real shading.
-		var floorMaterialTop = isStudio(this.renderProfile)
-			? new MeshStandardMaterial({
+		// The surface's own tint, multiplied into whichever base colour the profile
+		// uses. Classic's 0xcccccc and studio's white are both preserved when
+		// nobody has picked anything, because a white tint multiplies to 1.
+		var tint = colorValue(surface.color);
+		var floorMaterialTop;
+		if (isStudio(this.renderProfile))
+		{
+			var studio = new MeshStandardMaterial({
 				map: floorTexture,
 				side: DoubleSide,
-				color: 0xffffff,
+				color: tint,
 				roughness: this.renderProfile.floorRoughness,
 				metalness: this.renderProfile.floorMetalness,
 				envMapIntensity: this.renderProfile.environmentIntensity,
-			})
-			: new MeshPhongMaterial({
+			});
+			// Studio only, for the reason `Edge.makeStudioWallMaterial` gives: a
+			// Phong floor has no roughness map slot and an unlit wall has no light
+			// for a normal map to bend (RM-011 W-1). Attached inside this branch
+			// rather than after the ternary, so the narrowing is the checker's
+			// rather than a comment's.
+			if (this.surfaceMaps && this.surfaceMaps.normalMap) { studio.normalMap = this.surfaceMaps.normalMap; }
+			if (this.surfaceMaps && this.surfaceMaps.roughnessMap) { studio.roughnessMap = this.surfaceMaps.roughnessMap; }
+			floorMaterialTop = studio;
+		}
+		else
+		{
+			floorMaterialTop = new MeshPhongMaterial({
 				map: floorTexture,
 				side: DoubleSide,
-				color: 0xcccccc,
+				color: multiplyHex(0xcccccc, tint),
 				specular: 0x0a0a0a
 			});
+		}
 
 		var textureScale = textureSettings.scale;
 		// http://stackoverflow.com/questions/19182298/how-to-texture-a-three-js-mesh-created-with-shapegeometry
@@ -264,6 +310,9 @@ export class Floor extends EventDispatcher
 		this.releasePlanes();
 		releaseTexture(this.floorTexture);
 		this.floorTexture = null;
+		// The surface's own maps are cache handles too (RM-011 H1).
+		releaseSurfaceMaps(this.surfaceMaps);
+		this.surfaceMaps = null;
 	}
 
 	showRoof(flag)

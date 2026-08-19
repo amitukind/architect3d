@@ -29,14 +29,16 @@ older one is still out there.
   "carbonSheet": { },
   "dimensions": [],
   "annotations": [],
-  "north": 0
+  "north": 0,
+  "ceilings": { }
 }
 ```
 
-The last three are **optional** and are written only when there is something to
-write — see [what the plan says about itself](#what-the-plan-says-about-itself).
-A design nobody annotated produces exactly the file it produced before they
-existed.
+The last four are **optional** and are written only when there is something to
+write — the first three under [what the plan says about
+itself](#what-the-plan-says-about-itself) and `ceilings` under
+[`ceilings`](#ceilings). A design nobody annotated and nobody recoloured
+produces exactly the file it produced before either existed.
 
 ### `corners`
 
@@ -77,7 +79,7 @@ An array. Each wall names the two corners it spans:
 | Field | Meaning |
 |---|---|
 | `corner1`, `corner2` | Corner ids. A wall with a missing endpoint is skipped on save. |
-| `frontTexture`, `backTexture` | `{url, stretch, scale}`. When `stretch` is true the map is fitted to the wall and `scale` is ignored — which is why stretched entries are often saved with `scale: 0`. |
+| `frontTexture`, `backTexture` | `{url, stretch, scale}`, plus the optional material keys below. When `stretch` is true the map is fitted to the wall and `scale` is ignored — which is why stretched entries are often saved with `scale: 0`. |
 | `wallType` | `"STRAIGHT"` or `"CURVED"`. |
 | `a`, `b` | Bezier control points. Only meaningful when `wallType` is `"CURVED"`, but always written. |
 | `thickness` | Centimetres. **Optional**, and written only for a wall somebody gave a thickness of its own. |
@@ -192,6 +194,66 @@ Both are written on every save — `[]` and `{}` — and neither is ever read.
 They are the pre-`newFloorTextures` fields, kept so old readers do not
 choke. Write them; ignore them.
 :::
+
+### What a surface is made of
+
+Added in RM-011 H1. A surface record — `frontTexture`, `backTexture` or an entry
+in `newFloorTextures` — may carry five more keys beside the ones above, and
+**each is written only when it differs from its default**:
+
+| Field | Default | Meaning |
+|---|---|---|
+| `color` | `"#ffffff"` | Six-digit hex, **multiplied** into the texture. White is not a colour, it is the absence of one — which is why clearing a tint writes nothing rather than writing white. |
+| `rotation` | `0` | Degrees, about the centre of the tile rather than its corner. |
+| `offsetX`, `offsetY` | `0` | Fractions of a tile, −1 to 1. |
+| `normalMap` | absent | A URL, resolved the same way `url` is. |
+| `roughnessMap` | absent | A URL. It modulates the render profile's roughness rather than replacing it. |
+
+```json
+{
+  "url": "rooms/textures/light_brick.jpg",
+  "stretch": false,
+  "scale": 100,
+  "color": "#c8b48c",
+  "rotation": 45
+}
+```
+
+There is deliberately **no per-surface roughness or metalness number**. Those
+are properties of the render profile, tuned per profile and frozen for classic;
+a fourth place for them to live would be the first place they could disagree
+with the parity grid.
+
+::: tip The maps only draw under `studio`
+RM-011 W-1 measured that the `classic` profile draws walls with an unlit
+`MeshBasicMaterial`, which has no slot for either map — there is no light for a
+normal map to bend and no specular term for a roughness map to modulate. The
+**tint applies under both**, because a tint is a multiply. This is a recorded
+decision rather than a gap: the alternative is moving the library's default
+profile, which is a parity change against r98 goldens that cannot be recaptured.
+:::
+
+### `ceilings`
+
+**Optional**, and added in RM-011 H1 to answer the *"no ceiling material"* clause
+of RM-007's gap Q-4 — a ceiling used to be one colour out of the render profile,
+shared by every room in the building and settable by nobody.
+
+Keyed exactly like `newFloorTextures`, because a ceiling belongs to the same
+room its floor does, and holding the same material keys. A room whose ceiling
+nobody has touched has no entry, and a design where no room has one writes no
+`ceilings` key at all — which is what keeps every file written before H1
+byte-identical on re-save.
+
+```json
+{
+  "0438a3a5-…,213bb50e-…,3c885e88-…,dc6353ae-…": {"color": "#e8e8e8"}
+}
+```
+
+A ceiling has no `url`: it is the profile's colour, tinted. Setting the tint back
+to white removes the entry rather than writing white into it, so "I cleared it"
+and "I never touched it" are the same file.
 
 ### What the plan says about itself
 

@@ -3,8 +3,11 @@
 import {computed, ref, watch} from 'vue';
 import TexturePicker from './TexturePicker.vue';
 import CheckField from './fields/CheckField.vue';
+import ColorField from './fields/ColorField.vue';
+import RangeField from './fields/RangeField.vue';
 import textures from '../../catalog/textures.json';
 import {SELECTION_WALL} from '../composables/useSelection.js';
+import {NO_TINT} from '../../scripts/blueprint.js';
 
 /**
  * Wall and floor surfaces.
@@ -21,6 +24,19 @@ import {SELECTION_WALL} from '../composables/useSelection.js';
  * The behaviour underneath is unchanged: `HalfEdge.setTexture` for a wall,
  * `Room.setTexture` for a floor, `Room.setRoomWallsTexture` for all of a room's
  * walls at once.
+ *
+ * ## What H1 added, and where it put it
+ *
+ * A surface is more than its image since RM-011 H1: a tint, a rotation and an
+ * offset, and for a room a **ceiling** as well, which RM-007's gap Q-4 named and
+ * nothing here offered. Those controls sit under the picker rather than beside
+ * it because they modify the thing the picker chose - you pick a brick and then
+ * you turn it, and a panel that reads top to bottom in that order needs no
+ * explaining.
+ *
+ * The tint is a *multiply*, so white is not a colour, it is the absence of one -
+ * which is why the reset is offered as a button rather than by expecting anybody
+ * to find `#ffffff` on a wheel.
  */
 
 const props = defineProps({
@@ -64,6 +80,52 @@ function applyRoomWalls(texture)
 	revision.value++;
 }
 
+/** What the selected surface is made of, defaults filled in (RM-011 H1). */
+const material = computed(() =>
+{
+	void revision.value;
+	return target.value && target.value.getMaterial
+		? target.value.getMaterial()
+		: {color: NO_TINT, rotation: 0, offsetX: 0, offsetY: 0};
+});
+
+/** @param {Object} changes */
+function applyMaterial(changes)
+{
+	if (target.value && target.value.setMaterial)
+	{
+		target.value.setMaterial(changes);
+		revision.value++;
+	}
+}
+
+/**
+ * The ceiling's tint, or white when the room has not been given one.
+ *
+ * A ceiling with no record renders the profile's colour, so the swatch shows
+ * white - the tint that would change nothing - rather than showing the profile's
+ * grey and implying somebody chose it.
+ */
+const ceilingTint = computed(() =>
+{
+	void revision.value;
+	const ceiling = !isWall.value && target.value.getCeiling && target.value.getCeiling();
+	return (ceiling && ceiling.color) || NO_TINT;
+});
+
+/** @param {string} color */
+function applyCeiling(color)
+{
+	target.value.setCeiling(color === NO_TINT ? null : {color});
+	revision.value++;
+}
+
+/** Back to no tint at all, which is not the same as picking white by hand. */
+function clearTint()
+{
+	applyMaterial({color: NO_TINT});
+}
+
 function pickWallTexture(texture)
 {
 	if (isWall.value)
@@ -97,6 +159,33 @@ watch(() => props.selection, () => {forAllWalls.value = false; revision.value++;
 				label="Walls in this room" :textures="textures.wall"
 				:disabled="!forAllWalls" :current="null"
 				@select="pickWallTexture" />
+		</template>
+
+		<h4 class="inspector-subheading">{{ isWall ? 'Wall material' : 'Floor material' }}</h4>
+		<ColorField
+			:model-value="material.color" label="Tint"
+			@update:model-value="(value) => applyMaterial({color: value})" />
+		<button
+			v-if="material.color !== NO_TINT"
+			type="button" class="btn btn-outline" title="Remove the tint"
+			@click="clearTint">
+			Clear tint
+		</button>
+		<RangeField
+			:model-value="material.rotation" label="Rotation" :min="0" :max="359" :step="1" unit="°"
+			@update:model-value="(value) => applyMaterial({rotation: value})" />
+		<RangeField
+			:model-value="material.offsetX" label="Offset across" :min="-1" :max="1" :step="0.02"
+			@update:model-value="(value) => applyMaterial({offsetX: value})" />
+		<RangeField
+			:model-value="material.offsetY" label="Offset along" :min="-1" :max="1" :step="0.02"
+			@update:model-value="(value) => applyMaterial({offsetY: value})" />
+
+		<template v-if="!isWall">
+			<h4 class="inspector-subheading">Ceiling</h4>
+			<ColorField
+				:model-value="ceilingTint" label="Ceiling tint"
+				@update:model-value="applyCeiling" />
 		</template>
 	</section>
 </template>

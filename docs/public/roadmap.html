@@ -4925,6 +4925,27 @@ this.roofPlane = this.buildRoofVaryingHeight();</pre></div>
         <li>The library's size is reported as what the trial allowed, beside the number this drawing could not produce</li>
       </ul>
     </div>
+
+    <div class="gate">
+      <div class="g-head">LANDING &mdash; H1, in progress</div>
+      <ul>
+        <li><strong>Task one is done and it corrected this drawing.</strong> The encoder was available all along &mdash; see the correction under W-6 and the trial in W-12. A material is <strong>497,583 bytes with three maps and 103,512 with one</strong>, only the roughness map is worth encoding, and ninety materials of three maps is an 8.2&times; budget raise. <strong>H1 ships about thirty, albedo and roughness.</strong></li>
+
+        <li><strong>M-42's first two clauses are met.</strong> A surface carries a tint, a rotation, an offset and up to two maps beside its image, and a ceiling has a material for the first time. Every key is written only when it differs from its default, decided in one function rather than at three call sites, and all four fixtures re-save byte-identically with no material key anywhere. The third clause &mdash; the mesh agreeing with the description &mdash; is asserted in Chromium over both profiles.</li>
+
+        <li><strong>A tint is a multiply, which is what makes clearing one free.</strong> White is not a colour, it is the absence of one, so picking it writes nothing and &ldquo;I cleared it&rdquo; and &ldquo;I never touched it&rdquo; are the same file. It also means the two surfaces that already have a base colour &mdash; classic's <code>0xcccccc</code> floor and the profile's ceiling &mdash; keep it.</li>
+
+        <li><strong>The maps are Studio-only, recorded rather than discovered</strong> (W-1). An unlit <code>MeshBasicMaterial</code> has no light for a normal map to bend and no specular term for a roughness map to modulate. Recommendation (a) of the three W-1 set out, asserted in both profiles.</li>
+
+        <li><strong>Two bugs from driving it.</strong> Picking a different image threw the material away, because the first draft of <code>setTexture</code> built a fresh three-key object. And a tinted wall kept a light grey top, because the filler is the top of a wall and was left at the profile's <code>0xdddddd</code>.</li>
+
+        <li><strong>One budget raised, and it is the one this drawing said was certain.</strong> <code>lib-esm-gzip</code> 73,700 &rarr; 78,300 for a measured 74,533 &mdash; <strong>1,720 bytes</strong> for four of the five clauses in Q-4, the cheapest feature-per-byte of the seven raises in that file. <code>public-total</code> did not move; the library is not in that commit.</li>
+
+        <li><strong>42 new tests, 1,986 and 127.</strong> Coverage up on all four: statements 85.94 &rarr; 86.04, branches 76.93 &rarr; 77.01, functions 83.32 &rarr; 83.54, lines 85.90 &rarr; 86.01.</li>
+
+        <li style="opacity:.7"><strong>Still to land in H1:</strong> the material library itself at the size the trial allows, <code>public-total</code> raised with that measurement, <code>texture-vram</code> re-pointed at a scene, and <code>first-load payload</code> added as the eleventh budget (M-43).</li>
+      </ul>
+    </div>
   </div>
 
   <div class="sprint">
