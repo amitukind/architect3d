@@ -5479,6 +5479,23 @@ this.roofPlane = this.buildRoofVaryingHeight();</pre></div>
         <li><strong>One characterization test failed, and re-checking it made it stronger.</strong> <code>model-conversion.test.js</code> pins that S3 passed each legacy <code>colorDiffuse</code> through untouched, and the repaint broke it for four models. The rule says a failure there is a signal to re-check the change: the legacy value in all four is <code>[1,1,1]</code> and in all four it was a <em>multiplier on a diffuse map</em>, so white was never the intended appearance. The conversion is as faithful as it was; the shipped file is deliberately no longer its output. So the four are pinned from the other side &mdash; they must equal the painted table, <em>and</em> their legacy value must have been a white multiplier on a named map &mdash; which is <strong>one more assertion than the test had, not one fewer</strong>.</li>
       </ul>
     </div>
+
+    <div class="gate">
+      <div class="g-head">LANDING &mdash; J2, the licence in the product</div>
+      <ul>
+        <li><strong>RM-007's first line for this programme, finally done.</strong> The objective opens with <em>&ldquo;enough furniture to furnish a home, found by room, <strong>with the licence on every item</strong>&rdquo;</em>, and J1 recorded that the second half had not been: the provenance went into <code>sources.json</code>, and the licence was <strong>nowhere in the shipped product</strong>. A licence recorded in a repository is one honoured by the repository's authors; the obligation is on the thing people use. It is light &mdash; CC0 asks nothing and MIT asks for the notice &mdash; which is exactly why it went eight years undone.</li>
+
+        <li><strong>Per item on the tile, in full in a dialog</strong>, and the split is a decision about where the obligation falls. 193 tiles each carrying a licence line would say the same four things fifty times each and make the grid unreadable, so the per-item answer is on the tile's <code>title</code> &mdash; <em>&ldquo;Add Bathtub &mdash; Furniture Kit, CC0 1.0 Universal&rdquo;</em> &mdash; and the readable version is a <strong>Credits</strong> dialog beside the drawer, which is what somebody looking for terms would actually open.</li>
+
+        <li><strong>Both are right on the first frame, because the manifest is bundled.</strong> Name, licence and row count per kit are in the payload J2's split left there, so credits are complete before any pack has been fetched. The author, the licence URL and the caveat come from each pack's detail file and fill in when it lands &mdash; the same staging the grid uses, and for the same reason.</li>
+
+        <li><strong>A row knows its kit because of where it arrived from.</strong> The index tier carries no <code>source</code>, and none was added: <code>useCatalog</code> tags each row with the pack whose file it was fetched in. That costs zero bytes and cannot drift &mdash; a key saying which kit a row belongs to could disagree with the file it is sitting in, and a fact derived from the fetch cannot.</li>
+
+        <li><strong>The kit whose licence nobody could establish is shown, not hidden.</strong> It is drawn with a warning rather than omitted or quietly called CC0. J1's entire argument for writing provenance down was that assuming a licence by resemblance is the thing to avoid, and a credits screen that showed three kits and dropped the fourth would undo that in the one place a person would look for it.</li>
+
+        <li><strong>And axe covers the case that was actually risky.</strong> The drawer is deliberately <em>not</em> modal &mdash; the point of it is that the scene stays visible &mdash; and the credits dialog is. A modal opened from inside a non-modal panel's portal is exactly where a focus scope goes wrong, which is why the credits mount as a sibling of the drawer's root rather than inside its content, and why there is now a browser-tier pass with both open.</li>
+      </ul>
+    </div>
   </div>
 
   <div class="sprint">

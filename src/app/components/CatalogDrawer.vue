@@ -2,8 +2,9 @@
 // @ts-check
 import {computed, nextTick, ref, watch} from 'vue';
 import {DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose} from 'reka-ui';
-import {Search, X, Plus, Star} from '@lucide/vue';
-import {loadCatalogDetail, loadCatalogPacks, ROOMS} from '../composables/useCatalog.js';
+import {Scale, Search, X, Plus, Star} from '@lucide/vue';
+import CatalogCredits from './CatalogCredits.vue';
+import {PACKS, loadCatalogDetail, loadCatalogPacks, ROOMS} from '../composables/useCatalog.js';
 import {useCatalogBrowse} from '../composables/useCatalogBrowse.js';
 import {Dimensioning} from '../../scripts/blueprint.js';
 
@@ -254,6 +255,30 @@ function sizeLabel(item)
  */
 const loading = ref(false);
 
+/** Whether the credits are showing. */
+const creditsOpen = ref(false);
+
+/**
+ * Who made one item, and under what terms.
+ *
+ * On the tile's `title` rather than in its layout, and that is a decision about
+ * where the obligation actually falls. RM-007 asks for *the licence on every
+ * item*; 193 tiles each carrying a licence line would make the grid unreadable
+ * and would say the same four things fifty times each. So the per-item answer is
+ * one hover away and always correct, and the readable version is the credits
+ * dialog, which is the thing somebody looking for terms would actually open.
+ *
+ * From the manifest, so it needs no fetch and is right on the first frame.
+ *
+ * @param {Object} item
+ * @returns {string}
+ */
+function creditFor(item)
+{
+	const pack = PACKS.find((entry) => entry.id === item.pack);
+	return pack ? ` — ${pack.name}, ${pack.licence}` : '';
+}
+
 // Focus the search box on open, and fetch the catalog. The drawer's whole
 // purpose is finding something, and the keyboard should already be in the right
 // place, so neither fetch is awaited before the focus - a slow pack must not
@@ -367,7 +392,7 @@ watch(() => props.open, async function (open)
 							<button
 								type="button"
 								class="w-full overflow-hidden rounded-lg border border-line-soft bg-sunk p-2 text-left transition-colors group-hover:border-accent"
-								:title="`Add ${row.item.name}`"
+								:title="`Add ${row.item.name}${creditFor(row.item)}`"
 								@click="pick(row.item)"
 								@pointerenter="emit('prefetch-item', row.item)"
 								@focus="emit('prefetch-item', row.item)">
@@ -408,11 +433,23 @@ watch(() => props.open, async function (open)
 					</ul>
 				</div>
 
-				<div class="flex-none border-t border-line px-3 py-2 text-[11px] text-ink-faint">
-					Items land on the last floor or wall you clicked in 3D. The panel stays open —
-					<kbd>Esc</kbd> to close.
+				<div class="flex flex-none items-center gap-2 border-t border-line px-3 py-2 text-[11px] text-ink-faint">
+					<span class="min-w-0 flex-1">
+						Items land on the last floor or wall you clicked in 3D. The panel stays open —
+						<kbd>Esc</kbd> to close.
+					</span>
+					<button
+						type="button" class="btn h-6 flex-none gap-1 px-2 text-[11px]"
+						@click="creditsOpen = true">
+						<Scale :size="11" /> Credits
+					</button>
 				</div>
 			</DialogContent>
 		</DialogPortal>
 	</DialogRoot>
+
+	<!-- Outside the drawer's portal on purpose: it is a modal over everything,
+	     including the drawer, and nesting it under a non-modal DialogContent
+	     would put it in that panel's focus scope. -->
+	<CatalogCredits v-model:open="creditsOpen" :detail="detail" />
 </template>

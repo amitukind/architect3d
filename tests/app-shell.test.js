@@ -502,6 +502,97 @@ describe('the catalog drawer', () =>
 		wrapper.unmount();
 	});
 
+	/**
+	 * RM-007's objective for programme J opens with "the licence on every item",
+	 * and J1 recorded that the second half of it had not been done: the
+	 * provenance went into `sources.json`, and the licence was nowhere in the
+	 * shipped product. These are the two places it now is.
+	 */
+	it('says who made each item, on the item, without a fetch', async () =>
+	{
+		const wrapper = await mountApp();
+		await openCatalog(wrapper);
+
+		// On the tile's title rather than in its layout: 193 tiles each carrying a
+		// licence line would say the same four things fifty times each and make
+		// the grid unreadable. From the bundled manifest, so it is right on the
+		// first frame rather than when a fetch lands.
+		const tile = [...drawer().querySelectorAll('li')]
+			.find((li) => li.textContent.includes('Bathtub'));
+		const title = tile.querySelector('button').getAttribute('title');
+		expect(title).toContain('Add Bathtub');
+		expect(title).toContain('Furniture Kit');
+		expect(title).toContain('CC0 1.0 Universal');
+
+		// And a blueprint3d row gets the other licence, so this is reading the
+		// pack a row arrived in rather than a constant.
+		const bed = [...drawer().querySelectorAll('li')]
+			.find((li) => li.textContent.includes('Full Bed'));
+		expect(bed.querySelector('button').getAttribute('title')).toContain('MIT');
+
+		wrapper.unmount();
+	});
+
+	it('opens credits listing every kit, and does not hide the unknown one', async () =>
+	{
+		const wrapper = await mountApp();
+		await openCatalog(wrapper);
+
+		const credits = [...drawer().querySelectorAll('button')]
+			.find((button) => button.textContent.trim() === 'Credits');
+		expect(credits).toBeTruthy();
+		credits.click();
+		await flushPromises();
+		await nextTick();
+
+		const panel = [...document.querySelectorAll('[role="dialog"]')]
+			.find((node) => node.textContent.includes('Furniture credits'));
+		expect(panel).toBeTruthy();
+		expect(panel.textContent).toContain('168 models from 4 kits');
+		expect(panel.textContent).toContain('Furniture Kit');
+		expect(panel.textContent).toContain('CC0 1.0 Universal');
+
+		// The pack whose licence nobody could establish is shown with a warning
+		// rather than omitted or quietly called CC0. J1's whole argument for
+		// writing provenance down was that assuming one by resemblance is the
+		// thing to avoid, and a credits screen that dropped the fourth kit would
+		// undo that in the one place a person would look.
+		expect(panel.textContent).toContain('Provenance not established');
+		expect(panel.textContent).toContain('unknown');
+		expect(panel.querySelector('.border-danger')).toBeTruthy();
+
+		wrapper.unmount();
+	});
+
+	it('and fills in the author and the licence link when the detail lands', async () =>
+	{
+		const wrapper = await mountApp();
+		await openCatalog(wrapper);
+		await loadCatalogDetail();
+		await flushPromises();
+		await nextTick();
+
+		[...drawer().querySelectorAll('button')]
+			.find((button) => button.textContent.trim() === 'Credits').click();
+		await nextTick();
+
+		const panel = [...document.querySelectorAll('[role="dialog"]')]
+			.find((node) => node.textContent.includes('Furniture credits'));
+		expect(panel.textContent).toContain('By Kenney');
+		const links = [...panel.querySelectorAll('a')].map((a) => a.getAttribute('href'));
+		expect(links).toContain('https://kenney.nl/assets/furniture-kit');
+		expect(links.some((href) => href && href.includes('creativecommons.org'))).toBe(true);
+		// Every outbound link is safe to open from a page holding somebody's
+		// unsaved design.
+		[...panel.querySelectorAll('a')].forEach((a) =>
+		{
+			expect(a.getAttribute('rel')).toContain('noopener');
+			expect(a.getAttribute('target')).toBe('_blank');
+		});
+
+		wrapper.unmount();
+	});
+
 	it('filters by search and by section, and stays open when an item is picked', async () =>
 	{
 		const wrapper = await mountApp();

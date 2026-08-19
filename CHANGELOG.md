@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+**RM-012 J2: the licence, in the product.** RM-007's objective for programme J
+opens with "the licence on every item", and J1 recorded that the second half had
+not been done — provenance went into `sources.json`, and the licence was nowhere
+in the shipped product.
+
+Per item on the tile's `title` — *"Add Bathtub — Furniture Kit, CC0 1.0
+Universal"* — and in full in a **Credits** dialog beside the drawer. 193 tiles
+each carrying a licence line would say the same four things fifty times each, so
+the per-item answer is one hover away and always correct, and the readable
+version is the thing somebody looking for terms would open. Both are right on the
+first frame, because the pack manifest is bundled; author, licence URL and caveat
+fill in when the detail lands.
+
+A row knows its kit because of where it arrived from: `useCatalog` tags each row
+with the pack whose file it was fetched in, rather than adding a `source` key.
+Zero bytes, and it cannot drift — a key could disagree with the file it sits in.
+
+The kit whose licence nobody could establish is shown with a warning rather than
+omitted or quietly called CC0. A credits screen that dropped the fourth kit would
+undo J1's whole argument in the one place a person would look.
+
+axe now covers the case that was risky: the drawer is deliberately non-modal and
+the credits dialog is modal, so the credits mount as a sibling of the drawer's
+root rather than inside its content.
+
 **RM-012 J2: the material audit, and four models that have named a texture
 nobody has since 2014.** `tools/material-audit.mjs` reads every catalog model's
 materials: **52 of 417 render the glTF default white, across 31 rows**. J1 looked

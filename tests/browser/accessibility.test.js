@@ -133,4 +133,31 @@ describe('the application is accessible', () =>
 		const found = summarise(results.violations);
 		expect(found, `axe violations with the catalog open:\n  ${found.join('\n  ')}`).toEqual([]);
 	});
+
+	it('and with the credits over it, which is a modal on top of a non-modal', async () =>
+	{
+		// The drawer is deliberately not modal - the point of it is that the scene
+		// stays visible - and the credits dialog is. A modal opened from inside a
+		// non-modal panel's portal is exactly where a focus scope goes wrong, and
+		// it is why the credits are mounted as a sibling of the drawer's root
+		// rather than inside its content (RM-012 J2).
+		wrapper.vm.$.setupState.toggleCatalog();
+		await nextTick();
+		await nextTick();
+
+		const credits = [...document.querySelectorAll('button')]
+			.find((button) => button.textContent.trim() === 'Credits');
+		expect(credits, 'no credits control in the drawer').toBeTruthy();
+		credits.click();
+		await nextTick();
+		await nextTick();
+
+		const panel = [...document.querySelectorAll('[role="dialog"]')]
+			.find((node) => node.textContent.includes('Furniture credits'));
+		expect(panel, 'the credits did not open').toBeTruthy();
+
+		const results = await axe.run({exclude: EXCLUDED}, AXE_OPTIONS);
+		const found = summarise(results.violations);
+		expect(found, `axe violations with the credits open:\n  ${found.join('\n  ')}`).toEqual([]);
+	});
 });

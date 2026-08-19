@@ -115,6 +115,10 @@ const WALL_BOUND_TYPES = [2, 3, 7, 9];
  * @property {number} [unitScale] Centimetres per authored unit, resolved from
  *           the row's kit by the splitter. In the index rather than the detail
  *           because the placement path reads it - 60 gzipped bytes for all 168.
+ * @property {string} [pack] Which pack the row was fetched in. Added at merge
+ *           time rather than written into the file: the row is in that pack's
+ *           file, so it is of that kit, and a key saying so could disagree with
+ *           the file it sits in (RM-012 J2).
  */
 
 /**
@@ -241,9 +245,14 @@ export function loadCatalogPacks(options)
 		return fetchJson(pack.index, fetcher);
 	})).then(function (results)
 	{
-		rows.value = results.reduce(function (all, result)
+		rows.value = results.reduce(function (all, result, at)
 		{
-			return all.concat((result.json && result.json.items) || []);
+			// Tagged with the pack it arrived in, which costs nothing and cannot
+			// drift: the row is in that file, so it is of that kit. A `source` key
+			// in the index would be a second copy of the same fact, priced and
+			// downloaded, that could disagree with the file it is in (RM-012 J2).
+			return all.concat(((result.json && result.json.items) || [])
+				.map((row) => Object.assign({pack: PACKS[at].id}, row)));
 		}, []);
 		if (results.some(function (result) {return !result.ok;}))
 		{
