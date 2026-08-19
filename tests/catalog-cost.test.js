@@ -1,0 +1,117 @@
+// @vitest-environment node
+/**
+ * M-45: what every item costs, and what the ceiling was divided into (J2).
+ *
+ * ## Why a raise needs a test and not just a note
+ *
+ * J2's first task was a decision - `public-total` and `demo-total` to 1.5x -
+ * and its acceptance gate says the raise must state *the item count it buys*.
+ * A count is a division, and a division is only true while its divisor is. The
+ * divisor here is the catalog's measured mean, and it has already moved once
+ * without anybody deciding to: RM-012 X-2 took the decision's arithmetic against
+ * 26,105 bytes an item, and J1's rendered thumbnails made it 27,997.
+ *
+ * So two things are asserted. That the recorded costs are the tree's, which is
+ * the ordinary generated-report gate. And that **the headroom still buys what
+ * the decision said it buys** - if a later sprint makes items dearer, this fails
+ * and the arithmetic gets re-taken rather than quietly becoming wrong.
+ *
+ * ## Deduped two ways, because they answer two questions
+ *
+ * Within an item, a texture used twice is one download. Across the catalog, a
+ * texture used by two items is one file on a disk. The first is what a person
+ * pays for a chair and the second is what the tree grows by, and only the second
+ * belongs in the division above.
+ */
+import {describe, expect, it} from 'vitest';
+import {readFileSync, existsSync, statSync} from 'node:fs';
+import {join} from 'node:path';
+import {catalogCost, filesFor} from '../tools/catalog-cost.mjs';
+
+const ROOT = process.cwd();
+const CATALOG = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog.json'), 'utf8'));
+const REPORT = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/catalog-cost.json'), 'utf8'));
+const BUDGET = JSON.parse(readFileSync(join(ROOT, 'tools/budget.json'), 'utf8'));
+
+describe('the catalog cost report is the tree (M-45)', () =>
+{
+	it('has a row per catalog entry, and every file it names exists', () =>
+	{
+		expect(REPORT.items).toHaveLength(CATALOG.items.length);
+		const byModel = new Map(REPORT.items.map((row) => [row.model, row]));
+
+		CATALOG.items.forEach((item) =>
+		{
+			const row = byModel.get(item.model);
+			expect(row, item.name).toBeTruthy();
+			expect(row.name).toBe(item.name);
+
+			const files = filesFor(item, ROOT);
+			expect(row.files, item.name).toBe(files.length);
+			expect(row.bytes, item.name).toBe(files.reduce(
+				(sum, file) => sum + statSync(join(ROOT, 'public', file)).size, 0));
+			// At minimum a model and a thumbnail. A row naming neither would be
+			// counted at zero and would quietly pull the mean down.
+			expect(files.length, item.name).toBeGreaterThanOrEqual(2);
+			files.forEach((file) => expect(existsSync(join(ROOT, 'public', file)), file).toBe(true));
+		});
+	});
+
+	it('recomputes to the totals it recorded', () =>
+	{
+		expect(catalogCost(CATALOG, ROOT).totals).toEqual(REPORT.totals);
+	});
+
+	it('counts a shared file once across the catalog and once within an item', () =>
+	{
+		// The two figures differ by exactly the sharing there is. Today that is
+		// small - 147 of the 168 models carry no external image at all - and the
+		// gap is worth watching rather than fixing: a pack of variants on one
+		// texture set would open it wide, and then the naive figure would overstate
+		// what admitting that pack costs the tree.
+		expect(REPORT.totals.naive).toBeGreaterThan(REPORT.totals.deduped);
+		expect(REPORT.totals.naive / REPORT.totals.deduped).toBeLessThan(1.5);
+		expect(REPORT.totals.mean).toBe(Math.round(REPORT.totals.deduped / REPORT.totals.count));
+	});
+
+	it('says out loud that the mean is carried by a tail', () =>
+	{
+		// The reason X-2 called curation the lever. If these two ever converge, a
+		// pack can be admitted on its name; while they do not, it has to be
+		// admitted on its measured mean.
+		expect(REPORT.totals.median).toBeLessThan(REPORT.totals.mean);
+		expect(REPORT.totals.largest).toBeGreaterThan(REPORT.totals.p90);
+	});
+});
+
+describe('the deploy-size decision still buys what it said (J2 task one)', () =>
+{
+	it('was taken at 1.5x, on both lines', () =>
+	{
+		// Recorded rather than inferred: the note in tools/budget.json states the
+		// decision and this states the shape of it, so a later raise that does not
+		// mean to be 1.5x has to change both.
+		expect(BUDGET.budgets['public-total'].limit).toBe(16770000);
+		expect(BUDGET.budgets['demo-total'].limit).toBe(29985000);
+		expect(BUDGET.note.join('\n')).toContain('THE DEPLOY-SIZE DECISION');
+	});
+
+	it('still buys 400-600 items if a pack is curated, and fewer if it is not', () =>
+	{
+		const headroom = BUDGET.budgets['public-total'].limit - BUDGET.budgets['public-total'].measured;
+		const atMean = Math.floor(headroom / REPORT.totals.mean);
+		const atMedian = Math.floor(headroom / REPORT.totals.median);
+
+		// The whole content of the decision, as arithmetic. RM-007 wants 400-600 in
+		// the catalog; 168 are here, so 232-432 have to fit. Curated to the median
+		// they do; bought at the mean they do not, which is the pressure the
+		// ceiling was chosen to apply rather than a shortfall in it.
+		expect(atMedian, `${atMedian} items at the median`).toBeGreaterThanOrEqual(432);
+		expect(atMean, `${atMean} items at the mean`).toBeLessThan(232);
+
+		// And it is not so loose that it stops being an instrument: 2.0x would have
+		// bought 432 at the mean, which is X-2's warning about a ceiling with the
+		// whole growth pre-authorised inside it.
+		expect(atMean, 'the ceiling should still refuse an uncurated 600').toBeLessThan(432);
+	});
+});

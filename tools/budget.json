@@ -715,7 +715,55 @@
 		"And catalog-index went DOWN, 3,819 -> 3,553. A thumbnail is now named after",
 		"the model it was rendered from, so `image` and `model` are nearly the same",
 		"string on every row and gzip charges almost nothing for the second one. The",
-		"rename paid back 266 bytes - most of what `room` and `tags` cost together."
+		"rename paid back 266 bytes - most of what `room` and `tags` cost together,",
+		"and first-load fell with it, 410,394 -> 409,941.",
+		"",
+		"Two numbers inside the render were measured rather than chosen, and both",
+		"cost bytes. Fitting the model's BOX rather than its bounding sphere took",
+		"mean frame coverage 15.8% -> 20.9%, which is the difference between a grid",
+		"of stamps and a grid of furniture, and cost 243 KB. Supersampling twice",
+		"rather than three times gave 179 KB of that back at no visible cost on a",
+		"150 px tile: every extra sample level invents more part-covered edge pixels",
+		"and each is a colour PNG has not seen before.",
+		"",
+		"=== J2 TASK ONE: THE DEPLOY-SIZE DECISION ===",
+		"",
+		"public-total RAISED 11,180,000 -> 16,770,000 and demo-total 19,990,000 ->",
+		"29,985,000. Both exactly 1.5x, taken as a decision BEFORE any acquisition",
+		"runs, which is what RM-012 J2's acceptance gate asks for. The item count is",
+		"the OUTPUT of this, not its input - the same substitution RM-011 W-4 made",
+		"when it withdrew H1's `about ninety materials` as a number.",
+		"",
+		"WHAT THE CEILING BUYS. 5,843,561 B of headroom against a measured catalog",
+		"mean of 27,997 is 209 items; against the median of 11,218 it is 521. RM-007",
+		"asks for 400-600, so this ceiling reaches the top of that range ONLY if",
+		"packs come in near the median, and a heavy pack has to be trimmed or",
+		"refused. That is the point rather than an accident: X-2 measured that",
+		"curation is the lever and compression is not - 152 of 168 models are already",
+		"Draco and 11 already KTX2, so a pack will not come in under the mean by",
+		"being encoded harder. A ceiling with the whole growth pre-authorised inside",
+		"it would notice nothing, which is the argument against 2.0x.",
+		"",
+		"WHAT WAS MEASURED FIRST, because none of it turned out to bind. Cloudflare",
+		"Pages on the free plan allows 20,000 files a site and 25 MiB a file; the",
+		"deployed tree is 626 files and its largest asset is 307 KB, and at 600 items",
+		"it would be about 1,490. The build takes 1.44 s against a 20-minute timeout.",
+		"A visitor downloads the same 400.3 KB either way, because J1 made a pack a",
+		"fetch and first-load is unmoved by anything in public/ that nobody opens.",
+		"The one permanent cost is git, measured at 1.13x the bytes added on H1's",
+		"material library - 4,504,845 raw bytes for a 5,072,108-byte pack delta. That",
+		"is 53 -> 60 MiB at this ceiling, and history does not shrink.",
+		"",
+		"So the ceiling is self-imposed, and it should be: the line that actually",
+		"protects a visitor is first-load, and it is untouched. This one protects the",
+		"decision instead - it makes the next acquisition somebody's choice.",
+		"",
+		"M-45 ADDED as an instrument rather than a line. tools/catalog-cost.mjs and",
+		"asset-pipeline/catalog-cost.json record every row's full cost and the",
+		"catalog's mean, and print the movement against the previous run. The",
+		"arithmetic above is only honest while its divisor is: X-2 measured the mean",
+		"at 26,105 and J1's rendered thumbnails moved it to 27,997 with nobody",
+		"deciding to, which is exactly the drift this catches."
 	],
 	"budgets": {
 		"demo-js-gzip": {
@@ -727,7 +775,7 @@
 			"measured": 7457
 		},
 		"demo-total": {
-			"limit": 19990000,
+			"limit": 29985000,
 			"measured": 19629535
 		},
 		"lib-iife-gzip": {
@@ -735,7 +783,7 @@
 			"measured": 294575
 		},
 		"public-total": {
-			"limit": 11180000,
+			"limit": 16770000,
 			"measured": 10926439
 		},
 		"lib-esm-gzip": {

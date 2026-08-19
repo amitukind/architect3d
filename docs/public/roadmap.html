@@ -5411,6 +5411,21 @@ this.roofPlane = this.buildRoofVaryingHeight();</pre></div>
         <li><strong>M-43</strong>, unchanged: a pack nobody has opened costs a boot nothing, measured as the resource timings of a boot</li>
       </ul>
     </div>
+
+    <div class="gate">
+      <div class="g-head">LANDING &mdash; J2, task one: the deploy's size</div>
+      <ul>
+        <li><strong>The decision is taken and it is 1.5&times;</strong> &mdash; <code>public-total</code> 11,180,000 &rarr; <strong>16,770,000</strong> and <code>demo-total</code> 19,990,000 &rarr; <strong>29,985,000</strong>, recorded in <code>tools/budget.json</code> <em>before</em> any acquisition runs, which is what this sprint's own gate asks for. The item count is the output rather than the input, the same substitution RM-011 W-4 made to H1's <em>&ldquo;about ninety materials&rdquo;</em>.</li>
+
+        <li><strong>Nothing external binds, and that is the finding.</strong> Cloudflare Pages on the free plan allows <strong>20,000 files</strong> a site and <strong>25&nbsp;MiB</strong> a file; the deployed tree is 626 files and its largest asset is 307&nbsp;KB, and at 600 items it would be about 1,490. The build takes <strong>1.44&nbsp;s</strong> against a 20-minute timeout. And a visitor downloads the same 400.3&nbsp;KB either way, because J1 made a pack a fetch &mdash; <code>first-load</code> is unmoved by anything in <code>public/</code> that nobody opens. The one permanent cost is git, measured at <strong>1.13&times;</strong> the bytes added (H1's material library put 4,504,845 raw bytes into a 5,072,108-byte pack delta), so 53 &rarr; 60&nbsp;MiB at this ceiling. The line that protects a visitor is <code>first-load</code> and it is untouched; this one protects the <em>decision</em>.</li>
+
+        <li><strong>The ceiling was chosen to make curation compulsory.</strong> 5,843,561 bytes of headroom buys <strong>209 items at the measured mean of 27,997</strong> and <strong>521 at the median of 11,218</strong>. RM-007 wants 400&ndash;600, so 1.5&times; reaches the top of that range only if packs come in near the median &mdash; a heavy pack has to be trimmed or refused. That is X-2's point turned into a constraint rather than an aspiration: 152 of 168 models are already Draco and 11 already KTX2, so nothing arrives under the mean by being encoded harder. 2.0&times; would have bought 432 at the mean and noticed nothing, which is the argument against it.</li>
+
+        <li><strong>M-45 is an instrument, not a line.</strong> <code>tools/catalog-cost.mjs</code> records every row's full cost &mdash; model, thumbnail and every distinct image the container names &mdash; and prints the movement against the previous run: <em>&ldquo;168 &rarr; 216 items, mean 27,997 &rarr; 24,110, tree +1,204,880&nbsp;B&rdquo;</em>. It exists because <strong>the division above is only honest while its divisor is</strong>, and the divisor has already moved once with nobody deciding to: X-2 took this arithmetic against 26,105 and J1's rendered thumbnails made it 27,997. A test re-runs the division and fails if a later sprint makes items dear enough that the ceiling stops buying what it was raised to buy.</li>
+
+        <li><strong>Two costs, because they answer two questions.</strong> Within an item a texture used twice is one download; across the catalog a texture used by two rows is one file on a disk. Today they differ by <strong>7.7&nbsp;%</strong> &mdash; 147 of the 168 models carry no external image at all and exactly two textures are reused &mdash; and only the second belongs in a division against <code>public-total</code>. Worth watching rather than fixing: a pack of variants on one texture set would open that gap wide, and the naive figure would then overstate what admitting it costs.</li>
+      </ul>
+    </div>
   </div>
 
   <div class="sprint">

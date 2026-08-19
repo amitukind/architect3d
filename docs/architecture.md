@@ -215,6 +215,29 @@ and `addItem` is synchronous by construction. It costs 60 gzipped bytes across
 all 168 rows, there being three distinct values in it.
 :::
 
+::: tip What the deploy is allowed to weigh, and what that buys
+`public-total` and `demo-total` are not host limits — Cloudflare Pages on the
+free plan allows 20,000 files a site and 25 MiB a file, against 626 files and a
+307 KB largest asset. They are **self-imposed**, and their job is to make growth
+a decision somebody records. RM-012 J2 took that decision at **1.5×**: 16.77 MB
+and 29.99 MB.
+
+What it buys is a division, and `tools/catalog-cost.mjs` is what keeps the
+divisor true (M-45). 5,843,561 bytes of headroom is **209 items at the measured
+mean of 27,997** and **521 at the median of 11,218** — so the ceiling reaches
+RM-007's 400–600 only if packs are curated near the median, which is deliberate:
+152 of 168 models are already Draco and 11 already KTX2, so nothing arrives under
+the mean by being encoded harder. Curation is the lever; compression is not.
+
+Two costs are recorded because they answer two questions. Within an item, a
+texture used twice is one download — that is what a person pays for a chair.
+Across the catalog, a texture used by two rows is one file on a disk — that is
+what the tree grows by, and only that belongs in the division.
+
+The number that protects a *visitor* is `first-load`, and nothing here moves it:
+a pack nobody opens costs a boot nothing.
+:::
+
 ::: tip The thumbnails are rendered, and the tool is what renders them
 `npm run thumbnails` renders one 300 × 225 PNG per catalog row from the model
 that row actually places — `tools/render-thumbnails.mjs`, in headless chromium

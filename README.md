@@ -59,6 +59,7 @@ are checked in under `public/`, which Vite serves at the site root.
 | `npm run parity` | Render eleven states through three r98 and r185 side by side |
 | `npm run catalog` | Split `catalog.json` into the bundled index and the fetched detail |
 | `npm run thumbnails` | Re-render all 168 catalog thumbnails from the models (needs chromium) |
+| `npm run catalog:cost` | What every catalog item costs, and what a pack did to the mean (M-45) |
 
 Nothing deploys automatically. The Deploy workflow is `workflow_dispatch` only —
 GitHub Pages was never enabled for this repository, so a push-triggered deploy
