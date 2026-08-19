@@ -2,7 +2,7 @@
 // @ts-check
 import {PopoverRoot, PopoverTrigger, PopoverPortal, PopoverContent} from 'reka-ui';
 import {
-	FilePlus2, FolderOpen, Save, Undo2, Redo2, Box, Share2, Printer, Camera,
+	FilePlus2, FolderOpen, Save, Undo2, Redo2, Box, Share2, Printer, Camera, Globe,
 	Image as ImageIcon,
 	Moon, Sun, Keyboard, PanelRight, ChevronDown, Ruler,
 } from '@lucide/vue';
@@ -67,7 +67,7 @@ const props = defineProps({
 
 const emit = defineEmits([
 	'new-design', 'open-design', 'save-design', 'save-mesh', 'save-gltf',
-	'save-photo', 'save-plan-svg', 'save-plan-png', 'print-plan',
+	'save-photo', 'save-panorama', 'save-plan-svg', 'save-plan-png', 'print-plan',
 	'undo', 'redo', 'set-layout', 'set-unit', 'toggle-theme',
 	'toggle-inspector', 'show-shortcuts',
 ]);
@@ -171,6 +171,9 @@ function onUnitChange(event)
 						<p class="eyebrow px-2 py-1.5">Export the view</p>
 						<button type="button" class="btn w-full justify-start" @click="emit('save-photo', 2)">
 							<Camera :size="15" /> Photo, 2&times; resolution
+						</button>
+						<button type="button" class="btn w-full justify-start" @click="emit('save-panorama', 4096)">
+							<Globe :size="15" /> 360&deg; panorama, from the walk
 						</button>
 
 						<p class="eyebrow px-2 py-1.5">Export the plan</p>

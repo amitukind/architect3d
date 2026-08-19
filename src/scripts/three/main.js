@@ -1,12 +1,13 @@
 // @ts-check
 import {EventDispatcher, Vector2, Vector3, WebGLRenderer, PerspectiveCamera, OrthographicCamera} from 'three';
 import {ColorManagement, SRGBColorSpace} from 'three';
-import {Plane, Mesh} from 'three';
+import {Plane, Mesh, Raycaster} from 'three';
 import {buildRoofGeometry} from '../items/roof.js';
 import {disposeObject} from '../core/resource_registry.js';
 import {PCFShadowMap, ACESFilmicToneMapping, NoToneMapping, PMREMGenerator} from 'three';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
-import {PointerLockControls} from './pointerlockcontrols.js';
+import {PointerLockControls, EYE_HEIGHT} from './pointerlockcontrols.js';
+import {capturePanorama, panoramaDataUrl} from './panorama.js';
 import {describeFrom} from '../core/texture_formats.js';
 
 import {createPostProcessing} from './post.js';
@@ -80,6 +81,33 @@ function sameExtent(a, b)
 {
 	return a.center.distanceToSquared(b.center) < EXTENT_EPSILON * EXTENT_EPSILON
 		&& a.size.distanceToSquared(b.size) < EXTENT_EPSILON * EXTENT_EPSILON;
+}
+
+/**
+ * Is this object actually on screen - including every group above it?
+ *
+ * `Object3D.visible` is not inherited by lookup: three walks the tree and stops
+ * descending, so a visible mesh inside a hidden group renders nowhere while
+ * still reporting `visible === true`. A raycaster does not walk that way, which
+ * is why `Controller.getIntersections` carries its own `onlyVisible` filter and
+ * why this one has to look upwards.
+ *
+ * @param {import('three').Object3D} object
+ * @returns {boolean}
+ */
+function isShown(object)
+{
+	/** @type {?import('three').Object3D} */
+	var node = object;
+	while (node)
+	{
+		if (!node.visible)
+		{
+			return false;
+		}
+		node = node.parent;
+	}
+	return true;
 }
 
 export class Main extends EventDispatcher
@@ -524,7 +552,7 @@ export class Main extends EventDispatcher
 		// defaulted it to document.body and the addon requires it explicitly;
 		// the viewer is the better target and is what the user is looking at.
 		scope.fpscontrols = new PointerLockControls(scope.fpscamera, scope.domElement);
-		scope.fpscontrols.characterHeight = 160;
+		scope.fpscontrols.characterHeight = EYE_HEIGHT.default;
 
 		this.scene.add(scope.fpscontrols.getObject());
 		scope.fpscontrols.getObject().position.set(0, 200, 0);
@@ -604,7 +632,18 @@ export class Main extends EventDispatcher
 		// viewer, and stops for good once the user has clicked in it.
 		this._mouseEnterEvent = function () {scope.mouseOver = true;};
 		this._mouseLeaveEvent = function () {scope.mouseOver = false;};
-		this._clickEvent = function () {scope.hasClicked = true;};
+		// A click means two different things in the two modes, and this is the one
+		// listener that sees both. While walking there is no cursor to aim with -
+		// the pointer is locked - so the target is the middle of the view, which is
+		// where the person is already looking (RM-011 H3).
+		this._clickEvent = function ()
+		{
+			scope.hasClicked = true;
+			if (scope.firstpersonmode)
+			{
+				scope.teleportToView();
+			}
+		};
 		scope.element.addEventListener('mouseenter', this._mouseEnterEvent);
 		scope.element.addEventListener('mouseleave', this._mouseLeaveEvent);
 		scope.element.addEventListener('click', this._clickEvent);
@@ -891,6 +930,148 @@ export class Main extends EventDispatcher
 			this.renderer.setSize(width, height);
 			this.render(true);
 		}
+	}
+
+	/**
+	 * A 360 degree photograph from where the walker is standing (RM-011 H3).
+	 *
+	 * ## From the walkthrough, not from the orbit camera
+	 *
+	 * The sprint's objective is *"stand anywhere in the design and look all the
+	 * way round"*, and standing somewhere is what the walkthrough is for - the
+	 * teleport below is how a point gets chosen, and this is what is done with
+	 * it. The orbit camera is never inside anything on purpose; a panorama from
+	 * it would be a picture taken from the air.
+	 *
+	 * The eye keeps its position after `switchFPSMode(false)`, so the export menu
+	 * captures from wherever the walk was left. That is why this needs no
+	 * shortcut that works under pointer lock: walk, press Esc, export.
+	 *
+	 * @param {{position?: {x: number, y: number, z: number}, width?: number}} [options]
+	 * @returns {string} A PNG data URL, or an empty string with no renderer.
+	 */
+	panoramaUrl(options)
+	{
+		if (!this.renderer || !this.fpscontrols)
+		{
+			return '';
+		}
+		var settings = options || {};
+		var panorama = capturePanorama(
+			this.renderer, this.scene.getScene(), settings.position || this.walkPosition(),
+			{width: settings.width, near: this.cameraNear, far: this.cameraFar});
+		// The capture left six faces of a square buffer on the canvas and restored
+		// its size; this puts the view the person is actually looking at back.
+		this.render(true);
+		return panoramaDataUrl(panorama);
+	}
+
+	/** Where the walker's eye is, as a copy nothing outside can move. */
+	walkPosition()
+	{
+		return this.fpscontrols
+			? this.fpscontrols.getObject().position.clone()
+			: new Vector3();
+	}
+
+	/**
+	 * How tall the person walking is, in centimetres (RM-011 H3).
+	 *
+	 * Not saved with the design, and that is the decision rather than an
+	 * omission: eye height is a property of whoever is looking, not of the
+	 * building being looked at. It belongs beside the display unit and the theme,
+	 * which is where the app keeps it.
+	 *
+	 * Setting it lifts the eye straight away when the walker is standing, rather
+	 * than waiting for gravity to settle a taller one - and leaves a jump alone,
+	 * because a person in the air is not standing on anything.
+	 *
+	 * @param {number} centimetres
+	 * @returns {void}
+	 */
+	setEyeHeight(centimetres)
+	{
+		if (!this.fpscontrols)
+		{
+			return;
+		}
+		var height = Math.max(EYE_HEIGHT.min, Math.min(EYE_HEIGHT.max, Number(centimetres) || EYE_HEIGHT.default));
+		var walker = this.fpscontrols.getObject();
+		var standing = walker.position.y <= this.fpscontrols.eyeLevel();
+		this.fpscontrols.characterHeight = height;
+		if (standing)
+		{
+			walker.position.y = this.fpscontrols.eyeLevel();
+		}
+		this.render(true);
+	}
+
+	/** @returns {number} The eye height in centimetres. */
+	eyeHeight()
+	{
+		return this.fpscontrols ? this.fpscontrols.characterHeight : EYE_HEIGHT.default;
+	}
+
+	/**
+	 * Every floor a walker could stand on, across every storey shown.
+	 *
+	 * `floorplan.floorPlanes()` is one plan's, and a design has had a list of them
+	 * since RM-010 G1. Visibility is checked up the whole chain rather than on the
+	 * mesh: `showStoreys(false)` hides a *level group*, and a teleport onto a floor
+	 * nobody can see is a teleport into the dark.
+	 *
+	 * @returns {Array<Mesh>}
+	 */
+	walkableSurfaces()
+	{
+		var surfaces = [];
+		this.model.levels.forEach(function (level)
+		{
+			level.floorplan.floorPlanes().forEach(function (plane)
+			{
+				if (plane && isShown(plane))
+				{
+					surfaces.push(plane);
+				}
+			});
+		});
+		return surfaces;
+	}
+
+	/**
+	 * Walk to whatever the middle of the view is resting on (RM-011 H3).
+	 *
+	 * The sprint's own words for what the rig could not do: *"go somewhere"*. The
+	 * aim is the centre of the screen because a pointer-locked walkthrough has no
+	 * cursor - the crosshair is where you are looking, and looking at the floor
+	 * and clicking is the gesture every first-person tool already uses.
+	 *
+	 * The floor's own height comes back with the hit, so a click on the first
+	 * floor lands *on* the first floor. Wall collision is deliberately absent:
+	 * RM-011 W-11 withdrew it from this sprint and left it to J4, which owns the
+	 * two preserved polygon predicates it needs.
+	 *
+	 * @returns {?Vector3} Where the walker was put, or null if nothing was aimed at.
+	 */
+	teleportToView()
+	{
+		if (!this.fpscontrols || !this.fpscamera)
+		{
+			return null;
+		}
+		this.fpscamera.updateMatrixWorld();
+		var raycaster = new Raycaster();
+		// (0, 0) in normalised device coordinates is the centre of the frame.
+		raycaster.setFromCamera(new Vector2(0, 0), this.fpscamera);
+		var hits = raycaster.intersectObjects(this.walkableSurfaces(), false);
+		if (!hits.length)
+		{
+			return null;
+		}
+		var point = hits[0].point;
+		this.fpscontrols.teleport(point.x, point.z, point.y);
+		this.render(true);
+		return point;
 	}
 
 	/**

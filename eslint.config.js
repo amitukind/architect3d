@@ -58,6 +58,9 @@ export default [
 				FileReader: 'readonly',
 				Blob: 'readonly',
 				URL: 'readonly',
+				// Added by RM-011 H3. A 4096 x 2048 panorama is too long to hand to
+				// an anchor as a data URL, so `useDesignIO` decodes it to bytes.
+				atob: 'readonly',
 				performance: 'readonly',
 				alert: 'readonly',
 				prompt: 'readonly',
@@ -250,6 +253,9 @@ export default [
 				// here rather than per-file because a second acquisition tool
 				// should not have to rediscover this line.
 				fetch: 'readonly',
+				// RM-011 H3. `useDesignIO` decodes a panorama's data URL to bytes,
+				// and the test that checks it has to encode one to hand over.
+				btoa: 'readonly',
 			},
 		},
 		rules: {

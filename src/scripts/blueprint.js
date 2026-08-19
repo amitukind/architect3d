@@ -105,6 +105,9 @@ export {cornerRadius, cornerRadiusHover, cornerRadiusSelected, cornerColor, corn
 export {FloorplannerView2D} from './floorplanner/floorplanner_view.js';
 export {floorplannerPalette, setFloorplannerPalette} from './floorplanner/floorplanner_view.js';
 export {RENDER_CLASSIC, RENDER_STUDIO, renderProfile, setRenderProfile, isStudio, createRenderProfile} from './core/render_profile.js';
+export {EYE_HEIGHT} from './three/pointerlockcontrols.js';
+export {CUBE_FACES, directionAt, pixelFor, faceSample, projectEquirectangular} from './core/equirect.js';
+export {PANORAMA_FACE_SIZE, PANORAMA_WIDTH, panoramaCameras, capturePanoramaFaces, capturePanorama, panoramaDataUrl, flipRows} from './three/panorama.js';
 
 
 export {Floorplanner2D} from './floorplanner/floorplanner.js';

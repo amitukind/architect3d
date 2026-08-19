@@ -632,6 +632,50 @@ red wash contributing essentially no shadow contrast. It did not matter while
 nothing in the room was lit. `classic` keeps it, bug and all; `studio` does not.
 :::
 
+::: tip The panorama, and why it is not a `CubeCamera`
+`core/equirect.js` is the projection — six square faces in, one 2:1 image out —
+and it holds no three types, no renderer and no canvas. `three/panorama.js` is
+the half that needs a GPU. The split is why the whole feature is tested exactly
+rather than by looking at it, and why coverage went **up** on the sprint that
+added it.
+
+three ships a `CubeCamera`, and the six orientations in `CUBE_FACES` are copied
+from it — asserted against a real one, so a version bump that re-orients them
+fails a test rather than rotating a picture. What is *not* used is where it
+renders to. `WebGLPrograms.getParameters` forces `toneMapping` to
+`NoToneMapping` and `outputColorSpace` to the working space **unless
+`currentRenderTarget` is null**, so a `WebGLCubeRenderTarget` hands back six
+faces that are not what the screen shows — and `studio` renders through ACES. So
+the faces are rendered to the canvas, one at a time, through the same call a
+frame makes, and `gl.readPixels` reads them back. (Note also that `CubeCamera`
+is built with `fov = -90`: a negative field of view negates both axes of the
+projection, which is how three writes each face in GL cube-map order.)
+
+The cost of that choice is stated rather than hidden: **the panorama has no
+post-processing**, so H2's ambient occlusion is absent from it. Screen-space
+occlusion is computed per frame, so each 90° face would occlude against its own
+view and the six would disagree along the seams.
+:::
+
+::: tip Eye height, and the teleport
+`pointerlockcontrols.js` keeps the fork's physics exactly — friction 10/s,
+gravity 980/s², walk 3000, jump 350 — and `tests/walkthrough.test.js` recovers
+all five numbers **from the motion** rather than reading them back off the
+object.
+
+H3 added two things and neither of them moves those numbers. `groundHeight`
+defaults to 0, so the fall is arithmetically identical for a design with one
+storey; it exists because since G1 a design has storeys, and a walker teleported
+to the first floor used to fall straight through it. And `teleport()` writes a
+position and the floor under it and **nothing else** — not the velocity, so a
+walker who was moving arrives moving; not the orientation; not `_canJump`.
+
+Eye height is a *session* preference (`useWalkthrough.js`), not a design
+property: two people opening the same plan should walk it at their own eye
+level. Wall collision is still not here — RM-011 W-11 left it with J4, whose
+subject is the two preserved polygon predicates it needs.
+:::
+
 `orbitcontrols.js` and `pointerlockcontrols.js` are thin subclasses over
 three's own addons — the previously vendored copies are gone as of S5.
 

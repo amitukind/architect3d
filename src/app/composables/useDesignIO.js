@@ -51,6 +51,29 @@ function download(data, filename, type)
 }
 
 /**
+ * A data URL as bytes, so a large export can be downloaded as a blob.
+ *
+ * `savePhoto` hands its data URL straight to an anchor and that is fine at a
+ * couple of megabytes. A 4096 x 2048 panorama is an order of magnitude past
+ * that once base64 has added its third, and a URL that long is where browsers
+ * differ - Chrome takes it, others have refused. A blob has no length to
+ * exceed, and the object URL is revoked by `download` either way.
+ *
+ * @param {string} url A `data:<type>;base64,<payload>` URL.
+ * @returns {Uint8Array}
+ */
+function dataUrlToBlob(url)
+{
+	var binary = atob(url.slice(url.indexOf(',') + 1));
+	var bytes = new Uint8Array(binary.length);
+	for (var i = 0; i < binary.length; i++)
+	{
+		bytes[i] = binary.charCodeAt(i);
+	}
+	return bytes;
+}
+
+/**
  * A text measurer bound to the live canvas, captured BEFORE the export starts
  * (RM-008 E4).
  *
@@ -341,6 +364,40 @@ export function useDesignIO(store)
 		toasts.success('Exported view.png');
 	}
 
+	/**
+	 * A 360 degree panorama of the design (RM-011 H3).
+	 *
+	 * Taken from wherever the walkthrough was left standing, which is what the
+	 * sprint means by *"any point"* - the teleport click is how a point gets
+	 * chosen, and this is what it is chosen for. Leaving the walkthrough does not
+	 * move the walker, so the sequence is: walk there, press Esc, export.
+	 *
+	 * Synchronous like `savePhoto` beside it and for the same reason - six frames
+	 * are read straight back out of the drawing buffer, and nothing may clear it
+	 * in between - but far heavier: six renders and an eight-megapixel projection.
+	 * The toast is raised first so the window has said something before it stops
+	 * answering.
+	 *
+	 * @param {number} [width] Output width in pixels. The height is half of it.
+	 */
+	function savePanorama(width)
+	{
+		var viewer = store.instance.value && store.instance.value.three;
+		if (!viewer)
+		{
+			fail('There is no 3D view to photograph.');
+			return;
+		}
+		var url = viewer.panoramaUrl({width: width});
+		if (!url || url.length < 100)
+		{
+			fail('The browser could not encode the panorama.');
+			return;
+		}
+		download(dataUrlToBlob(url), 'panorama.png', 'image/png');
+		toasts.success('Exported panorama.png');
+	}
+
 	function savePlanPNG(pixelWidth)
 	{
 		var planner = store.floorplanner.value;
@@ -496,5 +553,5 @@ export function useDesignIO(store)
 		});
 	}
 
-	return {busy, lastError, newDesign, loadDesign, openDesign, saveDesign, saveMesh, saveGLTF, savePhoto, savePlanSVG, savePlanPNG, printPlan};
+	return {busy, lastError, newDesign, loadDesign, openDesign, saveDesign, saveMesh, saveGLTF, savePhoto, savePanorama, savePlanSVG, savePlanPNG, printPlan};
 }

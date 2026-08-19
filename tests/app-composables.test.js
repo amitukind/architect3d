@@ -33,6 +33,7 @@ import {useSelection, SELECTION_ITEM, SELECTION_WALL, SELECTION_FLOOR, SELECTION
 import {useCameraViews, MODE_FLOORPLAN, MODE_DESIGN, MODE_WALKTHROUGH} from '../src/app/composables/useCameraViews.js';
 import {useFloorplannerMode} from '../src/app/composables/useFloorplannerMode.js';
 import {useDesignIO} from '../src/app/composables/useDesignIO.js';
+import {useWalkthrough} from '../src/app/composables/useWalkthrough.js';
 import {useCatalog} from '../src/app/composables/useCatalog.js';
 import {DEFAULT_DESIGN} from '../src/app/designs/default-design.js';
 
@@ -599,6 +600,40 @@ describe('useDesignIO', () =>
 	});
 
 	/**
+	 * The panorama, from the application's side (RM-011 H3). What a panorama
+	 * *contains* is `tests/browser/panorama.test.js`; what is asserted here is
+	 * the two things only this layer knows - that a data URL is turned into a
+	 * blob rather than handed to an anchor whole, and that a viewer that cannot
+	 * encode says so instead of downloading nothing.
+	 */
+	it('downloads the panorama as bytes rather than as a data URL', () =>
+	{
+		io.newDesign();
+		const original = window.HTMLCanvasElement.prototype.toDataURL;
+		window.HTMLCanvasElement.prototype.toDataURL = () => `data:image/png;base64,${btoa('a'.repeat(200))}`;
+
+		io.savePanorama(32);
+
+		expect(downloads).toHaveLength(1);
+		expect(downloads[0].type).toBe('image/png');
+		expect(revoked).toEqual(['blob:1']);
+		window.HTMLCanvasElement.prototype.toDataURL = original;
+	});
+
+	it('says so when the browser cannot encode the panorama', () =>
+	{
+		io.newDesign();
+		const original = window.HTMLCanvasElement.prototype.toDataURL;
+		window.HTMLCanvasElement.prototype.toDataURL = () => '';
+
+		io.savePanorama(32);
+
+		expect(downloads).toHaveLength(0);
+		expect(io.lastError.value).toMatch(/could not encode the panorama/);
+		window.HTMLCanvasElement.prototype.toDataURL = original;
+	});
+
+	/**
 	 * The plan export, from the application's side (RM-008 E4). What the sheet
 	 * *contains* is pinned in `tests/plan-export.test.js`; what is asserted here
 	 * is the three things only this layer knows - that it finds the plan view,
@@ -711,6 +746,49 @@ describe('useDesignIO', () =>
 
 		expect(io.lastError.value).toContain('the recovered draft');
 		expect(blueprint.model.exportSerialized()).toBe(before);
+	});
+});
+
+describe('useWalkthrough (RM-011 H3)', () =>
+{
+	afterEach(() =>
+	{
+		window.localStorage.removeItem('architect3d.walkthrough');
+	});
+
+	it('carries the stored height into a viewer built afterwards', async () =>
+	{
+		const walk = run(() => useWalkthrough(store));
+		walk.setEyeHeight(175);
+
+		// The reason `App.vue` mounts this and not only the settings panel: the
+		// viewer that has to be told is the *next* one. A tick, because the watch
+		// that tells it is a normal pre-flush watch rather than a synchronous one -
+		// a viewer is not walked in the frame it was constructed in.
+		const blueprint = mountStore();
+		await nextTick();
+		expect(blueprint.three.eyeHeight()).toBe(175);
+	});
+
+	it('clamps to a person, and remembers across a fresh mount', async () =>
+	{
+		const walk = run(() => useWalkthrough(store));
+		walk.setEyeHeight(9999);
+		expect(walk.eyeHeight.value).toBe(walk.bounds.max);
+		expect(window.localStorage.getItem('architect3d.walkthrough'))
+			.toBe(`{"eyeHeight":${walk.bounds.max}}`);
+
+		const blueprint = mountStore();
+		await nextTick();
+		expect(blueprint.three.eyeHeight()).toBe(walk.bounds.max);
+	});
+
+	it('is one shared height, not one per caller', () =>
+	{
+		const first = run(() => useWalkthrough(store));
+		const second = run(() => useWalkthrough(store));
+		first.setEyeHeight(150);
+		expect(second.eyeHeight.value).toBe(150);
 	});
 });
 

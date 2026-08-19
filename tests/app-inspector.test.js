@@ -1237,6 +1237,29 @@ describe('the inspector inside the app', () =>
 		wrapper.unmount();
 	});
 
+	it('sets the eye height, in the browser rather than in the design (RM-011 H3)', async () =>
+	{
+		const wrapper = await mountApp();
+		const three = wrapper.vm.$.setupState.store.three.value;
+		const model = wrapper.vm.$.setupState.store.model.value;
+		const before = model.exportSerialized();
+
+		const walkGroup = wrapper.findAll('.settings .group')
+			.find((node) => node.find('.group-title').text().includes('Walkthrough'));
+		expect(walkGroup, 'no Walkthrough group in the settings panel').toBeTruthy();
+
+		const field = walkGroup.find('input[type="range"]');
+		field.element.value = '183';
+		await field.trigger('input');
+
+		expect(three.eyeHeight()).toBe(183);
+		// The whole reason it is a preference: the design did not change.
+		expect(model.exportSerialized()).toBe(before);
+		expect(window.localStorage.getItem('architect3d.walkthrough')).toBe('{"eyeHeight":183}');
+
+		wrapper.unmount();
+	});
+
 	it('writes north to every storey, so the sun has one answer (W-10)', async () =>
 	{
 		const wrapper = await mountApp();

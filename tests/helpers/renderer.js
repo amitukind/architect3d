@@ -46,6 +46,20 @@ export function createRendererStub(collector)
 		// enlarging the drawing buffer, because exceeding it does not throw - it
 		// produces a buffer the driver silently declines to allocate.
 		capabilities: {maxTextureSize: 4096},
+		// RM-011 H3's panorama renders six faces to the canvas and reads them
+		// straight back, which is three more calls Main now makes: the size to
+		// restore afterwards, the framebuffer to read from, and the read itself.
+		getSize(target) {target.set(this.size ? this.size.width : 0, this.size ? this.size.height : 0); return target;},
+		setRenderTarget(target) {this.renderTarget = target;},
+		renderTarget: null,
+		getContext()
+		{
+			return {
+				RGBA: 6408,
+				UNSIGNED_BYTE: 5121,
+				readPixels(x, y, width, height, format, type, buffer) {buffer.fill(255);},
+			};
+		},
 		setAnimationLoop(fn) {this.animationLoop = fn;},
 		render() {this.renderCount++;},
 		dispose() {this.disposed = true;},

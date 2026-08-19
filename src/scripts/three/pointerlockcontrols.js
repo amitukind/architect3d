@@ -27,7 +27,10 @@ import {PointerLockControls as PointerLockControlsAddon} from 'three/addons/cont
  *
  * Behaviour is preserved deliberately, including the numbers: friction 10/s,
  * gravity 980/s^2, walk acceleration 3000, jump impulse 350, eye height 160
- * (Main sets that; the class defaults to 125). Mouse look needs no adjustment
+ * (Main sets that; the class defaults to 125). RM-011 H3 added a floor height
+ * and a teleport and changed none of them - `groundHeight` defaults to 0, which
+ * makes the arithmetic below identical to the fork's, and `teleport()` writes a
+ * position and nothing else. Mouse look needs no adjustment
  * at all - the addon's sensitivity constant is 0.002 and so was the fork's
  * `lookspeed`, so pointerSpeed 1.0 is exactly the old feel.
  *
@@ -41,6 +44,17 @@ import {PointerLockControls as PointerLockControlsAddon} from 'three/addons/cont
  *     pulled forward to S2 to satisfy its exit gate; the file it was fixed in
  *     no longer exists.
  */
+/**
+ * Eye height, and the range a person is offered (RM-011 H3).
+ *
+ * 160 is the fork's number, which `Main` has always assigned over the class
+ * default of 125 - so this constant states what actually runs rather than what
+ * the constructor happens to initialise. The bounds are a person: 90 cm is a
+ * small child's eye level and 220 is above the tallest adult, and past either
+ * end the walkthrough stops being a way of judging a room.
+ */
+export const EYE_HEIGHT = Object.freeze({default: 160, min: 90, max: 220});
+
 export class PointerLockControls extends PointerLockControlsAddon
 {
 	/**
@@ -52,8 +66,28 @@ export class PointerLockControls extends PointerLockControlsAddon
 	{
 		super(camera, domElement || document.body);
 
-		/** Eye height, in centimetres. The floor the walker cannot fall through. */
+		/**
+		 * Eye height above the floor, in centimetres.
+		 *
+		 * Was *"the floor the walker cannot fall through"* until H3, which is the
+		 * same number as long as the floor is at zero. It is a property of the
+		 * person, not of the building, which is why `Main` sets it from a session
+		 * preference and no design file carries it.
+		 */
 		this.characterHeight = 125;
+		/**
+		 * How high the floor under the walker is, in centimetres (RM-011 H3).
+		 *
+		 * Zero, until a teleport lands on an upper storey. The fork had no storeys
+		 * to stand on, so it clamped to `characterHeight` outright; a design has
+		 * had them since RM-010 G1, and without this a walker teleported to the
+		 * first floor falls straight through it back to ground eye level.
+		 *
+		 * Default zero means the physics below is arithmetically identical to the
+		 * fork's for every design that has one storey, which is the whole reason
+		 * it is a second number rather than a change to the first.
+		 */
+		this.groundHeight = 0;
 		/** Ground acceleration while a direction key is held. */
 		this.walkspeed = 3000;
 		/** Kept for source compatibility; the addon expresses this as pointerSpeed. */
@@ -179,12 +213,41 @@ export class PointerLockControls extends PointerLockControlsAddon
 		this.moveForward(-velocity.z * delta);
 		this.object.position.y += velocity.y * delta;
 
-		if (this.object.position.y < this.characterHeight)
+		if (this.object.position.y < this.eyeLevel())
 		{
 			velocity.y = 0;
-			this.object.position.y = this.characterHeight;
+			this.object.position.y = this.eyeLevel();
 			this._canJump = true;
 		}
+	}
+
+	/** Where the eye sits when the walker is standing still. */
+	eyeLevel()
+	{
+		return this.groundHeight + this.characterHeight;
+	}
+
+	/**
+	 * Put the walker somewhere else (RM-011 H3).
+	 *
+	 * *"A teleport moves the walker and changes nothing else"* is the sprint's
+	 * acceptance line and it is meant literally: this writes `position` and the
+	 * floor that position stands on, and touches nothing else. Not the velocity -
+	 * so a walker who was moving arrives still moving, which is what carries the
+	 * sense that the *room* changed rather than the person. Not the orientation,
+	 * so you are still looking the way you were looking. Not `_canJump`, which
+	 * the next `update()` decides from the position this just wrote.
+	 *
+	 * @param {number} x
+	 * @param {number} z
+	 * @param {number} [ground] Height of the floor arrived on. Defaults to the
+	 *   one already under the walker, so a teleport across one storey is a move
+	 *   in two numbers rather than three.
+	 */
+	teleport(x, z, ground)
+	{
+		this.groundHeight = (ground === undefined) ? this.groundHeight : ground;
+		this.object.position.set(x, this.eyeLevel(), z);
 	}
 
 	/** Lock the pointer and, as the fork did, take the element fullscreen. */

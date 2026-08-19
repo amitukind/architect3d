@@ -2,6 +2,7 @@
 // @ts-check
 import {computed, onScopeDispose, reactive, ref, watch} from 'vue';
 import CollapsibleGroup from './CollapsibleGroup.vue';
+import {useWalkthrough} from '../composables/useWalkthrough.js';
 import CarbonSheetPanel from './CarbonSheetPanel.vue';
 import NumberField from './fields/NumberField.vue';
 import CheckField from './fields/CheckField.vue';
@@ -61,6 +62,12 @@ const props = defineProps({
 });
 
 const {unit, units, setUnit} = useDisplayUnit(props.store);
+
+/**
+ * Eye height (RM-011 H3). Shared module state, so this control and the viewer
+ * cannot hold different ideas of how tall the walker is.
+ */
+const {eyeHeight, setEyeHeight, bounds: EYE} = useWalkthrough(props.store);
 
 const floorplanner = computed(() => props.store.floorplanner.value);
 
@@ -413,6 +420,17 @@ function resetClipping()
 					@update:model-value="setSun({latitude: $event})" />
 			</template>
 			<p class="inspector-note">{{ sunNote }}</p>
+		</CollapsibleGroup>
+
+		<CollapsibleGroup title="Walkthrough">
+			<RangeField
+				label="Eye height" unit="cm" :min="EYE.min" :max="EYE.max" :step="1"
+				:model-value="eyeHeight" @update:model-value="setEyeHeight($event)" />
+			<p class="inspector-note">
+				How tall the person walking is. Kept in this browser rather than in the
+				design — it describes whoever is looking, not the building. In the
+				walkthrough, click the floor to go there.
+			</p>
 		</CollapsibleGroup>
 
 		<CollapsibleGroup title="Roof">

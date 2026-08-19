@@ -625,12 +625,30 @@
 		"lib-esm-gzip is at 76,761 against 78,300 - 2.0% - and is NOT raised here",
 		"because nothing this sprint made it fail. Named as thin, the way F1 named",
 		"demo-js-gzip and lib-iife-gzip before they moved: it is the next line to go,",
-		"and the sprint that trips it should raise it to ~5% rather than to just-enough."
+		"and the sprint that trips it should raise it to ~5% rather than to just-enough.",
+		"",
+		"RM-011 H3 RAISED lib-esm-gzip, 78,300 -> 83,000. H2's note above named this",
+		"line as the next one to go and said what to do when it went: raise it to ~5%",
+		"rather than to just-enough. It went one sprint later, and this is that raise.",
+		"",
+		"The ESM entry measured 76,761 -> 78,999 gzipped, 2,238 bytes for H3: the",
+		"equirectangular projection, the six-face capture, and the panorama, eye-height",
+		"and teleport methods on Main. No three.js module came with it - Raycaster and",
+		"PerspectiveCamera were both already in the bundle - so all of it is this",
+		"sprint's own code, about 325 lines of it.",
+		"",
+		"lib-iife-gzip and demo-js-gzip took the same 2 KB and did not need raising,",
+		"because H2 had just moved both. first-load took 2.5 KB of it and sits at 3.2%,",
+		"which is the line to watch next: unlike the bundle sizes it measures what a",
+		"person waits for, and a panorama nobody has asked for yet is on the wrong side",
+		"of that. Making the capture a dynamic import is the obvious answer and is NOT",
+		"taken here: `package.json` publishes exactly two files, so an ESM chunk split",
+		"out of the library entry would not be shipped at all."
 	],
 	"budgets": {
 		"demo-js-gzip": {
 			"limit": 423200,
-			"measured": 402993
+			"measured": 405611
 		},
 		"demo-css-gzip": {
 			"limit": 10000,
@@ -638,19 +656,19 @@
 		},
 		"demo-total": {
 			"limit": 19990000,
-			"measured": 19155247
+			"measured": 19206629
 		},
 		"lib-iife-gzip": {
 			"limit": 307000,
-			"measured": 292381
+			"measured": 294575
 		},
 		"public-total": {
 			"limit": 11180000,
 			"measured": 10609326
 		},
 		"lib-esm-gzip": {
-			"limit": 78300,
-			"measured": 76761
+			"limit": 83000,
+			"measured": 78999
 		},
 		"public-largest": {
 			"limit": 330000,
@@ -670,7 +688,7 @@
 		},
 		"first-load": {
 			"limit": 421400,
-			"measured": 405502
+			"measured": 408108
 		}
 	}
 }

@@ -1494,6 +1494,138 @@ from; H2 gave the room a sun, lamps that emit, occlusion behind the switch and a
 photograph. H3 is next: a 360° panorama, and eye height and a teleport in the
 walkthrough.
 
+**RM-011 H3 delivered, and programme H with it: a 360° panorama, eye height and
+a teleport.** The last sprint of the programme, and the one whose first bullet
+RM-011 W-11 priced as construction rather than as a setting — it grepped the
+tree and found **no cube camera and no equirectangular path anywhere in it**.
+
+**The projection is pure and the capture is not.** `core/equirect.js` takes six
+square faces of bytes and returns one 2:1 image; it holds no three types, no
+renderer and no canvas. `three/panorama.js` is the half that needs a GPU. That
+is the same one-way arrow `model/sun.js` sits behind, and it is why this sprint
+could be tested exactly rather than by looking at it — **coverage went up on all
+four lines**, where H2's GPU-only `post.js` needed a written exemption to hold
+them.
+
+**Six cameras of our own, from three's own vectors.** `CUBE_FACES` is copied out
+of `CubeCamera.updateCoordinateSystem()`, and each face's *right* vector is
+computed as `forward × up` rather than typed, so the table has six lines of
+input and no arithmetic to get wrong. A test builds a real `CubeCamera`, asks
+three to orient it, and compares all six.
+
+**`CubeCamera` itself is not used, and there are two reasons.** The shallow one
+is that it is constructed with `fov = -90`, and a negative field of view negates
+both axes of the projection — measured: a point at NDC (0.2, 0.2) through a +90
+camera arrives at (−0.2, −0.2) through a −90 one. That half-turn is how three
+writes each face in GL cube-map storage order, and copying it across would have
+produced a panorama upside down and back to front.
+
+The deeper one is where a `CubeCamera` renders *to*. `WebGLPrograms.getParameters`
+forces `toneMapping` to `NoToneMapping` and `outputColorSpace` to the working
+space **unless `currentRenderTarget` is null**. The studio profile renders
+through `ACESFilmicToneMapping`, so a `WebGLCubeRenderTarget` would hand back six
+faces that are not what the screen shows — a bug that looks like a colour
+preference. So the faces are rendered **to the canvas**, one at a time, through
+the same call a frame makes, and `gl.readPixels` reads them straight back; the
+alternative was a full-screen pass duplicating three's ACES and sRGB chunks by
+hand. The flip from GL's bottom-up read into picture order happens once, in the
+capture, so nothing downstream of it has to know GL exists.
+
+**One limitation, stated rather than hidden: the panorama has no
+post-processing**, so H2's ambient occlusion is absent from it. Not only a
+shortcut — screen-space occlusion is computed from one frame's depth buffer, so
+each 90° face would occlude against its own view and the six would not agree
+along the seams.
+
+**Sampling is nearest, and the sizing is what makes that enough.** A face spans
+90° over `size` pixels and the output spans 360° over `width`, so at
+`width = 4 × size` the two match exactly at the centre of a face — and everywhere
+else on a face a perspective projection is *denser* than at its centre, never
+sparser. 4096 × 2048 from 1024-pixel faces is the default for that reason.
+
+**The acceptance is worded as a method and is followed literally.** Four walls of
+one room, each tinted a colour of its own through H1's surface material; the eye
+in the middle; each wall then looked for *in the direction it is actually in* —
+`faceSample` says which of the six faces that direction lands on and where, and
+the pixel there has to be that wall's colour. The four right-angled walls come
+back on four different faces. A panorama that were upside down, mirrored or a
+quarter-turn out would pass a blankness test and fails every assertion in that
+file, because every one of them ties a compass direction to a pixel.
+
+**A measurement overturned the test rather than the other way round.** The first
+draft read **0, 0, 0** for every wall, and the tempting fix was to loosen the
+threshold. The cause was elsewhere: a classic wall is an unlit
+`MeshBasicMaterial` with `map` set, and a `Texture` whose image has not arrived
+samples as *zero* — three says so on the console and renders it anyway. The tint
+was being multiplied by nothing. The suite now polls the face it is about to
+assert on until the texture has landed, which is a wait for a fact rather than a
+sleep for a guess.
+
+**Eye height is a property of the person, not of the building**, so it is not in
+the save file. It lives beside the theme and the workspace layout — in this
+browser, for this reader, across designs — because two people opening the same
+plan should walk it at their own eye level. Asserted as a decision rather than
+left as an omission: a design re-saves byte-identical after the walker has
+changed height.
+
+**A teleport writes a position and the floor under it, and nothing else.** Not
+the velocity — a walker who was moving arrives moving, which is what carries the
+sense that the *room* changed rather than the person. Not the orientation. Not
+`_canJump`, which the next frame decides from the position just written. Each is
+asserted by measuring the motion *after* the teleport, not by reading a field
+back. `groundHeight` is a second number rather than a change to the first, and
+defaults to 0: the fall is arithmetically identical to the fork's for a design
+with one storey, and a click on an upper floor now lands on that floor instead
+of dropping through it.
+
+**The five preserved constants are measured off the motion.** One held key for
+one step of 0.1 s moves the walker exactly 30 cm, so the acceleration is 3000.
+Two equal steps in the ratio 1 − k·dt give friction 10/s. A step of 0.5 s from
+rest falls 245 cm, so gravity is 980. The jump's first step recovers 350. The eye
+stands at 160. An assertion that `walkspeed === 3000` would pass on a rig that
+had stopped using it.
+
+**The aim is the centre of the screen**, because a pointer-locked walkthrough has
+no cursor: the crosshair is where you are looking. Floors are collected from
+every storey *shown*, with visibility checked up the whole parent chain —
+`showStoreys(false)` hides a level group, and a teleport onto a floor nobody can
+see is a teleport into the dark. **Wall collision stays withdrawn** (W-11), with
+J4, whose subject is the two preserved polygon predicates it needs. Eight
+programmes now without touching them.
+
+**One budget raised, and H2 named which one.** `lib-esm-gzip` 78,300 → 83,000.
+H2's note called this line thin at 2.0% and left an instruction — *"the sprint
+that trips it should raise it to ~5% rather than to just-enough"*. It went one
+sprint later. The entry measured 76,761 → **78,999**, and all 2,238 bytes are
+this sprint's own code: `Raycaster` and `PerspectiveCamera` were both already in
+the bundle, so no three module came with it. `first-load` took 2.5 KB of the same
+change and sits at 3.2% — the next line to watch. Splitting the capture out as a
+dynamic import is the obvious answer and is **not** taken: `package.json`
+publishes exactly two files, so an ESM chunk would not be shipped at all.
+
+    branches   77.28 -> 77.32      lines      86.11 -> 86.33
+    statements 86.13 -> 86.35      functions  83.80 -> 84.09
+
+**60 new headless tests and 10 in the browser: 2,126 and 169.** And a correction
+to the H2 entry below, while both are still unreleased: it says *"2,067 headless
+and 168 browser"*. Both re-run at that commit, `8928283`, in a clean worktree:
+**2,066 headless and 159 browser**. One high and nine high, in the direction that
+flatters — and the reason to check rather than to subtract is that the second
+figure is out by more than this whole sprint added.
+
+New public API, all additive: `EYE_HEIGHT`, `CUBE_FACES`, `directionAt`,
+`pixelFor`, `faceSample`, `projectEquirectangular`, `PANORAMA_FACE_SIZE`,
+`PANORAMA_WIDTH`, `panoramaCameras`, `capturePanoramaFaces`, `capturePanorama`,
+`panoramaDataUrl`, `flipRows`, `PointerLockControls.groundHeight` / `eyeLevel` /
+`teleport`, and `Main.panoramaUrl` / `walkPosition` / `setEyeHeight` /
+`eyeHeight` / `walkableSurfaces` / `teleportToView`. Export → **360° panorama,
+from the walk** is the caller, and Settings → **Walkthrough** is the eye height.
+
+**Programme H is delivered, all three sprints.** H1 gave a surface a material and
+a library to pick from, H2 gave the room a sun, lamps, occlusion and a
+photograph, and H3 lets you stand anywhere in it and take the whole view away as
+a file.
+
 ## [3.0.1] - 2026-08-16
 
 No shipped code changed — `src/` is byte-identical to 3.0.0 and so is every

@@ -46,6 +46,13 @@ export function createContext2DStub()
 		fillText: record('fillText'),
 		strokeText: record('strokeText'),
 		drawImage: record('drawImage'),
+		// RM-011 H3: the panorama paints its projected pixels through a 2D canvas
+		// on the way to a PNG. `putImageData` records, like every other call here,
+		// and `createImageData` hands back the buffer the caller then fills.
+		createImageData: (width, height) => ({
+			width, height, data: new Uint8ClampedArray(width * height * 4),
+		}),
+		putImageData: record('putImageData'),
 	};
 
 	// Style is set immediately before the call that consumes it, so snapshot it

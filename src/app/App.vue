@@ -20,6 +20,7 @@ import InspectorPanel from './inspector/InspectorPanel.vue';
 import {provideBlueprint} from './composables/useBlueprint.js';
 import {useSelection, SELECTION_DIMENSION, SELECTION_ANNOTATION} from './composables/useSelection.js';
 import {useCameraViews, MODE_WALKTHROUGH, MODE_EXTERIOR} from './composables/useCameraViews.js';
+import {useWalkthrough} from './composables/useWalkthrough.js';
 import {useFloorplannerMode} from './composables/useFloorplannerMode.js';
 import {useDesignIO} from './composables/useDesignIO.js';
 import {useCatalog} from './composables/useCatalog.js';
@@ -95,6 +96,11 @@ const catalogOpen = ref(false);
 const shortcutsOpen = ref(false);
 const inspectorTab = ref('settings');
 const renderMode = ref(renderProfile.mode);
+
+// Mounted here rather than only in the settings panel: the panel lives behind a
+// tab and can be unmounted when a new viewer is built, and the stored eye height
+// has to reach that viewer either way (RM-011 H3).
+useWalkthrough(store);
 
 const walkthrough = computed(() => camera.mode.value === MODE_WALKTHROUGH);
 const exterior = computed(() => camera.mode.value === MODE_EXTERIOR);
@@ -596,6 +602,7 @@ useShortcuts(() => bindings.value);
 				@save-gltf="io.saveGLTF"
 				@save-plan-svg="io.savePlanSVG"
 				@save-photo="io.savePhoto"
+				@save-panorama="io.savePanorama"
 				@save-plan-png="io.savePlanPNG"
 				@print-plan="io.printPlan"
 				@undo="undo"
@@ -687,7 +694,8 @@ useShortcuts(() => bindings.value);
 								class="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center p-4">
 								<p class="glass px-3 py-2 text-[11px]">
 									<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> to walk ·
-									move the mouse to look · <kbd>Esc</kbd> to leave
+									move the mouse to look · <strong>click the floor</strong> to go there ·
+									<kbd>Esc</kbd> to leave
 								</p>
 							</div>
 						</ThreeViewport>
