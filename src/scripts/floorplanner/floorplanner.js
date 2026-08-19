@@ -214,6 +214,22 @@ export class Floorplanner2D extends EventDispatcher
 		this.activeItemId = null;
 		/** @type {?string} The item picked on the plan, drawn emphasised. */
 		this.selectedItemId = null;
+		/**
+		 * The rest of a multi-selection, by id (RM-012 J4).
+		 *
+		 * Beside `selectedItemId` rather than replacing it, and that is deliberate:
+		 * one id is what the inspector, `selectedFootprint` and every existing
+		 * caller mean by "the selection", and there is exactly one of those however
+		 * many things are highlighted. This is the *rest* - drawn the same, acted
+		 * on together, and primary to nobody.
+		 *
+		 * A Set because the draw asks it a membership question once per footprint,
+		 * and a plan with 150 items asking an array 150 times is the shape of thing
+		 * that is fine until it is not.
+		 *
+		 * @type {Set<string>}
+		 */
+		this.selectedItemIds = new Set();
 		/** @type {?string} The item being dragged right now, or null. */
 		this._draggingItemId = null;
 		/** Pointer offset within the footprint at grab time, so it does not jump. */
@@ -1448,7 +1464,7 @@ export class Floorplanner2D extends EventDispatcher
 	 *        'annotation', or null to clear.
 	 * @param {*} target The selected object, or an item id when type is 'item'.
 	 */
-	showSelection(type, target)
+	showSelection(type, target, extra)
 	{
 		var wall = null;
 		var corner = null;
@@ -1494,12 +1510,20 @@ export class Floorplanner2D extends EventDispatcher
 			}
 		}
 
+		// The rest of a multi-selection, if the caller passed one (RM-012 J4). Kept
+		// out of the `type` switch above because it is not a kind of selection - it
+		// is more of the one kind that can have more.
+		var others = new Set((extra || []).filter(Boolean));
+		var sameOthers = (others.size === this.selectedItemIds.size)
+			&& [...others].every((id) => this.selectedItemIds.has(id));
+
 		var unchanged = (this._clickedWall === wall)
 			&& (this._clickedCorner === corner)
 			&& (this._clickedRoom === room)
 			&& (this.selectedItemId === (itemId || null))
 			&& (this.selectedDimension === dimension)
-			&& (this.selectedAnnotation === annotation);
+			&& (this.selectedAnnotation === annotation)
+			&& sameOthers;
 		if (unchanged)
 		{
 			return;
@@ -1509,6 +1533,7 @@ export class Floorplanner2D extends EventDispatcher
 		this._clickedCorner = corner;
 		this._clickedRoom = room;
 		this.selectedItemId = itemId || null;
+		this.selectedItemIds = others;
 		this.selectedDimension = dimension;
 		this.selectedAnnotation = annotation;
 		this.view.invalidate();

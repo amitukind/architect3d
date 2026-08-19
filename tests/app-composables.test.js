@@ -226,6 +226,178 @@ describe('useSelection', () =>
 		expect(selection.selection.value).toBeNull();
 	});
 
+	/**
+	 * RM-012 J4, X-6. The composable held one object, `select` replaced it, and
+	 * eight selection types shared that one slot - so multi-select is not a
+	 * control over an existing set, it is the set. These are the properties that
+	 * had to become true without any of the eight consumers of `selection.value`
+	 * changing, because every one of them was written against exactly one object
+	 * or null.
+	 */
+	describe('the selection is a set (RM-012 J4, X-6)', () =>
+	{
+		/**
+		 * Two items with ids, which is how a real item is held - by `designId`,
+		 * resolved against the scene on every read, so a selection survives the
+		 * re-derivation an edit causes (RM-003 A3). Put in the scene for that
+		 * reason: an id that resolves to nothing is a selection that has gone.
+		 */
+		let items;
+
+		beforeEach(() =>
+		{
+			// Both halves of the interface the 3D view calls. A stub with
+			// `setSelected` and no `setUnselected` is what found the half-guard in
+			// `Main.showItemSelected`: it passed the check, became the controller's
+			// selection, and threw from inside the library on the *next* click.
+			const stub = (id) => ({designId: id, setSelected() {}, setUnselected() {}});
+			items = [stub('a'), stub('b')];
+			blueprint.model.scene.getItems = () => items;
+		});
+
+		function twoItems()
+		{
+			return items;
+		}
+
+		/** Click with the additive modifier held, the way a person does it. */
+		function shiftClick(item)
+		{
+			window.dispatchEvent(new window.PointerEvent('pointerdown', {shiftKey: true, bubbles: true}));
+			blueprint.three.dispatchEvent({type: EVENT_ITEM_SELECTED, item});
+		}
+
+		function plainClick(item)
+		{
+			window.dispatchEvent(new window.PointerEvent('pointerdown', {bubbles: true}));
+			blueprint.three.dispatchEvent({type: EVENT_ITEM_SELECTED, item});
+		}
+
+		it('still means one thing to everything written before it', () =>
+		{
+			// The migration's whole claim. `selection` is the primary and resolves
+			// to the same `{type, object}` it always did, so the inspector, the
+			// plan highlight and the item actions read what they read before.
+			const [a] = twoItems();
+			plainClick(a);
+			expect(selection.selection.value).toEqual({type: SELECTION_ITEM, object: a});
+			expect(selection.count.value).toBe(1);
+			expect(selection.selections.value).toHaveLength(1);
+		});
+
+		it('grows when the gesture is additive, and the primary is the last click', () =>
+		{
+			const [a, b] = twoItems();
+			plainClick(a);
+			shiftClick(b);
+
+			expect(selection.count.value).toBe(2);
+			expect(selection.selectedItems.value).toEqual([a, b]);
+			// The primary is what an inspector should show, which is the thing the
+			// person just clicked rather than the thing they clicked first.
+			expect(selection.selection.value.object).toBe(b);
+		});
+
+		it('replaces when the gesture is not, which is the common case', () =>
+		{
+			const [a, b] = twoItems();
+			plainClick(a);
+			shiftClick(b);
+			plainClick(a);
+
+			expect(selection.count.value).toBe(1);
+			expect(selection.selection.value.object).toBe(a);
+		});
+
+		it('toggles, because the gesture that adds a fifth removes the third', () =>
+		{
+			const [a, b] = twoItems();
+			plainClick(a);
+			shiftClick(b);
+			shiftClick(b);
+
+			expect(selection.selectedItems.value).toEqual([a]);
+			// And the primary falls back to what is now last rather than to the
+			// thing that was just removed.
+			expect(selection.selection.value.object).toBe(a);
+		});
+
+		it('never mixes kinds, because no verb could read the result', () =>
+		{
+			// A set holding a wall and a chair has no meaning for align, distribute
+			// or stack. So a different kind replaces rather than joining, and the
+			// rule lives in the composable rather than at each call site.
+			const [a] = twoItems();
+			plainClick(a);
+			window.dispatchEvent(new window.PointerEvent('pointerdown', {shiftKey: true, bubbles: true}));
+			blueprint.model.floorplan.dispatchEvent({
+				type: EVENT_CORNER_2D_CLICKED, item: blueprint.model.floorplan.getCorners()[0],
+			});
+
+			expect(selection.count.value).toBe(1);
+			expect(selection.selection.value.type).toBe(SELECTION_CORNER_2D);
+		});
+
+		it('reads the modifier from the gesture, not from the event', () =>
+		{
+			// The selection events carry no modifier and should not - they come
+			// from `src/scripts`, which has no idea there is a set to add to, and
+			// threading one through would put application policy inside the
+			// library. So the pointerdown that began the gesture is where it is
+			// read, and a selection event with no gesture before it is not additive.
+			const [a, b] = twoItems();
+			plainClick(a);
+			blueprint.three.dispatchEvent({type: EVENT_ITEM_SELECTED, item: b});
+			expect(selection.count.value).toBe(1);
+		});
+
+		it('answers whether one thing is in it', () =>
+		{
+			const [a, b] = twoItems();
+			plainClick(a);
+			expect(selection.isSelected(SELECTION_ITEM, a)).toBe(true);
+			expect(selection.isSelected(SELECTION_ITEM, b)).toBe(false);
+			expect(selection.isSelected(SELECTION_ITEM, null)).toBe(false);
+		});
+
+		it('takes a whole set at once, for select-all and for paste', () =>
+		{
+			const [a, b] = twoItems();
+			selection.selectMany(SELECTION_ITEM, [a, b]);
+			expect(selection.selectedItems.value).toEqual([a, b]);
+			expect(selection.selection.value.object).toBe(b);
+
+			selection.selectMany(SELECTION_ITEM, []);
+			expect(selection.selection.value).toBeNull();
+			expect(selection.count.value).toBe(0);
+		});
+
+		it('shows the whole set in both views, with one primary', async () =>
+		{
+			// The plan draws every selected footprint and the 3D view highlights
+			// every selected item, but only one of them is the controller's - a
+			// drag moves one thing, and making `Controller.selectedObject` plural
+			// would be J4's whole sprint rather than its first task.
+			const shown = {plan: null, three: null};
+			blueprint.floorplanner.showSelection = (type, target, extra) =>
+			{
+				shown.plan = {type, target, extra};
+			};
+			blueprint.three.showItemsSelected = (list) => {shown.three = list;};
+
+			const [a, b] = twoItems();
+			plainClick(a);
+			shiftClick(b);
+			// The cross-view push is a `watch`, which flushes on the microtask
+			// rather than on the assignment - unlike the computeds above it.
+			await nextTick();
+
+			expect(shown.plan.target).toBe(b);
+			expect(shown.plan.extra).toEqual(['a']);
+			expect(shown.three).toEqual([a, b]);
+		});
+	});
+
 	it('follows the 2D click events', () =>
 	{
 		const corner = blueprint.model.floorplan.getCorners()[0];

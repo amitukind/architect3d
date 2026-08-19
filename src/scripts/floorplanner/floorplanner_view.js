@@ -1677,7 +1677,12 @@ export class FloorplannerView2D
 			// A sheet carries the furniture, not which piece of it was clicked.
 			return 'plain';
 		}
-		if (this.viewmodel.selectedItemId === footprint.id)
+		// The primary, or any other member of a multi-selection (RM-012 J4). Drawn
+		// identically: a set where one member looks different from the others is a
+		// set a person has to be told the rules of, and the primary's privileges -
+		// the inspector, the drag - are not things the plan draws anyway.
+		if (this.viewmodel.selectedItemId === footprint.id
+			|| (this.viewmodel.selectedItemIds && this.viewmodel.selectedItemIds.has(footprint.id)))
 		{
 			return 'selected';
 		}

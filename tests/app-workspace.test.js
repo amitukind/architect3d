@@ -581,6 +581,34 @@ describe('useItemActions', () =>
 		expect(actions.duplicateSelected()).toBe(false);
 	});
 
+	it('deletes every selected item, not the primary of five', async () =>
+	{
+		// The bug a set introduces into every verb that predates it: delete was
+		// written against one object, so the moment the selection became a set
+		// (RM-012 J4, X-6) it would have removed one of five chairs and left the
+		// other four highlighted. Repaired in the same commit as the set.
+		mountStore();
+		const selection = run(() => useSelection(store));
+		const history = run(() => useHistory(store));
+		const actions = run(() => useItemActions(store, selection, history));
+
+		const scene = store.model.value.scene;
+		const items = [fakeItem(scene), fakeItem(scene), fakeItem(scene)];
+		selection.selectMany(SELECTION_ITEM, items);
+		expect(actions.selectedItems.value).toHaveLength(3);
+
+		const commits = [];
+		history.commit = () => {commits.push(1);};
+
+		expect(actions.deleteSelected()).toBe(true);
+		expect(items.every((item) => item.removed)).toBe(true);
+		expect(selection.count.value).toBe(0);
+		// One commit for the whole gesture, so undo brings back three chairs
+		// rather than making somebody press it three times.
+		expect(commits).toHaveLength(1);
+		await nextTick();
+	});
+
 	it('deletes the selected item and drops the selection first', () =>
 	{
 		mountStore();

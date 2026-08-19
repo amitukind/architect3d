@@ -2,6 +2,40 @@
 
 ## [Unreleased]
 
+**RM-012 J4: the selection is a set.** X-6 measured what multi-select costs here:
+`useSelection` held **one** object, `select` replaced it, and eight selection
+types shared that one slot. So this is not a control over an existing set — it
+*is* the set, and every consumer of `selection.value` was written against exactly
+one object or null.
+
+The migration keeps `selection` meaning one thing: it is the *primary*, the last
+thing clicked, and still resolves to `?{type, object}`. **All 2,235 tests passed
+on the commit that changed the shape**, before a new assertion was written.
+`selections`, `selectedItems`, `count`, `isSelected`, `selectMany` are the new
+surface. One kind at a time, as a rule — a set holding a wall and a chair has no
+meaning for any verb that would read it.
+
+The additive modifier is read from the gesture, not the event: the selection
+events come from `src/scripts`, which has no idea there is a set to add to.
+A capture-phase `pointerdown` on the window records shift or the platform
+accelerator, and the next selection event consumes it.
+
+Both views draw the whole set. The plan gains `selectedItemIds` beside
+`selectedItemId`; `Main.showItemsSelected` gives the primary to the controller by
+the path E1 established and tells the rest to `setSelected()`.
+`Controller.selectedObject` stays singular — it is what a drag moves.
+
+Delete was repaired in the same commit, because a set breaks every verb that
+predates it: it now removes the set, over a copy of the list, and commits once.
+And `mod+A` selects every item.
+
+One bug found by handing the library a better stub. `Main.showItemSelected`
+guarded on `typeof item.setSelected === 'function'`, but
+`Controller.setSelectedObject` then calls `setUnselected()` on whatever it is
+*replacing* — so an object with one half of the pair passes the guard, becomes
+the controller's selection, and throws from inside the library on the next click.
+Guard completed.
+
 **RM-012 J2: the licence, in the product.** RM-007's objective for programme J
 opens with "the licence on every item", and J1 recorded that the second half had
 not been done — provenance went into `sources.json`, and the licence was nowhere

@@ -45,15 +45,32 @@ export function useItemActions(store, selection, history)
 		return (current && current.type === SELECTION_ITEM) ? current.object : null;
 	});
 
+	/**
+	 * Every selected item, which since RM-012 J4 may be more than one.
+	 *
+	 * `selectedItem` stays beside it and stays the primary, because the two
+	 * answer different questions: an inspector edits one thing and a verb acts
+	 * on the set. Both read the same composable and cannot disagree.
+	 */
+	var selectedItems = computed(() => selection.selectedItems.value);
+
 	var canActOnItem = computed(() => selectedItem.value !== null);
 
 	/**
+	 * Delete everything selected.
+	 *
+	 * Every one of them, not the primary. The moment the selection became a set
+	 * (X-6) this became the difference between deleting five chairs and deleting
+	 * one of five while the other four stayed highlighted - which is the shape of
+	 * bug a set introduces into every verb that predates it, and the reason
+	 * delete is repaired in the same commit as the set rather than after it.
+	 *
 	 * @returns {boolean} whether anything was deleted.
 	 */
 	function deleteSelected()
 	{
-		var item = selectedItem.value;
-		if (!item)
+		var items = selectedItems.value;
+		if (!items.length)
 		{
 			return false;
 		}
@@ -66,7 +83,11 @@ export function useItemActions(store, selection, history)
 		{
 			store.three.value.clearSelection();
 		}
-		item.remove();
+		// A copy, because `remove()` mutates the scene the computed reads from.
+		// Iterating the live list would delete every other chair.
+		items.slice().forEach((item) => {item.remove();});
+		// One commit for the whole set, so undo brings back what one gesture took
+		// away rather than restoring five chairs one keystroke at a time.
 		history.commit();
 		return true;
 	}
@@ -111,5 +132,5 @@ export function useItemActions(store, selection, history)
 		return true;
 	}
 
-	return {selectedItem, canActOnItem, deleteSelected, duplicateSelected};
+	return {selectedItem, selectedItems, canActOnItem, deleteSelected, duplicateSelected};
 }

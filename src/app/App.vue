@@ -18,7 +18,7 @@ import ToastStack from './components/ToastStack.vue';
 import InspectorPanel from './inspector/InspectorPanel.vue';
 
 import {provideBlueprint} from './composables/useBlueprint.js';
-import {useSelection, SELECTION_DIMENSION, SELECTION_ANNOTATION} from './composables/useSelection.js';
+import {useSelection, SELECTION_ITEM, SELECTION_DIMENSION, SELECTION_ANNOTATION} from './composables/useSelection.js';
 import {useCameraViews, MODE_WALKTHROUGH, MODE_EXTERIOR} from './composables/useCameraViews.js';
 import {useWalkthrough} from './composables/useWalkthrough.js';
 import {useFloorplannerMode} from './composables/useFloorplannerMode.js';
@@ -477,6 +477,26 @@ function deleteSelection()
 	items.deleteSelected();
 }
 
+/**
+ * Select every item in the design (RM-012 J4).
+ *
+ * The most basic operation over a set, and the one that makes the set worth
+ * having on a plan somebody has already furnished: the alternative is
+ * shift-clicking twenty chairs. `mod+a` rather than a button, because it is a
+ * keyboard idiom nobody has to be taught and nothing here was using it -
+ * the plan and the 3D view both handle their own pointer events and neither has
+ * a text field with a native select-all to shadow.
+ */
+function selectAllItems()
+{
+	var model = store.model.value;
+	if (!model)
+	{
+		return;
+	}
+	selection.selectMany(SELECTION_ITEM, model.scene.getItems());
+}
+
 /** Whether {@link deleteSelection} has anything to do. */
 const canDeleteSelection = computed(function ()
 {
@@ -521,6 +541,10 @@ const bindings = computed(() => /** @type {Array<import('./composables/useShortc
 	{
 		group: 'Tools', keys: 'mod+d', label: 'Duplicate item',
 		run: items.duplicateSelected, enabled: () => items.canActOnItem.value,
+	},
+	{
+		group: 'Tools', keys: 'mod+a', label: 'Select every item',
+		run: selectAllItems, enabled: () => stats.items.value > 0,
 	},
 	{
 		group: 'Tools', keys: 'delete', label: 'Delete the selection',

@@ -36,6 +36,46 @@ import {EVENT_CHANGESET} from '../../scripts/blueprint.js';
  * re-resolved whenever the model says the plan changed, so a room that survives
  * an edit stays selected and one that does not clears itself rather than going
  * stale.
+ *
+ * ## And since RM-012 J4, it is a set (X-6)
+ *
+ * RM-012 X-6 measured what multi-select actually costs here: this composable
+ * held **one** object, `select(type, object)` replaced it, and **eight selection
+ * types shared that one slot**. So multi-select is not a control layered on top
+ * of an existing set - it *is* the set, and every consumer of `selection.value`
+ * was written against exactly one object or null. That is why the drawing calls
+ * it the largest single piece of J4 and puts it first: align, distribute, group
+ * and paste all read the set this creates.
+ *
+ * The migration that does not break the world: **`selection` keeps meaning one
+ * thing.** It is the *primary* - the last thing clicked - and it still resolves
+ * to `?{type, object}`, so the inspector, the plan highlight and the item
+ * actions read exactly what they read before. `selections` is the new surface
+ * and it is the whole ordered set. An inspector genuinely edits one thing; a
+ * verb like align genuinely acts on many; neither should have to pretend to be
+ * the other.
+ *
+ * ## One kind at a time, and that is a rule rather than an accident
+ *
+ * A set holding a wall and a chair has no meaning for any verb that would read
+ * it - align what to what? - so adding to the set is only possible within a
+ * kind. Selecting something of a different kind replaces the set rather than
+ * growing a heterogeneous one. Stated here because it is the kind of rule that
+ * otherwise gets discovered by a verb doing something absurd.
+ *
+ * ## Where the modifier comes from
+ *
+ * Not from the selection events, which do not carry one:
+ * `EVENT_ITEM_SELECTED` and `EVENT_ITEM_2D_CLICKED` are dispatched by the
+ * library, which has no idea there is a set to add to. Threading a modifier
+ * through them would put a piece of application policy inside `src/scripts`,
+ * which is the direction the one-way arrow forbids.
+ *
+ * So the gesture is read where it happens: a capture-phase `pointerdown` on the
+ * window records whether shift or the platform's accelerator was held, and the
+ * next selection event consumes it. The two are the same gesture - a selection
+ * event is dispatched by the pointer sequence that this listener saw the start
+ * of - and this is the only place the connection between them is made.
  */
 
 /** Selection kinds. `null` for no selection. */
@@ -62,17 +102,23 @@ export const SELECTION_ANNOTATION = 'annotation';
 export function useSelection(store)
 {
 	/**
-	 * What is selected: its kind and its id, which is the only part that outlives
-	 * an edit.
+	 * What is selected: each entry's kind and its id, which is the only part that
+	 * outlives an edit.
+	 *
+	 * An ordered array since RM-012 J4 (X-6), **last entry first in intent**: the
+	 * primary is the thing most recently clicked, which is what an inspector
+	 * should be showing. Empty means nothing is selected; there is no null state
+	 * beside the empty one, because two ways of saying nothing is selected is how
+	 * `aWall` and `anItem` disagreed with each other in the demo.
 	 *
 	 * `object` is a fallback and is normally null. Selection is a public surface -
 	 * an embedder can dispatch `EVENT_ITEM_SELECTED` with anything it likes - and
 	 * an entity with no id must still be selectable, exactly as it was before A3.
 	 * It simply does not survive a re-derivation, which is the old behaviour.
 	 *
-	 * @type {import('vue').ShallowRef<?{type: string, id: ?string, object: ?Object}>}
+	 * @type {import('vue').ShallowRef<Array<{type: string, id: ?string, object: ?Object}>>}
 	 */
-	var selected = shallowRef(null);
+	var selected = shallowRef([]);
 	/**
 	 * Bumped whenever the model changes, so the resolver below re-runs.
 	 *
@@ -149,14 +195,57 @@ export function useSelection(store)
 	 *
 	 * @type {import('vue').ComputedRef<?{type: string, object: Object}>}
 	 */
-	var selection = computed(() =>
+	/**
+	 * The whole set, resolved, in the order it was built.
+	 *
+	 * Entries whose entity has gone are dropped rather than yielded as nulls -
+	 * a caller iterating a set should never have to prove each member exists,
+	 * which is the same reason `selection` is null rather than
+	 * `{type, object: null}`.
+	 *
+	 * @type {import('vue').ComputedRef<Array<{type: string, object: Object}>>}
+	 */
+	var selections = computed(() =>
 	{
 		// Read, so the computed re-runs when the model changes.
 		void revision.value;
-		var current = selected.value;
-		var object = current ? resolve(current) : null;
-		return (current && object) ? {type: current.type, object: markRaw(object)} : null;
+		var out = [];
+		for (var entry of selected.value)
+		{
+			var object = resolve(entry);
+			if (object)
+			{
+				out.push({type: entry.type, object: markRaw(object)});
+			}
+		}
+		return out;
 	});
+
+	var selection = computed(() =>
+	{
+		var all = selections.value;
+		// The last one clicked, which is the primary. Every consumer written
+		// before J4 reads this and reads exactly what it read before, because a
+		// set of one is what a single click still produces.
+		return all.length ? all[all.length - 1] : null;
+	});
+
+	/** How many things are selected. Zero, one, or a set (RM-012 J4). */
+	var count = computed(() => selections.value.length);
+
+	/**
+	 * The set as furniture, which is what every verb in J4 actually operates on.
+	 *
+	 * Align, distribute, mirror, stack and snap are all about items; a set of
+	 * walls would be a different feature with different verbs. Filtering here
+	 * rather than at each call site means one definition of "the items" and one
+	 * place to change it.
+	 *
+	 * @type {import('vue').ComputedRef<Array<Object>>}
+	 */
+	var selectedItems = computed(() => selections.value
+		.filter((entry) => entry.type === SELECTION_ITEM)
+		.map((entry) => entry.object));
 
 	/**
 	 * The last wall or floor clicked in the 3D view, and the only thing the
@@ -198,20 +287,124 @@ export function useSelection(store)
 		return (typeof id === 'string' && id) ? id : null;
 	}
 
-	function select(type, object)
+	/**
+	 * Whether a stored entry and a (type, object) name the same thing.
+	 *
+	 * By id where there is one, by identity where there is not - which is the
+	 * same split `identify` makes and for the same reason: an entity with no id
+	 * is held directly and can only be compared directly.
+	 */
+	function same(entry, type, object)
+	{
+		if (entry.type !== type)
+		{
+			return false;
+		}
+		var id = identify(type, object);
+		return id ? (entry.id === id) : (entry.object === object);
+	}
+
+	/**
+	 * Select one thing, or add one thing to the set.
+	 *
+	 * @param {string} type One of the SELECTION_* kinds.
+	 * @param {?Object} object The entity, or null to clear.
+	 * @param {{add?: boolean}} [options] `add` extends the set instead of
+	 *   replacing it - and toggles, because the gesture that adds a fifth chair
+	 *   is the gesture that removes the third.
+	 */
+	function select(type, object, options)
 	{
 		if (!object)
 		{
-			selected.value = null;
+			selected.value = [];
 			return;
 		}
 		var id = identify(type, object);
-		selected.value = {type: type, id: id, object: id ? null : markRaw(object)};
+		var entry = {type: type, id: id, object: id ? null : markRaw(object)};
+		// A set holding a wall and a chair has no meaning for any verb that would
+		// read it, so a different kind replaces rather than joins. The rule is
+		// here rather than at the call sites, because a call site that forgot it
+		// would produce a set no verb could act on and no error anybody would see.
+		var homogeneous = selected.value.length && selected.value[0].type === type;
+		if (!(options && options.add) || !homogeneous)
+		{
+			selected.value = [entry];
+			return;
+		}
+		var at = selected.value.findIndex((one) => same(one, type, object));
+		selected.value = (at === -1)
+			? selected.value.concat([entry])
+			// Toggled off. The re-selected thing does not become primary again -
+			// it is gone - so the primary falls back to whatever is now last, which
+			// is what a person removing the thing they just added expects.
+			: selected.value.filter((one, index) => index !== at);
+	}
+
+	/**
+	 * Replace the set with these, in this order.
+	 *
+	 * For the verbs that produce a selection rather than consume one: select all,
+	 * and paste, which selects what it pasted so the next gesture acts on it.
+	 *
+	 * @param {string} type
+	 * @param {Array<Object>} objects
+	 */
+	function selectMany(type, objects)
+	{
+		selected.value = (objects || []).filter(Boolean).map((object) =>
+		{
+			var id = identify(type, object);
+			return {type: type, id: id, object: id ? null : markRaw(object)};
+		});
+	}
+
+	/**
+	 * Is this thing in the set?
+	 *
+	 * @param {string} type
+	 * @param {?Object} object
+	 */
+	function isSelected(type, object)
+	{
+		return !!object && selected.value.some((entry) => same(entry, type, object));
 	}
 
 	function clear()
 	{
-		selected.value = null;
+		selected.value = [];
+	}
+
+	/**
+	 * Whether the pointer gesture in flight is an additive one (RM-012 J4).
+	 *
+	 * The selection events carry no modifier and should not: they are dispatched
+	 * by `src/scripts`, which has no idea there is a set to add to, and threading
+	 * one through would put application policy inside the library. So the gesture
+	 * is read where it happens.
+	 *
+	 * Capture phase, on the window, so it is recorded before anything can stop
+	 * the event - the 3D canvas and the plan canvas both handle pointer events
+	 * and one of them calling `stopPropagation` would otherwise silently turn
+	 * shift-click back into click.
+	 *
+	 * Shift **or** the platform accelerator, because both are in use for this in
+	 * the tools people come from and neither is taken here. Ctrl is included
+	 * alongside Meta rather than switched on the platform: a Linux user on a Mac
+	 * keyboard should not have to know which one this build was written for.
+	 */
+	var additive = ref(false);
+
+	/** @param {PointerEvent|MouseEvent} event */
+	function noteModifier(event)
+	{
+		additive.value = !!(event.shiftKey || event.metaKey || event.ctrlKey);
+	}
+
+	if (typeof window !== 'undefined')
+	{
+		window.addEventListener('pointerdown', noteModifier, true);
+		onScopeDispose(() => {window.removeEventListener('pointerdown', noteModifier, true);});
 	}
 
 	var handlers = null;
@@ -226,7 +419,12 @@ export function useSelection(store)
 			three: three,
 			floorplan: floorplan,
 			changed: () => {revision.value += 1;},
-			itemSelected: (evt) => {select(SELECTION_ITEM, evt.item);},
+			// The two events a person can produce repeatedly on purpose, and so the
+			// two that honour the additive gesture. A wall, a corner or an
+			// annotation replaces: there is no verb in J4 that reads a set of them,
+			// and offering the gesture where nothing consumes it is worse than not
+			// offering it (RM-012 J4, X-6).
+			itemSelected: (evt) => {select(SELECTION_ITEM, evt.item, {add: additive.value});},
 			itemUnselected: () => {clear();},
 			wallClicked: (evt) =>
 			{
@@ -263,7 +461,7 @@ export function useSelection(store)
 				var item = blueprint.model.itemById ? blueprint.model.itemById(evt.id) : null;
 				if (item)
 				{
-					select(SELECTION_ITEM, item);
+					select(SELECTION_ITEM, item, {add: additive.value});
 				}
 			},
 			// Both carry the object itself, unlike the footprint event above: an
@@ -320,7 +518,7 @@ export function useSelection(store)
 
 		handlers = null;
 		attachedStore.value = null;
-		selected.value = null;
+		selected.value = [];
 		placementContext.value = {wall: null, floor: null};
 	}
 
@@ -372,7 +570,8 @@ export function useSelection(store)
 	 * re-derived room or a rebuilt wall lights up the successor rather than
 	 * silently nothing.
 	 */
-	watch([selection, () => store.floorplanner.value, () => store.three.value], function ([current, planner, three])
+	watch([selection, selections, () => store.floorplanner.value, () => store.three.value],
+		function ([current, all, planner, three])
 	{
 		// One local, narrowed once, rather than `current &&` at four call sites -
 		// the checker cannot carry the narrowing across a property read otherwise.
@@ -381,7 +580,14 @@ export function useSelection(store)
 
 		if (planner && typeof planner.showSelection === 'function')
 		{
-			planner.showSelection(type ? (PLAN_SELECTION[type] || null) : null, target);
+			// The rest of the set as ids, so the plan draws every selected footprint
+			// rather than only the one an inspector is bound to (RM-012 J4). Ids
+			// rather than objects because that is what the plan holds: it draws a
+			// description of the furniture and never the furniture.
+			var others = (type === SELECTION_ITEM)
+				? all.slice(0, -1).map((entry) => entry.object && entry.object.designId).filter(Boolean)
+				: [];
+			planner.showSelection(type ? (PLAN_SELECTION[type] || null) : null, target, others);
 		}
 
 		// And the 3D view, which had the same one-sidedness in the other
@@ -394,13 +600,28 @@ export function useSelection(store)
 		// nothing to push, and inventing a highlight for them is a visual change
 		// with a parity capture attached rather than a wiring one. Named here so
 		// the asymmetry is a decision on the record instead of an omission.
-		if (three && typeof three.showItemSelected === 'function')
+		if (three && typeof three.showItemsSelected === 'function')
 		{
+			// The whole set, primary last, which is the order this composable builds
+			// it in. `showItemsSelected` gives the primary to the controller by the
+			// path E1 established and tells the rest to look selected - which is
+			// what being in a set should mean for a member nobody is dragging
+			// (RM-012 J4).
+			three.showItemsSelected((type === SELECTION_ITEM) ? all.map((entry) => entry.object) : []);
+		}
+		else if (three && typeof three.showItemSelected === 'function')
+		{
+			// An embedder's stub, or an older library beside a newer app. One is
+			// still better than none, and this is the shape every other optional
+			// call into the two views takes.
 			three.showItemSelected((type === SELECTION_ITEM) ? target : null);
 		}
 	}, {immediate: true});
 
 	onScopeDispose(detach);
 
-	return {selection, placementContext, select, clear};
+	return {
+		selection, selections, selectedItems, count, placementContext,
+		select, selectMany, isSelected, clear, additive,
+	};
 }

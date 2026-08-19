@@ -196,6 +196,17 @@ export class Main extends EventDispatcher
 		/** @type {?Controller} */
 		this.controller = null;
 
+		/**
+		 * The non-primary members of a multi-selection (RM-012 J4).
+		 *
+		 * Remembered because nothing else knows about them: the controller
+		 * unselects the one object it holds, so a secondary dropped from the set
+		 * would keep its bounding helper on screen. See {@link Main#showItemsSelected}.
+		 *
+		 * @type {Array<Object>}
+		 */
+		this._secondarySelection = [];
+
 		this.needsUpdate = false;
 		this.lastRender = Date.now();
 
@@ -1202,7 +1213,15 @@ export class Main extends EventDispatcher
 		// on what it is passed - so without this the first selection in an
 		// embedder's own test is a TypeError inside the library. Found by running
 		// it, not by reading it.
-		var selectable = item && typeof item.setSelected === 'function';
+		// Both halves, not just the one this line reaches. `setSelectedObject`
+		// calls `setUnselected()` on whatever it is *replacing*, so an object with
+		// `setSelected` and no `setUnselected` passes this guard, becomes the
+		// controller's selection, and throws from inside the library on the next
+		// selection - one click later, with nothing on screen to connect the two.
+		// Found the same way the note above was: by handing it a stub that had one
+		// and not the other (RM-012 J4).
+		var selectable = item && typeof item.setSelected === 'function'
+			&& typeof item.setUnselected === 'function';
 		if (selectable)
 		{
 			this.controller.setSelectedObject(item);
@@ -1213,6 +1232,61 @@ export class Main extends EventDispatcher
 		// `checkWallsAndFloors` running and makes every wall in this view
 		// unclickable. See Controller.deselect.
 		this.controller.deselect();
+	}
+
+	/**
+	 * Show a whole selection, of which one member is primary (RM-012 J4).
+	 *
+	 * ## Why the rest do not go through the controller
+	 *
+	 * Because there is one of it. `Controller.selectedObject` is what a drag
+	 * moves, what `clickPressed` intersects against and what the state machine
+	 * is about; it is singular by design and making it plural would be J4's
+	 * whole sprint rather than its first task. The primary keeps that seat and
+	 * takes the path {@link Main#showItemSelected} already established.
+	 *
+	 * The rest are told to look selected and nothing else. `Item.setSelected`
+	 * shows the bounding helper and the two dimension canvases and sets a flag -
+	 * which is exactly and only what "this is in the set" should mean for a
+	 * member nobody is dragging. Its `setScale(1, 1, 1)` reads alarming and is
+	 * not: `setScale` multiplies, so that call is a refresh of the helper and the
+	 * canvases rather than a resize.
+	 *
+	 * ## And why the previous set has to be remembered
+	 *
+	 * Nothing else knows about it. The controller unselects the object it holds
+	 * and no more, so a secondary dropped from the set would keep its helper
+	 * visible until something else happened to touch it.
+	 *
+	 * @param {Array<Object>} items The whole set. The **last** is primary, which
+	 *   is the order `useSelection` builds it in - the most recently clicked
+	 *   thing is the one an inspector should be showing.
+	 */
+	showItemsSelected(items)
+	{
+		var all = (items || []).filter((item) => item && typeof item.setSelected === 'function'
+			&& typeof item.setUnselected === 'function');
+		var primary = all.length ? all[all.length - 1] : null;
+		var others = all.slice(0, -1);
+
+		for (var previous of this._secondarySelection || [])
+		{
+			// Left alone if it has become the primary, which the controller is
+			// about to select anyway, and if it is still in the set.
+			if (others.indexOf(previous) === -1 && previous !== primary
+				&& typeof previous.setUnselected === 'function')
+			{
+				previous.setUnselected();
+			}
+		}
+		this._secondarySelection = others;
+
+		this.showItemSelected(primary);
+		for (var item of others)
+		{
+			item.setSelected();
+		}
+		this.ensureNeedsUpdate();
 	}
 
 
