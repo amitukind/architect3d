@@ -239,6 +239,180 @@ export function useItemActions(store, selection, history)
 	}
 
 	/**
+	 * The set's bounding rectangle on the floor plane, and each member's own.
+	 *
+	 * Edges rather than centres, because that is what align means: "left" is the
+	 * left *edge* of every item on the left edge of the leftmost one, and an item
+	 * twice as wide as its neighbour does not end up sticking out. `halfSize` is
+	 * the item's size after scaling and is always positive, including for a
+	 * mirrored item.
+	 *
+	 * @param {Array<Object>} items
+	 */
+	function extents(items)
+	{
+		var boxes = items.map((item) => ({
+			item: item,
+			minX: item.position.x - item.halfSize.x,
+			maxX: item.position.x + item.halfSize.x,
+			minZ: item.position.z - item.halfSize.z,
+			maxZ: item.position.z + item.halfSize.z,
+		}));
+		return {
+			boxes: boxes,
+			minX: Math.min(...boxes.map((box) => box.minX)),
+			maxX: Math.max(...boxes.map((box) => box.maxX)),
+			minZ: Math.min(...boxes.map((box) => box.minZ)),
+			maxZ: Math.max(...boxes.map((box) => box.maxZ)),
+		};
+	}
+
+	/**
+	 * Move an item on the floor plane, through the path a drag takes.
+	 *
+	 * `moveToPosition` rather than writing `position` directly, so a wall-bound
+	 * item is still bound to its wall afterwards and a floor item keeps whatever
+	 * elevation it had - both of which are decisions those classes already make
+	 * and neither of which align should be re-litigating.
+	 */
+	function moveTo(item, x, z)
+	{
+		var next = item.position.clone();
+		next.x = x;
+		next.z = z;
+		item.moveToPosition(next);
+	}
+
+	/**
+	 * Line the selection up on one edge, or on a shared centre line (RM-012 J4).
+	 *
+	 * Reads the set `useSelection` creates, which is why X-6 put multi-select
+	 * first. Two items are the minimum that means anything - aligning one item to
+	 * itself is a no-op that would still cost an undo entry, so it is refused.
+	 *
+	 * @param {string} edge `left`, `right`, `front`, `back`, `centreX`, `centreZ`.
+	 * @returns {number} how many moved.
+	 */
+	function alignSelected(edge)
+	{
+		var items = selectedItems.value;
+		if (items.length < 2)
+		{
+			return 0;
+		}
+		var box = extents(items);
+		var midX = (box.minX + box.maxX) / 2;
+		var midZ = (box.minZ + box.maxZ) / 2;
+
+		box.boxes.forEach(function (one)
+		{
+			var item = one.item;
+			var x = item.position.x;
+			var z = item.position.z;
+			// West and east on the plan, north and south. Named for the plan rather
+			// than for the axis, because a person aligning furniture is looking at
+			// the plan and `+z` is not a direction anybody means.
+			if (edge === 'left') { x = box.minX + item.halfSize.x; }
+			else if (edge === 'right') { x = box.maxX - item.halfSize.x; }
+			else if (edge === 'back') { z = box.minZ + item.halfSize.z; }
+			else if (edge === 'front') { z = box.maxZ - item.halfSize.z; }
+			else if (edge === 'centreX') { x = midX; }
+			else if (edge === 'centreZ') { z = midZ; }
+			moveTo(item, x, z);
+		});
+		history.commit();
+		return items.length;
+	}
+
+	/**
+	 * Even the gaps between the selection along one axis (RM-012 J4).
+	 *
+	 * The gaps, not the centres. Distributing centres evenly leaves a wide item
+	 * nearly touching its neighbour and a narrow one marooned, which is not what
+	 * "space these out" means to anybody arranging furniture. The two outermost
+	 * items stay where they are - they are the span being divided - and the rest
+	 * are laid out with one gap each.
+	 *
+	 * Three is the minimum that means anything: with two there is one gap and it
+	 * is already even.
+	 *
+	 * @param {string} axis `x` or `z`.
+	 * @returns {number} how many moved.
+	 */
+	function distributeSelected(axis)
+	{
+		var items = selectedItems.value;
+		if (items.length < 3)
+		{
+			return 0;
+		}
+		var along = (axis === 'z') ? 'z' : 'x';
+		var size = (item) => ((along === 'z') ? item.halfSize.z : item.halfSize.x) * 2;
+		var at = (item) => ((along === 'z') ? item.position.z : item.position.x);
+
+		var ordered = items.slice().sort((a, b) => at(a) - at(b));
+		var first = ordered[0];
+		var last = ordered[ordered.length - 1];
+		var span = (at(last) - (size(last) / 2)) - (at(first) + (size(first) / 2));
+		var occupied = ordered.slice(1, -1).reduce((sum, item) => sum + size(item), 0);
+		// Negative when the items overlap more than the span allows. Distributing
+		// them then means overlapping them evenly, which is still better than
+		// leaving them piled up and is what the arithmetic says.
+		var gap = (span - occupied) / (ordered.length - 1);
+
+		var cursor = at(first) + (size(first) / 2);
+		ordered.slice(1, -1).forEach(function (item)
+		{
+			cursor += gap + (size(item) / 2);
+			if (along === 'z') { moveTo(item, item.position.x, cursor); }
+			else { moveTo(item, cursor, item.position.z); }
+			cursor += size(item) / 2;
+		});
+		history.commit();
+		return ordered.length;
+	}
+
+	/**
+	 * Mark the selection as one group, or unmark it (RM-012 J4).
+	 *
+	 * A shared string on each item rather than a `Group` entity in the document.
+	 * Nobody selects "the group" - they click a chair and mean the six around the
+	 * table - so the only state a group needs is a mark saying which items move
+	 * together. Additive in the save file, free to delete a member of, and
+	 * impossible to leave dangling, which a `Group` object holding references
+	 * would not be.
+	 *
+	 * @returns {number} how many were marked.
+	 */
+	function groupSelected()
+	{
+		var items = selectedItems.value;
+		if (items.length < 2)
+		{
+			return 0;
+		}
+		// From the primary's identity, which is unique and already in the document,
+		// rather than a second id scheme nobody can trace back to anything.
+		var id = 'g:' + items[items.length - 1].designId;
+		items.forEach((item) => {item.groupId = id;});
+		history.commit();
+		return items.length;
+	}
+
+	/** @returns {number} how many were released. */
+	function ungroupSelected()
+	{
+		var items = selectedItems.value.filter((item) => item.groupId);
+		if (!items.length)
+		{
+			return 0;
+		}
+		items.forEach((item) => {item.groupId = null;});
+		history.commit();
+		return items.length;
+	}
+
+	/**
 	 * Flip every selected item on one horizontal axis (RM-012 J4).
 	 *
 	 * The verb RM-007 calls cheap, and it is: `Item.mirror` negates a scale
@@ -295,5 +469,6 @@ export function useItemActions(store, selection, history)
 	return {
 		selectedItem, selectedItems, canActOnItem, deleteSelected, duplicateSelected,
 		copySelected, pasteClipboard, clipboard, canPaste, mirrorSelected,
+		alignSelected, distributeSelected, groupSelected, ungroupSelected,
 	};
 }

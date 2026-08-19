@@ -407,6 +407,36 @@ export function useSelection(store)
 		onScopeDispose(() => {window.removeEventListener('pointerdown', noteModifier, true);});
 	}
 
+	/**
+	 * Select one item, and with it whatever it is grouped with (RM-012 J4).
+	 *
+	 * A group is a shared string on each item rather than an entity in the
+	 * document, so "select the group" is a search rather than a dereference -
+	 * which is what makes deleting one member of a group harmless. Clicking a
+	 * chair at a table selects the six chairs, because that is what a person who
+	 * grouped them meant by doing so.
+	 *
+	 * The additive gesture is not expanded. Shift-clicking one chair of a group
+	 * to remove it from a wider selection should remove that chair, not fail to
+	 * find the whole group in the set and add it back.
+	 *
+	 * @param {Object} blueprint
+	 * @param {?Object} item
+	 */
+	function selectItem(blueprint, item)
+	{
+		if (item && item.groupId && !additive.value)
+		{
+			var siblings = blueprint.model.scene.getItems()
+				.filter((one) => one.groupId === item.groupId);
+			// The clicked one last, so it is the primary and the inspector shows
+			// what was actually pointed at.
+			selectMany(SELECTION_ITEM, siblings.filter((one) => one !== item).concat([item]));
+			return;
+		}
+		select(SELECTION_ITEM, item, {add: additive.value});
+	}
+
 	var handlers = null;
 
 	function attach(blueprint)
@@ -424,7 +454,7 @@ export function useSelection(store)
 			// annotation replaces: there is no verb in J4 that reads a set of them,
 			// and offering the gesture where nothing consumes it is worse than not
 			// offering it (RM-012 J4, X-6).
-			itemSelected: (evt) => {select(SELECTION_ITEM, evt.item, {add: additive.value});},
+			itemSelected: (evt) => {selectItem(blueprint, evt.item);},
 			itemUnselected: () => {clear();},
 			wallClicked: (evt) =>
 			{
@@ -461,7 +491,7 @@ export function useSelection(store)
 				var item = blueprint.model.itemById ? blueprint.model.itemById(evt.id) : null;
 				if (item)
 				{
-					select(SELECTION_ITEM, item, {add: additive.value});
+					selectItem(blueprint, item);
 				}
 			},
 			// Both carry the object itself, unlike the footprint event above: an

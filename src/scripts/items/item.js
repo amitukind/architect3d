@@ -173,6 +173,19 @@ export class Item extends Mesh
 		 * @type {string}
 		 */
 		this.designId = (metadata && metadata.designId) ? metadata.designId : Utils.guide();
+		/**
+		 * Which group this item belongs to, or null (RM-012 J4).
+		 *
+		 * A shared string rather than a `Group` entity, and that is the whole
+		 * design. A group in an interior planner is not a thing in the document -
+		 * nobody selects "the group", they select a chair and mean the six around
+		 * the table - so the only state it needs is a mark saying which items move
+		 * together. That makes it additive in the file, free to delete a member of,
+		 * and impossible to leave dangling.
+		 *
+		 * @type {?string}
+		 */
+		this.groupId = (metadata && metadata.group) ? metadata.group : null;
 
 		/** */
 		/** @type {?Mesh} The red halo shown by showError(); replaced on each use. */
@@ -753,6 +766,33 @@ export class Item extends Mesh
 	getWidth()
 	{
 		return this.halfSize.x * 2.0;
+	}
+
+	/**
+	 * Put this item at a height above the floor (RM-012 J4).
+	 *
+	 * RM-007 calls elevation one of the three cheap verbs because *"elevation is
+	 * already `ypos` in the file"*, and it is - what was missing is any way to
+	 * set it. There has never been a control for it, so a lamp could be placed on
+	 * a table only by dragging it and hoping, and a picture could not be hung at
+	 * all except on a wall.
+	 *
+	 * It sticks because `FloorItem.moveToPosition` preserves `this.position.y`
+	 * rather than snapping to the floor on every move - so an item lifted here
+	 * stays lifted while it is dragged around. A wall-bound item is the exception
+	 * and is not offered this: `WallItem.boundMove` derives its height from its
+	 * own size, and would overwrite the number on the next drag.
+	 *
+	 * @param {number} y Centimetres above the floor, clamped at zero - a floor
+	 *   plan has no basement, and a negative would put furniture under the floor
+	 *   where it cannot be clicked.
+	 */
+	setElevation(y)
+	{
+		this.position.y = Math.max(0, y);
+		this.resized();
+		if (this.bhelper) { this.bhelper.update(); }
+		this.scene.needsUpdate = true;
 	}
 
 	/**
@@ -1352,6 +1392,13 @@ export class Item extends Mesh
 		if (this.lamp)
 		{
 			data.lamp = lampToJSON(this.lamp);
+		}
+		// Additive and conditional, like every key added since E2 (RM-012 J4). An
+		// ungrouped item writes no `group` key, so a design nobody has grouped
+		// anything in is byte-identical to the file it was before this.
+		if (this.groupId)
+		{
+			data.group = this.groupId;
 		}
 		return data;
 	}

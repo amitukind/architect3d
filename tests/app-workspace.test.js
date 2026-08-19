@@ -770,6 +770,127 @@ describe('useItemActions', () =>
 		expect(added.every(([, , meta]) => meta.designId === undefined)).toBe(true);
 	});
 
+	/**
+	 * Align and distribute, which are the two verbs X-6 said would read the set
+	 * multi-select creates - and the reason it went first.
+	 *
+	 * Positioned fakes rather than real items, because the arithmetic is the
+	 * subject: a real `Item` needs a mesh, and a mesh would not make the sums
+	 * more true.
+	 */
+	function placed(scene, x, z, halfX, halfZ)
+	{
+		const item = fakeItem(scene, {designId: `at-${x}-${z}`});
+		item.position = {x: x, y: 0, z: z, clone() {return {...this, clone: this.clone};}};
+		item.halfSize = {x: halfX === undefined ? 10 : halfX, y: 10, z: halfZ === undefined ? 10 : halfZ};
+		item.moveToPosition = function (vec) {this.position.x = vec.x; this.position.z = vec.z;};
+		return item;
+	}
+
+	function actionsOver(items)
+	{
+		mountStore();
+		const selection = run(() => useSelection(store));
+		const history = run(() => useHistory(store));
+		const actions = run(() => useItemActions(store, selection, history));
+		inScene(store.model.value.scene, ...items);
+		selection.selectMany(SELECTION_ITEM, items);
+		return actions;
+	}
+
+	it('aligns on an edge, so a wide item does not stick out', () =>
+	{
+		// Edges, not centres. "Left" means every item's left edge on the leftmost
+		// left edge; aligning centres would leave the wide one overhanging, which
+		// is not what anybody lining furniture up against a wall means.
+		const scene = () => store.model.value.scene;
+		mountStore();
+		const wide = placed(scene(), 100, 0, 40, 10);
+		const narrow = placed(scene(), 200, 0, 5, 10);
+		const actions = actionsOver([wide, narrow]);
+
+		expect(actions.alignSelected('left')).toBe(2);
+		expect(wide.position.x).toBe(100);
+		expect(narrow.position.x).toBe(65);
+		// Left edges equal: 100-40 and 65-5.
+		expect(wide.position.x - wide.halfSize.x).toBe(narrow.position.x - narrow.halfSize.x);
+	});
+
+	it('aligns to a shared centre line, and on the other axis', () =>
+	{
+		mountStore();
+		const scene = store.model.value.scene;
+		const a = placed(scene, 0, 0);
+		const b = placed(scene, 100, 60);
+		const actions = actionsOver([a, b]);
+
+		expect(actions.alignSelected('centreX')).toBe(2);
+		expect(a.position.x).toBe(50);
+		expect(b.position.x).toBe(50);
+
+		actions.alignSelected('back');
+		expect(a.position.z).toBe(0);
+		expect(b.position.z).toBe(0);
+	});
+
+	it('refuses to align one item to itself', () =>
+	{
+		mountStore();
+		const only = placed(store.model.value.scene, 10, 10);
+		const actions = actionsOver([only]);
+		expect(actions.alignSelected('left')).toBe(0);
+		expect(only.position.x).toBe(10);
+	});
+
+	it('distributes the gaps, not the centres', () =>
+	{
+		// The distinction that makes distribute useful. Three items where the
+		// middle one is much wider: even centres would leave it nearly touching
+		// one neighbour and marooned from the other.
+		mountStore();
+		const scene = store.model.value.scene;
+		const left = placed(scene, 0, 0, 5, 5);
+		const middle = placed(scene, 50, 0, 30, 5);
+		const right = placed(scene, 200, 0, 5, 5);
+		const actions = actionsOver([left, middle, right]);
+
+		expect(actions.distributeSelected('x')).toBe(3);
+		// The outermost two are the span and do not move.
+		expect(left.position.x).toBe(0);
+		expect(right.position.x).toBe(200);
+		// One gap each side of the middle, and they are equal.
+		const gapLeft = (middle.position.x - middle.halfSize.x) - (left.position.x + left.halfSize.x);
+		const gapRight = (right.position.x - right.halfSize.x) - (middle.position.x + middle.halfSize.x);
+		expect(gapLeft).toBeCloseTo(gapRight, 9);
+	});
+
+	it('needs three to distribute, because two already have one even gap', () =>
+	{
+		mountStore();
+		const scene = store.model.value.scene;
+		const actions = actionsOver([placed(scene, 0, 0), placed(scene, 100, 0)]);
+		expect(actions.distributeSelected('x')).toBe(0);
+	});
+
+	it('marks a group with one id and releases it', () =>
+	{
+		mountStore();
+		const scene = store.model.value.scene;
+		const a = placed(scene, 0, 0);
+		const b = placed(scene, 50, 0);
+		const actions = actionsOver([a, b]);
+
+		expect(actions.groupSelected()).toBe(2);
+		expect(a.groupId).toBe(b.groupId);
+		// Derived from the primary's own identity rather than a second id scheme
+		// nobody can trace back to anything.
+		expect(a.groupId).toContain(b.designId);
+
+		expect(actions.ungroupSelected()).toBe(2);
+		expect(a.groupId).toBeNull();
+		expect(actions.ungroupSelected()).toBe(0);
+	});
+
 	it('mirrors the whole set, once, about each item\'s own centre', () =>
 	{
 		mountStore();

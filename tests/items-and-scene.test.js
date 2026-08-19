@@ -1394,6 +1394,61 @@ describe('RoofItem on a design with no ceiling (RM-005 C2, J-5)', () =>
  * rectangle of it into the wall's holes. A mirrored door with a negative half
  * width cuts a hole of negative width and nothing says so.
  */
+describe('a group and an elevation are additive keys (RM-012 J4)', () =>
+{
+	/** The real `getMetaData`, over the minimum state it reads. */
+	function record(extra)
+	{
+		var item = Object.assign(Object.create(Item.prototype), {
+			_pickedColorSlots: new Set(),
+			designId: 'x',
+			metadata: {itemName: 'N', itemType: 1, format: 'glb', modelUrl: 'm.glb'},
+			position: {x: 0, y: 0, z: 0},
+			rotation: {y: 0},
+			scale: {x: 1, y: 1, z: 1},
+			fixed: false,
+			lamp: null,
+			groupId: null,
+		}, extra || {});
+		return item.getMetaData();
+	}
+
+	it('writes no group key for an item nobody grouped', () =>
+	{
+		// The rule every key added since E2 follows: a design of ungrouped chairs
+		// re-saves byte-identical to the file it was before this sprint.
+		expect(Object.keys(record())).not.toContain('group');
+	});
+
+	it('writes one when there is one', () =>
+	{
+		expect(record({groupId: 'g:1'}).group).toBe('g:1');
+	});
+
+	it('needs no key at all for elevation, which is why RM-007 called it cheap', () =>
+	{
+		// `ypos` has been in the save format since the format existed. What was
+		// missing was any way to set it, not anywhere to put it.
+		expect(record({position: {x: 0, y: 45, z: 0}}).ypos).toBe(45);
+	});
+
+	it('clamps an elevation at the floor', () =>
+	{
+		var item = Object.assign(Object.create(Item.prototype), {
+			position: {x: 0, y: 10, z: 0},
+			bhelper: null,
+			scene: {needsUpdate: false},
+			resized() {},
+		});
+		Item.prototype.setElevation.call(item, 60);
+		expect(item.position.y).toBe(60);
+		// A floor plan has no basement, and a negative would put furniture under
+		// the floor where it cannot be clicked.
+		Item.prototype.setElevation.call(item, -5);
+		expect(item.position.y).toBe(0);
+	});
+});
+
 describe('Item.mirror, and the sign that must not reach the size', () =>
 {
 	/** The minimum of an Item that `mirror` and `applyScale` actually touch. */

@@ -1,6 +1,6 @@
 <script setup>
 // @ts-check
-import {onBeforeUnmount, reactive, ref, watch} from 'vue';
+import {computed, onBeforeUnmount, reactive, ref, watch} from 'vue';
 import NumberField from './fields/NumberField.vue';
 import CheckField from './fields/CheckField.vue';
 import ColorField from './fields/ColorField.vue';
@@ -33,6 +33,28 @@ const {unit} = useDisplayUnit();
 
 const name = ref('');
 const dimensions = reactive({width: 0, height: 0, depth: 0});
+/**
+ * How high off the floor, in the person's own unit (RM-012 J4).
+ *
+ * RM-007 calls elevation one of the three cheap verbs because *"elevation is
+ * already `ypos` in the file"*. It was - and there has never been a control for
+ * it, so a lamp could be put on a table only by dragging and hoping, and a
+ * bowl could not be put on a shelf at all.
+ */
+const elevation = ref(0);
+
+/**
+ * Whether this item's height is its own to set.
+ *
+ * A wall-bound item's is not: `WallItem.boundMove` derives it from the item's
+ * own size and would overwrite anything typed here on the next drag. Offering a
+ * field that silently reverts is worse than not offering one, so the four
+ * wall-bound types do not get it.
+ */
+const freeHeight = computed(() => WALL_BOUND_TYPES.indexOf(props.item.metadata.itemType) === -1);
+
+/** Wall item (2), in-wall (3), in-wall-floor (7), wall-floor (9). */
+const WALL_BOUND_TYPES = [2, 3, 7, 9];
 const flags = reactive({proportional: false, fixed: false});
 // `ref([])` infers `Ref<never[]>`, so filling it is an error and reading from
 // it is an error on `never` - one omission producing four (RM-004 B3).
@@ -47,6 +69,7 @@ function readBack()
 	dimensions.depth = Dimensioning.cmToMeasureRaw(props.item.getDepth());
 	flags.proportional = props.item.getProportionalResize();
 	flags.fixed = props.item.fixed;
+	elevation.value = Dimensioning.cmToMeasureRaw(props.item.position.y);
 }
 
 /**
@@ -102,6 +125,22 @@ function setColor(entry, hex)
 	emit('changed');
 }
 
+/**
+ * Lift or lower the item.
+ *
+ * Through `setElevation` rather than by writing `position.y`, so the bounding
+ * helper follows and the scene is asked to redraw - and so the clamp at zero
+ * lives with the item rather than in the field.
+ *
+ * @param {number} next In the person's display unit.
+ */
+function setElevation(next)
+{
+	props.item.setElevation(Dimensioning.cmFromMeasureRaw(next));
+	elevation.value = Dimensioning.cmToMeasureRaw(props.item.position.y);
+	emit('changed');
+}
+
 function remove()
 {
 	// Removing dispatches EVENT_ITEM_REMOVED, the controller drops the selection,
@@ -128,6 +167,10 @@ onBeforeUnmount(() => {materials.value = [];});
 		<NumberField
 			label="Depth" :unit="unit" :min="0.1" :step="0.1" :model-value="dimensions.depth"
 			@update:model-value="resize('depth', $event)" />
+
+		<NumberField
+			v-if="freeHeight" label="Off the floor" :unit="unit" :min="0" :step="0.1"
+			:model-value="elevation" @update:model-value="setElevation" />
 
 		<CheckField
 			label="Keep proportions" :model-value="flags.proportional"

@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+**RM-012 J4: align, distribute, group, elevation.** Align works on **edges, not
+centres** — "left" means every item's left edge on the leftmost left edge, so a
+wide item does not overhang. Six edges, named for the plan rather than the axis.
+Distribute evens the **gaps, not the centres**: the outermost two are the span
+being divided, and three is the minimum because two already have one even gap.
+Both move through `moveToPosition`, so a wall-bound item stays bound and a floor
+item keeps its elevation.
+
+A group is a shared string on each item, not an entity — nobody selects "the
+group", they click a chair and mean the six around the table. Additive in the
+file, free to delete a member of, impossible to leave dangling. Selecting one
+member selects the group by search; shift-clicking one removes that one.
+
+Elevation was cheap in the file and missing from the product: `ypos` has always
+been there and there has never been a control for it, so a lamp could be put on a
+table only by dragging and hoping. It is a field in the inspector now, offered
+for everything except the four wall-bound types, whose height
+`WallItem.boundMove` derives from their own size. It sticks because
+`FloorItem.moveToPosition` preserves `position.y`. Clamped at zero.
+
 **RM-012 J4: mirror, and the risk that was already handled.** RM-007 names the
 winding reversal as mirror's risk. Measured against the three in this tree it is
 handled and not by us: `WebGLRenderer` computes `frontFaceCW` from

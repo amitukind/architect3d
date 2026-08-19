@@ -372,6 +372,35 @@ describe('useSelection', () =>
 			expect(selection.count.value).toBe(0);
 		});
 
+		it('selects a whole group when one of its members is clicked', () =>
+		{
+			// A group is a shared string on each item rather than an entity in the
+			// document, so this is a search rather than a dereference - which is
+			// what makes deleting one member of a group harmless (RM-012 J4).
+			const [a, b] = twoItems();
+			a.groupId = 'g:1';
+			b.groupId = 'g:1';
+
+			plainClick(a);
+			expect(selection.count.value).toBe(2);
+			// The clicked one is primary, so the inspector shows what was pointed at.
+			expect(selection.selection.value.object).toBe(a);
+		});
+
+		it('but shift-clicking a member removes that member, not the group', () =>
+		{
+			// Otherwise a person could never take one chair out of a wider
+			// selection: the click would fail to find the whole group in the set
+			// and add it straight back.
+			const [a, b] = twoItems();
+			a.groupId = 'g:1';
+			b.groupId = 'g:1';
+
+			selection.selectMany(SELECTION_ITEM, [a, b]);
+			shiftClick(a);
+			expect(selection.selectedItems.value).toEqual([b]);
+		});
+
 		it('shows the whole set in both views, with one primary', async () =>
 		{
 			// The plan draws every selected footprint and the 3D view highlights

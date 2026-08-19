@@ -799,7 +799,14 @@ describe('ItemInspector', () =>
 	function fakeItem(overrides)
 	{
 		return Object.assign({
-			metadata: {itemName: 'Sofa - Grey'},
+			// `itemType: 1` is a floor item, which is the case the elevation field
+			// is offered for. The four wall-bound types do not get it, because
+			// `WallItem.boundMove` would overwrite the number on the next drag
+			// (RM-012 J4).
+			metadata: {itemName: 'Sofa - Grey', itemType: 1},
+			position: {x: 0, y: 0, z: 0},
+			elevated: null,
+			setElevation(y) {this.elevated = y; this.position.y = Math.max(0, y);},
 			fixed: false,
 			material: {name: 'grey', color: {getHexString: () => 'cccccc'}},
 			width: 200, height: 80, depth: 90,

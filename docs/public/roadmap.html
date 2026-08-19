@@ -5594,6 +5594,23 @@ this.roofPlane = this.buildRoofVaryingHeight();</pre></div>
         <li><strong>Each item flips about its own centre, and that is the smaller of two verbs.</strong> Mirroring a <em>thing</em> is this. Mirroring a <em>layout</em> &mdash; reflecting six chairs across the room's axis &mdash; needs the set's own geometry, so it belongs with align and distribute rather than here. <code>m</code> and <code>shift+m</code>, over the set, one commit.</li>
       </ul>
     </div>
+
+    <div class="gate">
+      <div class="g-head">LANDING &mdash; J4, align, distribute, group, elevation</div>
+      <ul>
+        <li><strong>Align works on edges, not centres, and that is the whole difference.</strong> <em>Left</em> means every item's left edge on the leftmost left edge. Aligning centres would leave a wide item overhanging its neighbours, which is not what anybody lining furniture up against a wall means. Six edges &mdash; left, right, front, back, and the two centre lines &mdash; named for the plan rather than for the axis, because <code>+z</code> is not a direction anybody means. Two items is the minimum: aligning one to itself is a no-op that would still cost an undo entry.</li>
+
+        <li><strong>Distribute evens the gaps, not the centres.</strong> Three items where the middle one is much wider: even centres leave it nearly touching one neighbour and marooned from the other. So the two outermost stay put &mdash; they are the span being divided &mdash; and the rest are laid out with one equal gap each. Three is the minimum, because two already have one gap and it is already even. A negative gap is not refused: items that overlap more than the span allows get overlapped evenly, which is what the arithmetic says and is better than leaving them piled up.</li>
+
+        <li><strong>Both move through <code>moveToPosition</code>, not by writing coordinates.</strong> So a wall-bound item is still bound to its wall afterwards and a floor item keeps whatever elevation it had. Those are decisions <code>WallItem</code> and <code>FloorItem</code> already make, and align has no business re-litigating them.</li>
+
+        <li><strong>A group is a shared string, not an entity.</strong> Nobody selects <em>the group</em> &mdash; they click a chair and mean the six around the table &mdash; so the only state it needs is a mark saying which items move together. Which makes it <strong>additive in the file, free to delete a member of, and impossible to leave dangling</strong>, none of which a <code>Group</code> object holding references would be. Selecting one member selects the group by search; shift-clicking one <em>removes</em> that one, because otherwise a person could never take a single chair out of a wider selection.</li>
+
+        <li><strong>Elevation was cheap in the file and missing from the product.</strong> RM-007 called it one of the three cheap verbs because <em>&ldquo;elevation is already <code>ypos</code> in the file&rdquo;</em> &mdash; and it is, and there has never been a control for it, so a lamp could be put on a table only by dragging and hoping and a bowl could not be put on a shelf at all. It is a field in the inspector now, offered for everything except the four wall-bound types, whose height <code>WallItem.boundMove</code> derives from their own size and would overwrite on the next drag. A field that silently reverts is worse than no field.</li>
+
+        <li><strong>And it sticks, for a reason already in the code.</strong> <code>FloorItem.moveToPosition</code> preserves <code>this.position.y</code> rather than snapping to the floor on every move, so an item lifted here stays lifted while it is dragged around. Clamped at zero: a floor plan has no basement, and furniture under the floor cannot be clicked.</li>
+      </ul>
+    </div>
   </div>
 
   <p style="margin-top:16px">Seven and a half weeks, unchanged from RM-007, and the split moves by half a week: <strong>2 + 1.5 + 1.5 + 2.5</strong> against 1.5 + 2 + 1.5 + 2.5. J1 takes the half-week because the index split belongs in front of the metadata rather than behind it, and J2 gives it back because the pipeline it was costed to build is already installed and green. <strong>What moved is inside the sprints</strong>: J2's headline number becomes an output of a decision, and J4's two halves swap places in the estimate.</p>

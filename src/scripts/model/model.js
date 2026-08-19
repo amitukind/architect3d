@@ -160,6 +160,7 @@ export function metadataFromRecord(record, options)
 		stair: record.stair,
 		structure: record.structure,
 		lamp: record.lamp,
+		group: record.group,
 	};
 	if (settings.designId)
 	{
