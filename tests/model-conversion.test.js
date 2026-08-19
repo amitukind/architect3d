@@ -24,6 +24,8 @@
  * rather than estimated.
  */
 import {afterAll, beforeAll, describe, expect, it} from 'vitest';
+
+import {paintState} from '../tools/material-audit.mjs';
 import {createHash} from 'node:crypto';
 import {readFileSync, readdirSync, existsSync, statSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
@@ -331,13 +333,37 @@ describe('material translation', () =>
 		});
 	});
 
-	it('passes the diffuse colour through untouched, everywhere it is declared', () =>
+	/**
+	 * ## Four models are a declared exception, and it is asserted rather than skipped
+	 *
+	 * This pinned the conversion's fidelity and it still does. What changed under
+	 * it is that RM-012 J2 deliberately repainted four shipped models, so for
+	 * those the file no longer carries the legacy `colorDiffuse` - by decision,
+	 * with the evidence recorded in `asset-pipeline/material-audit.json`.
+	 *
+	 * Re-checked rather than accommodated, because a characterization failure is a
+	 * signal to look at the change. The legacy value in all four cases is
+	 * `[1, 1, 1]`, and in all four it was a **multiplier on a diffuse map** -
+	 * `mapDiffuse: cb-moore_baked.png` and three like it. White times a texture is
+	 * the texture; white times nothing is white. So `[1, 1, 1]` was never these
+	 * models' intended appearance, and none of those four `.png` files exists in
+	 * any commit of this repository. The conversion is as faithful as it was; the
+	 * shipped file is deliberately no longer the conversion's output.
+	 *
+	 * So the exception is pinned from the other side: those four must equal the
+	 * painted table, and everything else must still equal its legacy value. That
+	 * is one more assertion than this test had before, not one fewer.
+	 */
+	it('passes the diffuse colour through untouched, except where J2 repainted it', () =>
 	{
 		// r98 applied no colour conversion on the way in and the r105 GLTFLoader
 		// applies none on the way out, so the resulting material.color is identical.
 		// A material with no colorDiffuse at all - several of these have none -
 		// falls back to white, which is what Loader.createMaterial did too.
+		const painted = new Map(paintState().map((entry) =>
+			[`${entry.model.split('/').pop().replace(/\.glb$/, '')}::${entry.material}`, entry.linear]));
 		let declared = 0;
+		let repainted = 0;
 		for (const name of LEGACY_MODEL_NAMES)
 		{
 			const source = loadLegacyMaterials(join(LEGACY_DIR, `${name}.js`));
@@ -345,6 +371,17 @@ describe('material translation', () =>
 			source.forEach((legacy, i) =>
 			{
 				const factor = pbrOf(gltf, i).baseColorFactor;
+				const paint = painted.get(`${name}::${gltf.materials[i].name}`);
+				if (paint)
+				{
+					expect(factor, `${name} material ${i} is painted`).toEqual(paint);
+					expect(legacy.colorDiffuse || [1, 1, 1],
+						'a repaint of anything but a white multiplier needs its own argument').toEqual([1, 1, 1]);
+					expect(legacy.mapDiffuse,
+						'the white was a multiplier on a map, which is why replacing it is not a loss').toBeTruthy();
+					repainted++;
+					return;
+				}
 				expect(factor.slice(0, 3), `${name} material ${i}`).toEqual(legacy.colorDiffuse || [1, 1, 1]);
 				expect(factor[3], `${name} material ${i} alpha`).toBe(legacy.transparency ?? 1);
 				if (legacy.colorDiffuse)
@@ -354,6 +391,9 @@ describe('material translation', () =>
 			});
 		}
 		expect(declared).toBeGreaterThan(0);
+		// The four legacy rows J2 repainted. The chandelier is the fifth paint and
+		// is not here, because it never had a legacy ancestor.
+		expect(repainted).toBe(4);
 	});
 
 	it('drops the texture reference when the map is missing from disk', () =>

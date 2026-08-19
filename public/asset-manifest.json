@@ -586,7 +586,7 @@
 			"codec": "draco"
 		},
 		"models/gltf/chandelier.gltf": {
-			"bytes": 127994,
+			"bytes": 128070,
 			"kind": "model"
 		},
 		"models/gltf/coatRack.glb": {
@@ -1159,7 +1159,7 @@
 			"codec": "draco"
 		},
 		"models/js-glb/cb-moore_baked.glb": {
-			"bytes": 22064,
+			"bytes": 22108,
 			"kind": "model",
 			"codec": "draco"
 		},
@@ -1179,7 +1179,7 @@
 			"codec": "draco"
 		},
 		"models/js-glb/closed-door28x80_baked.glb": {
-			"bytes": 15728,
+			"bytes": 15756,
 			"kind": "model",
 			"codec": "draco"
 		},
@@ -1199,7 +1199,7 @@
 			"codec": "draco"
 		},
 		"models/js-glb/ik-kivine_baked.glb": {
-			"bytes": 20900,
+			"bytes": 20928,
 			"kind": "model",
 			"codec": "draco"
 		},
@@ -1314,7 +1314,7 @@
 			"codec": "ktx2"
 		},
 		"models/js-glb/we-crosby2piece-greenbaked.glb": {
-			"bytes": 60672,
+			"bytes": 60712,
 			"kind": "model",
 			"codec": "draco"
 		},
@@ -1477,7 +1477,7 @@
 			"kind": "thumbnail"
 		},
 		"models/thumbnails/cb-moore_baked.png": {
-			"bytes": 15653,
+			"bytes": 12908,
 			"kind": "thumbnail"
 		},
 		"models/thumbnails/cb-rochelle-gray_baked.png": {
@@ -1521,7 +1521,7 @@
 			"kind": "thumbnail"
 		},
 		"models/thumbnails/chandelier.png": {
-			"bytes": 9837,
+			"bytes": 9824,
 			"kind": "thumbnail"
 		},
 		"models/thumbnails/closed-door28x80_baked.png": {
@@ -1993,7 +1993,7 @@
 			"kind": "thumbnail"
 		},
 		"models/thumbnails/we-crosby2piece-greenbaked.png": {
-			"bytes": 18422,
+			"bytes": 20616,
 			"kind": "thumbnail"
 		},
 		"models/thumbnails/we-narrow6white_baked.png": {

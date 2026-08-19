@@ -3,9 +3,9 @@
 	"totals": {
 		"count": 168,
 		"files": 355,
-		"deduped": 4703532,
-		"naive": 5064789,
-		"mean": 27997,
+		"deduped": 4703184,
+		"naive": 5064441,
+		"mean": 27995,
 		"median": 11218,
 		"p90": 73292,
 		"largest": 370761
@@ -58,7 +58,7 @@
 			"model": "models/gltf/chandelier.gltf",
 			"source": "unattributed",
 			"files": 2,
-			"bytes": 137831
+			"bytes": 137894
 		},
 		{
 			"name": "Media Console - White",
@@ -114,7 +114,7 @@
 			"model": "models/js-glb/we-crosby2piece-greenbaked.glb",
 			"source": "blueprint3d",
 			"files": 2,
-			"bytes": 79094
+			"bytes": 81328
 		},
 		{
 			"name": "Wooden Trunk",
@@ -184,7 +184,7 @@
 			"model": "models/js-glb/closed-door28x80_baked.glb",
 			"source": "blueprint3d",
 			"files": 3,
-			"bytes": 39883
+			"bytes": 39911
 		},
 		{
 			"name": "Ceilingfan",
@@ -194,13 +194,6 @@
 			"bytes": 38819
 		},
 		{
-			"name": "Media Console - Black",
-			"model": "models/js-glb/cb-moore_baked.glb",
-			"source": "blueprint3d",
-			"files": 2,
-			"bytes": 37717
-		},
-		{
 			"name": "Radio",
 			"model": "models/gltf/radio.glb",
 			"source": "kenney-furniture-kit",
@@ -208,11 +201,18 @@
 			"bytes": 36692
 		},
 		{
+			"name": "Media Console - Black",
+			"model": "models/js-glb/cb-moore_baked.glb",
+			"source": "blueprint3d",
+			"files": 2,
+			"bytes": 35016
+		},
+		{
 			"name": "Wardrobe - White",
 			"model": "models/js-glb/ik-kivine_baked.glb",
 			"source": "blueprint3d",
 			"files": 2,
-			"bytes": 34296
+			"bytes": 34324
 		},
 		{
 			"name": "Dining Table - Joshua Tree",

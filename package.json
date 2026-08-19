@@ -53,6 +53,8 @@
 		"catalog:cost:check": "node tools/catalog-cost.mjs --check",
 		"admit": "node tools/admit-pack.mjs",
 		"admit:check": "node tools/admit-pack.mjs --check",
+		"materials:audit": "node tools/material-audit.mjs",
+		"materials:audit:check": "node tools/material-audit.mjs --check",
 		"thumbnails": "node tools/render-thumbnails.mjs",
 		"thumbnails:check": "node tools/render-thumbnails.mjs --check",
 		"encode": "node tools/encode-assets.mjs",

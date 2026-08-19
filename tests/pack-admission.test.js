@@ -184,8 +184,12 @@ describe('what the gate admits', () =>
 		expect(verdict.refusals.join(' ')).toContain('400 items would stop being reachable');
 		expect(verdict.refusals.join(' ')).toContain('130,000');
 		// And it says the price it would have had to beat, because "refused" on
-		// its own is not something anybody can act on.
-		expect(verdict.refusals.join(' ')).toContain('24,863');
+		// its own is not something anybody can act on. The figure itself is not
+		// pinned: it moves with every commit that touches the tree, and an exact
+		// digit here would make this a test about the last one.
+		expect(verdict.refusals.join(' ')).toMatch(/against a ceiling of [\d,]+ B an item/);
+		expect(verdict.before.maxMeanForLow).toBeGreaterThan(20000);
+		expect(verdict.before.maxMeanForLow).toBeLessThan(30000);
 	});
 
 	it('refuses a pack that would not fit at all, and says so instead', () =>

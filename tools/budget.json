@@ -819,7 +819,7 @@
 		},
 		"demo-total": {
 			"limit": 29985000,
-			"measured": 19621477
+			"measured": 19621129
 		},
 		"lib-iife-gzip": {
 			"limit": 307000,
@@ -827,7 +827,7 @@
 		},
 		"public-total": {
 			"limit": 16770000,
-			"measured": 11001779
+			"measured": 11001431
 		},
 		"lib-esm-gzip": {
 			"limit": 83000,

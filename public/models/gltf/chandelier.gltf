@@ -33,7 +33,9 @@
             "name" : "Mat.1"
         },
         {
-            "pbrMetallicRoughness" : {},
+            "pbrMetallicRoughness" : {
+                "baseColorFactor" : [0.0116, 0.0116, 0.013, 1]
+            },
             "name" : "black metal"
         }
     ],

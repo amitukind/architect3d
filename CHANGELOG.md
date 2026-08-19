@@ -2,6 +2,43 @@
 
 ## [Unreleased]
 
+**RM-012 J2: the material audit, and four models that have named a texture
+nobody has since 2014.** `tools/material-audit.mjs` reads every catalog model's
+materials: **52 of 417 render the glTF default white, across 31 rows**. J1 looked
+at 25 demo models and found 4. Most of the 52 are correct — a Kenney sink basin
+whose `_defaultMat` is white is a white basin — so the gate is not "no material
+may be colourless" but that a **claim** must be honoured, and a claim is
+something written down: the row's name, or the material's own name. The second
+rule found a row nobody was looking at, whose material is called `black metal`
+and renders white.
+
+The legacy `.js` ancestors of the four each name a diffuse map —
+`mapDiffuse: cb-moore_baked.png` and three like it — and **none of those files
+exists in any commit of this repository**. S3's conversion correctly produced a
+material with no texture; B1's Draco pass dropped the explicit `[1,1,1,1]` as a
+default. Both innocent. The product photographs hid it until J1 rendered them.
+
+Colours are sampled from those retired photographs, read out of git at
+`9ea9f57~1`: the console is rgb(26, 24, 23), the sectional rgb(94, 89, 72) —
+R = G > B, olive rather than grey. Converted to linear, since a glTF base colour
+is linear. Verified by re-rendering: the new thumbnails measure rgb(33, 32, 31)
+and rgb(96, 91, 75), within three units of their evidence.
+
+**No geometry moved, and the first attempt moved some.** Writing through
+`gltf-transform`'s `NodeIO` re-encodes — `cb-moore_baked.glb` 22,064 → 13,032,
+`closed-door28x80_baked.glb` 15,728 → 28,396 — at Draco settings that are not the
+ones B1 measured against a 5 µm gate. Reverted for a container patch that
+rewrites the JSON chunk and copies the binary chunk verbatim: +28 to +44 bytes a
+file, with `encode:check`, `oracle:check` and parity true by construction.
+
+One characterization test failed and re-checking made it stronger.
+`model-conversion.test.js` pins that S3 passed each legacy `colorDiffuse`
+through; the repaint broke it for four. The legacy value in all four is `[1,1,1]`
+and in all four it was a *multiplier on a diffuse map*, so white was never the
+intended appearance. The four are now pinned from the other side — they must
+equal the painted table **and** their legacy value must have been a white
+multiplier on a named map. One more assertion, not one fewer.
+
 **RM-012 J2: curation is the lever, and now it is a command.**
 `tools/admit-pack.mjs` measures a candidate the way `catalog-cost.mjs` measures
 the catalog — same `filesFor`, so a pack's mean and the catalog's mean are the

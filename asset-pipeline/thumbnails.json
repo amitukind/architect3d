@@ -337,8 +337,8 @@
 			"model": "models/js-glb/cb-moore_baked.glb",
 			"image": "models/thumbnails/cb-moore_baked.png",
 			"replaced": "models/thumbnails/thumbnail_moore-60-media-console-1.jpg",
-			"bytes": 15653,
-			"sha256": "eb05721cd10513c5",
+			"bytes": 12908,
+			"sha256": "4672a70ae9ac4883",
 			"coverage": 0.242,
 			"clipped": false
 		},
@@ -447,8 +447,8 @@
 			"model": "models/gltf/chandelier.gltf",
 			"image": "models/thumbnails/chandelier.png",
 			"replaced": "models/thumbnails_new/nopreview.png",
-			"bytes": 9837,
-			"sha256": "f4483961d0928d95",
+			"bytes": 9824,
+			"sha256": "b418302f84aa8450",
 			"coverage": 0.044,
 			"clipped": false
 		},
@@ -1667,8 +1667,8 @@
 			"model": "models/js-glb/we-crosby2piece-greenbaked.glb",
 			"image": "models/thumbnails/we-crosby2piece-greenbaked.png",
 			"replaced": "models/thumbnails/thumbnail_img21o.jpg",
-			"bytes": 18422,
-			"sha256": "f29e1d0f47f6d4be",
+			"bytes": 20616,
+			"sha256": "3d00e6e6b6ce56fe",
 			"coverage": 0.253,
 			"clipped": false
 		},
