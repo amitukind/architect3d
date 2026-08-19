@@ -17,3 +17,7 @@ tools/parity/
 # VitePress output and its build cache.
 docs/.vitepress/dist/
 docs/.vitepress/cache/
+
+# 1K material sources, cached by tools/fetch-materials.mjs. 30 MB of INPUT to a
+# step whose output is committed - a checkout builds and serves without them.
+asset-pipeline/.material-source/

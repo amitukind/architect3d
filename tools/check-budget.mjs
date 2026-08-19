@@ -322,6 +322,207 @@ export function textureVram(root = 'public')
 	return Math.round((texels * 4 + compressedTexels) * 4 / 3);
 }
 
+/* -------------------------------------------------------------------------
+ * What one scene asks for (RM-011 W-5)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * The texels one image file costs, split by how it is stored.
+ *
+ * `textureVram` above did this inline over a whole tree. H1 needs it per file,
+ * because the question changed from "what does the tree contain" to "what does
+ * a scene upload", and a scene names files rather than directories.
+ *
+ * @param {string} relative A path under public/.
+ * @returns {{texels: number, compressed: number}} zero for anything unreadable.
+ */
+function texelsOf(relative)
+{
+	const path = join('public', relative);
+	if (!existsSync(path)) { return {texels: 0, compressed: 0}; }
+	const ext = extname(path).toLowerCase();
+	if (!['.png', '.jpg', '.jpeg', '.ktx2'].includes(ext)) { return {texels: 0, compressed: 0}; }
+	const bytes = readFileSync(path);
+	if (ext === '.ktx2')
+	{
+		const size = ktx2Size(bytes);
+		return {texels: 0, compressed: size ? size.w * size.h : 0};
+	}
+	const size = pngSize(bytes) || jpegSize(bytes);
+	return {texels: size ? size.w * size.h : 0, compressed: 0};
+}
+
+/** The same model `textureVram` uses: four bytes a texel, one for a transcode, 4/3 for mips. */
+const vramOf = (texels, compressed) => Math.round((texels * 4 + compressed) * 4 / 3);
+
+/**
+ * Two textures every viewer uploads, whatever the design says.
+ *
+ * `three/skybox.js` GROUND_URL and `three/edge.js` LIGHT_MAP_URL. The
+ * environment map beside them is not here on purpose: `Skybox.useEnvironment`
+ * is false and nothing in the application turns it on, so a scene does not pay
+ * for `envs/Garden.jpg` and this number should not say it does.
+ */
+const SCENE_FIXED = ['rooms/textures/Ground_4K.ktx2', 'rooms/textures/walllightmap.png'];
+
+/** Both catalogs offer the same shape, which is what lets one loop read both. */
+function surfaceEntries(file, group)
+{
+	if (!existsSync(file)) { return []; }
+	const catalog = JSON.parse(readFileSync(file, 'utf8'));
+	return catalog[group] || [];
+}
+
+/** The costliest thing the picker can put on one surface, maps included. */
+function worstSurface(group)
+{
+	const entries = [
+		...surfaceEntries('src/catalog/textures.json', group),
+		...surfaceEntries('src/catalog/materials.json', group),
+	];
+	let worst = {texels: 0, compressed: 0, name: null};
+	for (const entry of entries)
+	{
+		let texels = 0;
+		let compressed = 0;
+		for (const url of [entry.url, entry.normalMap, entry.roughnessMap])
+		{
+			if (!url) { continue; }
+			const cost = texelsOf(url);
+			texels += cost.texels;
+			compressed += cost.compressed;
+		}
+		if (vramOf(texels, compressed) > vramOf(worst.texels, worst.compressed))
+		{
+			worst = {texels, compressed, name: entry.name};
+		}
+	}
+	return worst;
+}
+
+/**
+ * How many items the most furnished design this repository ships places.
+ *
+ * Read rather than chosen, so the worst case tracks the evidence: if a fixture
+ * grows to forty items, the ceiling this feeds should notice.
+ */
+function busiestDesign()
+{
+	let worst = 0;
+	for (const dir of ['tests/fixtures'])
+	{
+		if (!existsSync(dir)) { continue; }
+		for (const name of readdirSync(dir))
+		{
+			if (!name.endsWith('.blueprint3d')) { continue; }
+			try
+			{
+				const design = JSON.parse(readFileSync(join(dir, name), 'utf8'));
+				const levels = (design.levels || []).reduce((sum, level) => sum + ((level.items || []).length), 0);
+				worst = Math.max(worst, (design.items || []).length + levels);
+			}
+			catch { /* a fixture that will not parse is asset-integrity's problem, not this line's */ }
+		}
+	}
+	return worst;
+}
+
+/**
+ * What a GPU is actually asked for, rather than what the tree contains (W-5).
+ *
+ * ## Why this replaced a tree walk
+ *
+ * `textureVram` above sums every image in `public/`, which was the right
+ * instrument while the tree was 28 textures and a scene used most of them. It
+ * stopped being one. RM-011 W-5 measured what a scene really holds:
+ *
+ *     three-storey house, 3 storeys and 6 items      7 textures
+ *     furnished 20-item design                      15 textures
+ *     the tree                                     202 images
+ *
+ * So the line was reporting a number no GPU is ever asked for, and it was about
+ * to refuse H1's material library over it - 90 images the tree holds and a scene
+ * uploads at most four of. A budget that blocks a feature for a cost nobody pays
+ * is not protecting anything.
+ *
+ * ## The three terms, and why each one is a thing that exists
+ *
+ * Every part of this is something a user can actually produce, which is the
+ * difference between a worst case and a hypothetical:
+ *
+ *   fixed      the skybox ground and the wall lightmap, uploaded by every
+ *              viewer on every boot.
+ *   surfaces   the costliest wall material and the costliest floor material the
+ *              pickers offer, maps included. A room has walls and a floor, and
+ *              choosing both is two clicks.
+ *   furniture  the distinct textures of the costliest N catalog items, where N
+ *              is the item count of the most furnished design in the repository.
+ *              Shared images are counted once, because a GPU uploads them once.
+ *
+ * It is a model and not an observation, so `tests/browser/gpu-memory.test.js`
+ * checks it against `renderer.info.memory.textures` on a real scene in a real
+ * browser - the model has to be an upper bound on what the renderer reports, or
+ * the model is wrong. That cross-check is the reason this can stay a tier-1 gate
+ * instead of moving to the browser tier entirely.
+ */
+export function sceneVram()
+{
+	if (!existsSync('public')) { return null; }
+
+	let texels = 0;
+	let compressed = 0;
+	for (const name of SCENE_FIXED)
+	{
+		const cost = texelsOf(name);
+		texels += cost.texels;
+		compressed += cost.compressed;
+	}
+
+	for (const group of ['wall', 'floor'])
+	{
+		const worst = worstSurface(group);
+		texels += worst.texels;
+		compressed += worst.compressed;
+	}
+
+	// Furniture. An item's images are its .glb's external URIs; nothing in this
+	// catalog embeds one, which is why there is no BIN chunk to walk here.
+	const catalogPath = 'src/catalog/catalog.json';
+	if (existsSync(catalogPath))
+	{
+		const catalog = JSON.parse(readFileSync(catalogPath, 'utf8'));
+		const priced = [];
+		for (const item of catalog.items || [])
+		{
+			if (!item.model || !item.model.endsWith('.glb')) { continue; }
+			const modelPath = join('public', item.model);
+			if (!existsSync(modelPath)) { continue; }
+			const json = glbJson(modelPath);
+			const images = new Set();
+			for (const image of (json && json.images) || [])
+			{
+				if (image.uri) { images.add(join(dirname(item.model), image.uri).split(sep).join('/')); }
+			}
+			if (!images.size) { continue; }
+			let cost = 0;
+			for (const image of images) { const t = texelsOf(image); cost += vramOf(t.texels, t.compressed); }
+			priced.push({images, cost});
+		}
+		priced.sort((a, b) => b.cost - a.cost);
+
+		const distinct = new Set();
+		for (const item of priced.slice(0, busiestDesign())) { for (const image of item.images) { distinct.add(image); } }
+		for (const image of distinct)
+		{
+			const cost = texelsOf(image);
+			texels += cost.texels;
+			compressed += cost.compressed;
+		}
+	}
+
+	return vramOf(texels, compressed);
+}
+
 /** The twelve bytes every KTX2 container opens with. */
 const KTX2_MAGIC = Buffer.from([0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -416,8 +617,10 @@ const MEASUREMENTS = [
 	// decoder beside the WASM one - shows up immediately.
 	{key: 'decoder-total', label: 'Codec machinery', needs: null,
 		measure: () => treeBytes('public/draco') + treeBytes('public/basis')},
-	{key: 'texture-vram', label: 'Texture VRAM', needs: null,
-		measure: () => textureVram()},
+	// Re-pointed by RM-011 H1 from the tree to a scene - see sceneVram for the
+	// measurement W-5 made and why a tree walk stopped being the right question.
+	{key: 'texture-vram', label: 'Scene texture VRAM', needs: null,
+		measure: () => sceneVram()},
 ];
 
 function human(bytes)

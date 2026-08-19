@@ -315,7 +315,19 @@ export class Room extends EventDispatcher
 		return tex || defaultRoomTexture;
 	}
 
-	setRoomWallsTexture(textureUrl, textureStretch, textureScale)
+	/**
+	 * Do something to every wall side facing into this room, once each.
+	 *
+	 * Extracted by RM-011 H1, when a second caller appeared. The walk itself is
+	 * unchanged and both of its guards are load-bearing, which is the reason it
+	 * is one function now rather than two copies: a traversal written twice is a
+	 * traversal that can disagree with itself about what "this room's walls"
+	 * means, and F3 already paid for learning that.
+	 *
+	 * @param {function(import('./half_edge.js').HalfEdge): void} apply
+	 * @returns {void}
+	 */
+	eachWallSide(apply)
 	{
 		// `edgePointer` is null only for a room with no corners, which
 		// `Floorplan.update()` does not build - it comes from a cycle in the graph,
@@ -326,9 +338,8 @@ export class Room extends EventDispatcher
 		{
 			return;
 		}
-		var iterateWhile = true;
-		edge.setTexture(textureUrl, textureStretch, textureScale);
-		while (iterateWhile)
+		apply(edge);
+		for (;;)
 		{
 			// `!edge.next` is new (RM-005 C2). `next` is null on an unlinked edge,
 			// and the walk would then assign null and throw on the next line - so
@@ -339,12 +350,37 @@ export class Room extends EventDispatcher
 			{
 				break;
 			}
-			else
-			{
-				edge = edge.next;
-			}
-			edge.setTexture(textureUrl, textureStretch, textureScale);
+			edge = edge.next;
+			apply(edge);
 		}
+	}
+
+	setRoomWallsTexture(textureUrl, textureStretch, textureScale)
+	{
+		this.eachWallSide(function (edge)
+		{
+			edge.setTexture(textureUrl, textureStretch, textureScale);
+		});
+	}
+
+	/**
+	 * Change what every wall in this room is made of, keeping their pictures.
+	 *
+	 * The room-wide twin of `HalfEdge.setMaterial` (RM-011 H1). It exists because
+	 * a material arriving from the picker brings a roughness map with it, and the
+	 * map belongs to the image rather than to the person who chose it - so
+	 * retexturing a whole room has to carry the maps across the whole room, or
+	 * one wall keeps the bumps of the plaster it used to be.
+	 *
+	 * @param {Object} changes Any of the material keys in `./surface.js`.
+	 * @returns {void}
+	 */
+	setRoomWallsMaterial(changes)
+	{
+		this.eachWallSide(function (edge)
+		{
+			edge.setMaterial(changes);
+		});
 	}
 
 	/**

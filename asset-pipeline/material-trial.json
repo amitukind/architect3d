@@ -418,9 +418,9 @@
 	"sizing": {
 		"bytesPerMaterialThreeMaps": 497583,
 		"bytesPerMaterialAlbedoOnly": 103512,
-		"headroomBytes": 78894,
-		"materialsThatFitThreeMaps": 0,
-		"materialsThatFitAlbedoOnly": 0,
+		"headroomBytes": 539736,
+		"materialsThatFitThreeMaps": 1,
+		"materialsThatFitAlbedoOnly": 5,
 		"raiseRequired": [
 			{
 				"materials": 10,

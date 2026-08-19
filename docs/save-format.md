@@ -219,6 +219,24 @@ in `newFloorTextures` — may carry five more keys beside the ones above, and
 }
 ```
 
+A design that picks one of the thirty library materials records it the same way
+it records any other texture — a URL for the picture and a URL for the roughness
+map, both logical names the resolver answers:
+
+```json
+{
+  "url": "materials/brick_wall_001/albedo.jpg",
+  "stretch": false,
+  "scale": 300,
+  "roughnessMap": "materials/brick_wall_001/rough.jpg"
+}
+```
+
+**No material id, deliberately.** The temptation is to write the catalog's own
+name — `"oak_planks"` — and let the build resolve it, which would make a design
+saved against thirty materials open wrong against thirty-one. The file records
+what it uses; the catalog is a way of *choosing*.
+
 There is deliberately **no per-surface roughness or metalness number**. Those
 are properties of the render profile, tuned per profile and frozen for classic;
 a fourth place for them to live would be the first place they could disagree

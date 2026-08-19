@@ -487,32 +487,107 @@
 		"what it will cost when it is - about 8.8 MB for thirty materials of albedo and",
 		"roughness, against 5.9 MB today. That raise is its own commit with its own",
 		"reason, and it is a 1.5x one rather than the 8.2x that ninety materials of",
-		"three maps would need."
+		"three maps would need.",
+		"",
+		"RM-011 H1 RAISED public-total, 6,200,000 -> 11,180,000, and RE-POINTED",
+		"texture-vram. Both are the material library landing, and they are opposite",
+		"kinds of change: one is a limit moving because the tree really did grow, the",
+		"other is a limit being re-set because the instrument under it changed.",
+		"",
+		"public-total went 6,121,106 -> 10,640,264. That is 4,501,341 bytes of library -",
+		"thirty CC0 materials, an albedo at 512px and a roughness map at 256px each,",
+		"plus a 128px thumbnail - and about 18 KB of asset-manifest entries for them.",
+		"The per-material mean is 122,749 B of albedo and 18,794 B of roughness, and",
+		"every one of the 60 shipped images passed the same two gates resize-textures",
+		"applies to the rest of the tree, worst lowFrequency 0.72 against 2.0 and worst",
+		"codec 2.802 against 3.0. asset-pipeline/material-library.json has the",
+		"per-image numbers; tools/fetch-materials.mjs has why 512 and 256 rather than",
+		"one resolution for both.",
+		"",
+		"The previous entry in this file predicted 'about 8.8 MB for thirty materials",
+		"of albedo and roughness ... a 1.5x one'. It is 10.64 MB and 1.80x, and the",
+		"gap is worth naming because it was an arithmetic slip rather than a surprise:",
+		"the trial's albedoOnly figure (103,512 B) prices ONE map, and it was then",
+		"used for a library that ships two. Priced properly the estimate would have",
+		"been 6.12 + 30 x (103,512 + a roughness map), which is what landed. The",
+		"measurement stands and the estimate is corrected in RM-011 rather than",
+		"quietly replaced.",
+		"",
+		"texture-vram is not a raise and not a lowering; the number under it is a",
+		"different number. It measured every image in public/ summed at four bytes a",
+		"texel, which was the right instrument for 28 textures and stopped being one:",
+		"RM-011 W-5 measured a three-storey house holding 7 textures on the GPU and a",
+		"furnished 20-item design holding 15, against 202 images in the tree. The tree",
+		"figure would have refused this library at 81.14 MB for 90 images a scene",
+		"uploads at most four of - a budget blocking a feature over a cost nobody pays.",
+		"",
+		"check-budget.mjs:sceneVram() now measures what one scene asks a GPU for: the",
+		"two textures every viewer uploads, the costliest wall material and costliest",
+		"floor material the pickers offer, and the distinct textures of the costliest",
+		"catalog items up to the item count of the most furnished design in the",
+		"repository. 25,004,576 B, and the limit is that plus 5%. Every term is",
+		"something a user can actually produce, and tests/browser/gpu-memory.test.js",
+		"holds the model to renderer.info.memory on a real scene - it has to be an",
+		"upper bound on what the renderer reports, or the model is wrong.",
+		"",
+		"The old limit was 47,340,000 against a tree figure of 28,713,163. Recorded",
+		"here rather than deleted: this line's history is 164 MB (B1, wrong), 104.67 MB",
+		"(B4, corrected), 28.71 MB (C1 and the resize pass), and now a different",
+		"question entirely.",
+		"",
+		"RM-011 H1 also RAISED demo-js-gzip 388,000 -> 406,800 and demo-total",
+		"15,066,600 -> 19,990,000, and both are the same library seen from the",
+		"deployment rather than from public/.",
+		"",
+		"demo-total went 14,415,971 -> 19,035,625. 4.52 MB of that is public/ copied",
+		"into dist-demo/ verbatim, which is what Vite does with it, plus about 100 KB",
+		"of bundle and sourcemap. Nothing here is new content: it is the same 4.5 MB",
+		"counted a second time because it is deployed as well as stored.",
+		"",
+		"demo-js-gzip went 382,697 -> 387,363, which is 4,666 bytes: 1,730 of it is",
+		"src/catalog/materials.json, and the rest is the picker's family grouping, the",
+		"inspector's two-catalog wiring and Room.eachWallSide. The limit had 0.16 % of",
+		"headroom left at that measurement, so it is raised to the ~5 % the limits were",
+		"set with rather than to just-enough - F1 recorded why when it last did this: a",
+		"limit at 0.3 % fails on the next commit whatever that commit is, which trains",
+		"people to raise it without reading it.",
+		"",
+		"The 1,730 bytes of catalog carry each material's authors and source URL, which",
+		"nothing renders. Kept anyway: a library whose whole licence story is 'CC0, from",
+		"Poly Haven' should be able to answer 'who made this one' from the file the",
+		"application actually ships, and trimming both fields saves 386 bytes gzipped.",
+		"public/materials/CREDITS.md and asset-pipeline/material-library.json carry the",
+		"same data at full length.",
+		"",
+		"lib-esm-gzip did NOT move for the library, and that is the property worth",
+		"naming: 72,813 -> 74,565 is Room.eachWallSide and setRoomWallsMaterial, 32",
+		"bytes. The catalog is imported by src/app, never by src/scripts, so an embedder",
+		"who takes the library gets none of it - the one-way arrow paying out in bytes."
 	],
 	"budgets": {
 		"demo-js-gzip": {
-			"limit": 388000,
-			"measured": 382697
+			"limit": 406800,
+			"measured": 387363
 		},
 		"demo-css-gzip": {
 			"limit": 10000,
-			"measured": 7368
+			"measured": 7405
 		},
 		"demo-total": {
-			"limit": 15066600,
-			"measured": 14415971
+			"limit": 19990000,
+			"measured": 19035625
 		},
 		"lib-iife-gzip": {
 			"limit": 288100,
-			"measured": 276941
+			"measured": 278656
 		},
 		"public-total": {
-			"limit": 6200000,
-			"measured": 6121106
+			"limit": 11180000,
+			"measured": 10640264
 		},
 		"lib-esm-gzip": {
 			"limit": 78300,
-			"measured": 72813
+			"measured": 74565
 		},
 		"public-largest": {
 			"limit": 330000,
@@ -527,8 +602,8 @@
 			"measured": 838923
 		},
 		"texture-vram": {
-			"limit": 47340000,
-			"measured": 28713163
+			"limit": 26250000,
+			"measured": 25004576
 		}
 	}
 }

@@ -32,6 +32,7 @@ import StructureInspector from '../src/app/inspector/StructureInspector.vue';
 import App from '../src/app/App.vue';
 
 import textures from '../src/catalog/textures.json';
+import materials from '../src/catalog/materials.json';
 import {Main} from '../src/scripts/three/main.js';
 import {Configuration, configDimUnit, gridSpacing} from '../src/scripts/core/configuration.js';
 import {dimCentiMeter, dimMeter} from '../src/scripts/core/units.js';
@@ -1061,7 +1062,9 @@ describe('SurfaceInspector', () =>
 			props: {selection: {type: SELECTION_FLOOR, object: room}},
 		});
 
-		const grids = wrapper.findAll('.texture-grid');
+		// Pickers, not grids: since H1 a picker draws one grid per family, so
+		// `.texture-grid` counts families and `.texture-picker` counts controls.
+		const grids = wrapper.findAll('.texture-picker');
 		expect(grids).toHaveLength(2);
 
 		await grids[0].findAll('.texture-swatch')[1].trigger('click');
@@ -1079,6 +1082,105 @@ describe('SurfaceInspector', () =>
 		{
 			expect(edge.getTexture().url).toBe(textures.wall[1].url);
 		});
+
+		wrapper.unmount();
+	});
+
+	it('picks a library material with its roughness map (RM-011 H1)', async () =>
+	{
+		const {floorplan} = buildSquareRoom();
+		const edge = floorplan.wallEdges()[0];
+		const wrapper = mount(SurfaceInspector, {
+			props: {selection: {type: SELECTION_WALL, object: edge}},
+		});
+
+		// The library follows the demo's seven in the same picker, so its first
+		// swatch is at index textures.wall.length.
+		const material = materials.wall[0];
+		await wrapper.findAll('.texture-swatch')[textures.wall.length].trigger('click');
+
+		expect(edge.getTexture().url).toBe(material.url);
+		expect(edge.getTexture().scale).toBe(material.scale);
+		expect(edge.getMaterial().roughnessMap).toBe(material.roughnessMap);
+
+		wrapper.unmount();
+	});
+
+	it('drops the roughness map when the picture stops having one', async () =>
+	{
+		const {floorplan} = buildSquareRoom();
+		const edge = floorplan.wallEdges()[0];
+		const wrapper = mount(SurfaceInspector, {
+			props: {selection: {type: SELECTION_WALL, object: edge}},
+		});
+
+		await wrapper.findAll('.texture-swatch')[textures.wall.length].trigger('click');
+		expect(edge.getMaterial().roughnessMap).toBeTruthy();
+
+		// A roughness map belongs to the image, not to the person: the bumps in a
+		// plaster's map are that plaster's bumps. Going back to one of the demo's
+		// seven, which has none, has to take them off - unlike the tint, which
+		// setTexture deliberately keeps.
+		await wrapper.findAll('.texture-swatch')[0].trigger('click');
+		expect(edge.getTexture().url).toBe(textures.wall[0].url);
+		expect(edge.getMaterial().roughnessMap).toBeNull();
+
+		wrapper.unmount();
+	});
+
+	it('keeps a tint across a material pick but not the map', async () =>
+	{
+		const {floorplan} = buildSquareRoom();
+		const edge = floorplan.wallEdges()[0];
+		const wrapper = mount(SurfaceInspector, {
+			props: {selection: {type: SELECTION_WALL, object: edge}},
+		});
+
+		const swatch = wrapper.find('input[type="color"]');
+		swatch.element.value = '#3366aa';
+		await swatch.trigger('change');
+
+		await wrapper.findAll('.texture-swatch')[textures.wall.length].trigger('click');
+		expect(edge.getMaterial().color).toBe('#3366aa');
+		expect(edge.getMaterial().roughnessMap).toBe(materials.wall[0].roughnessMap);
+
+		wrapper.unmount();
+	});
+
+	it('carries a material to every wall in the room, maps included', async () =>
+	{
+		const {floorplan} = buildSquareRoom();
+		const room = floorplan.getRooms()[0];
+		const wrapper = mount(SurfaceInspector, {
+			props: {selection: {type: SELECTION_FLOOR, object: room}},
+		});
+
+		const pickers = wrapper.findAll('.texture-picker');
+		await wrapper.find('.field-checkbox').setValue(true);
+		await pickers[1].findAll('.texture-swatch')[textures.wall.length].trigger('click');
+
+		const material = materials.wall[0];
+		floorplan.wallEdges().forEach((edge) =>
+		{
+			expect(edge.getTexture().url).toBe(material.url);
+			expect(edge.getMaterial().roughnessMap).toBe(material.roughnessMap);
+		});
+
+		wrapper.unmount();
+	});
+
+	it('groups the library under headings and leaves the demo\'s seven bare', async () =>
+	{
+		const {floorplan} = buildSquareRoom();
+		const edge = floorplan.wallEdges()[0];
+		const wrapper = mount(SurfaceInspector, {
+			props: {selection: {type: SELECTION_WALL, object: edge}},
+		});
+
+		const families = wrapper.findAll('.texture-family').map((node) => node.text());
+		expect(families).toEqual([...new Set(materials.wall.map((entry) => entry.family))]);
+		// One unlabelled grid for the entries with no family, plus one per family.
+		expect(wrapper.findAll('.texture-grid')).toHaveLength(families.length + 1);
 
 		wrapper.unmount();
 	});

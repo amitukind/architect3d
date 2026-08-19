@@ -138,8 +138,10 @@ true rather than merely stated. Retirements are declared in
 that is not there. Rename a room texture only with a retirement; do not delete a
 name.
 
-Eleven textures are then **KTX2/ETC1S**, taking VRAM to 27.38 MB against a 45.15
-MB ceiling. A JPEG becomes RGBA8 on the way to the GPU whatever it cost on disk;
+Eleven textures are then **KTX2/ETC1S**. <!-- RM-011 H1: the VRAM figure that
+stood here — "27.38 MB against a 45.15 MB ceiling" — was a measurement of the
+whole tree, and that budget now measures a scene. See The material library
+below. --> A JPEG becomes RGBA8 on the way to the GPU whatever it cost on disk;
 a KTX2 is transcoded to a format the GPU reads directly and stays compressed at
 one byte per pixel against RGBA8's four. `tools/encode-textures.mjs` transcodes,
 `tools/repoint-textures.mjs` rewrites the containers in either direction, and
@@ -160,6 +162,59 @@ Run `npm run oracle -- --check` before adding a compressed texture. The cheap
 half of that — every shipped `.ktx2` has a measurement and the measurement
 passed — is asserted in `tests/asset-integrity.test.js` and runs with the normal
 suite.
+
+### The material library
+
+Thirty CC0 materials from Poly Haven, an albedo and a roughness map each, under
+`public/materials/`. `tools/fetch-materials.mjs` acquires and processes them and
+`npm run materials:check` verifies the committed tree against
+`asset-pipeline/material-library.json` with no network; the report has the
+per-image numbers and `public/materials/CREDITS.md` names the authors, which CC0
+does not require and which is worth more than the licence asks for.
+
+**Thirty is a measurement, not a plan.** RM-007 priced the sprint at *"about
+ninety materials"*; `tools/material-trial.mjs` encoded four of the tree's own
+photographs into the three maps a PBR material is, at three settings each, and
+measured what one costs. Ninety of three maps is a 8.2× budget raise. Thirty of
+two is 4.5 MB, which is what shipped.
+
+Two resolutions, because the two maps do not carry the same information. Measured
+as the detail a round trip preserves, **a roughness map at 256 is more faithful
+than an albedo at 512** — by 1.2 to 7.3 dB across six materials — so the smaller
+map is not the weak link and costs a quarter of the pixels. Both are JPEG at q95,
+the quality `tools/resize-textures.mjs` already measured for this tree, and both
+pass that pass's own two gates: worst resample error 0.72 against 2.0, worst codec
+error 2.802 against 3.0.
+
+**JPEG, although H1's own trial measured KTX2 as better for a roughness map.** A
+KTX2 needs the 515 KB Basis transcoder, which RM-011 W-7 measured at 98 % of a
+boot's network traffic for one 10 KB texture. Charging that to the first person
+who picks a material trades 19 KB of roughness map for half a megabyte of
+decoder. The skybox ground keeps its KTX2 because every boot loads it anyway;
+the container decision is per asset, which is the rule B1 and C1 already set.
+
+`scale` in `src/catalog/materials.json` is **centimetres per tile, taken from
+each asset's published real-world size** rather than chosen. `Edge.updateTexture`
+divides a wall's width in centimetres by it, so a 1 m brick panel repeats every
+metre. The demo's own catalog carries `50` and `100` for the same brick image and
+records no reason for either.
+
+The two catalogs are separate files and the picker reads both:
+`src/catalog/textures.json` is the demo's seven, hand-written, and every design
+that has ever named a texture names one of them; `src/catalog/materials.json` is
+generated, and regenerated whenever the library changes. A material entry is a
+superset of a texture entry, which is the whole integration.
+
+**`texture-vram` measures a scene now, not the tree.** RM-011 W-5 measured a
+three-storey house holding 7 textures on the GPU and a furnished 20-item design
+holding 15, against 202 images in the tree — so the tree figure was a number no
+GPU is ever asked for, and it would have refused this library over 90 images a
+scene uploads at most four of. `check-budget.mjs:sceneVram()` prices the two
+textures every viewer uploads, the costliest wall and floor material the pickers
+offer, and the distinct textures of the costliest catalog items up to the item
+count of the busiest design in the repository. It is a model, so
+`tests/browser/gpu-memory.test.js` holds it to `renderer.info.memory` on a real
+scene: the model has to be an upper bound on what the renderer reports.
 
 Two things about the runtime are worth knowing. **Nothing holds a renderer.**
 `KTX2Loader` needs `workerConfig`, a record of which compressed formats the GPU

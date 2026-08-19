@@ -25,6 +25,7 @@ import {BlueprintJS} from '../../src/scripts/blueprint.js';
 import {Configuration, configDimUnit} from '../../src/scripts/core/configuration.js';
 import {dimCentiMeter} from '../../src/scripts/core/units.js';
 import {setRenderProfile, RENDER_CLASSIC, RENDER_STUDIO} from '../../src/scripts/core/render_profile.js';
+import library from '../../src/catalog/materials.json';
 
 const WALL_HEIGHT = 250;
 
@@ -218,6 +219,54 @@ describe('the maps are studio-only, and that is the decision (W-1)', () =>
 		await settled();
 
 		expect(wallFaces().every(({material}) => !material.normalMap)).toBe(true);
+	});
+});
+
+describe('the library reaches a wall (RM-011 H1)', () =>
+{
+	it('loads a real material\'s two maps at the sizes they were shipped at', async () =>
+	{
+		// Not a stand-in image: the first entry of the library the sprint acquired,
+		// fetched over the network the same way the application fetches it. What is
+		// being checked is the whole chain - catalog entry, asset resolver, texture
+		// cache, surface transform - ending at pixels on the GPU.
+		const material = library.wall[0];
+		boot(RENDER_STUDIO);
+		const edge = bp.model.floorplan.wallEdges()[0];
+		edge.setTexture(material.url, material.stretch, material.scale);
+		edge.setMaterial({roughnessMap: material.roughnessMap});
+		await settled();
+
+		const face = wallFaces().find(({material: applied}) => applied.roughnessMap);
+		expect(face, 'no wall face came back with a roughness map').toBeTruthy();
+		expect(face.material.map.image.width).toBe(512);
+		expect(face.material.roughnessMap.image.width).toBe(256);
+		// The two maps tile together or the bumps sit somewhere other than the
+		// grain. `repeat` is set from the wall's own INTERIOR length over `scale` -
+		// 390 across a 400 cm room, because a wall has a thickness.
+		expect(face.material.map.repeat.x).toBeCloseTo(edge.interiorDistance() / material.scale, 5);
+	});
+
+	it('tiles at the size the material really is, not at a number somebody typed', async () =>
+	{
+		// Every library entry's scale is the asset's published real-world size in
+		// centimetres, so a 400 cm wall shows 400/scale tiles across. Asserted over
+		// the whole catalog in tests/material-library.test.js; asserted here as the
+		// thing a shader is actually handed.
+		const material = library.floor[0];
+		boot(RENDER_STUDIO);
+		const room = bp.model.floorplan.getRooms()[0];
+		room.setTexture(material.url, material.stretch, material.scale);
+		bp.model.floorplan.update();
+		await settled();
+
+		// A floor mesh carries no name - `Edge` names its five surfaces and
+		// `Floor` names none - so it is found by what it is made of: the only
+		// mapped surface in the scene that is not one of the wall faces.
+		const floor = materials().find(({object, material: applied}) =>
+			object.name !== 'wall' && applied.map && applied.map.image);
+		expect(floor, 'no floor came back with a map').toBeTruthy();
+		expect(floor.material.map.image.width).toBe(512);
 	});
 });
 

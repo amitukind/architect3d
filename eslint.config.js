@@ -245,6 +245,11 @@ export default [
 				window: 'readonly',
 				setTimeout: 'readonly',
 				clearTimeout: 'readonly',
+				// Node's own since 18, and the only network client in tools/.
+				// `tools/fetch-materials.mjs` is the one that needs it; declared
+				// here rather than per-file because a second acquisition tool
+				// should not have to rediscover this line.
+				fetch: 'readonly',
 			},
 		},
 		rules: {

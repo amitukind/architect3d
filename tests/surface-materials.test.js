@@ -211,6 +211,36 @@ describe('a surface keeps what it was not asked to change', () =>
 		expect(edge.getMaterial().color).toBe('#204060');
 	});
 
+	it('changes every wall in a room at once, and only that room\'s (H1)', () =>
+	{
+		const floorplan = new Floorplan();
+		const target = room(floorplan, 400);
+		const sides = floorplan.wallEdges();
+
+		target.setRoomWallsMaterial({roughnessMap: 'materials/marble_01/rough.jpg', color: '#cccccc'});
+
+		// Every side facing into the room, once each. `eachWallSide` is the walk
+		// `setRoomWallsTexture` already had; H1 extracted it when this second
+		// caller appeared rather than writing the traversal twice.
+		expect(sides.length).toBeGreaterThan(0);
+		sides.forEach((side) =>
+		{
+			expect(side.getMaterial().roughnessMap).toBe('materials/marble_01/rough.jpg');
+			expect(side.getMaterial().color).toBe('#cccccc');
+		});
+	});
+
+	it('walks a room with no edge pointer without throwing (RM-005 C2)', () =>
+	{
+		const floorplan = new Floorplan();
+		const target = room(floorplan, 400);
+		target.edgePointer = null;
+
+		const visited = [];
+		expect(() => target.eachWallSide((edge) => visited.push(edge))).not.toThrow();
+		expect(visited).toEqual([]);
+	});
+
 	it('gives a wall two sides that do not share a material', () =>
 	{
 		// Two rooms sharing a wall, because a wall only has two half-edges when

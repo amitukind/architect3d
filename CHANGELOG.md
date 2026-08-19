@@ -1150,6 +1150,90 @@ that file. W-4 measured 887 bytes of headroom against a five-sprint history of
 **not** move — the material library is not in this commit, and the trial says
 what it will cost when it is.
 
+**RM-011 H1: thirty materials, and a budget that measures a scene.** The
+sprint's third slice — the library the encode trial sized, and the two budget
+moves it forces.
+
+**Thirty CC0 materials from Poly Haven**, an albedo and a roughness map each,
+under `public/materials/`. RM-007 asked for *"about ninety"*; H1's own trial
+priced one material and ninety of three maps came to a 8.2× budget raise, so the
+count is a measurement rather than a plan. `tools/fetch-materials.mjs` acquires
+and processes them, `npm run materials:check` verifies the committed tree
+against `asset-pipeline/material-library.json` with no network, and
+`public/materials/CREDITS.md` names every author — which CC0 does not require.
+
+**Two resolutions, because the two maps are not the same kind of image.**
+Measured as the detail a round trip preserves, a **roughness map at 256 is more
+faithful than an albedo at 512 in all six materials sampled**, by 1.2 to 7.3 dB.
+So the smaller map is not the weak link — the albedo already is, at twice the
+resolution — and it costs a quarter of the pixels: 18,794 bytes against 122,749.
+Both ship at q95, the quality `resize-textures.mjs` already measured for this
+tree, and both pass that pass's own two gates. Worst resample error **0.72**
+against 2.0, worst codec error **2.802** against 3.0, across all 60 shipped
+images. 28.5 MB of 1K sources in, 4.50 MB out.
+
+**JPEG, although the trial measured KTX2 as better for a roughness map.** UASTC
+carried one at 86 % of source and cleared the gate; it is not what shipped,
+because a KTX2 drags the 515 KB Basis transcoder with it — W-7 measured that at
+98 % of a boot's network traffic for one 10 KB texture. Trading 19 KB of
+roughness map for half a megabyte of decoder is the wrong way round, and M-43
+says nothing unpicked is downloaded. The skybox ground keeps its KTX2 because
+every boot loads it anyway. The container decision is per asset, which is the
+rule B1 and C1 already set.
+
+**The tiling scale is measured, not invented.** Poly Haven publishes each
+texture's real-world size, and `Edge.updateTexture` divides a wall's width in
+centimetres by `scale` — so every entry tiles at the size the material actually
+is, and a 1 m brick panel repeats every metre. `src/catalog/textures.json`
+carries the demo's `50` and `100` for the same brick image and records no reason
+for either.
+
+**`texture-vram` now measures a scene, not the tree** (W-5). The tree walk put
+the library at 81.14 MB and would have refused it — for 90 images a scene
+uploads at most four of, which is a budget blocking a feature over a cost nobody
+pays. `sceneVram()` prices the two textures every viewer uploads, the costliest
+wall and floor material the pickers offer, and the distinct textures of the
+costliest catalog items up to the item count of the busiest design in the
+repository: **25,004,576 bytes**, every term something a user can actually
+produce. It is a model, so `tests/browser/gpu-memory.test.js` holds it to
+`renderer.info.memory` on a real scene — the model has to be an upper bound on
+what the renderer reports, or the model is wrong.
+
+**Three budgets raised, and the biggest one overshot its own estimate.**
+`public-total` 6,200,000 → 11,180,000 for a measured 10,640,264; `demo-total`
+15,066,600 → 19,990,000, which is the same 4.5 MB counted again where Vite
+copies `public/` into the deployment; `demo-js-gzip` 388,000 → 406,800, of which
+1,730 bytes is the catalog and the rest the picker and the inspector. The
+previous entry predicted *"about 8.8 MB … a 1.5× one"* and it is 10.64 MB and
+1.80×. The gap was an arithmetic slip rather than a surprise: the trial's
+`albedoOnly` figure prices **one** map and it was used for a library that ships
+two. Corrected in place in the roadmap and in `tools/budget.json` rather than
+quietly replaced.
+
+**`lib-esm-gzip` did not move for the library**, which is the one-way arrow
+paying out in bytes: `src/app` imports the catalog and `src/scripts` never does,
+so an embedder who takes the library gets none of it. Its 32 bytes are
+`Room.eachWallSide` and `setRoomWallsMaterial` — the walk `setRoomWallsTexture`
+already had, extracted when a second caller appeared rather than written twice.
+
+**A roughness map belongs to the picture, not to the person.** `setTexture`
+deliberately keeps a tint, because picking a different brick is not a decision to
+lose the colour you chose. The map is the opposite: the bumps in a plaster's
+roughness map are that plaster's bumps, and leaving them on a marble would be a
+bug rather than a preserved choice. So every pick writes the slot — to the
+entry's map, or to null for one of the demo's seven.
+
+**One mislabelling caught before it cost anything.** `kindOf` in the manifest
+generator decided `texture` by falling through, which was true while every file
+that reached the bottom was one and stopped being true when a `CREDITS.md`
+landed beside the library. The VRAM line asks every `texture` for its dimensions
+and a markdown file has none. Third time this function's `kind` has been found
+wrong; first time a test found it rather than a budget.
+
+**32 new tests, 2,014 headless and 131 browser.** Coverage up on all four:
+statements 86.04 → 86.08, branches 77.01 → 77.08, functions 83.54 → 83.61, lines
+86.01 → 86.06.
+
 ## [3.0.1] - 2026-08-16
 
 No shipped code changed — `src/` is byte-identical to 3.0.0 and so is every

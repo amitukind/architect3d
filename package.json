@@ -59,6 +59,8 @@
 		"oracle:check": "node tools/transcode-oracle.mjs --check",
 		"material-trial": "node tools/material-trial.mjs",
 		"material-trial:check": "node tools/material-trial.mjs --check",
+		"materials": "node tools/fetch-materials.mjs",
+		"materials:check": "node tools/fetch-materials.mjs --check",
 		"budget": "node tools/check-budget.mjs",
 		"budget:update": "node tools/check-budget.mjs --update",
 		"lint": "eslint . --max-warnings 0",

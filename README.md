@@ -3,9 +3,9 @@
 WebGL 3D interior design tool with a 2D floorplanner.
 
 Draw walls by clicking, close a loop to make a room, put doors, windows, stairs,
-columns and beams in it as numbers rather than as models, furnish it from a catalog of 168
-models, change wall and floor textures, dimension and label the plan, and walk
-through the result in first person. Plan and 3D view side by side — the furniture is drawn on both,
+columns and beams in it as numbers rather than as models, furnish it from a
+catalog of 168 models, surface it from a library of 30 CC0 materials, dimension
+and label the plan, and walk through the result in first person. Plan and 3D view side by side — the furniture is drawn on both,
 and selecting anything in one view selects it in the other — with undo on
 everything, and a dark or light theme that reaches the drawing canvas as well as
 the chrome.
@@ -179,7 +179,7 @@ locally.
 ```
 src/scripts/   the library - plain ESM, no Vue, no CSS
 src/app/       the Vue 3 application built on it
-src/catalog/   the item palette and the texture list, as JSON
+src/catalog/   the item palette, the texture list and the material library, as JSON
 public/        assets the running app loads (models, textures, thumbnails)
 asset-pipeline/ inputs and records that are not served: the 25 pre-migration
                three.js JSON models the .glb files were converted from, the

@@ -32,6 +32,461 @@
 			"hash": "sha256-i7KVLSun1n4UFPjfgZQQywQ0pma+U/Zx//dfaIQ9dvY=",
 			"kind": "decoder"
 		},
+		"materials/CREDITS.md": {
+			"bytes": 3504,
+			"hash": "sha256-itC3zyk1xsmAR4sC8yzmXh/IeyC84k1hbiq0VgS1wJs=",
+			"kind": "document"
+		},
+		"materials/beige_wall_001/albedo.jpg": {
+			"bytes": 22651,
+			"hash": "sha256-PoKKdLT34+ea1nZ+0bIrNkETY9BADxjcKJkG66d14PQ=",
+			"kind": "texture"
+		},
+		"materials/beige_wall_001/rough.jpg": {
+			"bytes": 15253,
+			"hash": "sha256-dcwHwrAdLCFhBbBN2gIT/AQ8sK0shZj1aOnoSNwqCO0=",
+			"kind": "texture"
+		},
+		"materials/brick_wall_001/albedo.jpg": {
+			"bytes": 165316,
+			"hash": "sha256-yI6K3XR0uWUwwBl6FQzZS6e2FEcqTa8388dZDhGPF8A=",
+			"kind": "texture"
+		},
+		"materials/brick_wall_001/rough.jpg": {
+			"bytes": 19935,
+			"hash": "sha256-+Fn2+Sgl0kMquIxLbAH0gGrKjyhch1y0nQhwUxuKYRM=",
+			"kind": "texture"
+		},
+		"materials/brown_brick_02/albedo.jpg": {
+			"bytes": 197613,
+			"hash": "sha256-8YknHZ+G1IxnRueGTRq/0DugBPpr6TNeDfB8xyaRZms=",
+			"kind": "texture"
+		},
+		"materials/brown_brick_02/rough.jpg": {
+			"bytes": 24127,
+			"hash": "sha256-SUY8DYfSvsxDP1Q0dGpPhYeKo5+HTsUPzwOagp7Fg2k=",
+			"kind": "texture"
+		},
+		"materials/brown_planks_03/albedo.jpg": {
+			"bytes": 140453,
+			"hash": "sha256-tELz7VTU4lhftjBb6zFB43wuTEiqXhu6mMQgKO6I47k=",
+			"kind": "texture"
+		},
+		"materials/brown_planks_03/rough.jpg": {
+			"bytes": 16841,
+			"hash": "sha256-oelPAyGdZa8ZHQmnvKD14oGkfgwiza8I8ngU7Lfo9IQ=",
+			"kind": "texture"
+		},
+		"materials/castle_brick_02_white/albedo.jpg": {
+			"bytes": 213731,
+			"hash": "sha256-hZsXm9F3SkXs2iw6zltE8yl4l/TUyrYoT3R2QgUKE7o=",
+			"kind": "texture"
+		},
+		"materials/castle_brick_02_white/rough.jpg": {
+			"bytes": 36505,
+			"hash": "sha256-0PHpcbAVmKfdrmA8VXQ6NVk7L9k5q3swoV9w2tJCIfM=",
+			"kind": "texture"
+		},
+		"materials/concrete_brick_wall_001/albedo.jpg": {
+			"bytes": 75999,
+			"hash": "sha256-4MtaJPrx+Dofzus/ffvof/UJh9gCEvCiyBJwK0sci6s=",
+			"kind": "texture"
+		},
+		"materials/concrete_brick_wall_001/rough.jpg": {
+			"bytes": 25727,
+			"hash": "sha256-OaPrzEY7yLO5DvYGrSDigTd2w8lxikFIAEbXIS6r/lE=",
+			"kind": "texture"
+		},
+		"materials/concrete_floor_worn_001/albedo.jpg": {
+			"bytes": 65897,
+			"hash": "sha256-e+/XBiECI8PbSaBGMNBgxIrcJKRY6svIh1Iiiw5qzTo=",
+			"kind": "texture"
+		},
+		"materials/concrete_floor_worn_001/rough.jpg": {
+			"bytes": 22283,
+			"hash": "sha256-UyLgeKRvyTPS3ZmPHRGVwPevWm0d5j7j/FdTPWlieec=",
+			"kind": "texture"
+		},
+		"materials/dark_wooden_planks/albedo.jpg": {
+			"bytes": 106176,
+			"hash": "sha256-H97wTpF1FclQ7qyo1SCDzIN7jAgioc2kIgW9R1OsgLI=",
+			"kind": "texture"
+		},
+		"materials/dark_wooden_planks/rough.jpg": {
+			"bytes": 25780,
+			"hash": "sha256-21dl4aqEDOrTt+LlBIGZluhU3pSrYIZ0sVHrWIcE0Xw=",
+			"kind": "texture"
+		},
+		"materials/diagonal_parquet/albedo.jpg": {
+			"bytes": 134210,
+			"hash": "sha256-LBkiihNnKXQ0VS7elU/L3aR6pzHXQBZogI+A2DU2gJ8=",
+			"kind": "texture"
+		},
+		"materials/diagonal_parquet/rough.jpg": {
+			"bytes": 9121,
+			"hash": "sha256-8FXRp6b8OXecnAImPw0OxMPz2+nrWBAmWIBqvq7XtjU=",
+			"kind": "texture"
+		},
+		"materials/floor_tiles_02/albedo.jpg": {
+			"bytes": 91908,
+			"hash": "sha256-/RsgYCGgIvqtcZs2wzIb6m1edOfcYKpP79r/M1mIzOM=",
+			"kind": "texture"
+		},
+		"materials/floor_tiles_02/rough.jpg": {
+			"bytes": 24592,
+			"hash": "sha256-OdQC6+UfjOuFZLwBtQ9+Z6p1vE4gd7iC6XUojdFhPuc=",
+			"kind": "texture"
+		},
+		"materials/floor_tiles_06/albedo.jpg": {
+			"bytes": 105972,
+			"hash": "sha256-6u3bbBpbLwpNkTf5p2ZKUV2DpFOS2bP8syQhXPD10gc=",
+			"kind": "texture"
+		},
+		"materials/floor_tiles_06/rough.jpg": {
+			"bytes": 12031,
+			"hash": "sha256-rcuyIKA8V+7Fnm+SmHGiWsVQJkhtg3WWOLNgvS6WQq0=",
+			"kind": "texture"
+		},
+		"materials/grey_cartago_01/albedo.jpg": {
+			"bytes": 170153,
+			"hash": "sha256-1ex5puDD4DY9bySvTMIkeH1faRic/X+e+alsHWl/wF8=",
+			"kind": "texture"
+		},
+		"materials/grey_cartago_01/rough.jpg": {
+			"bytes": 18954,
+			"hash": "sha256-m/r2IeaJp2IPsqOknkedOzZmlJMxp8BY8OVxsCTr5jA=",
+			"kind": "texture"
+		},
+		"materials/grey_plaster/albedo.jpg": {
+			"bytes": 155901,
+			"hash": "sha256-ljxAZY5jcABt85iqhxg0q6aQ/8JI4hKCwukW/UMeHK8=",
+			"kind": "texture"
+		},
+		"materials/grey_plaster/rough.jpg": {
+			"bytes": 36842,
+			"hash": "sha256-lfoUW6hp0NOBD8S8V+5OQv943xvLqJo6YJdmd6DQzZk=",
+			"kind": "texture"
+		},
+		"materials/herringbone_parquet/albedo.jpg": {
+			"bytes": 136137,
+			"hash": "sha256-pbb0ZrOrZ9QoLypXJM6WRuL6/ulhjLmDGYCb4GgNkyg=",
+			"kind": "texture"
+		},
+		"materials/herringbone_parquet/rough.jpg": {
+			"bytes": 16360,
+			"hash": "sha256-22RXskLm1H99K5/6rJonlyXnwZ87XvMjvJBFy6dCgjo=",
+			"kind": "texture"
+		},
+		"materials/laminate_floor_02/albedo.jpg": {
+			"bytes": 97045,
+			"hash": "sha256-2WZ8uspqDQMEC3wgekDtvM+fulyQXtaXF1qcJFARMLA=",
+			"kind": "texture"
+		},
+		"materials/laminate_floor_02/rough.jpg": {
+			"bytes": 14234,
+			"hash": "sha256-tizHN1ETVAiZWrrmvUQ1CN9YC5BwMZD5qCSB+S32UUY=",
+			"kind": "texture"
+		},
+		"materials/large_red_bricks/albedo.jpg": {
+			"bytes": 184081,
+			"hash": "sha256-swh0Xs0VacvefgUtTYBz79+p39JFPu6cGGe+tqpQvWA=",
+			"kind": "texture"
+		},
+		"materials/large_red_bricks/rough.jpg": {
+			"bytes": 12092,
+			"hash": "sha256-G+rsxItLmrN4E4AfGvH4pcLa1MFTarEnmQT/kzt67EA=",
+			"kind": "texture"
+		},
+		"materials/marble_01/albedo.jpg": {
+			"bytes": 75901,
+			"hash": "sha256-6ENBeY3fD7Ric4HYNaKqzssRLpSxrMp4C1sM596vOmY=",
+			"kind": "texture"
+		},
+		"materials/marble_01/rough.jpg": {
+			"bytes": 12941,
+			"hash": "sha256-Kq0FcOptX8kzpj2By1vLQtcUjxKke3iNQjmaDe63/hU=",
+			"kind": "texture"
+		},
+		"materials/painted_brick/albedo.jpg": {
+			"bytes": 170364,
+			"hash": "sha256-RQqAaRkRW1Yx9UsQnJUdfIuo81BiEtlTlV6MzEhvf80=",
+			"kind": "texture"
+		},
+		"materials/painted_brick/rough.jpg": {
+			"bytes": 15167,
+			"hash": "sha256-2rNPzX6HEhL+ZKIX6shcdyImZI3AHrMH1uIil8/8t28=",
+			"kind": "texture"
+		},
+		"materials/plank_flooring_03/albedo.jpg": {
+			"bytes": 154281,
+			"hash": "sha256-A5BOzQqPtuTvOKyjOExa39eng0azUdvgPh6UWYf47V0=",
+			"kind": "texture"
+		},
+		"materials/plank_flooring_03/rough.jpg": {
+			"bytes": 16424,
+			"hash": "sha256-1qD2J76KPjRJ6bCnyabqkNg5EHJJXNAp60JTfuP5Ky4=",
+			"kind": "texture"
+		},
+		"materials/plaster_grey_04/albedo.jpg": {
+			"bytes": 109387,
+			"hash": "sha256-gTkOIYr7uy4ssqM3K/1WbvfdZRwZGTW7ueaRT0+yq4s=",
+			"kind": "texture"
+		},
+		"materials/plaster_grey_04/rough.jpg": {
+			"bytes": 19501,
+			"hash": "sha256-eIyQ5BhI0tTmxeeb7v/VLk51qw3SXNYNwjYot05suVY=",
+			"kind": "texture"
+		},
+		"materials/plastered_wall_04/albedo.jpg": {
+			"bytes": 33031,
+			"hash": "sha256-dEtjBTXQid3QGEy45BFWD/W/fmGSm0z7L2wIp+5ay6g=",
+			"kind": "texture"
+		},
+		"materials/plastered_wall_04/rough.jpg": {
+			"bytes": 7081,
+			"hash": "sha256-QvdxTZuTYmadGZjm6FRH+ExFuy6+wgP5I+oh4sMcPnQ=",
+			"kind": "texture"
+		},
+		"materials/rectangular_parquet/albedo.jpg": {
+			"bytes": 97392,
+			"hash": "sha256-8Xf5rj+4/2enPuZ1Zn7v+zfy5CTfST/O533BToP94aM=",
+			"kind": "texture"
+		},
+		"materials/rectangular_parquet/rough.jpg": {
+			"bytes": 11437,
+			"hash": "sha256-m85WT/4MEBlu7mLAmvlj7hkAULynArjOTxNZO1yEgYQ=",
+			"kind": "texture"
+		},
+		"materials/slate_floor_03/albedo.jpg": {
+			"bytes": 113627,
+			"hash": "sha256-Ej5ltrFgYBHfBkQnlr+ez1Hm/MiGWkqS16Dr/JfBHes=",
+			"kind": "texture"
+		},
+		"materials/slate_floor_03/rough.jpg": {
+			"bytes": 17576,
+			"hash": "sha256-TkXNuvDfx0uLvErhcz0dDpPjDxkM+nbatkh7LuA90bM=",
+			"kind": "texture"
+		},
+		"materials/smooth_concrete_floor/albedo.jpg": {
+			"bytes": 137326,
+			"hash": "sha256-TjoRDRaGCf5MXRVh6weN3lwZxmW5Y7ag7CbHQczZlaw=",
+			"kind": "texture"
+		},
+		"materials/smooth_concrete_floor/rough.jpg": {
+			"bytes": 12309,
+			"hash": "sha256-n8AC2Zn8nQOJjhPE+jUmKkP98tq5vvkycCQcDL30v1w=",
+			"kind": "texture"
+		},
+		"materials/terracotta_floor_tiles/albedo.jpg": {
+			"bytes": 93900,
+			"hash": "sha256-NvNBT3K69KENJojOdW1993f85Mmgu1MzEhFdNXcnfTE=",
+			"kind": "texture"
+		},
+		"materials/terracotta_floor_tiles/rough.jpg": {
+			"bytes": 21806,
+			"hash": "sha256-t3mx1fmrLZC+5SPzBpQRUfo3EdaPO3Uzbe+CApqE7Ek=",
+			"kind": "texture"
+		},
+		"materials/thumbnails/beige_wall_001.jpg": {
+			"bytes": 2768,
+			"hash": "sha256-3UAnxZjlL7J6FnEylJUTiWLvB4hpWXkPTJXp9cYtzDA=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/brick_wall_001.jpg": {
+			"bytes": 13631,
+			"hash": "sha256-PgRfApqsnv6+nM6cbge/OTNeLUrE1UvKi744P5wm5aw=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/brown_brick_02.jpg": {
+			"bytes": 13635,
+			"hash": "sha256-RaMO4g6iTkg8QCrAOl71w/57J++m2+xfHBbNb8zTEKQ=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/brown_planks_03.jpg": {
+			"bytes": 8368,
+			"hash": "sha256-QYVdXCqamWs1lXpdYI1ElyJot0rs36VUijsT6oXBAPk=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/castle_brick_02_white.jpg": {
+			"bytes": 15284,
+			"hash": "sha256-5c2MPW+xHg7ZEZllLtaWHdfOgh4Se4lZMNRy8V2sY7Q=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/concrete_brick_wall_001.jpg": {
+			"bytes": 6706,
+			"hash": "sha256-A1xgY5WJueM/EfPLyCPu9wJjEObSrCJJVFWK48xvorw=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/concrete_floor_worn_001.jpg": {
+			"bytes": 3804,
+			"hash": "sha256-bJARc4ItdqMvMA0qaYNACS13917IEjM8eHglCiDjQsc=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/dark_wooden_planks.jpg": {
+			"bytes": 6543,
+			"hash": "sha256-x24h3QsVSdUJIPb1ZrAGr2JoX3dVSaWxaxeShxEygYY=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/diagonal_parquet.jpg": {
+			"bytes": 11007,
+			"hash": "sha256-uJ7JxY8mwrTV1D1nK89m3hePyKV9aV6PTLeMpDCxrWI=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/floor_tiles_02.jpg": {
+			"bytes": 6763,
+			"hash": "sha256-o2bLrWQX5GXQrIz+wUq8JyAJj+rOfpVCIkASgA7eP5U=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/floor_tiles_06.jpg": {
+			"bytes": 8158,
+			"hash": "sha256-S9bVKaCcAxgRXAGzpODKsILMY5FgA+tmNpycj9nOIao=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/grey_cartago_01.jpg": {
+			"bytes": 15545,
+			"hash": "sha256-dDIa/IHidiBMqZYx57064nMFQtSacrkFJCT9YGoVHDU=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/grey_plaster.jpg": {
+			"bytes": 7853,
+			"hash": "sha256-pPgnzKezOyDPbgHcq9H4qCnfxZH5onCLp0EnlaItL/o=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/herringbone_parquet.jpg": {
+			"bytes": 9006,
+			"hash": "sha256-lKWA9EjP6FxyWSzJnY3zelii40nGJE3P6xAND3wbC00=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/laminate_floor_02.jpg": {
+			"bytes": 5463,
+			"hash": "sha256-wX4WJfxXwzrNqMn0Jef2GzmfDOHSspSrUvlBcWTAxqo=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/large_red_bricks.jpg": {
+			"bytes": 14799,
+			"hash": "sha256-vYYkGc3fy4tbJeStTKyS8F/sqzxA0z+cnM9Bb3L79/E=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/marble_01.jpg": {
+			"bytes": 4767,
+			"hash": "sha256-lXezlWPC8CAuzVFmSn/jRp4ftOmccRq7GvleP4gqTLc=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/painted_brick.jpg": {
+			"bytes": 13538,
+			"hash": "sha256-hOsR85ZxBA4XVqFYMlJuyXqA7ngCupX99SRPKtx5i4Y=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/plank_flooring_03.jpg": {
+			"bytes": 12137,
+			"hash": "sha256-iNXrEquAkSHAn0uBPLSL7Fja3HgXRzK92NFsDtq1hGg=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/plaster_grey_04.jpg": {
+			"bytes": 5736,
+			"hash": "sha256-F3XbjyNf4DrTJy2KitCBYmNCj365aWkonPda2cD5kvw=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/plastered_wall_04.jpg": {
+			"bytes": 2962,
+			"hash": "sha256-HWb7r5L+Kosx0cSqTrgzbwGj+3GxtZJtNCSMSIxeatQ=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/rectangular_parquet.jpg": {
+			"bytes": 6605,
+			"hash": "sha256-vZWlNQZvyG+xHyhzyEXk5tdiuSWSHHNmJ25wrGtqQOE=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/slate_floor_03.jpg": {
+			"bytes": 8651,
+			"hash": "sha256-1lan4y4BLLu4y70v8Ckb8q4JnNVGwbF7pLBlKePTrFM=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/smooth_concrete_floor.jpg": {
+			"bytes": 7863,
+			"hash": "sha256-7ts62gWgUYOd8sDhO7VAfq6Iqsyz5tfFricDboCWPXc=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/terracotta_floor_tiles.jpg": {
+			"bytes": 7305,
+			"hash": "sha256-8h5wARfn5xq3go399Q69YpwUb9PPKLmaiVQqgyCzTIw=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/white_plaster_02.jpg": {
+			"bytes": 5380,
+			"hash": "sha256-c8kGdgn5IctbBDyUhO77dDrA9ITU/6PffDb88Dbt1Jo=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/white_stucco.jpg": {
+			"bytes": 1782,
+			"hash": "sha256-V20eZN/IrttYOEgtdZCMC3S/3Tc6YHU12qjvVe5M/Jw=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/wood_floor.jpg": {
+			"bytes": 6075,
+			"hash": "sha256-R8myKHLHnR+NeKG8DUVK2+gL+266holW3yH1SwVsRog=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/yellow_brick.jpg": {
+			"bytes": 16333,
+			"hash": "sha256-220nd9P4tRM4E+xREyILr3Yjt0Zdg/wun0RDNI3PsWk=",
+			"kind": "thumbnail"
+		},
+		"materials/thumbnails/yellow_plaster.jpg": {
+			"bytes": 6583,
+			"hash": "sha256-M+MYBX/gsyD3S/MbLxNXV8z1OqkX0Scw43ZNMSOuc7A=",
+			"kind": "thumbnail"
+		},
+		"materials/white_plaster_02/albedo.jpg": {
+			"bytes": 118469,
+			"hash": "sha256-BbWpIPmkMaXJ8pdBhZnbcAhUXIoNsmMr+RcuDQLoIwg=",
+			"kind": "texture"
+		},
+		"materials/white_plaster_02/rough.jpg": {
+			"bytes": 12762,
+			"hash": "sha256-49pnVkb3U/0jL2L/Z9zWeg2nIHXnxPC3zGzGeOlCxW4=",
+			"kind": "texture"
+		},
+		"materials/white_stucco/albedo.jpg": {
+			"bytes": 61257,
+			"hash": "sha256-o0ljKzqg+1hjKxMmsuRKX7UMZHT9Jo1TcchVO4OH9g0=",
+			"kind": "texture"
+		},
+		"materials/white_stucco/rough.jpg": {
+			"bytes": 7916,
+			"hash": "sha256-6YaP4+vg4/JJmFw9pceqWnFSMuU7qU8AWvciveT0hac=",
+			"kind": "texture"
+		},
+		"materials/wood_floor/albedo.jpg": {
+			"bytes": 110058,
+			"hash": "sha256-+cH9mKF75rtFyrIyETlhpCWJO1eZq1WaKxQMySAYio0=",
+			"kind": "texture"
+		},
+		"materials/wood_floor/rough.jpg": {
+			"bytes": 13913,
+			"hash": "sha256-lBwXkKfsMFDljTflfUZbfNiDmxkkRGDqxk2JQu+qvNE=",
+			"kind": "texture"
+		},
+		"materials/yellow_brick/albedo.jpg": {
+			"bytes": 238585,
+			"hash": "sha256-U6FuEPMyYUOWTF/OV4fIqCysrrdOgzuv3EmgDxr5+xM=",
+			"kind": "texture"
+		},
+		"materials/yellow_brick/rough.jpg": {
+			"bytes": 46675,
+			"hash": "sha256-uvvGyQSYKX5o+cm902/IT00EvdlDlFOlDHsP+wV1AxU=",
+			"kind": "texture"
+		},
+		"materials/yellow_plaster/albedo.jpg": {
+			"bytes": 105657,
+			"hash": "sha256-5vNqmAHg7hwla3lZOqYNCPui+KztJvOypFG9i6GeRi0=",
+			"kind": "texture"
+		},
+		"materials/yellow_plaster/rough.jpg": {
+			"bytes": 17628,
+			"hash": "sha256-Q39yRZ+Ynuo2lwt01wy8zsEjj/iWsJPSoXO/VHKYVJU=",
+			"kind": "texture"
+		},
 		"models/gltf/SimpleCabinet.glb": {
 			"bytes": 42312,
 			"hash": "sha256-1dElM0Lwr6doZivisI9m2c/+87/JBQxzCS5U6zbPV44=",

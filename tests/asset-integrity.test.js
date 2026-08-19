@@ -48,7 +48,7 @@ import {fileURLToPath} from 'node:url';
 import {dirname, join, sep, basename} from 'node:path';
 import {tmpdir} from 'node:os';
 import {createHash} from 'node:crypto';
-import {textureVram} from '../tools/check-budget.mjs';
+import {sceneVram, textureVram} from '../tools/check-budget.mjs';
 import {resolveModelUrl} from '../src/scripts/core/legacy_models.js';
 import {AssetManifest, MANIFEST_VERSION} from '../src/scripts/core/asset_manifest.js';
 import {AssetResolver} from '../src/scripts/core/asset_resolver.js';
@@ -589,13 +589,29 @@ describe('the VRAM budget can see every format the tree uploads (RM-005 C1)', ()
 			.toEqual([]);
 	});
 
-	it('reports the whole tree at the figure tools/budget.json records', () =>
+	it('reports a scene at the figure tools/budget.json records', () =>
 	{
 		// Ties the per-file property above to the number the gate actually prints,
 		// so a measurement that is right file-by-file and wrong in aggregate - a
 		// double count, a directory skipped - still fails.
+		//
+		// RM-011 H1 re-pointed the line from the tree to a scene (W-5), so this
+		// reads `sceneVram` where it used to read `textureVram`. The per-file
+		// property above still walks the whole tree, because "can this budget see
+		// this format" is a question about the measurement and not about which
+		// files a scene happens to name.
 		const recorded = JSON.parse(readFileSync(join(ROOT, 'tools/budget.json'), 'utf8'));
-		expect(textureVram(PUBLIC)).toBe(recorded.budgets['texture-vram'].measured);
+		expect(sceneVram()).toBe(recorded.budgets['texture-vram'].measured);
+	});
+
+	it('measures a scene well below the tree it is drawn from', () =>
+	{
+		// The claim W-5 made and the reason the line moved: a scene holds a
+		// fraction of what the tree contains, and after the material library the
+		// gap is wide enough that measuring the tree would have refused a feature
+		// for a cost nobody pays. Stated as an inequality rather than a figure so
+		// it survives the next texture added to either side.
+		expect(sceneVram()).toBeLessThan(textureVram(PUBLIC) / 2);
 	});
 });
 

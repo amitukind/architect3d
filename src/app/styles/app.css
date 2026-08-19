@@ -795,6 +795,22 @@
 
 	/* ---- texture grid ---- */
 
+	.texture-family
+	{
+		display: block;
+		margin: 8px 0 4px;
+		font-size: 10px;
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--ink-faint);
+	}
+
+	.texture-family:first-of-type
+	{
+		margin-top: 4px;
+	}
+
 	.texture-grid
 	{
 		display: grid;

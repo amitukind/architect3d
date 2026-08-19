@@ -78,6 +78,14 @@ function kindOf(name)
 	// `<img>` sources that never reach the GPU, and calling them textures made
 	// every consumer that branches on kind wrong about them - including B1's
 	// texture-vram budget, which was measuring 60 MB of memory nothing uploads.
+	// A file that is not an image is not a texture, whatever directory it is in.
+	// The fall-through at the bottom of this function has decided `texture` since
+	// A5, which was true while every file down here was one - and stopped being
+	// true the moment H1 put a CREDITS.md beside the material library. The same
+	// shape of mislabelling B4 found twice before, caught this time by
+	// `tests/asset-integrity.test.js` before it reached a budget: the VRAM line
+	// asks every `texture` for its dimensions, and a markdown file has none.
+	if (!/\.(png|jpe?g|ktx2|webp|avif|basis)$/i.test(name)) { return 'document'; }
 	if (/(^|\/)thumbnails(_new)?\//.test(name)) { return 'thumbnail'; }
 	if (name.startsWith('rooms/textures/envs/')) { return 'environment'; }
 	if (name.startsWith('models/')) { return 'model-texture'; }
