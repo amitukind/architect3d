@@ -1007,6 +1007,80 @@ describe('Utils.pointInPolygon - always false (wrong arity)', () =>
 		expect(Utils.pointInPolygon2(pt(5, 5), square)).toBe(true);
 		expect(Utils.pointInPolygon2(pt(50, 50), square)).toBe(false);
 	});
+
+	/**
+	 * The re-baseline, RM-012 J4 - and the reason the four above did not change.
+	 *
+	 * RM-007 asked for it as *"a new predicate, feature flag, characterization
+	 * tests updated in the same commit - not as a fix"*, and X-5 then measured
+	 * why that is the right framing: `polygonInsidePolygon` has no caller
+	 * anywhere, `polygonOutsidePolygon`'s only one is commented out, and the two
+	 * live calls sit inside a function that returns true on every path. Nothing
+	 * observable depends on any of them, so repairing them would change
+	 * behaviour nobody can see and re-open a suite that has held for nine
+	 * programmes.
+	 *
+	 * So this is what changed in the same commit as the flag: the four
+	 * assertions above **stay exactly as they were**, and a correct predicate is
+	 * asserted beside them. That is the ledger being updated rather than
+	 * rewritten.
+	 */
+	describe('Utils.polygonsOverlap - new, and not one of the four', () =>
+	{
+		const other = (dx, dy) => square.map((corner) => pt(corner.x + dx, corner.y + dy));
+
+		it('finds two overlapping squares', () =>
+		{
+			expect(Utils.polygonsOverlap(square, other(5, 5))).toBe(true);
+		});
+
+		it('and two that are nowhere near each other', () =>
+		{
+			expect(Utils.polygonsOverlap(square, other(50, 0))).toBe(false);
+		});
+
+		it('finds one entirely inside the other, which edge intersection cannot', () =>
+		{
+			// The case that matters most for furniture and the one the broken path
+			// structurally misses: a rug under a table has no edge crossings at all.
+			// SAT catches it because a contained polygon has no separating axis
+			// either.
+			const inner = [pt(2, 2), pt(2, 8), pt(8, 8), pt(8, 2)];
+			expect(Utils.polygonsOverlap(square, inner)).toBe(true);
+			expect(Utils.polygonsOverlap(inner, square)).toBe(true);
+			// And the broken sibling, unchanged, still says no - which is the whole
+			// reason a new predicate was needed rather than a repair.
+			expect(Utils.polygonInsidePolygon(inner, square, v2(-100, -100))).toBe(false);
+		});
+
+		it('does not call two flush items a collision', () =>
+		{
+			// Which is exactly the arrangement J4's snapping produces on purpose:
+			// two units side by side, sharing an edge. Calling that a collision
+			// would make the warning fire on every deliberate alignment.
+			expect(Utils.polygonsOverlap(square, other(10, 0))).toBe(false);
+			// One millimetre in, and it is a collision.
+			expect(Utils.polygonsOverlap(square, other(9.9, 0))).toBe(true);
+		});
+
+		it('works on rotated footprints, which is what an item actually has', () =>
+		{
+			// `Item.getCorners` rotates the four corners of the box by the item's
+			// own Y rotation, so a real footprint is a rotated rectangle rather
+			// than an axis-aligned one. A test on axis-aligned boxes only would
+			// pass for a bounding-box check that is not this.
+			const diamond = [pt(5, -2), pt(12, 5), pt(5, 12), pt(-2, 5)];
+			expect(Utils.polygonsOverlap(square, diamond)).toBe(true);
+			const away = [pt(30, 23), pt(37, 30), pt(30, 37), pt(23, 30)];
+			expect(Utils.polygonsOverlap(square, away)).toBe(false);
+		});
+
+		it('answers false rather than throwing for something that is not a polygon', () =>
+		{
+			expect(Utils.polygonsOverlap(null, square)).toBe(false);
+			expect(Utils.polygonsOverlap([pt(0, 0), pt(1, 1)], square)).toBe(false);
+		});
+	});
 });
 
 

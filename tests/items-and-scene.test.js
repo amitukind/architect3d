@@ -19,7 +19,7 @@
  * a local FakeItem that stands in for Item's constructor only, and re-uses the
  * real Item.prototype.initObject and Item.prototype.getMetaData.
  */
-import {describe, it, expect, beforeEach} from 'vitest';
+import {afterEach, describe, it, expect, beforeEach} from 'vitest';
 import * as three from 'three';
 
 import {Model} from '../src/scripts/model/model.js';
@@ -27,6 +27,7 @@ import {Scene} from '../src/scripts/model/scene.js';
 import {Factory, item_types} from '../src/scripts/items/factory.js';
 import {Item} from '../src/scripts/items/item.js';
 import {FloorItem} from '../src/scripts/items/floor_item.js';
+import {Configuration, collisionWarnings} from '../src/scripts/core/configuration.js';
 import {WallItem} from '../src/scripts/items/wall_item.js';
 import {InWallItem} from '../src/scripts/items/in_wall_item.js';
 import {InWallFloorItem} from '../src/scripts/items/in_wall_floor_item.js';
@@ -1394,6 +1395,108 @@ describe('RoofItem on a design with no ceiling (RM-005 C2, J-5)', () =>
  * rectangle of it into the wall's holes. A mirrored door with a negative half
  * width cuts a hole of negative width and nothing says so.
  */
+/**
+ * The collision warning, and the dead code it brings back to life (RM-012 J4).
+ *
+ * `Item.showError()` had one caller and that caller was unreachable: it sits
+ * behind `!this.isValidPosition(vec3)`, and `FloorItem.isValidPosition` returns
+ * true on every path it has. The red glow has existed since the fork with a
+ * comment claiming it fires. RM-007 gave J4 the choice - *"either the halo
+ * becomes the collision warning or it is deleted"* - and these are the first
+ * half of that.
+ *
+ * A warning and never a refusal. `isValidPosition` says in its own comment that
+ * placement is up to the user, and eight programmes of saved designs were made
+ * under that rule.
+ */
+describe('the collision warning, behind its flag (RM-012 J4)', () =>
+{
+	/** Enough of a FloorItem for `collides` and `warnOnCollision`. */
+	function footprint(scene, x, z, half)
+	{
+		var item = Object.create(FloorItem.prototype);
+		return Object.assign(item, {
+			scene: scene,
+			position: new three.Vector3(x, 10, z),
+			rotation: {y: 0},
+			halfSize: new three.Vector3(half || 10, 10, half || 10),
+			error: false,
+			shown: 0,
+			hidden: 0,
+			showError() {this.shown += 1; this.error = true;},
+			hideError() {this.hidden += 1; this.error = false;},
+		});
+	}
+
+	afterEach(() =>
+	{
+		Configuration.setValue(collisionWarnings, false);
+	});
+
+	it('is silent while the flag is off, which is the default', () =>
+	{
+		// The first thing in nine programmes to make a correct polygon predicate
+		// observable, with the four broken ones untouched. Whether anybody sees
+		// the consequence is a decision somebody takes.
+		const scene = {getItems: () => items};
+		const a = footprint(scene, 0, 0);
+		const items = [a, footprint(scene, 5, 5)];
+
+		expect(Configuration.getNumericValue(collisionWarnings)).toBeFalsy();
+		a.warnOnCollision();
+		expect(a.shown).toBe(0);
+	});
+
+	it('shows the glow that had never once fired, when it is on', () =>
+	{
+		Configuration.setValue(collisionWarnings, true);
+		const scene = {getItems: () => items};
+		const a = footprint(scene, 0, 0);
+		const items = [a, footprint(scene, 5, 5)];
+
+		a.warnOnCollision();
+		expect(a.shown).toBe(1);
+		expect(a.error).toBe(true);
+	});
+
+	it('clears it again when the overlap goes away', () =>
+	{
+		Configuration.setValue(collisionWarnings, true);
+		const scene = {getItems: () => items};
+		const a = footprint(scene, 0, 0);
+		const items = [a, footprint(scene, 500, 500)];
+
+		a.warnOnCollision();
+		expect(a.shown).toBe(0);
+		expect(a.hidden).toBe(1);
+	});
+
+	it('does not call two flush items a collision', () =>
+	{
+		// Which is what J4's own snapping produces on purpose. A warning that
+		// fired on every deliberate alignment would be a warning nobody reads.
+		const scene = {getItems: () => items};
+		const a = footprint(scene, 0, 0, 10);
+		const items = [a, footprint(scene, 20, 0, 10)];
+		expect(a.collides()).toBe(false);
+	});
+
+	it('ignores anything that is not on the floor', () =>
+	{
+		// An item on a wall and an item on the floor share a footprint constantly
+		// and neither is in the other's way.
+		const wall = Object.assign(Object.create(Item.prototype), {
+			position: new three.Vector3(0, 120, 0),
+			rotation: {y: 0},
+			halfSize: new three.Vector3(40, 40, 10),
+		});
+		const scene = {getItems: () => items};
+		const a = footprint(scene, 0, 0);
+		const items = [a, wall];
+		expect(a.collides()).toBe(false);
+	});
+});
+
 describe('Item.applySnap, and the two rules it will not break (RM-012 J4)', () =>
 {
 	/** The minimum of an Item that `applySnap` reads. */

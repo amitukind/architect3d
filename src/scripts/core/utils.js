@@ -77,6 +77,28 @@ function checkIntersection(x1, y1, x2, y2, x3, y3, x4, y4)
  * corrects one of these signatures, the directive becomes an error and forces
  * them to come here, read this, and update the characterization tests in the
  * same change. It is a pin, not a silencer.
+ *
+ * ## The re-baseline, RM-012 J4 - and it is an addition, not a repair
+ *
+ * RM-007 asks for the four to be re-baselined as *"a new predicate, feature
+ * flag, characterization tests updated in the same commit - not as a fix"*, and
+ * RM-012 X-5 then measured why that framing is the right one. Asked who calls
+ * them: `polygonInsidePolygon` has **no caller anywhere**, `polygonOutsidePolygon`
+ * has one and it is inside a block comment, and the two live calls both sit in
+ * `FloorItem.isValidPosition`, whose two live branches **both return true**.
+ * Room detection uses `pointInPolygon2`, the correct sibling. So nothing
+ * observable depends on any of the four, and repairing them would change
+ * behaviour nobody can see while re-opening a characterization suite that has
+ * held for nine programmes.
+ *
+ * Adding a correct predicate beside them costs none of that. {@link
+ * Utils.polygonsOverlap} is new, is written from the separating-axis theorem
+ * rather than from the broken edge-intersection path, is used only by the
+ * collision warning, and is off unless `Configuration`'s `collisionWarnings` is
+ * on. **The four above are untouched and their tests are unchanged** - which is
+ * the point: the ledger now records a correct predicate existing beside them and
+ * the reason the broken ones still stay, rather than recording a repair nobody
+ * asked for.
  */
 export class Utils
 {
@@ -370,6 +392,95 @@ export class Utils
       @param startX X start coord for raycast
       @param startY Y start coord for raycast
 	 */
+	/**
+	 * Do two convex polygons overlap? (RM-012 J4)
+	 *
+	 * **New, and deliberately not a repair.** The four predicates in the ledger
+	 * above stay exactly as they are; this is written from scratch beside them,
+	 * by the separating-axis theorem, and is the only correct overlap test in
+	 * this file. RM-007 asked for the re-baseline in this shape and X-5 measured
+	 * why: nothing observable depends on the broken four, so repairing them
+	 * would change invisible behaviour and re-open a nine-programme
+	 * characterization suite for nothing.
+	 *
+	 * ## Why SAT rather than edge intersection
+	 *
+	 * Edge intersection is what the broken path does, and it misses the case that
+	 * matters most for furniture: one item **entirely inside** another. A rug
+	 * under a table has no edge crossings at all. SAT catches it, because a
+	 * contained polygon has no separating axis either.
+	 *
+	 * It requires convexity, which an item footprint has by construction -
+	 * `Item.getCorners` returns the four corners of a rotated box. Stated rather
+	 * than checked, because the caller is the collision warning and there is
+	 * nothing else in this codebase that produces a concave item footprint.
+	 *
+	 * Touching is not overlapping: two units flush against each other share an
+	 * edge and are not in collision, which is exactly the arrangement snapping
+	 * produces on purpose.
+	 *
+	 * @param {Array<{x: number, y: number}>} first Corners, in order.
+	 * @param {Array<{x: number, y: number}>} second
+	 * @returns {boolean}
+	 */
+	static polygonsOverlap(first, second)
+	{
+		if (!first || !second || first.length < 3 || second.length < 3)
+		{
+			return false;
+		}
+		for (var polygon of [first, second])
+		{
+			for (var i = 0; i < polygon.length; i++)
+			{
+				var a = polygon[i];
+				var b = polygon[(i + 1) % polygon.length];
+				// The edge's outward normal. Any axis that separates the two proves
+				// they do not overlap; finding none proves they do.
+				var axisX = -(b.y - a.y);
+				var axisY = b.x - a.x;
+				var length = Math.sqrt((axisX * axisX) + (axisY * axisY));
+				if (length === 0)
+				{
+					continue;
+				}
+				axisX /= length;
+				axisY /= length;
+
+				var firstRange = Utils.projectPolygon(first, axisX, axisY);
+				var secondRange = Utils.projectPolygon(second, axisX, axisY);
+				// `<=` rather than `<`: flush is not overlapping, and flush is what
+				// snapping produces on purpose.
+				if (firstRange.max <= secondRange.min || secondRange.max <= firstRange.min)
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * A polygon's extent along one axis, for {@link Utils.polygonsOverlap}.
+	 *
+	 * @param {Array<{x: number, y: number}>} polygon
+	 * @param {number} axisX
+	 * @param {number} axisY
+	 * @returns {{min: number, max: number}}
+	 */
+	static projectPolygon(polygon, axisX, axisY)
+	{
+		var min = Infinity;
+		var max = -Infinity;
+		for (var point of polygon)
+		{
+			var dot = (point.x * axisX) + (point.y * axisY);
+			min = Math.min(min, dot);
+			max = Math.max(max, dot);
+		}
+		return {min: min, max: max};
+	}
+
 	 static pointInPolygon2(point, polygon)
 	 {
 		 var x = point.x, y = point.y;

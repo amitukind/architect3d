@@ -2,6 +2,7 @@
 import {Vector2} from 'three';
 import {Item} from './item.js';
 import {Utils} from '../core/utils.js';
+import {Configuration, collisionWarnings} from '../core/configuration.js';
 
 /**
  * A Floor Item is an entity to be placed related to a floor.
@@ -49,7 +50,82 @@ export class FloorItem extends Item
 			this.hideError();
 			vec3.y = this.position.y; // keep it on the floor!
 			super.moveToPosition(vec3);
+			// After the move, never instead of it (RM-012 J4). Collision is a
+			// warning: `isValidPosition` above says in its own comment that placing
+			// an item is up to the user, and eight programmes of saved designs were
+			// made under that rule. Refusing a move now would make some of them
+			// unopenable in the sense that matters - the furniture in them could no
+			// longer be pushed around.
+			this.warnOnCollision();
 		}
+	}
+
+	/**
+	 * Draw the error glow when this item overlaps another, and clear it when it
+	 * does not (RM-012 J4).
+	 *
+	 * ## This is what makes `showError` reachable
+	 *
+	 * RM-012 recorded it as dead code: one caller, and that caller unreachable,
+	 * because it sits behind `!this.isValidPosition(vec3)` and `isValidPosition`
+	 * returns true on every path it has. The glow has existed since the fork with
+	 * a comment claiming it fires. RM-007 gave J4 the choice - *"either the halo
+	 * becomes the collision warning or it is deleted"* - and this is the first
+	 * half. Nothing was written to draw a warning, because a warning was already
+	 * drawn and nothing could reach it.
+	 *
+	 * ## Behind the flag, and off
+	 *
+	 * `Configuration`'s `collisionWarnings`, default false. This is the first
+	 * thing in nine programmes to make a *correct* polygon predicate observable,
+	 * and the four broken ones stay exactly where they are - so whether anybody
+	 * sees the consequence is a decision somebody takes rather than one that
+	 * arrives with an upgrade.
+	 */
+	warnOnCollision()
+	{
+		if (!Configuration.getNumericValue(collisionWarnings))
+		{
+			return;
+		}
+		if (this.collides())
+		{
+			this.showError(this.position);
+		}
+		else
+		{
+			this.hideError();
+		}
+	}
+
+	/**
+	 * Does this item's footprint overlap another's?
+	 *
+	 * Through `Utils.polygonsOverlap`, which is new in RM-012 J4 and written from
+	 * the separating-axis theorem - not through any of the four predicates in the
+	 * ledger, which are constant and stay that way. Floor items only: an item on
+	 * a wall and an item on the floor share a footprint constantly and neither is
+	 * in anybody's way.
+	 *
+	 * @returns {boolean}
+	 */
+	collides()
+	{
+		var items = (this.scene && typeof this.scene.getItems === 'function')
+			? this.scene.getItems() : [];
+		var mine = this.getCorners('x', 'z');
+		for (var other of items)
+		{
+			if (other === this || !(other instanceof FloorItem) || typeof other.getCorners !== 'function')
+			{
+				continue;
+			}
+			if (Utils.polygonsOverlap(mine, other.getCorners('x', 'z')))
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** */

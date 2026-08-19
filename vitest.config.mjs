@@ -149,10 +149,18 @@ export default defineConfig({
 				// Final: 79.47 lines, 79.47 statements, 68.12 branches, 78.14
 				// functions. Branches and functions each crossed a whole number and
 				// are raised; lines and statements gained fractions and stay.
-				lines: 79,
-				statements: 79,
-				branches: 68,
-				functions: 78,
+				//
+				// RM-012 J2 and J4 move all four, by more than any single change has:
+				// 79 -> 86 lines, 79 -> 86 statements, 68 -> 77 branches, 78 -> 84
+				// functions. Ten tasks and 63 new tests, and the gap had been left
+				// open for four programmes because each raised the measurement by a
+				// fraction and rounding down is what keeps these floors rather than
+				// targets. Measured 86.61 / 86.62 / 77.77 / 84.45; rounded down, as
+				// always.
+				lines: 86,
+				statements: 86,
+				branches: 77,
+				functions: 84,
 			},
 		},
 	},

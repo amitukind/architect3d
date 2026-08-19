@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+**RM-012 J4: the re-baseline, and the halo that had never fired.** An addition,
+not a repair — RM-007's rule, and X-5's measurement for why it is the right one:
+`polygonInsidePolygon` has no caller, `polygonOutsidePolygon`'s only one is
+commented out, and the two live calls sit in a function that returns `true` on
+every path. **All four preserved predicates stay exactly as they are, and their
+four assertions are unchanged.**
+
+`Utils.polygonsOverlap` is new and written from the separating-axis theorem,
+because edge intersection structurally misses the case that matters most for
+furniture: **one item entirely inside another**. A rug under a table has no edge
+crossings. The same test asserts the broken sibling still says no to that case.
+Flush is not overlapping, because flush is what J4's snapping produces on
+purpose.
+
+It makes dead code reachable rather than adding code beside it. `Item.showError`
+had one caller and that caller was unreachable, so the red glow has existed since
+the fork with a comment claiming it fires. Nothing had to be written to draw a
+warning — a warning was already drawn and nothing could reach it.
+
+A warning, never a refusal: it runs *after* the move. `isValidPosition` says in
+its own comment that placement is up to the user, and eight programmes of saved
+designs were made under that rule. Behind `Configuration.collisionWarnings`,
+default off, offered in Settings.
+
+**All four coverage floors raised** for the first time in four programmes: 79 →
+86 lines, 79 → 86 statements, 68 → 77 branches, 78 → 84 functions. Measured
+86.61 / 86.62 / 77.77 / 84.45, rounded down as always.
+
 **RM-012 J4: snapping and stacking.** Not to the grid — `snapToGrid` has done
 that since the fork, and a grid is a property of the paper rather than of the
 furniture. This snaps to **what is already there**: nine pairings per axis per

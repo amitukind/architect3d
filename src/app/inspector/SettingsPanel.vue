@@ -327,6 +327,26 @@ function setSnap(next)
 	Configuration.setValue(snapTolerance, Dimensioning.cmFromMeasureRaw(next));
 }
 
+/**
+ * The collision warning, and the flag RM-007 required for it (RM-012 J4).
+ *
+ * Off by default and offered here rather than on the toolbar, because it is not
+ * a mode somebody switches between while working - it is a decision about
+ * whether this application tells you your sofa is inside your table. It is also
+ * the first thing in nine programmes to make a *correct* polygon predicate
+ * observable, the four broken ones in `core/utils.js` being untouched, so
+ * whether anybody sees that consequence should be something they turned on.
+ *
+ * A warning and never a refusal: `FloorItem.isValidPosition` says in its own
+ * comment that placement is up to the user, and eight programmes of saved
+ * designs were made under that rule.
+ */
+const collisionEnabled = useBooleanConfig('collisionWarnings');
+const showCollisions = computed({
+	get: () => collisionEnabled.value,
+	set: (next) => {Configuration.setValue('collisionWarnings', next);},
+});
+
 function setGrid(next)
 {
 	Configuration.setValue(gridSpacing, Dimensioning.cmFromMeasureRaw(next));
@@ -392,6 +412,7 @@ function resetClipping()
 			<NumberField
 				label="Grid resolution" :unit="unit" :min="0" :step="0.1" :model-value="editor2d.grid"
 				@update:model-value="setGrid" />
+			<CheckField v-model="showCollisions" label="Warn when furniture overlaps" />
 		</CollapsibleGroup>
 
 		<CollapsibleGroup title="Plan">

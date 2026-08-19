@@ -41,11 +41,20 @@ export const scale = 'scale';
 export const gridSpacing = 'gridSpacing';
 export const snapToGrid = 'snapToGrid';
 export const snapTolerance = 'snapTolerance';//In CMS
+/**
+ * Whether overlapping furniture is drawn with a warning (RM-012 J4).
+ *
+ * The feature flag RM-007 requires for the polygon re-baseline. Off by default
+ * and off in the demo until somebody turns it on, because it is the first thing
+ * in eight programmes to make a *correct* polygon predicate observable and the
+ * four broken ones stay exactly where they are.
+ */
+export const collisionWarnings = 'collisionWarnings';
 
 /** The values a Configuration starts with when it is given none. */
 function defaultValues()
 {
-	return {dimUnit: dimCentiMeter, wallHeight: 250, wallThickness: 10, systemUI: false, scale: 1, snapToGrid: false, snapTolerance: 25, gridSpacing: 25, levelsEnabled: true};
+	return {dimUnit: dimCentiMeter, wallHeight: 250, wallThickness: 10, systemUI: false, scale: 1, snapToGrid: false, snapTolerance: 25, gridSpacing: 25, levelsEnabled: true, collisionWarnings: false};
 }
 
 /**
@@ -81,7 +90,7 @@ export const cornerTolerance = 20;
 const STRING_KEYS = [configDimUnit];
 
 /** Keys `getNumericValue` will answer for. */
-const NUMERIC_KEYS = [configSystemUI, configWallHeight, configWallThickness, scale, snapToGrid, snapTolerance, gridSpacing, configLevels];
+const NUMERIC_KEYS = [configSystemUI, configWallHeight, configWallThickness, scale, snapToGrid, snapTolerance, gridSpacing, configLevels, collisionWarnings];
 
 /**
  * Configuration for one design, or for the whole page (RM-002 R-02, P7).
