@@ -112,6 +112,62 @@ function isSameItem(record, item)
 /**
  * A Model is an abstract concept the has the data structuring a floorplan. It connects a {@link Floorplan} and a {@link Scene}
  */
+/**
+ * A saved item record, as the metadata `Scene.addItem` builds an `Item` from.
+ *
+ * ## Why this is a function and not four lines in the loader
+ *
+ * Because it was four lines in the loader, and something else needed it and got
+ * it wrong. RM-012 recorded the failure while checking X-6's survey:
+ * `useItemActions.duplicateSelected` read `meta.itemType` and `meta.modelUrl`
+ * off `Item.getMetaData()`, which returns `item_type` and `model_url`. **Both
+ * reads were `undefined`**, so `Scene.addItem` defaulted the type to 1 and asked
+ * the loader for `undefined`. Duplicate had never worked.
+ *
+ * It went unseen because the test's fake returned the camelCase shape the caller
+ * wished for rather than the shape the real method returns - the second time in
+ * this document set that a stub agreed with the code instead of with the data.
+ * A shared function is what makes that impossible rather than unlikely: there is
+ * one translation between the save format and the constructor, and both callers
+ * are it.
+ *
+ * ## The identity is deliberately not carried
+ *
+ * `designId` comes from `options`, and a loader passes it while a duplicate does
+ * not. Two items sharing a `designId` is not cosmetic: `useSelection` resolves a
+ * selection by searching the scene for that id, so the copy and the original
+ * would be one thing to the inspector, to the plan highlight and to delete.
+ * Making the caller state it is what stops a copy inheriting it by accident.
+ *
+ * @param {Object} record One entry of a design's `items` array.
+ * @param {{designId?: ?string, materialColors?: Array<*>}} [options]
+ * @returns {Object} Metadata for `Scene.addItem`.
+ */
+export function metadataFromRecord(record, options)
+{
+	var settings = options || {};
+	var metadata = {
+		itemName: record.item_name,
+		resizable: record.resizable,
+		format: record.format,
+		itemType: record.item_type,
+		modelUrl: record.model_url,
+		materialColors: settings.materialColors || (record.material_colors || []),
+		// Additive keys, passed through exactly as read. Each is present only on
+		// the kind of item that has one, and each is completed where the item is
+		// built rather than here - `normaliseOpening` and its two siblings.
+		opening: record.opening,
+		stair: record.stair,
+		structure: record.structure,
+		lamp: record.lamp,
+	};
+	if (settings.designId)
+	{
+		metadata.designId = settings.designId;
+	}
+	return metadata;
+}
+
 export class Model extends EventDispatcher
 {
 	/** Constructs a new model.
@@ -1169,7 +1225,7 @@ export class Model extends EventDispatcher
 			// and is present only on a parametric door, window or archway. Passed
 			// through as it was read: `normaliseOpening` is what completes it, once,
 			// where the item is built.
-			var metadata = {itemName: item.item_name,resizable: item.resizable,format: item.format, itemType: item.item_type, modelUrl: item.model_url, materialColors: matColors, designId: item.id, opening: item.opening, stair: item.stair, structure: item.structure, lamp: item.lamp};
+			var metadata = metadataFromRecord(item, {materialColors: matColors, designId: item.id});
 			this.scene.addItem(item.item_type,item.model_url,metadata,position,item.rotation,scale,item.fixed);
 		});
 		this.activeLevelIndex = Math.max(0, Math.min(this.levels.length - 1, wasActive));

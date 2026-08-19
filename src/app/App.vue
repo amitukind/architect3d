@@ -547,6 +547,14 @@ const bindings = computed(() => /** @type {Array<import('./composables/useShortc
 		run: selectAllItems, enabled: () => stats.items.value > 0,
 	},
 	{
+		group: 'Tools', keys: 'mod+c', label: 'Copy the selection',
+		run: items.copySelected, enabled: () => items.canActOnItem.value,
+	},
+	{
+		group: 'Tools', keys: 'mod+v', label: 'Paste',
+		run: items.pasteClipboard, enabled: () => items.canPaste.value,
+	},
+	{
 		group: 'Tools', keys: 'delete', label: 'Delete the selection',
 		run: deleteSelection, enabled: () => canDeleteSelection.value,
 	},

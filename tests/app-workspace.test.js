@@ -33,6 +33,7 @@ import {
 	RENDER_CLASSIC, RENDER_STUDIO, CLASSIC_PROFILE,
 } from '../src/scripts/core/render_profile.js';
 import {EVENT_ITEM_MOVE_FINISH} from '../src/scripts/core/events.js';
+import {Item} from '../src/scripts/items/item.js';
 
 import {createBlueprintStore} from '../src/app/composables/useBlueprint.js';
 import {useSelection, SELECTION_ITEM} from '../src/app/composables/useSelection.js';
@@ -554,18 +555,54 @@ describe('usePlanStats', () =>
 
 describe('useItemActions', () =>
 {
-	/** Enough of an Item for the actions under test. */
-	function fakeItem(scene)
+	/**
+	 * Enough of an Item for the actions under test - **in the shape the real one
+	 * has**, which is the whole point (RM-012 J4).
+	 *
+	 * This fake used to return `{itemName, itemType, modelUrl}` and it is why
+	 * duplicate had never worked. `Item.getMetaData()` returns the *save record* -
+	 * `item_name`, `item_type`, `model_url` - and `useItemActions` was reading the
+	 * camelCase keys off it, so both were `undefined` and `Scene.addItem`
+	 * defaulted the type to 1 and asked the loader for `undefined`. The test
+	 * passed for two programmes because the stub returned the shape the caller
+	 * wished for rather than the shape the method returns.
+	 *
+	 * So the keys here are the real ones, and the case below this pins them
+	 * against a real `Item` rather than against this comment.
+	 */
+	/**
+	 * Put fakes in the scene, because that is where a selection resolves.
+	 *
+	 * `useSelection` holds a `designId` and searches `scene.getItems()` for it on
+	 * every read (RM-003 A3), so a fake with an id that is not in the scene is a
+	 * selection that has already gone.
+	 */
+	function inScene(scene, ...items)
 	{
+		scene.getItems = () => items;
+		return items;
+	}
+
+	function fakeItem(scene, options)
+	{
+		const settings = options || {};
 		return {
 			id: 'fake-1',
+			designId: settings.designId || 'design-1',
 			position: {x: 10, y: 0, z: 20, clone() {return {...this, clone: this.clone};}},
 			rotation: {y: 0.5},
 			scale: {clone() {return {x: 1, y: 1, z: 1};}},
-			currentWallEdge: null,
+			currentWallEdge: settings.edge || null,
 			removed: false,
 			remove() {this.removed = true; scene.dispatchEvent({type: 'ITEM_REMOVED_EVENT', item: this});},
-			getMetaData() {return {itemName: 'Fake', itemType: 1, modelUrl: 'models/x.glb', format: 'glb'};},
+			getMetaData()
+			{
+				return {
+					id: this.designId, item_name: 'Fake', item_type: 1, format: 'glb',
+					model_url: 'models/x.glb', xpos: 10, ypos: 0, zpos: 20, rotation: 0.5,
+					scale_x: 1, scale_y: 1, scale_z: 1, fixed: false,
+				};
+			},
 		};
 	}
 
@@ -593,7 +630,8 @@ describe('useItemActions', () =>
 		const actions = run(() => useItemActions(store, selection, history));
 
 		const scene = store.model.value.scene;
-		const items = [fakeItem(scene), fakeItem(scene), fakeItem(scene)];
+		const items = inScene(scene, fakeItem(scene, {designId: 'a'}),
+			fakeItem(scene, {designId: 'b'}), fakeItem(scene, {designId: 'c'}));
 		selection.selectMany(SELECTION_ITEM, items);
 		expect(actions.selectedItems.value).toHaveLength(3);
 
@@ -616,7 +654,7 @@ describe('useItemActions', () =>
 		const history = run(() => useHistory(store));
 		const actions = run(() => useItemActions(store, selection, history));
 
-		const item = fakeItem(store.model.value.scene);
+		const [item] = inScene(store.model.value.scene, fakeItem(store.model.value.scene));
 		selection.select(SELECTION_ITEM, item);
 		expect(actions.canActOnItem.value).toBe(true);
 
@@ -639,19 +677,122 @@ describe('useItemActions', () =>
 		const realAdd = scene.addItem.bind(scene);
 		scene.addItem = (...args) => {added.push(args); return realAdd;};
 
-		selection.select(SELECTION_ITEM, fakeItem(scene));
+		const [subject] = inScene(scene, fakeItem(scene));
+		selection.select(SELECTION_ITEM, subject);
 		expect(actions.duplicateSelected()).toBe(true);
 
 		expect(added).toHaveLength(1);
 		const [type, url, meta, position] = added[0];
+		// The three reads that were `undefined` for two programmes. Asserted as
+		// values rather than as "not undefined", because `addItem` defaults a
+		// missing type to 1 and would have made that check pass.
 		expect(type).toBe(1);
 		expect(url).toBe('models/x.glb');
+		expect(meta.itemType).toBe(1);
+		expect(meta.modelUrl).toBe('models/x.glb');
 		expect(meta.itemName).toBe('Fake');
+		// And the identity is NOT carried. Two items sharing a designId is not
+		// cosmetic: `useSelection` resolves a selection by searching the scene for
+		// that id, so the copy and the original would be one thing to the
+		// inspector, the plan highlight and delete.
+		expect(meta.designId).toBeUndefined();
 		// Offset on the floor plane only: lifting in Y would put a wall-mounted
 		// duplicate through the ceiling.
 		expect(position.x).toBe(40);
 		expect(position.z).toBe(50);
 		expect(position.y).toBe(0);
+	});
+
+	/**
+	 * The durable half of the repair (RM-012 J4).
+	 *
+	 * Fixing the stub fixes this suite once. What stops the next stub agreeing
+	 * with the code instead of the data is asserting the shape against a real
+	 * `Item`, so a key renamed on one side fails here rather than in production
+	 * two programmes later.
+	 */
+	it('has a fake whose record is the shape a real Item returns', () =>
+	{
+		mountStore();
+		const scene = store.model.value.scene;
+		// The real method on the real prototype, over the minimum state it reads.
+		// Constructing an `Item` would need a geometry and a mesh; the subject
+		// here is `getMetaData`'s output shape, and this exercises exactly that
+		// rather than a copy of it written in a test.
+		const real = Object.assign(Object.create(Item.prototype), {
+			_pickedColorSlots: new Set(),
+			designId: 'real-1',
+			metadata: {itemName: 'Real', itemType: 1, format: 'glb', modelUrl: 'models/x.glb'},
+			position: {x: 0, y: 0, z: 0},
+			rotation: {y: 0},
+			scale: {x: 1, y: 1, z: 1},
+			fixed: false,
+			lamp: null,
+		});
+
+		const realKeys = Object.keys(real.getMetaData()).sort();
+		const fakeKeys = Object.keys(fakeItem(scene).getMetaData()).sort();
+		expect(fakeKeys).toEqual(realKeys);
+		// And the camelCase keys the caller used to read are not among them,
+		// which is the fact the old stub obscured.
+		expect(realKeys).not.toContain('itemType');
+		expect(realKeys).not.toContain('modelUrl');
+	});
+
+	it('copies a set, pastes it further out each time, and gives each a new identity', () =>
+	{
+		mountStore();
+		const selection = run(() => useSelection(store));
+		const history = run(() => useHistory(store));
+		const actions = run(() => useItemActions(store, selection, history));
+
+		const scene = store.model.value.scene;
+		const added = [];
+		scene.addItem = (...args) => {added.push(args);};
+
+		expect(actions.canPaste.value).toBe(false);
+		expect(actions.pasteClipboard()).toBe(0);
+
+		selection.selectMany(SELECTION_ITEM,
+			inScene(scene, fakeItem(scene, {designId: 'a'}), fakeItem(scene, {designId: 'b'})));
+		expect(actions.copySelected()).toBe(2);
+		expect(actions.canPaste.value).toBe(true);
+
+		expect(actions.pasteClipboard()).toBe(2);
+		expect(actions.pasteClipboard()).toBe(2);
+		expect(added).toHaveLength(4);
+
+		// Each paste lands one offset further out, so pasting twice gives two
+		// visible copies rather than two in the same place.
+		expect(added[0][3].x).toBe(40);
+		expect(added[2][3].x).toBe(70);
+		// None of the four inherits the original's designId.
+		expect(added.every(([, , meta]) => meta.designId === undefined)).toBe(true);
+	});
+
+	it('leaves the clipboard alone when something else is duplicated', () =>
+	{
+		// Somebody who copied a sofa, then duplicated a chair, then pasted, means
+		// the sofa. Duplicate is a shortcut for copy-and-paste, not a third
+		// clipboard.
+		mountStore();
+		const selection = run(() => useSelection(store));
+		const history = run(() => useHistory(store));
+		const actions = run(() => useItemActions(store, selection, history));
+
+		const scene = store.model.value.scene;
+		scene.addItem = () => {};
+
+		const [sofa, chair] = inScene(scene, fakeItem(scene, {designId: 'sofa'}),
+			fakeItem(scene, {designId: 'chair'}));
+		selection.select(SELECTION_ITEM, sofa);
+		actions.copySelected();
+
+		selection.select(SELECTION_ITEM, chair);
+		actions.duplicateSelected();
+
+		expect(actions.clipboard.value).toHaveLength(1);
+		expect(actions.clipboard.value[0].id).toBe('sofa');
 	});
 });
 

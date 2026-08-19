@@ -2,6 +2,33 @@
 
 ## [Unreleased]
 
+**RM-012 J4: copy, paste, and the duplicate that had never worked.**
+`useItemActions` read `meta.itemType` and `meta.modelUrl` off
+`Item.getMetaData()`, which returns `item_type` and `model_url`. Both were
+`undefined`, so `Scene.addItem` defaulted the type to 1 and asked the loader for
+`undefined`. The test passed for two programmes because the fake returned the
+camelCase shape the caller wished for rather than the shape the real method
+returns — the second time in this document set a stub has agreed with the code
+instead of with the data.
+
+The repair is not a rename, which would fix it until the next caller.
+`metadataFromRecord` in `model/model.js` is now the one translation between the
+save record and the constructor metadata, with the design loader and this file as
+its two callers. And the durable half is a test that pins the fake's key set
+against `Item.getMetaData` on the real prototype, asserting the negative too —
+that `itemType` and `modelUrl` are *not* among the real keys.
+
+A copy does not inherit a `designId`, and that is not cosmetic: `useSelection`
+resolves a selection by searching the scene for one, so two items carrying it
+would be a single thing to the inspector, the plan highlight and delete.
+
+Copy and paste share the machinery, which makes duplicate a shortcut rather than
+a third implementation. Each successive paste lands one offset further out; a
+copy resets that, being a new origin. Duplicate leaves the clipboard alone —
+somebody who copied a sofa, duplicated a chair and then pasted means the sofa.
+The clipboard is this application's, not the system's: `mod+C`, `mod+V`, over the
+set.
+
 **RM-012 J4: the selection is a set.** X-6 measured what multi-select costs here:
 `useSelection` held **one** object, `select` replaced it, and eight selection
 types shared that one slot. So this is not a control over an existing set — it

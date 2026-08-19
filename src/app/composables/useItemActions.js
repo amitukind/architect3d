@@ -1,5 +1,7 @@
 // @ts-check
-import {computed} from 'vue';
+import {computed, ref} from 'vue';
+import {Vector3} from 'three';
+import {metadataFromRecord} from '../../scripts/blueprint.js';
 import {SELECTION_ITEM} from './useSelection.js';
 
 /**
@@ -16,12 +18,40 @@ import {SELECTION_ITEM} from './useSelection.js';
  * `Item` holds a loaded three.js Object3D, its materials and its bound wall
  * edge; deep-copying that graph correctly is more delicate than asking the
  * scene to load a second one from the same URL. `getMetaData()` already
- * produces exactly the description `Scene.addItem` consumes - it is what the
- * save file is made of - so a duplicate is a save and a load of one item.
+ * produces exactly the description a design is saved from, so a duplicate is a
+ * save and a load of one item.
  *
  * That also means a duplicate arrives asynchronously, like any other add, and
  * inherits the original's colours and dimensions because they are in the
  * metadata.
+ *
+ * ## And it had never once worked (RM-012 J4)
+ *
+ * The sentence above used to end *"`getMetaData()` already produces exactly the
+ * description `Scene.addItem` consumes"*, and that was the bug. It produces the
+ * **save record** - `item_type`, `model_url`, `item_name` - and `addItem`
+ * consumes the **constructor metadata** - `itemType`, `modelUrl`, `itemName`.
+ * This file read `meta.itemType` and `meta.modelUrl`; both were `undefined`, so
+ * `addItem` defaulted the type to 1 and asked the loader for `undefined`.
+ *
+ * It went unseen for two programmes because the test's fake returned the
+ * camelCase shape this caller wished for rather than the shape the real method
+ * returns - the second time in this document set a stub has agreed with the code
+ * instead of with the data. The repair is not a rename: `metadataFromRecord` in
+ * `model/model.js` is now the one translation between the two shapes, used by
+ * the design loader and by this file, so there is nothing left to disagree.
+ *
+ * ## Copy and paste are the same machinery, with the record kept
+ *
+ * A copy is the set's save records held in a module-level ref; a paste is those
+ * records re-added with a fresh identity. Which makes duplicate what it should
+ * always have been - a copy and a paste in one gesture - rather than a third
+ * implementation of the same idea.
+ *
+ * The clipboard is this application's, not the system's. Putting a design
+ * fragment on the OS clipboard is a serialisation format and a security surface;
+ * RM-007 puts sharing in K2, where a `.zip` bundle and a URL are already the
+ * subject. What a person means by copy and paste inside one plan is this.
  */
 
 /**
@@ -31,6 +61,30 @@ import {SELECTION_ITEM} from './useSelection.js';
  * small enough to stay inside the room it was copied in.
  */
 const DUPLICATE_OFFSET_CM = 30;
+
+/**
+ * How far each successive paste lands from where it was copied.
+ *
+ * Multiplied by how many pastes have happened since the copy, so pasting four
+ * times gives four visible copies rather than four in one place - which is the
+ * behaviour that makes paste useful for laying out a row of chairs.
+ */
+const PASTE_OFFSET_CM = 30;
+
+/**
+ * What was copied, as save records.
+ *
+ * Module-level, like the display unit and the favourites list, and for the same
+ * reason: there is one person at the keyboard and one clipboard. It also means a
+ * copy survives the composable being torn down and set up again, which is what
+ * happens when the workspace layout changes.
+ *
+ * @type {import('vue').Ref<Array<Object>>}
+ */
+const clipboard = ref([]);
+
+/** How many pastes since the last copy, so each lands further out. */
+const pasteCount = ref(0);
 
 /**
  * @param {import('./useBlueprint.js').BlueprintStore} store
@@ -55,6 +109,9 @@ export function useItemActions(store, selection, history)
 	var selectedItems = computed(() => selection.selectedItems.value);
 
 	var canActOnItem = computed(() => selectedItem.value !== null);
+
+	/** Whether there is anything on the clipboard to paste. */
+	var canPaste = computed(() => clipboard.value.length > 0);
 
 	/**
 	 * Delete everything selected.
@@ -93,44 +150,120 @@ export function useItemActions(store, selection, history)
 	}
 
 	/**
+	 * Put one item into the scene from a saved record, offset, without its
+	 * identity.
+	 *
+	 * The one place a record becomes an item in this file, so copy, paste and
+	 * duplicate cannot drift from each other the way this file drifted from the
+	 * design loader.
+	 *
+	 * @param {Object} record A `getMetaData()` result.
+	 * @param {number} dx Centimetres east.
+	 * @param {number} dz Centimetres south.
+	 */
+	function placeRecord(record, dx, dz)
+	{
+		var scene = store.model.value.scene;
+		// No `designId`. Two items sharing one is not cosmetic: `useSelection`
+		// resolves a selection by searching the scene for that id, so the copy and
+		// the original would be one thing to the inspector, to the plan highlight
+		// and to delete.
+		var metadata = metadataFromRecord(record);
+		// Offset on the floor plane only. Lifting a copy in Y would put a
+		// wall-mounted item through the ceiling and a floor item in mid-air.
+		var position = new Vector3(record.xpos + dx, record.ypos, record.zpos + dz);
+		var scale = new Vector3(record.scale_x, record.scale_y, record.scale_z);
+
+		scene.addItem(
+			record.item_type,
+			record.model_url,
+			metadata,
+			position,
+			record.rotation,
+			scale,
+			record.fixed,
+			// A wall-bound copy keeps the edge its original is on; the controller
+			// re-derives the position along that edge from the hint.
+			record.edge ? {position: position, edge: record.edge} : null
+		);
+	}
+
+	/**
+	 * Copy the selection.
+	 *
+	 * The record, plus the wall edge, which the save format does not carry
+	 * because a saved design re-derives it from the item's position. A paste in
+	 * the same session can do better than re-derive it.
+	 *
+	 * @returns {number} how many were copied.
+	 */
+	function copySelected()
+	{
+		var items = selectedItems.value;
+		if (!items.length)
+		{
+			return 0;
+		}
+		clipboard.value = items.map((item) => Object.assign(item.getMetaData(),
+			{edge: item.currentWallEdge || null}));
+		// A new origin, so the next paste lands one offset out rather than
+		// continuing from wherever the previous clipboard had got to.
+		pasteCount.value = 0;
+		return clipboard.value.length;
+	}
+
+	/**
+	 * Paste whatever was copied, offset from where it was copied from.
+	 *
+	 * Not committed here. The items are still loading, and useHistory's
+	 * EVENT_ITEM_LOADED listener records them when they arrive - committing now
+	 * would snapshot the design *without* the paste and leave the paste itself
+	 * outside the stack.
+	 *
+	 * @returns {number} how many were started.
+	 */
+	function pasteClipboard()
+	{
+		var records = clipboard.value;
+		if (!records.length || !store.model.value)
+		{
+			return 0;
+		}
+		// Each paste lands further out than the last, so pasting four times gives
+		// four visible copies rather than four in one place. Reset by the next
+		// copy, because that is a new origin.
+		pasteCount.value += 1;
+		var offset = PASTE_OFFSET_CM * pasteCount.value;
+		records.forEach((record) => {placeRecord(record, offset, offset);});
+		return records.length;
+	}
+
+	/**
+	 * Copy and paste in one gesture, which is what duplicate is.
+	 *
+	 * Deliberately does not disturb the clipboard: somebody who copied a sofa,
+	 * then duplicated a chair, then pasted, means the sofa. Duplicate is a
+	 * shortcut, not a third clipboard.
+	 *
 	 * @returns {boolean} whether a duplicate was started.
 	 */
 	function duplicateSelected()
 	{
-		var item = selectedItem.value;
-		if (!item || !store.model.value)
+		var items = selectedItems.value;
+		if (!items.length || !store.model.value)
 		{
 			return false;
 		}
-
-		var scene = store.model.value.scene;
-		var meta = item.getMetaData();
-
-		// Offset on the floor plane only. Lifting a duplicate in Y would put a
-		// wall-mounted item through the ceiling and a floor item in mid-air.
-		var position = item.position.clone();
-		position.x += DUPLICATE_OFFSET_CM;
-		position.z += DUPLICATE_OFFSET_CM;
-
-		scene.addItem(
-			meta.itemType,
-			meta.modelUrl,
-			meta,
-			position,
-			item.rotation.y,
-			item.scale.clone(),
-			false,
-			// A wall-bound duplicate keeps the edge its original is on; the
-			// controller re-derives the position along that edge from the hint.
-			item.currentWallEdge ? {position: position, edge: item.currentWallEdge} : null
-		);
-
-		// Not committed here. The item is still loading, and useHistory's
-		// EVENT_ITEM_LOADED listener records it when it arrives - committing now
-		// would snapshot the design *without* the duplicate and leave the
-		// duplicate itself outside the stack.
+		items.forEach(function (item)
+		{
+			var record = Object.assign(item.getMetaData(), {edge: item.currentWallEdge || null});
+			placeRecord(record, DUPLICATE_OFFSET_CM, DUPLICATE_OFFSET_CM);
+		});
 		return true;
 	}
 
-	return {selectedItem, selectedItems, canActOnItem, deleteSelected, duplicateSelected};
+	return {
+		selectedItem, selectedItems, canActOnItem, deleteSelected, duplicateSelected,
+		copySelected, pasteClipboard, clipboard, canPaste,
+	};
 }

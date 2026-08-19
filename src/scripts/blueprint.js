@@ -83,7 +83,7 @@ export {STRUCTURE_COLUMN, STRUCTURE_BEAM, STRUCTURE_KINDS, STRUCTURE_DEFAULTS, S
 export {LAMP_COLOR, LAMP_DEFAULTS, normaliseLamp, lampToJSON} from './items/lamp.js';
 export {STAIR_STRAIGHT, STAIR_L, STAIR_U, STAIR_SHAPES, STAIR_DEFAULTS, STAIR_MATERIALS, TURN_LEFT, TURN_RIGHT, HANDRAIL_NONE, HANDRAIL_LEFT, HANDRAIL_RIGHT, HANDRAIL_BOTH, HANDRAIL_SIDES, HEADROOM, newStair, normaliseStair, stairMetrics, stairParts, stairPlan, stairwellHint, buildStairGeometry, stairToJSON} from './items/stair.js';
 export {Dimension, TextAnnotation, dimensionLine, DEFAULT_DIMENSION_OFFSET, DEFAULT_ANNOTATION_TEXT, DEFAULT_ANNOTATION_SIZE, ANNOTATION_SIZES} from './model/annotation.js';
-export {Model} from './model/model.js';
+export {Model, metadataFromRecord} from './model/model.js';
 // Document validation and load ownership (RM-003 A1). `DesignDocument.parse`
 // checks a `.blueprint3d` document without touching anything, which is what
 // makes `Model.loadDocument` atomic; `LoadSession` is how a load knows which
