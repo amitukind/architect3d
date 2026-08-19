@@ -271,6 +271,12 @@ footer .credit a:hover{text-decoration:underline}
   <a href="#open-findings">42 · Decision log</a>
   <a href="#open-sprints">43 · Sprints F1–F3</a>
   <a href="#open-risks">44 · Risks &amp; compatibility</a>
+
+  <div class="toc-head mono" style="margin-top:22px">PROGRAMME G RM-010</div>
+  <a href="#levelprog">45 · Executive summary</a>
+  <a href="#level-findings">46 · Decision log</a>
+  <a href="#level-sprints">47 · Sprints G1&ndash;G3</a>
+  <a href="#level-risks">48 · Risks &amp; compatibility</a>
 </nav>
 
 <main>
@@ -4286,6 +4292,268 @@ if(this.halfSize.x &lt; 1.0)
 </section>
 
 
+<!-- ======================= RM-010 · PROGRAMME G ======================= -->
+<header class="sheet">
+  <div class="sheet-body">
+    <div class="eyebrow">PROGRAMME G · DRAWING Nº RM-010</div>
+    <h1>There is no roof, and a level is a number that does not exist</h1>
+    <p class="lede">RM-007 calls programme G <em>the widest change in this drawing</em> and puts it last among the structural programmes for that reason. Measuring it first found two things that change its shape. <strong>The tree has no roof</strong> &mdash; it has a two-triangle ceiling plane per room, plus a dead alternative and a comment claiming the live one is commented out. And <strong>nothing is drawn at a base elevation</strong>: every floor in a loaded design sits at y&nbsp;=&nbsp;0, so a second storey is not corners with a bigger number, it is every mesh in the scene translated. Against that, two things are cheaper than drawn: a floor opening is one <code>Path</code>, and F3 already computes the rectangle. Three sprints, 6 weeks.</p>
+  </div>
+  <div class="titleblock">
+    <div><div class="tb-k">PROJECT</div><div class="tb-v">architect3d</div></div>
+    <div><div class="tb-k">PARENT</div><div class="tb-v">RM-007 rev B · programme G</div></div>
+    <div><div class="tb-k">BRANCH</div><div class="tb-v">amit @ 6dd9665</div></div>
+    <div><div class="tb-k">SCOPE</div><div class="tb-v">3 sprints · 6 wk</div></div>
+    <div><div class="tb-k">DATE</div><div class="tb-v">2026-08-19</div></div>
+    <div><div class="tb-k">REV</div><div class="tb-v">A · proposed</div></div>
+  </div>
+</header>
+
+<section id="levelprog">
+  <div class="sec-eyebrow">§ 45 · EXECUTIVE SUMMARY</div>
+  <h2>What measuring the levels changed about the levels</h2>
+  <p class="sec-sub">Nine measurements against the tree at <code>6dd9665</code>, six of them run in headless Chromium against the library as the dev server serves it. Two correct a plan this document set already carries, and one of them is this programme's own sprint table.</p>
+
+  <div class="stats">
+    <div class="stat"><div class="v">0</div><div class="k">roofs in the tree. <code>roofPlanes()</code> returns one plane per <em>room</em>, and it is a triangle fan at the wall top</div></div>
+    <div class="stat"><div class="v">2</div><div class="k">triangles in that plane for a four-corner room. The alternative implementation beside it has never been called</div></div>
+    <div class="stat"><div class="v">y = 0</div><div class="k">where every floor in a loaded design sits. There is no base elevation anywhere, so a level is an offset that does not exist</div></div>
+    <div class="stat"><div class="v">36 of 55</div><div class="k">of <code>Floorplan</code>'s methods that read one of its seven collections &mdash; which is how many filters a level <em>field</em> would need</div></div>
+    <div class="stat"><div class="v">2 &rarr; 8</div><div class="k">triangles when F3's stairwell hint is pushed into a real room's floor as a <code>Path</code>. The opening G2 owes already has its rectangle</div></div>
+    <div class="stat"><div class="v">&minus;100..500</div><div class="k">the bounding box of a 400 cm floor with a hole that pokes outside it. U-2 is not about walls</div></div>
+  </div>
+
+  <p><strong>The programme survives its own measurement, and its first sprint does not.</strong> RM-007 prices G1 as <em>&ldquo;levels in the model with elevation and height&rdquo;</em>, which reads as a field on the things that already exist. The measurement that argues against it is not an opinion about design: <code>Floorplan</code> has 55 methods and <strong>36 of them read one of its seven collections</strong>, so a level field is 36 filters and 36 places to forget one. The measurement that argues <em>for</em> the alternative is that it is already proven &mdash; two <code>Model</code>s were constructed in one page, loaded with different designs, and stayed independent, which is RM-003 A1's work and is asserted by a suite that already exists.</p>
+
+  <p><strong>What is genuinely new is smaller than it looks, and what is genuinely old is worse.</strong> The roof is the surprise. The four stair meshes were at least stairs; there is nothing here to supersede, because <code>Floor.buildRoofVaryingHeight()</code> is a ceiling over one room and the file has no notion of a building envelope at all. G2 writes the first roof this application has ever had. Set against that, the stairwell it was drawn to write is nearly free: F3 records the rectangle, <code>ShapeGeometry</code> cuts it, and the measurement below is the eight triangles.</p>
+</section>
+
+<section id="level-findings">
+  <div class="sec-eyebrow">§ 46 · DECISION LOG</div>
+  <h2>Nine findings, six of them run in a browser</h2>
+  <p class="sec-sub">Each row was produced against <code>6dd9665</code>. Where a mesh is quoted it was read out of a live scene after the loader had finished, not off the source &mdash; because the source says the roof is commented out and it is not.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Nº</th><th>Finding</th><th>Severity</th><th>Method</th><th>Sprint</th></tr></thead>
+    <tbody>
+      <tr><td style="white-space:nowrap">V-1</td><td>There is no roof &mdash; only a two-triangle ceiling plane per room, a dead alternative, and a comment that contradicts the code</td><td><span class="chip crit">shapes G2</span></td><td>live scene traversed, meshes measured</td><td>G2</td></tr>
+      <tr><td style="white-space:nowrap">V-2</td><td>A floor opening is one <code>Path</code>, and F3 already computes the rectangle</td><td><span class="chip ok">cheaper</span></td><td><code>ShapeGeometry</code> over a real room</td><td>G2</td></tr>
+      <tr><td style="white-space:nowrap">V-3</td><td>RM-009 U-2 is a property of <code>ShapeGeometry</code>, not of walls. It hits floor openings identically</td><td><span class="chip crit">high</span></td><td>oversized hole, bounding box read</td><td>G2</td></tr>
+      <tr><td style="white-space:nowrap">V-4</td><td>Nothing is drawn at a base elevation. A corner's <code>elevation</code> is the wall <em>top</em>, and every floor is at zero</td><td><span class="chip crit">shapes G1</span></td><td>live scene, every flat plane's y read</td><td>G1</td></tr>
+      <tr><td style="white-space:nowrap">V-5</td><td>Two <code>Model</code>s already coexist independently in one page. A level as a <em>field</em> would need 36 filters; as its own floorplan, one index</td><td><span class="chip crit">correction</span></td><td>two models loaded; methods counted</td><td>G1</td></tr>
+      <tr><td style="white-space:nowrap">V-6</td><td>The file is ready: a design re-saves byte-identical, and <code>levels</code> is the same additive shape E2, E3 and F3 already use</td><td><span class="chip">low</span></td><td>round trip, string compared</td><td>G1</td></tr>
+      <tr><td style="white-space:nowrap">V-7</td><td>Undo and autosave snapshot the whole file, so N levels multiply every snapshot by N</td><td><span class="chip warn">med</span></td><td><code>useHistory</code>, <code>useAutosave</code> read</td><td>G1</td></tr>
+      <tr><td style="white-space:nowrap">V-8</td><td>The three least-covered files in the tree are the three G1 touches most</td><td><span class="chip warn">med</span></td><td><code>coverage-summary.json</code>, per file</td><td>G1 · G3</td></tr>
+      <tr><td style="white-space:nowrap">V-9</td><td>A room's area would lie again the moment a floor is cut &mdash; the same defect F2 just fixed</td><td><span class="chip warn">med</span></td><td>room area read, hole area computed</td><td>G2</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>V-1 · There is no roof <span class="chip crit">shapes G2</span> <span class="chip acc">measured</span></h3>
+  <p>A four-hundred-centimetre room was loaded into a live page and every mesh in the scene traversed, with its name, its visibility, its triangle count and its bounding box read. Thirty-one meshes, and the two that sit at the top of the walls are these:</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Mesh</th><th>Built by</th><th class="num">y</th><th class="num">Extent</th><th class="num">Triangles</th><th>What it is</th></tr></thead>
+    <tbody>
+      <tr><td><code>roofPlane</code></td><td><code>three/floor.js:178</code></td><td class="num">250</td><td class="num">400 &times; 400</td><td class="num">2</td><td>A triangle fan over the room's corners at their elevations</td></tr>
+      <tr><td><code>room.roofPlane</code></td><td><code>model/room.js:355</code></td><td class="num">250</td><td class="num">400 &times; 400</td><td class="num">2</td><td>An invisible plane, for picking</td></tr>
+      <tr><td colspan="6" style="opacity:.7">Read off a live scene. The room is 400&nbsp;&times;&nbsp;400 with corners at elevation 250.</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><strong>Both are ceilings over one room, and neither is a roof.</strong> <code>Floorplan.roofPlanes()</code> returns one entry for a one-room design, which is the whole of what this application means by the word: a lid on each room, at that room's own corner elevations. There is no envelope over the building, no pitch, no eaves, no overhang, and nothing in the file that could describe one.</p>
+
+  <p><strong>Two smaller things came out of the same reading and are worth recording because they will mislead the next person.</strong> The call site reads:</p>
+
+  <div class="code"><pre>this.floorPlane = this.buildFloor();
+// roofs look weird, so commented out
+this.roofPlane = this.buildRoofVaryingHeight();</pre></div>
+
+  <p>The comment is wrong &mdash; the line under it runs on every redraw. And <code>buildRoofUniformHeight()</code> sits directly below it, a complete second implementation using <code>ShapeGeometry</code> over the interior corners at the configured wall height, which <strong>nothing calls</strong>. So the state of the roof in this codebase is: one implementation running while a comment says it is not, and one implementation not running while nothing says so.</p>
+
+  <p><strong>What this does to G2.</strong> RM-007 prices <em>&ldquo;a simple roof generator (flat, gable, hip) over the footprint&rdquo;</em> inside a 2.5-week sprint that also carries stairwells and an exterior view. That price assumed something to build on. There is nothing &mdash; but there is also nothing to break, which is the other half of the finding: a roof generator is new geometry from the plan's outline, in the shape F1 and F3 have now written twice, and it does not have to preserve a single existing pixel. The estimate holds; what moves is which part of the sprint is the risk.</p>
+
+  <h3>V-2 · A floor opening is one <code>Path</code>, and F3 already has the rectangle <span class="chip ok">cheaper</span> <span class="chip acc">measured</span></h3>
+  <p>A room's floor is one call: <code>new ShapeGeometry(new Shape(interiorCorners))</code>, at <code>model/room.js:367</code>. F3's <code>stairwellHint()</code> was taken from a default straight flight, placed at the centre of a real 600&nbsp;&times;&nbsp;600 room, and pushed into that shape's <code>holes</code> array:</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Floor</th><th class="num">Triangles</th><th>Outline</th></tr></thead>
+    <tbody>
+      <tr><td>As drawn today</td><td class="num">2</td><td>590 &times; 590 interior polygon</td></tr>
+      <tr><td>With the stairwell cut</td><td class="num">8</td><td><span class="chip ok">identical</span></td></tr>
+      <tr><td>With the hole wound the other way</td><td class="num">8</td><td><span class="chip ok">identical</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <p>The hint is <code>{x0: &minus;45, y0: &minus;100, x1: 45, y1: 200}</code> in the flight's own frame &mdash; the part of the footprint with less than two metres of headroom under the floor above, which for the default sixteen-tread flight is its top twelve treads. So the two ends of G2's stairwell already exist: the item computes the rectangle and draws it dashed, and the primitive that builds every floor in the application cuts it. What G2 writes is the middle &mdash; the rectangle in the room's frame, and which room.</p>
+
+  <p>Winding does not matter, which is worth knowing before somebody spends an afternoon on it: three normalises a hole's direction, and the reversed path produced the same eight triangles.</p>
+
+  <h3>V-3 · U-2 is about <code>ShapeGeometry</code>, not about walls <span class="chip crit">high</span> <span class="chip acc">measured</span></h3>
+  <p>RM-009 U-2 measured that an opening bigger than its wall is <em>merged into the outline</em> rather than cut out of it, so the wall grows to swallow it. That was recorded as a fact about openings. It is not: it is a fact about the primitive, and the same test run against a floor gives the same answer.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Outline</th><th>Hole</th><th class="num">Resulting bounding box</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td>400 &times; 400 floor</td><td>90 &times; 190, inside</td><td class="num">0 .. 400</td><td><span class="chip ok">cut</span></td></tr>
+      <tr><td>400 &times; 400 floor</td><td>600 &times; 190, straddling</td><td class="num">&minus;100 .. 500</td><td><span class="chip crit">the floor grew 200 cm</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <p><strong>So G2 inherits F1's clamp, and inherits it knowingly.</strong> A stairwell placed across a wall &mdash; which is exactly where a stair against a party wall would put it &mdash; would silently enlarge the floor of the room above rather than fail. F1's answer was to clamp the opening to the wall with a note and a plan symbol showing the clamped size; G2's is the same shape, clamped to the room. The value of having measured U-2 is that this one is a known failure with a known remedy rather than a discovery mid-sprint.</p>
+
+  <h3>V-4 · A level is an offset that does not exist <span class="chip crit">shapes G1</span> <span class="chip acc">measured</span></h3>
+  <p>Every flat, room-sized plane in a loaded design was collected with its y coordinate. There are exactly two heights: <strong>0</strong> and <strong>250</strong>. The floor is at zero and the ceiling is at the corners' elevation, and there is nothing in between and nothing below.</p>
+
+  <p><strong>A corner's <code>elevation</code> is the wall top, not the storey.</strong> The file records <code>{x, y, elevation}</code> per corner and nothing else; the floor is drawn at y&nbsp;=&nbsp;0 with no offset applied. So &ldquo;levels in the model with elevation and height&rdquo; cannot be built by giving corners a bigger elevation &mdash; that raises the ceiling of the ground floor. A second storey means a base elevation applied to every mesh a level owns: floors, ceilings, wall faces, fillers, and every item's position.</p>
+
+  <p>This is the finding that makes G1 three and a half weeks rather than one. The good news is where it lands: <code>Floor</code>, <code>Edge</code> and <code>Item</code> each already build their geometry relative to a plan they are handed, so the offset is a translation applied where the level's contents are added to the scene, not a change to how any of them computes anything.</p>
+
+  <h3>V-5 · Two models already coexist, and the sprint table says the wrong thing <span class="chip crit">correction</span> <span class="chip acc">measured</span></h3>
+  <p>A second <code>Model</code> was constructed in a page that already had one and loaded with a different design. The first kept its 400&nbsp;cm room, the second took a 900&nbsp;cm one, and the two hold different <code>Floorplan</code> objects. That is RM-003 A1's document ownership work, and it means <strong>N floorplans in one page is not a design proposal, it is an existing property with a suite over it</strong> (<code>tests/browser/two-designs.test.js</code>).</p>
+
+  <p>Against that, the cost of the alternative was counted rather than estimated. <code>Floorplan</code> has <strong>55 methods, and 36 of them read one of its seven collections</strong> &mdash; walls, corners, rooms, metaroom data, floor textures, dimensions, annotations. A level as a field on those collections means 36 filters, each one a place where forgetting to filter shows up as furniture from the floor below appearing on this one.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Approach</th><th>What has to change</th><th>What is already proven</th></tr></thead>
+    <tbody>
+      <tr><td><strong>A level is a field</strong> (RM-007's wording)</td><td>36 of 55 <code>Floorplan</code> methods gain a filter; every collection gains a key; every query gains an argument</td><td>Nothing</td></tr>
+      <tr><td><strong>A level is a floorplan</strong></td><td>One collection on <code>Model</code>, one active index, one base elevation, and a scene that adds N of them</td><td>Two independent models in one page, with a browser suite</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><strong>One thing the second approach does not get for free, and it is worth naming rather than discovering.</strong> <code>Configuration</code> is page-wide: the wall height read in the page with two models is one value for both. RM-003 A1 built a per-document runtime for exactly this class of problem, and per-level wall heights are the same problem one layer down. G1 either uses that runtime per level or states that a level's wall height is the document's &mdash; and the second is a defensible answer for a first release, provided it is a decision.</p>
+
+  <h3>V-6 · The file is ready <span class="chip">low</span> <span class="chip acc">measured</span></h3>
+  <p>A design was loaded, exported, re-loaded and re-exported, and the two strings compared: <strong>identical</strong>. The floorplan record's keys are <code>version, units, corners, walls, rooms, wallTextures, floorTextures, newFloorTextures, carbonSheet</code>. Adding <code>levels</code> beside them is the same additive move E2 made for a wall's thickness, E3 for dimensions and annotations, and F3 for a flight of stairs &mdash; and it obeys the same rule those three obey, which is the rule that makes M-26 achievable: <strong>write the key only when there is something to write</strong>. A single-level design writes no <code>levels</code> and is therefore byte-identical to the file it was before the programme.</p>
+
+  <h3>V-7 · Undo and autosave snapshot the whole file <span class="chip warn">med</span> <span class="chip acc">measured</span></h3>
+  <p><code>useHistory</code> stores the string <code>Model.exportSerialized()</code> produces &mdash; the same string the save button writes &mdash; and undo is <code>loadSerialized(previous)</code>. <code>useAutosave</code> does the same thing to <code>localStorage</code>. Both were built that way deliberately and both are correct; the consequence for this programme is arithmetic. <strong>A three-storey house makes every undo snapshot three times the size</strong>, and autosave writes three times as much on every debounce.</p>
+
+  <p>Recorded rather than solved. It is not G1's job to make history incremental &mdash; that is a change to how undo works and it would land on a single-level editor just as well &mdash; but a programme that triples the input to both without saying so is a programme that gets blamed for a slow autosave later.</p>
+
+  <h3>V-8 · The least-covered files are the ones this programme touches <span class="chip warn">med</span> <span class="chip acc">measured</span></h3>
+  <p>Per-file coverage after F3, for the files G1 and G2 change:</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>File</th><th class="num">Statements</th><th class="num">Branches</th><th class="num">Size</th><th>Why this programme touches it</th></tr></thead>
+    <tbody>
+      <tr><td><code>composables/useDesignIO.js</code></td><td class="num">48.97</td><td class="num">30.00</td><td class="num">147</td><td>New, open and save all gain levels</td></tr>
+      <tr><td><code>three/controller.js</code></td><td class="num">51.65</td><td class="num">36.14</td><td class="num">302</td><td>Per-level visibility is what a click may hit</td></tr>
+      <tr><td><code>composables/useAutosave.js</code></td><td class="num">52.94</td><td class="num">31.25</td><td class="num">102</td><td>V-7: three times the payload</td></tr>
+      <tr><td><code>three/main.js</code></td><td class="num">77.20</td><td class="num">61.97</td><td class="num">443</td><td>N levels added to one scene</td></tr>
+      <tr><td><code>model/model.js</code></td><td class="num">82.83</td><td class="num">75.36</td><td class="num">134</td><td>Where the level collection lives</td></tr>
+      <tr><td><code>floorplanner/floorplanner_view.js</code></td><td class="num">84.97</td><td class="num">71.18</td><td class="num">732</td><td>The ghosted level below</td></tr>
+      <tr><td colspan="5" style="opacity:.7">Percentages from <code>coverage-summary.json</code>; size is statement count.</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><code>three/controller.js</code> is the one to watch: 302 statements at <strong>36 % of branches</strong>, and it is the file that decides what a pointer hits. Per-level visibility is precisely a branch in that decision. Programme E answered the same shape of problem by giving each sprint its own test budget rather than an intention, and it worked &mdash; the two floorplanner files went from 63 % and 69 % to 82 % and 85 % across four sprints while gaining features. G1 and G3 carry the same obligation below.</p>
+
+  <h3>V-9 · A room's area would lie again <span class="chip warn">med</span> <span class="chip acc">measured</span></h3>
+  <p>The 600&nbsp;&times;&nbsp;600 room used for V-2 reports <strong>348,100&nbsp;cm&sup2;</strong>, which is its interior polygon &mdash; the number F2 made the number on the plan, three commits ago, for the reason that the centreline figure was 5.2&nbsp;% high. Cut the stairwell out of it and the room still reports 348,100, while <strong>27,000&nbsp;cm&sup2; of it is a hole</strong>. That is 7.8&nbsp;% for one flight of stairs, which is the same order as the defect F2 existed to fix.</p>
+
+  <p>So the rule F2 wrote applies unchanged: the number on the plan is the floor you can stand on. G2 subtracts its openings from <code>Room.interiorArea()</code>, and the test that pins it is F2's own M-36 with a hole in it.</p>
+</section>
+
+<section id="level-sprints">
+  <div class="sec-eyebrow">§ 47 · SPRINTS G1&ndash;G3</div>
+  <h2>Six weeks, re-drawn around what a level turned out to be</h2>
+  <p class="sec-sub">RM-007 priced this programme at 6 weeks in two sprints. It stays at 6 and becomes three, because the roof and the level are different risks and pricing them together hides both.</p>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">G1</span>
+      <h3>Levels</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip crit">Q-3</span><span class="chip crit">V-4</span><span class="chip crit">V-5</span><span class="chip">3 wk</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> A storey is a floorplan with a base elevation, stacked in 3D and switched on the plan, and a single-level file that is byte-identical afterwards.</p>
+    <ul>
+      <li><strong>A level is its own <code>Floorplan</code></strong> (V-5), not a field on seven collections. <code>Model</code> gains a level list, an active index and a base elevation per level; every existing call to <code>model.floorplan</code> resolves to the active one, so nothing outside <code>Model</code> changes on day one.</li>
+      <li><strong>The base elevation is applied where a level's contents join the scene</strong> (V-4), not inside <code>Floor</code>, <code>Edge</code> or <code>Item</code> &mdash; each of those already builds relative to a plan it is handed, and a translation at the join is the change that does not multiply.</li>
+      <li><strong><code>levels[]</code> in the file, additive and conditional</strong> (V-6): written only when there is more than one, so every design anybody has saved re-opens and re-saves unchanged.</li>
+      <li><strong>A level switcher on the plan, with the level below ghosted.</strong> E4's <code>renderTo</code> already swaps the backend, the projection and the canvas size; the ghost is that seam plus the floorplan, drawn first at a reduced weight.</li>
+      <li><strong>Per-level wall height is a decision, not an omission</strong> (V-5): either the per-document runtime RM-003 A1 built, applied per level, or the document's height for every level, stated.</li>
+      <li>Behind a flag until the fixture suite covers it, and <strong>V-7 recorded on the way past</strong>: undo and autosave snapshot the whole design, so N levels is N times the payload.</li>
+    </ul>
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE</div>
+      <ul>
+        <li><strong>M-26 = two levels, one file.</strong> A two-storey fixture saves, loads and renders both levels, and every existing single-level fixture is <strong>byte-identical</strong> on re-save</li>
+        <li><strong>M-38 = a level is where it says it is.</strong> Every mesh a level owns &mdash; floor, ceiling, wall faces, fillers, items &mdash; sits between its base elevation and its base plus its height, measured off the scene, for a three-storey design</li>
+        <li>Nothing outside <code>Model</code> asks which level it is on in order to work: the plan, the 3D view and the file all read the active level through the path they read a floorplan through today</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">G2</span>
+      <h3>Stairwells and the first roof</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip crit">V-1</span><span class="chip ok">V-2</span><span class="chip crit">V-3</span><span class="chip warn">V-9</span><span class="chip">2 wk</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> A hole in the floor where the stairs arrive, and a roof over the building rather than a lid on each room.</p>
+    <ul>
+      <li><strong>Floor openings from F3's hint</strong> (V-2). The rectangle is already computed and already drawn dashed; G2 converts it to the room's frame and pushes a <code>Path</code>. Two triangles become eight and the outline does not move &mdash; measured, not projected.</li>
+      <li><strong>Clamped to the room, the way F1 clamped to the wall</strong> (V-3). An opening that straddles a wall makes the floor <em>bigger</em>; it does not fail. Same primitive, same failure, same remedy.</li>
+      <li><strong>The area is the floor you can stand on</strong> (V-9): openings come out of <code>Room.interiorArea()</code>, which is F2's rule applied to the thing that now punches holes in it.</li>
+      <li><strong>A roof generator over the building's footprint</strong> &mdash; flat, gable and hip &mdash; on the same numbers-in, geometry-out seam F1 opened and F3 confirmed. There is nothing to supersede (V-1): what exists is a per-room ceiling, and it stays, because a ceiling and a roof are different things.</li>
+      <li><strong>The two stale things in <code>three/floor.js</code> are fixed rather than inherited</strong> (V-1): the comment that says the roof is commented out, and <code>buildRoofUniformHeight()</code>, which nothing calls.</li>
+    </ul>
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE</div>
+      <ul>
+        <li><strong>M-39 = the stairs arrive somewhere.</strong> In a two-storey design with a flight on the lower level, the upper floor carries an opening that contains the flight's stairwell rectangle, and the room's stated area is its polygon minus that opening</li>
+        <li><strong>M-40 = a roof covers the building.</strong> Every generated roof's plan projection contains the whole exterior footprint, for each of the three types, at every pitch the inspector offers</li>
+        <li>A floor opening never makes a floor larger, at any size or position &mdash; the assertion V-3 would have failed</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">G3</span>
+      <h3>The house, driven</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip warn">V-7</span><span class="chip warn">V-8</span><span class="chip">1 wk</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Take the flag off, on the strength of a suite that drives a three-storey house rather than a unit test that constructs one.</p>
+    <ul>
+      <li><strong>A three-storey fixture</strong> beside the five that exist, exercised through save, load, undo, autosave, the plan, the 3D view and an exported sheet.</li>
+      <li><strong>The coverage debt this programme lands on</strong> (V-8): <code>three/controller.js</code> at 36 % of branches is the file that decides what a click hits, and per-level visibility is a branch in that decision. A sprint with a stated test budget, which is what worked for programme E.</li>
+      <li><strong>An exterior view</strong>, which is the one thing in RM-007's G2 that is neither a stairwell nor a roof, and belongs with the walkthrough it resembles.</li>
+      <li><strong>V-7 measured rather than assumed</strong>: undo snapshot size and autosave write time at one, two and three storeys, and a decision recorded about whether incremental history becomes its own sprint.</li>
+    </ul>
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE</div>
+      <ul>
+        <li>The flag comes off only when the three-storey fixture passes every tier, and coverage on the six files in V-8 has moved <em>up</em></li>
+        <li>Undo and autosave costs are stated as measurements at one, two and three storeys, not as an expectation</li>
+      </ul>
+    </div>
+  </div>
+
+  <p style="margin-top:16px">Six weeks, unchanged from RM-007, redistributed: 3 + 2 + 1 rather than 3.5 + 2.5. <strong>The week that moved bought a sprint whose whole job is to earn the flag removal</strong>, and the reason is V-8 rather than caution &mdash; this programme's three heaviest files are the tree's three least-covered, and a level that is switched on before anything drives it is a level that gets found broken by a person rather than by a test.</p>
+</section>
+
+<section id="level-risks">
+  <div class="sec-eyebrow">§ 48 · RISKS &amp; COMPATIBILITY</div>
+  <h2>What could go wrong, and what must not change</h2>
+
+  <div class="tw"><table>
+    <thead><tr><th>Risk</th><th>Where</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td>A level as its own floorplan turns out to be the wrong call, and the 36 filters were the right answer after all</td><td>G1</td><td>The measurement that decides it is already run and already has a suite: two models coexist in one page today. If it is wrong, it is wrong in week one, when <code>Model</code> is the only file that knows about levels &mdash; which is the property the first bullet is written to protect</td></tr>
+      <tr><td>Adding levels changes a single-level file</td><td>G1</td><td>M-26 asserts byte-identical re-save on every existing fixture, and V-6 measured that the round trip is identical today. <code>levels</code> is written only when there is more than one, which is the rule E2, E3 and F3 already follow</td></tr>
+      <tr><td>A stairwell straddling a wall silently enlarges the floor</td><td>G2</td><td>It does &mdash; measured at &minus;100..500 on a 400 cm floor (V-3). Clamped to the room with a note and a plan symbol showing the clamped rectangle, which is F1's remedy for the identical failure one layer up</td></tr>
+      <tr><td>The roof generator is written inside <code>Floor</code> and becomes a third copy of the generator</td><td>G2</td><td><code>items/solid_builder.js</code> exists because F3 tested that boundary and found it half drawn. A roof is boxes and triangles from the plan outline; it is the third caller, and if the seam is wrong again this is where it shows</td></tr>
+      <tr><td>Undo becomes slow on a three-storey house</td><td>G1 · G3</td><td>Named, not fixed. G3 measures snapshot size and write time at one, two and three storeys and records whether incremental history becomes its own sprint. Making history incremental is a change that would land on a single-level editor equally well, so it is not this programme's to smuggle in</td></tr>
+      <tr><td>Per-level visibility breaks picking in the 3D view</td><td>G1 · G3</td><td><code>three/controller.js</code> is 36 % of branches and it is the file that decides what a click hits (V-8). G3 exists to drive it rather than to construct it, and the flag stays on until it has</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>What must not change</h3>
+  <p>The <strong>save format</strong> stays readable by any build that reads 2.0.0: <code>levels</code> is additive, written only when there is more than one, and a single-level design re-saves byte-identical &mdash; measured, in V-6, before the programme starts. The <strong>one-way arrow</strong> holds: a level is plain data on <code>Model</code>, and the base elevation is applied where geometry joins the scene rather than inside the model layer. <strong><code>Wall.height</code> stays as it is</strong>, pinned by E2 with the measurement beside it, and a level's height is a property of the level and not a second attempt at that field. The <strong>per-room ceiling stays</strong>: V-1 found it is not a roof, and the answer is that G2 adds a roof rather than that it replaces a ceiling with one. The <strong>preserved polygon predicates</strong> are untouched for the sixth programme running; collision is still RM-007 J4's re-baseline. And <strong>no metric moves down</strong>: the coverage floors and the eleven budgets are ratchets, and this programme lands on the three least-covered files in the tree, which is why G3 exists and why it carries a test budget rather than an intention.</p>
+</section>
+
 <footer>
   <p><strong>Method &mdash; RM-004.</strong> Three measurements against the working tree at <code>3cf1c24</code> on branch <code>amit</code>, all of them produced by running something rather than by reading code. <em>The payload</em> &mdash; every one of the 370 manifest entries read and gzipped at level 9, and every <code>.glb</code> walked chunk by chunk, splitting the BIN into buffer views an accessor points at, views an image points at, and the remainder, then a census of accessor <code>componentType</code> per attribute semantic and of index width against each primitive's <code>POSITION</code> count. <em>Wall identity</em> &mdash; three fixtures loaded, censused, round-tripped through <code>saveFloorplan()</code> and <code>loadFloorplan()</code> and intersected, plus a constructed two-walls-one-pair case run through the same round trip. <em>The type ledger</em> &mdash; <code>npx vue-tsc --noEmit --checkJs</code>, bucketed by area, by error code and by file. <strong>What was not run:</strong> no codec. Draco, meshopt and KTX2 are named throughout and none has been executed against this catalog, which is why M-12 carries no target and why B1's first task is the trial rather than its conclusion. Two repository inaccuracies were found and are recorded in §21 G-3 rather than fixed, since this is a planning pass: <code>tsconfig.json</code>'s SFC subtotal disagrees with the tree <em>and</em> with its own itemisation.</p>
   <p><strong>Sources &mdash; RM-004.</strong> <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_mesh_quantization/README.md">KHR_mesh_quantization</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_draco_mesh_compression/README.md">KHR_draco_mesh_compression</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_meshopt_compression/README.md">EXT_meshopt_compression</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_texture_basisu/README.md">KHR_texture_basisu</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/specification/2.0/README.md#binary-gltf-layout">glTF 2.0 &mdash; Binary glTF layout</a> &middot; <a href="https://threejs.org/docs/#examples/en/loaders/DRACOLoader">three.js &mdash; DRACOLoader</a> &middot; <a href="https://threejs.org/docs/#examples/en/loaders/KTX2Loader">three.js &mdash; KTX2Loader</a> &middot; <a href="https://www.typescriptlang.org/tsconfig/#checkJs">TypeScript &mdash; checkJs</a></p>
@@ -4297,10 +4565,11 @@ if(this.halfSize.x &lt; 1.0)
   <p><strong>Method &mdash; RM-007.</strong> Two kinds of measurement against the working tree at <code>8510642</code> on branch <code>amit</code>, and one comparison. <em>The code</em> &mdash; every file under <code>src/scripts</code> and <code>src/app</code> read for what it does rather than what it says, with the line references in &sect; 33 and &sect; 34 pointing at that tree; the catalog and texture lists counted by script (168 items in eight placement types, 142 of them Kenney, 25 baked, one duck; five wall and two floor textures, two of them one file). <em>The application</em> &mdash; booted under Vite in headless Chromium at 1440&times;900 and 390&times;844, driven through fifteen states (plan, split, 3D, catalog open, two items added, item selected, walls drawn, wall selected on the plan and in 3D, walkthrough attempted, shortcuts dialog) and screenshotted at each; the &ldquo;0 of 2&rdquo; and &ldquo;40 px strip&rdquo; figures are read off those pictures, and rev B added 1024&times;768, 1280&times;720 and 1366&times;768 with the split view and the catalog open, reading the plan canvas width and <code>scrollWidth</code> against the viewport (462, 505 and 334 px of plan; no overflow at any). <em>The comparison</em> &mdash; Coohom's own floor-planner page and Sweet Home 3D's feature page were read for what a planner is expected to do, and used as a checklist and nothing more; no figure in this drawing comes from either. Effort is at the single-developer cadence RM-001 was planned at, stated at &plusmn;40 % because nothing here has been measured against a sprint yet; every programme gets its own drawing before it starts.</p>
   <p><strong>Method &mdash; RM-008.</strong> Seven measurements against the working tree at <code>1d53fc8</code> on branch <code>amit</code>, five of them run in headless Chromium against the library as the dev server serves it rather than read off the source. <em>The structure</em> &mdash; a <code>Model</code> constructed in the page and its own properties and its floorplan's read back, which is how &ldquo;a Floorplan has no path to a Scene&rdquo; became a fact rather than an inference. <em>The two selection directions</em> &mdash; the application driven to one click each way, screenshots of the <em>other</em> pane captured immediately before and after, differenced per channel at a tolerance of 6; both returned zero changed pixels, which is what corrects RM-007. <em>The cost</em> &mdash; plans of 1, 4, 16 and 36 rooms built through the real <code>Floorplan</code> and drawn 60 times each after a warm-up, and item footprints drawn 60 times at 20, 60 and 150 into a 1200&times;800 canvas. <em>The coverage</em> &mdash; <code>coverage-summary.json</code> from <code>npm run test:coverage</code>, per file. <em>The primitive surface</em> &mdash; all 77 <code>this.context.*</code> calls in <code>floorplanner_view.js</code> attributed to their enclosing method by script. Effort is at the same single-developer cadence as every drawing in this set, and it is the first in the set to have <strong>raised</strong> its own estimate on the strength of a measurement.</p>
   <p><strong>Method &mdash; RM-009.</strong> Seven measurements against the working tree at <code>ea31d45</code> on branch <code>amit</code>, four of them run in headless Chromium against the library as the dev server serves it. <em>The openings</em> &mdash; each of the ten wall-cutting catalog items loaded into a live page onto a wall of a 400&nbsp;&times;&nbsp;400 room, and its <code>halfSize</code> read <em>after</em> the loader had finished with it, which is the only reading that includes the &times;300 branch; the same method applied to four ordinary items for U-3. <em>The oversized hole</em> &mdash; <code>Shape</code>, <code>Path</code> and <code>ShapeGeometry</code> called with the exact numbers those items produced, and the resulting bounding box and triangle count read; that is the three.js primitive <code>Edge.createShape</code> uses, exercised directly rather than through the viewer. <em>The joins</em> &mdash; a plan constructed headlessly with two walls of different thickness, its half-edge interior points and its room polygon compared, and the room's stated area compared against the shoelace area of its own interior corners. <em>The file</em> &mdash; <code>Item.getMetaData</code> read, and the catalog counted by script (168 items in eight placement types, 142 from <code>models/gltf/</code>, ten of types 3 and 7). <strong>What was not run:</strong> no renderer. U-2 is asserted about the geometry <code>Edge</code> builds and not about what a frame looks like, because the failure is a mesh that is the wrong size and a picture would only show that it is; and no procedural door was written, so every figure about the generator is an estimate rather than a measurement. <strong>Two planning inaccuracies were found and are recorded rather than fixed</strong>, since this is a planning pass: RM-007's per-wall height for half walls (U-5), which E2 had already measured out from under it, and the &times;300 hack (U-3), which belongs to J1.</p>
+  <p><strong>Method &mdash; RM-010.</strong> Nine measurements against the working tree at <code>6dd9665</code> on branch <code>amit</code>, six of them run in headless Chromium against the library as the dev server serves it. <em>The roof</em> &mdash; a 400&nbsp;&times;&nbsp;400 room loaded into a live page and all 31 meshes in the scene traversed for name, visibility, triangle count and bounding box, which is how &ldquo;there is no roof&rdquo; became a reading rather than an inference; the two implementations in <code>three/floor.js</code> were then checked against their call sites. <em>The base elevation</em> &mdash; every flat room-sized plane in that same scene collected with its y coordinate; there are two values, 0 and 250. <em>The floor opening</em> &mdash; a real room's <code>interiorCorners</code> pushed through <code>Shape</code>, <code>Path</code> and <code>ShapeGeometry</code> with F3's own <code>stairwellHint()</code> as the hole, triangle counts and bounding boxes read before and after, and the winding reversed to see whether it matters; then the same call with a hole straddling the outline, which is RM-009 U-2's test applied to a floor. <em>The two models</em> &mdash; a second <code>Model</code> constructed in a page that already had one, loaded with a different design, and both floorplans read back. <em>The file</em> &mdash; a design exported, re-loaded and re-exported, and the two strings compared. <em>The filters</em> &mdash; <code>model/floorplan.js</code> parsed into methods by script and each body matched against its seven collections. <em>The coverage</em> &mdash; <code>coverage-summary.json</code> from <code>npm run test:coverage</code>, per file. <strong>What was not run:</strong> no roof was generated and no level was built, so every figure about G1's and G2's own output is an estimate; and no renderer comparison &mdash; V-1 is asserted about what is in the scene graph, not about what a frame looks like. <strong>Two inaccuracies were found in the tree and are recorded rather than fixed</strong>, since this is a planning pass: the comment in <code>three/floor.js</code> claiming the roof is commented out when the line below it runs, and <code>buildRoofUniformHeight()</code>, a complete implementation nothing calls. Both are G2's to clear.</p>
   <p><strong>Sources &mdash; RM-009.</strong> <a href="https://kenney.nl/assets/furniture-kit">Kenney &mdash; Furniture Kit (CC0)</a> &middot; <a href="https://threejs.org/docs/#api/en/extras/core/Shape">three.js &mdash; Shape</a> &middot; <a href="https://threejs.org/docs/#api/en/geometries/ShapeGeometry">three.js &mdash; ShapeGeometry</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/specification/2.0/README.md">glTF 2.0 specification</a></p>
   <p><strong>Sources &mdash; RM-008.</strong> <a href="https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D">MDN &mdash; CanvasRenderingContext2D</a> &middot; <a href="https://www.w3.org/TR/SVG2/">W3C &mdash; SVG 2</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame">MDN &mdash; requestAnimationFrame</a></p>
   <p><strong>Sources &mdash; RM-007.</strong> <a href="https://www.coohom.com/case/floor-planner">Coohom &mdash; Floor Planner</a> &middot; <a href="https://www.sweethome3d.com/features.jsp">Sweet Home 3D &mdash; Features</a> &middot; <a href="https://kenney.nl/assets/furniture-kit">Kenney &mdash; Furniture Kit (CC0)</a> &middot; <a href="https://polyhaven.com/">Poly Haven (CC0)</a> &middot; <a href="https://ambientcg.com/">ambientCG (CC0)</a> &middot; <a href="https://quaternius.com/">Quaternius (CC0)</a> &middot; <a href="https://threejs.org/docs/">three.js documentation</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API">MDN &mdash; Service Worker API</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API">MDN &mdash; IndexedDB</a></p>
-  <p>architect3d &middot; Delivery &amp; precision program RM-004 rev A &middot; <strong>delivered</strong>, all five sprints &middot; residual program RM-005 rev A &middot; <strong>delivered</strong>, both sprints &middot; correction program RM-006 rev A &middot; <strong>delivered</strong> &middot; product roadmap RM-007 rev B &middot; <strong>proposed</strong>, eight programmes, 42 weeks &middot; programme E RM-008 rev A &middot; <strong>delivered</strong>, all four sprints &middot; programme F RM-009 rev A &middot; <strong>delivered</strong>, three sprints, one part outstanding &middot; successor to hardening program RM-003</p>
+  <p>architect3d &middot; Delivery &amp; precision program RM-004 rev A &middot; <strong>delivered</strong>, all five sprints &middot; residual program RM-005 rev A &middot; <strong>delivered</strong>, both sprints &middot; correction program RM-006 rev A &middot; <strong>delivered</strong> &middot; product roadmap RM-007 rev B &middot; <strong>proposed</strong>, eight programmes, 42 weeks &middot; programme E RM-008 rev A &middot; <strong>delivered</strong>, all four sprints &middot; programme F RM-009 rev A &middot; <strong>delivered</strong>, three sprints, one part outstanding &middot; programme G RM-010 rev A &middot; <strong>proposed</strong>, three sprints, 6 weeks &middot; successor to hardening program RM-003</p>
   <p class="credit">Created by <a href="https://amitukind.com" target="_blank" rel="noopener noreferrer">Amit Verma</a></p>
 </footer>
 
