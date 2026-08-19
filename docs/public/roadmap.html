@@ -5298,6 +5298,27 @@ this.roofPlane = this.buildRoofVaryingHeight();</pre></div>
         <li>The first-load payload does not grow by one byte for metadata nobody has opened a pack to see &mdash; M-43, the line X-3 used to find this</li>
       </ul>
     </div>
+
+    <div class="gate">
+      <div class="g-head">LANDING &mdash; J1, the index split</div>
+      <ul>
+        <li><strong>The split is a generator, so the two files cannot drift from the one they came from.</strong> <code>catalog.json</code> is still the only place a row is authored; <code>tools/split-catalog.mjs</code> divides it into <code>catalog-index.json</code>, which vite inlines, and <code>catalog-detail.json</code>, which is a dynamic import. <code>npm run catalog:check</code> regenerates and compares, and a test runs it &mdash; the mechanism <code>tsconfig.json</code>'s ledger drifted five times for want of.</li>
+
+        <li><strong>The line was decided by gzipping each candidate key rather than by taste.</strong> Added to all 168 rows and measured at level 9: <code>format</code> <strong>+40 B</strong> (168 identical strings), <code>room</code> +369, <code>tags</code> <strong>+116</strong>, <code>size</code> <strong>+907</strong>. So the index keeps everything the grid filters on <em>and</em> everything the placement path reads &mdash; which keeps <code>addItem</code> synchronous, worth far more than the 40 bytes <code>format</code> costs &mdash; and the detail keeps what a person reads about one item. The keys that filter turn out to be the cheap ones because their vocabularies repeat; the expensive ones are exactly those nobody reads until they click.</li>
+
+        <li><strong>The two budget lines disagreed, which is the evidence the split worked.</strong> <code>demo-js-gzip</code> rose <strong>405,606 &rarr; 408,761</strong> because the detail chunk is now in the build, and <code>first-load</code> rose <strong>408,108 &rarr; 408,473</strong>, 365 bytes, because it is a chunk nobody fetches until the drawer opens. One line asks what the bundle weighs and the other what a person waits for; H2's ambient occlusion produced the same pair of readings.</li>
+
+        <li><strong>M-44 is the twelfth budget line</strong>, at 3,580 with 3,408 measured &mdash; the index compacted and gzipped, which is what a bundler emits. Set at the usual ~5&nbsp;% deliberately: a ceiling with J2's whole row growth pre-authorised inside it would notice nothing, and this line exists to make a key crossing back into the payload a decision somebody records.</li>
+
+        <li><strong>The dimensions are measured, not authored</strong> &mdash; the one J1 field nobody should type. Each model's bounding box is computed by walking its glTF scene graph and transforming all eight corners of every primitive's own accessor bounds, which survives Draco because the extension replaces the buffer view and leaves the accessor's metadata alone. <strong>168 of 168 measured</strong>, including the three plain <code>.gltf</code> files a binary-only reader missed.</li>
+
+        <li><strong>And the catalog turns out to be authored in two units, with a 28-fold gap between them.</strong> The largest extent of the small population is <strong>1.82</strong> and the smallest of the large is <strong>51.42</strong>: 141 models in metres, 27 already in centimetres. Both check out against real furniture &mdash; at &times;100 a basin is 34&nbsp;cm wide and a stack of books is 15; at &times;1 a double bed is 140&nbsp;&times;&nbsp;200 and a door is 97&nbsp;&times;&nbsp;222. <strong>This is what <code>Item.initObject</code> has been guessing at since the fork</strong>, with <code>if (halfSize.x &lt; 1.0) resize(&times;300)</code> under a comment calling itself an ugly hack, and RM-009 U-3 measured the 300 wrong and assigned the fix here. At &times;300 that stack of books is 45&nbsp;cm wide.</li>
+
+        <li><strong>The band between the two populations is left ambiguous on purpose.</strong> A model whose largest extent lands between 2 and 40 units is reported and the run <em>fails</em> rather than being silently assigned a unit. The rule is fitted to this catalog and J2 is going to add packs it was not fitted to.</li>
+
+        <li><strong>The drawer shows the size, in the unit the person is working in</strong>, and shows nothing until the chunk lands &mdash; which is the split working rather than a defect. 21 new tests; coverage up or level on all four lines.</li>
+      </ul>
+    </div>
   </div>
 
   <div class="sprint">

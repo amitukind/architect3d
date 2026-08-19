@@ -163,6 +163,35 @@ half of that — every shipped `.ktx2` has a measurement and the measurement
 passed — is asserted in `tests/asset-integrity.test.js` and runs with the normal
 suite.
 
+::: tip The catalog is two files, and only one of them ships
+`src/catalog/catalog.json` is still the only place a row is authored, and it is
+no longer what the application imports. `tools/split-catalog.mjs` divides it into
+`catalog-index.json`, which vite inlines into the bundle, and
+`catalog-detail.json`, which is a dynamic `import()` and so becomes a chunk
+nobody fetches until the drawer is opened. `npm run catalog:check` regenerates
+both and compares, and a test runs that check.
+
+RM-012 X-3 is why. Every row is in the payload every visitor downloads, and J1's
+metadata on the 600 rows programme J is written for measured **17,264 gzipped
+bytes of growth against 13,292 bytes of `first-load` headroom**. Split, the same
+rows cost 9,857.
+
+Where the line goes was decided by gzipping each candidate key across all 168
+rows rather than by taste — `format` costs **40 bytes**, `room` 369, `tags` 116,
+`size` **907**. So the index carries what the grid filters on *and* what
+`addItem` reads, which keeps adding an item synchronous; the detail carries what
+a person reads about one item. The filterable keys turn out to be the cheap ones
+because their vocabularies repeat. `catalog-index` is a budget line of its own
+(M-44) so a key crossing back into the payload is a decision somebody records.
+
+The dimensions in the detail are **measured, not authored**: each model's
+bounding box is computed by walking its glTF scene graph and transforming all
+eight corners of every primitive's accessor bounds. That found the catalog is
+authored in two units with a 28-fold gap between them — 141 models in metres, 27
+already in centimetres — which is what `Item.initObject`'s `if (halfSize.x < 1.0)
+resize(×300)` has been guessing at since the fork.
+:::
+
 ### The material library
 
 Thirty CC0 materials from Poly Haven, an albedo and a roughness map each, under

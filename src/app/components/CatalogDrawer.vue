@@ -3,6 +3,8 @@
 import {computed, nextTick, ref, watch} from 'vue';
 import {DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose} from 'reka-ui';
 import {Search, X, Plus} from '@lucide/vue';
+import {loadCatalogDetail} from '../composables/useCatalog.js';
+import {Dimensioning} from '../../scripts/blueprint.js';
 
 /**
  * The furniture catalog.
@@ -98,17 +100,53 @@ function close()
 	emit('update:open', false);
 }
 
-// Focus the search box on open. The drawer's whole purpose is finding
-// something, and the keyboard should already be in the right place.
+/**
+ * The catalog's measured dimensions, once the drawer has asked for them.
+ *
+ * Null until the chunk lands, and every reader below is written for that: the
+ * grid renders from the bundled index and the size line appears when it can.
+ * That is the whole point of RM-012 X-3's split - a visitor who never opens this
+ * drawer never downloads a dimension.
+ */
+/** @type {import('vue').Ref<?{items: Object<string, {size?: {w: number, h: number, d: number}}>}>} */
+const detail = ref(null);
+
+/**
+ * One item's size, in whatever unit the person is working in.
+ *
+ * Measured from the model's own glTF accessor bounds by
+ * `tools/split-catalog.mjs` and stored in centimetres, so this is the same
+ * conversion every other measurement in the inspector goes through.
+ *
+ * @param {Object} item
+ * @returns {string} Empty when the detail has not arrived or has no size.
+ */
+function sizeLabel(item)
+{
+	const size = detail.value && detail.value.items[item.model] && detail.value.items[item.model].size;
+	if (!size)
+	{
+		return '';
+	}
+	return [size.w, size.d, size.h].map((cm) => Dimensioning.cmToMeasure(cm)).join(' × ');
+}
+
+// Focus the search box on open, and fetch the detail chunk. The drawer's whole
+// purpose is finding something, and the keyboard should already be in the right
+// place.
 watch(() => props.open, async function (open)
 {
-	if (open)
+	if (!open)
 	{
-		await nextTick();
-		if (searchField.value)
-		{
-			searchField.value.focus();
-		}
+		return;
+	}
+	// Not awaited before the focus: the grid does not need it, and a slow chunk
+	// must not delay the cursor landing in the search box.
+	loadCatalogDetail().then(function (loaded) {detail.value = loaded;});
+	await nextTick();
+	if (searchField.value)
+	{
+		searchField.value.focus();
 	}
 });
 </script>
@@ -142,7 +180,7 @@ watch(() => props.open, async function (open)
 						<Search :size="14" class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint" />
 						<input
 							ref="searchField" v-model="query" type="search"
-							class="field-input pl-8" placeholder="Search 168 models" aria-label="Search the catalog">
+							class="field-input pl-8" placeholder="Search the catalog" aria-label="Search the catalog">
 					</div>
 
 					<div class="mt-2 flex flex-wrap gap-1">
@@ -186,6 +224,9 @@ watch(() => props.open, async function (open)
 								<span class="mt-1 block truncate text-[11px] leading-tight">{{ row.item.name }}</span>
 								<span v-if="needsWall(row.item)" class="block truncate text-[10px] text-ink-faint">
 									click a wall first
+								</span>
+								<span v-else-if="sizeLabel(row.item)" class="num block truncate text-[10px] text-ink-faint">
+									{{ sizeLabel(row.item) }}
 								</span>
 								<span
 									class="pointer-events-none absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-md bg-accent text-accent-ink opacity-0 transition-opacity group-hover:opacity-100">

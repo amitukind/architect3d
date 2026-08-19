@@ -1,6 +1,6 @@
 // @ts-check
-import {computed} from 'vue';
-import catalog from '../../catalog/catalog.json';
+import {computed, ref} from 'vue';
+import catalog from '../../catalog/catalog-index.json';
 import openings from '../../catalog/openings.json';
 import stairs from '../../catalog/stairs.json';
 import structures from '../../catalog/structures.json';
@@ -15,6 +15,27 @@ import {
  * S3, but only the generated jQuery palette (build/js/items.js) consumed it.
  * The Vue app reads the JSON itself, so adding a model is a data change with no
  * generator step.
+ *
+ * ## Two files now, and only one of them ships (RM-012 J1, X-3)
+ *
+ * `catalog.json` is still the single place a row is authored. What changed is
+ * that it is no longer what the application imports: `tools/split-catalog.mjs`
+ * divides it into an **index**, which vite inlines into the bundle, and a
+ * **detail**, which is a dynamic import and so becomes a chunk nobody fetches
+ * until the drawer is opened.
+ *
+ * The line is where the *use* is, and X-3 is why it had to move. Every row is in
+ * the payload every visitor downloads, and J1's metadata on 600 rows measured
+ * **17,264 gzipped bytes of growth against 13,292 bytes of `first-load`
+ * headroom** - M-43 broken before one model is fetched. Split, the same 600 rows
+ * cost 9,857, which fits.
+ *
+ * So the index carries what the grid draws and filters on, plus what `addItem`
+ * needs to place a thing - which keeps `addItem` synchronous, and that is worth
+ * more than the 40 bytes `format` costs across all 168 rows. The detail carries
+ * what a person reads about one item: its measured dimensions, its source and
+ * its licence. Those are the expensive keys precisely because each is unique to
+ * one row and gzip has nothing to share.
  */
 
 /**
@@ -42,6 +63,64 @@ const WALL_BOUND_TYPES = [2, 3, 7, 9];
  * @property {string} [format] `gltf` or `obj`. Absent means the legacy JSON
  *           format, which `resolveModelUrl` rewrites on the way in.
  */
+
+/**
+ * What the detail file says about one row, once it has been fetched.
+ *
+ * @typedef {Object} CatalogDetail
+ * @property {{w: number, h: number, d: number}} [size] The model's bounding box
+ *           in its own units, measured from its glTF accessor bounds with the
+ *           scene graph applied - not authored, and not the item's placed size.
+ */
+
+/**
+ * The detail, once somebody has opened the drawer. Module-level for the reason
+ * `useDisplayUnit` gives: there is one catalog, and two callers holding
+ * different halves of it would be a bug rather than a feature.
+ *
+ * @type {import('vue').Ref<?{items: Object<string, CatalogDetail>}>}
+ */
+const detail = ref(null);
+
+/** The fetch in flight, so two callers on the same tick share one chunk. */
+let pending = null;
+
+/**
+ * Fetch the detail chunk, once.
+ *
+ * A dynamic `import()` rather than a `fetch`, because this file is in
+ * `src/app`: the application is code-split, so vite emits the JSON as its own
+ * chunk and a visitor who never opens the drawer never asks for it. J2's
+ * external packs will need the fetch form - they are not in the build - and
+ * this is the seam they will use.
+ *
+ * @returns {Promise<?Object>} Null if the chunk could not be loaded, in which
+ *   case the drawer keeps working from the index and shows no dimensions.
+ */
+export function loadCatalogDetail()
+{
+	if (detail.value)
+	{
+		return Promise.resolve(detail.value);
+	}
+	if (!pending)
+	{
+		pending = import('../../catalog/catalog-detail.json')
+			.then(function (module)
+			{
+				detail.value = module.default || module;
+				return detail.value;
+			})
+			.catch(function ()
+			{
+				// Cleared so a later open tries again: a chunk that failed once on
+				// a flaky connection is not a chunk that is missing.
+				pending = null;
+				return null;
+			});
+	}
+	return pending;
+}
 
 /**
  * A heading and the items under it.
@@ -238,5 +317,20 @@ export function useCatalog(store, placementContext)
 		scene.addItem(entry.type, entry.model, metadata);
 	}
 
-	return {sections, count, addItem};
+	/**
+	 * What is known about one row beyond what the grid shows.
+	 *
+	 * Null until `loadCatalogDetail()` has resolved, which is deliberate: a
+	 * caller that renders a dimension must be prepared not to have one, because
+	 * the whole point of the split is that it has not been downloaded yet.
+	 *
+	 * @param {CatalogItem} entry
+	 * @returns {?CatalogDetail}
+	 */
+	function detailFor(entry)
+	{
+		return (detail.value && entry && detail.value.items[entry.model]) || null;
+	}
+
+	return {sections, count, addItem, detail, detailFor, loadDetail: loadCatalogDetail};
 }

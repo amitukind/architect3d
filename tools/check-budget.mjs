@@ -465,6 +465,21 @@ function busiestDesign()
  * the model is wrong. That cross-check is the reason this can stay a tier-1 gate
  * instead of moving to the browser tier entirely.
  */
+/**
+ * The catalog index as the bundle will carry it (RM-012 J1, M-44).
+ *
+ * @returns {?number} Gzipped bytes, or null with no index to read.
+ */
+function catalogIndexBytes()
+{
+	const path = 'src/catalog/catalog-index.json';
+	if (!existsSync(path))
+	{
+		return null;
+	}
+	return gzipSync(Buffer.from(JSON.stringify(JSON.parse(readFileSync(path, 'utf8')))), {level: 9}).length;
+}
+
 export function sceneVram()
 {
 	if (!existsSync('public')) { return null; }
@@ -686,6 +701,19 @@ const MEASUREMENTS = [
 	// measurement W-5 made and why a tree walk stopped being the right question.
 	{key: 'texture-vram', label: 'Scene texture VRAM', needs: null,
 		measure: () => sceneVram()},
+	// The twelfth line, added by RM-012 J1 (M-44). It guards a boundary rather
+	// than a total: `catalog-index.json` is inlined into the application bundle
+	// and the detail beside it is not, so this is the line that notices when a
+	// key or a row count crosses back over. X-3 measured what it prevents - J1's
+	// metadata on 600 rows is 17,264 gzipped bytes of growth against 13,292 of
+	// `first-load` headroom, and split it is 9,857.
+	//
+	// Compacted before gzipping because that is what a bundler emits: the file on
+	// disk is tab-indented for a reader, and charging the payload for whitespace
+	// nobody downloads would make the number wrong in the safe direction, which
+	// is still wrong.
+	{key: 'catalog-index', label: 'Catalog index (gzip)', needs: null,
+		measure: () => catalogIndexBytes()},
 	// The eleventh line, added by RM-011 H1 (M-43). Every other entry here asks
 	// what something weighs; this one asks what a person waits for.
 	{key: 'first-load', label: 'First load (gzip)', needs: 'build:demo',

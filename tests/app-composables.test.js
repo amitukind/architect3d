@@ -34,7 +34,7 @@ import {useCameraViews, MODE_FLOORPLAN, MODE_DESIGN, MODE_WALKTHROUGH} from '../
 import {useFloorplannerMode} from '../src/app/composables/useFloorplannerMode.js';
 import {useDesignIO} from '../src/app/composables/useDesignIO.js';
 import {useWalkthrough} from '../src/app/composables/useWalkthrough.js';
-import {useCatalog} from '../src/app/composables/useCatalog.js';
+import {useCatalog, loadCatalogDetail} from '../src/app/composables/useCatalog.js';
 import {DEFAULT_DESIGN} from '../src/app/designs/default-design.js';
 
 import {resetAll} from './helpers/harness.js';
@@ -553,6 +553,51 @@ describe('useCatalog', () =>
 		catalog.addItem(A_FLOOR_ITEM);
 
 		expect(added[0]).toHaveLength(3);
+	});
+});
+
+describe('the catalog detail is a chunk, not a payload (RM-012 J1, X-3)', () =>
+{
+	let catalog;
+
+	beforeEach(() =>
+	{
+		const selection = run(() => useSelection(store));
+		catalog = run(() => useCatalog(store, selection.placementContext));
+	});
+
+	it('knows nothing about a row\'s size until somebody asks', () =>
+	{
+		// The index is what the bundle carries and it has no dimension in it, so a
+		// visitor who never opens the drawer never downloads one. That is the
+		// whole trade X-3 made: 17,264 gzipped bytes at J2's row count against
+		// 13,292 of first-load headroom.
+		const bed = catalog.sections.value
+			.flatMap((section) => section.items)
+			.find((item) => item.name === 'Full Bed');
+		expect(bed).toBeTruthy();
+		expect(bed.size, 'a size in the index defeats the split').toBeUndefined();
+	});
+
+	it('has the measured size once the chunk lands, and fetches it once', async () =>
+	{
+		const bed = catalog.sections.value
+			.flatMap((section) => section.items)
+			.find((item) => item.name === 'Full Bed');
+
+		const first = await loadCatalogDetail();
+		expect(first).toBeTruthy();
+		expect(catalog.detailFor(bed).size.w).toBeCloseTo(140, 3);
+		expect(catalog.detailFor(bed).size.unit).toBe('cm');
+
+		// A second caller gets the same object rather than a second chunk.
+		expect(await loadCatalogDetail()).toBe(first);
+	});
+
+	it('returns null for a row it has never heard of', () =>
+	{
+		expect(catalog.detailFor({model: 'models/not-a-thing.glb'})).toBeNull();
+		expect(catalog.detailFor(null)).toBeNull();
 	});
 });
 

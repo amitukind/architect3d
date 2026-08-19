@@ -47,6 +47,8 @@
 		"parity": "node tools/capture-parity.mjs",
 		"manifest": "node tools/make-asset-manifest.mjs",
 		"manifest:check": "node tools/make-asset-manifest.mjs --check",
+		"catalog": "node tools/split-catalog.mjs",
+		"catalog:check": "node tools/split-catalog.mjs --check",
 		"encode": "node tools/encode-assets.mjs",
 		"encode:check": "node tools/encode-assets.mjs --check",
 		"resize": "node tools/resize-textures.mjs",

@@ -643,12 +643,34 @@
 		"person waits for, and a panorama nobody has asked for yet is on the wrong side",
 		"of that. Making the capture a dynamic import is the obvious answer and is NOT",
 		"taken here: `package.json` publishes exactly two files, so an ESM chunk split",
-		"out of the library entry would not be shipped at all."
+		"out of the library entry would not be shipped at all.",
+		"",
+		"RM-012 J1 ADDED catalog-index, a twelfth line, at 3,580 with 3,408 measured.",
+		"M-44, and it guards a boundary rather than a total. `catalog.json` is now",
+		"split: `catalog-index.json` is inlined into the application bundle and",
+		"`catalog-detail.json` is a dynamic import nobody fetches until the drawer is",
+		"opened. Without a line over the first of those, the boundary is a convention,",
+		"and X-3 measured what a convention costs here - J1's metadata on the 600 rows",
+		"J2 is written for is 17,264 gzipped bytes of growth against 13,292 of",
+		"first-load headroom. Split, the same rows cost 9,857 and fit.",
+		"",
+		"Set at the usual ~5%, which is deliberately tight: this line exists to make a",
+		"key crossing back into the bundle a decision somebody records, and a ceiling",
+		"with J2's whole row growth pre-authorised inside it would notice nothing. The",
+		"file is compacted before gzipping because that is what a bundler emits; the",
+		"copy on disk is tab-indented for a reader, and charging the payload for",
+		"whitespace nobody downloads is wrong in the safe direction, which is still",
+		"wrong.",
+		"",
+		"public-total moved 10,609,326 -> 10,609,326: the split adds two files to",
+		"src/ and none to public/, so the tree is untouched. first-load rose by the",
+		"index's 61 bytes over the file it replaces and by nothing else, because the",
+		"detail is a chunk."
 	],
 	"budgets": {
 		"demo-js-gzip": {
 			"limit": 423200,
-			"measured": 405611
+			"measured": 408761
 		},
 		"demo-css-gzip": {
 			"limit": 10000,
@@ -656,7 +678,7 @@
 		},
 		"demo-total": {
 			"limit": 19990000,
-			"measured": 19206629
+			"measured": 19256486
 		},
 		"lib-iife-gzip": {
 			"limit": 307000,
@@ -688,7 +710,11 @@
 		},
 		"first-load": {
 			"limit": 421400,
-			"measured": 408108
+			"measured": 408473
+		},
+		"catalog-index": {
+			"limit": 3580,
+			"measured": 3408
 		}
 	}
 }

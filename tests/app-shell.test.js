@@ -32,6 +32,8 @@ import {mount} from '@vue/test-utils';
 import App from '../src/app/App.vue';
 import {Main} from '../src/scripts/three/main.js';
 import {floorplannerModes} from '../src/scripts/floorplanner/floorplanner_view.js';
+import {Dimensioning} from '../src/scripts/blueprint.js';
+import {loadCatalogDetail} from '../src/app/composables/useCatalog.js';
 import catalog from '../src/catalog/catalog.json';
 import openings from '../src/catalog/openings.json';
 import stairs from '../src/catalog/stairs.json';
@@ -362,6 +364,40 @@ describe('the catalog drawer', () =>
 			.map((button) => button.textContent.trim());
 		expect(chips).toContain('Floor Items');
 		expect(chips).toContain('Anywhere Items');
+
+		wrapper.unmount();
+	});
+
+	it('shows a measured size once the detail chunk lands (RM-012 J1, X-3)', async () =>
+	{
+		const wrapper = await mountApp();
+		await openCatalog(wrapper);
+
+		// The grid renders from the bundled index, which carries no dimension - so
+		// the first frame after opening has names and no sizes, and that is the
+		// whole point of the split rather than a defect.
+		const cell = () => [...drawer().querySelectorAll('li')]
+			.find((li) => li.textContent.includes('Full Bed'));
+		expect(cell()).toBeTruthy();
+
+		// 140 x 200 x 100 centimetres, measured off the model's own glTF accessor
+		// bounds rather than typed into the catalog - and shown in whatever unit
+		// the person is working in, which is what everything else in the app does.
+		const wide = Dimensioning.cmToMeasure(140);
+		const deep = Dimensioning.cmToMeasure(200);
+
+		// The chunk is a dynamic import, so it lands a module load later - not a
+		// tick later. Awaited on the same shared promise the drawer awaited, which
+		// is deterministic where a fixed timer would not be.
+		// That the index carries no size at all is asserted directly in
+		// `tests/catalog-split.test.js`; repeating it here by racing the chunk
+		// would be a test whose result depends on what ran before it.
+		await loadCatalogDetail();
+		await nextTick();
+
+		const text = cell().textContent;
+		expect(text, `no measured size rendered: ${text}`).toContain(wide);
+		expect(text).toContain(deep);
 
 		wrapper.unmount();
 	});

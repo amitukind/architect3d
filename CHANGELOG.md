@@ -1626,6 +1626,76 @@ a library to pick from, H2 gave the room a sun, lamps, occlusion and a
 photograph, and H3 lets you stand anywhere in it and take the whole view away as
 a file.
 
+**RM-012 J1: the catalog splits before the metadata lands.** The sprint's first
+bullet, and RM-012 X-3 put it first for a reason: as RM-007 drew it, J1 would add
+metadata to every bundled row and J2 would split the file afterwards — shipping a
+first-load regression and then removing it.
+
+**Two files now, generated from the one that is still authored.**
+`src/catalog/catalog.json` remains the only place a row is written.
+`tools/split-catalog.mjs` divides it into `catalog-index.json`, which vite
+inlines, and `catalog-detail.json`, which is a dynamic `import()` and so becomes
+a chunk. `npm run catalog:check` regenerates and compares, and a test runs it —
+the mechanism `tsconfig.json`'s ledger drifted five times for want of.
+
+**Where the line goes was measured, not chosen.** Each candidate key was added to
+all 168 rows and the result gzipped at level 9:
+
+    format   +40 B     168 identical strings
+    room    +369 B     a vocabulary of eight
+    tags    +116 B     a smaller vocabulary still
+    size    +907 B     every value different
+
+So the index carries what the grid filters on **and** what the placement path
+reads — which keeps `addItem` synchronous, worth far more than the 40 bytes
+`format` costs — and the detail carries what a person reads about one item. The
+filterable keys turn out to be the cheap ones because their vocabularies repeat;
+the expensive ones are exactly those nobody reads until they click.
+
+**The two budget lines disagreed, which is the evidence the split worked.**
+`demo-js-gzip` rose 405,606 → 408,761 because the detail chunk is in the build;
+`first-load` rose 408,108 → 408,473, **365 bytes**, because it is a chunk nobody
+fetches until the drawer opens. H2's ambient occlusion produced the same pair of
+readings for the same reason.
+
+**M-44 is a twelfth budget line**, `catalog-index` at 3,580 with 3,408 measured —
+the file compacted and gzipped, which is what a bundler emits. Set at the usual
+~5% deliberately: a ceiling with J2's whole row growth pre-authorised inside it
+would notice nothing, and this line exists to make a key crossing back into the
+payload a decision somebody records.
+
+**The dimensions are measured rather than authored** — the one J1 field nobody
+should type. Each model's bounding box is computed by walking its glTF scene
+graph and transforming all eight corners of every primitive's own accessor
+bounds, which survives Draco because the extension replaces the buffer view and
+leaves the accessor's metadata alone. 168 of 168 measured, including the three
+plain `.gltf` files a binary-only reader missed.
+
+**And the catalog turns out to be authored in two units, with a 28-fold gap
+between them.** The largest extent of the small population is **1.82** and the
+smallest of the large is **51.42**: 141 models in metres, 27 already in
+centimetres. Both check out against real furniture — at ×100 a basin is 34 cm
+wide and a stack of books is 15; at ×1 a double bed is 140 × 200 and a door is
+97 × 222. This is what `Item.initObject` has been guessing at since the fork,
+with `if (halfSize.x < 1.0) resize(×300)` under a comment calling itself an ugly
+hack, and RM-009 U-3 measured the 300 wrong and assigned the fix here. At ×300
+that stack of books is 45 cm wide. **The band between the two populations is left
+ambiguous on purpose**: a model landing between 2 and 40 units is reported and
+the run fails rather than being silently assigned a unit, because the rule is
+fitted to this catalog and J2 will add packs it was not fitted to.
+
+The drawer shows the size in the unit the reader is working in, and shows nothing
+until the chunk lands — which is the split working rather than a defect.
+
+    branches   77.32 -> 77.37      lines      86.33 -> 86.33
+    statements 86.35 -> 86.36      functions  84.09 -> 84.09
+
+**21 new tests, 2,147 headless.** Still to come in J1: the metadata itself, browse
+by room, the twelve wall segments out of furniture, and the thumbnail tool.
+
+New public surface: `npm run catalog` / `catalog:check`, and
+`loadCatalogDetail()` from `useCatalog.js`.
+
 ## [3.0.1] - 2026-08-16
 
 No shipped code changed — `src/` is byte-identical to 3.0.0 and so is every
