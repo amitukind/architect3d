@@ -475,6 +475,40 @@ describe('V-7 - what a storey costs undo and autosave', () =>
 		expect(sizes[2] / sizes[0]).toBeGreaterThan(2);
 	});
 
+	/**
+	 * The best of several runs, not the mean of one.
+	 *
+	 * G3 wrote this as one timed loop per storey count and it was flaky at about
+	 * one run in ten - caught in H1, with the one-storey figure at 0.080 ms
+	 * against its usual 0.010 and therefore *above* the three-storey one, which
+	 * failed an ordering assertion that is true of the code and not always true
+	 * of the clock. Sub-microsecond work measured once measures the scheduler as
+	 * much as the work.
+	 *
+	 * The minimum over repetitions is the fix and it is a better statistic, not a
+	 * looser one: interference only ever *adds* time, so the smallest observation
+	 * is the closest estimate of what the work costs, while a mean estimates the
+	 * work plus whatever else the machine was doing.
+	 *
+	 * @param {() => void} work
+	 * @returns {number} Milliseconds per call.
+	 */
+	function bestOf(work)
+	{
+		const ITERATIONS = 200;
+		const REPETITIONS = 7;
+		// Warm, so the figure is the work rather than the first-call cost.
+		for (let i = 0; i < 50; i++) {work();}
+		let best = Infinity;
+		for (let repetition = 0; repetition < REPETITIONS; repetition++)
+		{
+			const started = window.performance.now();
+			for (let i = 0; i < ITERATIONS; i++) {work();}
+			best = Math.min(best, (window.performance.now() - started) / ITERATIONS);
+		}
+		return best;
+	}
+
 	it('measures the serialisation autosave debounces, at one, two and three storeys', () =>
 	{
 		// The write itself is asynchronous since RM-003 A5 and its cost is the
@@ -483,11 +517,7 @@ describe('V-7 - what a storey costs undo and autosave', () =>
 		const timings = [1, 2, 3].map((count) =>
 		{
 			const model = truncated(count);
-			// Warm, so the figure is the work rather than the first-call cost.
-			for (let i = 0; i < 20; i++) {model.exportSerialized();}
-			const started = window.performance.now();
-			for (let i = 0; i < 200; i++) {model.exportSerialized();}
-			return (window.performance.now() - started) / 200;
+			return bestOf(() => model.exportSerialized());
 		});
 
 		console.log('V-7 exportSerialized: '

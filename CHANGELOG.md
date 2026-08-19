@@ -933,7 +933,10 @@ predicted. `exportSerialized`, the part autosave still does on the main thread,
 runs in **0.010, 0.020 and 0.024 ms** — five readings, stable to the
 microsecond, and well inside a frame. (Under `--coverage` the same call reads
 0.022 / 0.024 / 0.034; the instrumented figure is not the one to quote, and both
-are recorded so the difference is not rediscovered.) Ten commits held
+are recorded so the difference is not rediscovered.) **Corrected by H1 to 0.007,
+0.019 and 0.024 ms**, ×3.3 — see that entry: these were a mean over one timed
+loop, which measures the scheduler as well as the work, and the test was flaky
+at about one run in ten because of it. Ten commits held
 104,190 bytes, so the 50-entry ceiling is about 505 KiB for this house — and
 about 1.2 MiB with sixty items on it, extrapolating at the 247 bytes a furniture
 record costs in `legacy-items`. **Decision: incremental history does not become
@@ -1019,6 +1022,70 @@ and nothing stops them disagreeing; H2's sun needs one.
 
 M-42 and M-43 are added. Seven weeks and the 3 + 2.5 + 1.5 split are unchanged;
 what moved is inside the sprints. No code, asset or test changed.
+
+**RM-011 H1 task one: the encode trial, and what it says the library can be.**
+The sprint's first bullet is *"the trial is task one … the library's size is a
+result of this task, not an input to it."* It ran, and it corrects the drawing
+that asked for it.
+
+**The encoder was there all along.** W-6 said `ktx`, `toktx` and `basisu` are
+absent from this machine and concluded the encoder was unavailable — but that
+checks for the KTX-Software *system binaries*, and RM-004 B5 vendored a WASM
+encoder two programmes ago. `ktx2-encoder` is a devDependency, `npm run
+encode:textures` and `npm run oracle` both drive it, and H1 put 48 encodes
+through it in its first hour. The conclusion W-6 drew still stands; it stands
+for a better reason.
+
+**`tools/material-trial.mjs`**, run through the transcode oracle's own harness
+rather than a second copy of it — `measurePairs` is extracted from that tool for
+this caller, the same move F3 made for `solid_builder.js`. Four of the tree's
+material photographs, each turned into the three maps a PBR material is, each
+encoded at three settings, each rendered against its source and differenced in
+the framebuffer.
+
+| map | hi-freq | best RMS | % of source | ships as |
+|---|---|---|---|---|
+| albedo | 0.0414 | 2.182 UASTC | 186 % | its source |
+| normal, from a JPEG | 0.1216 | 8.827 UASTC | — | its source, 0 of 4 pass |
+| normal, smoothed | 0.0195 | 1.049 UASTC | 110 % | its source, 3 of 4 pass |
+| roughness | 0.0462 | 1.141 UASTC | 86 % | **UASTC** |
+
+**The trial got it wrong twice before it got it right, and both are recorded in
+the tool.** The first draft encoded normal maps with the options for a
+photograph — perceptual weighting, an sRGB transfer function — and got RMS 35 to
+48, which reads as "Basis cannot carry a normal map" and is nothing of the sort;
+it is what a perceptual encoder does when asked to preserve a vector field. The
+second derived those maps from JPEGs at full strength, turning the source
+image's own 8×8 ringing into surface detail: the result carries three to ten
+times the high-frequency energy of anything else measured, and no block codec
+compresses a 4×4 neighbourhood whose texels all disagree. The trial now derives
+the normal map twice, raw and smoothed, and reports both — the sensitivity made
+visible instead of a number chosen.
+
+**The finding is that the binding constraint is the image, not the codec.**
+Fidelity tracks the high-frequency share across all sixteen inputs, which is why
+one setting gives 1.049 on one normal map and 12.888 on another. UASTC
+transcodes to ASTC 4×4 on this device, so these are not a software rasteriser's
+numbers.
+
+**And the number the sprint asked for: a material is 497,583 bytes with three
+maps and 103,512 with one, so today's 78,894 bytes of `public-total` headroom is
+zero materials.** Ninety of them with three maps needs the runtime-asset budget
+to go from 5.9 MB to **48.5 MB**, an 8.2× raise; thirty with albedo and
+roughness is 8.8 MB, a 1.5× one. For a product whose premise is a static host
+and no server, that decides it: **H1 ships about thirty materials, albedo and
+roughness**, with normal maps added later as real bakes rather than derived.
+Recorded as W-12.
+
+Two smaller repairs found by running the tools. A plain `npm run oracle`
+**deleted the sweep evidence** that `--sweep` had merged into the same file —
+the evidence for every codec refusal survived exactly until the next ordinary
+check, which is the shape that tool exists to prevent; it is carried forward
+now. And the oracle's harness hard-coded sRGB for every texture, so a normal or
+roughness map would have been differenced as though it were colour; it takes the
+pair's colour space and renders the output to match, which keeps the path
+transparent. **The oracle reproduces its own report byte-identically after all
+three changes**, which is how both were visible.
 
 ## [3.0.1] - 2026-08-16
 

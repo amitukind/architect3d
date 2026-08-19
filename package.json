@@ -57,6 +57,8 @@
 		"repoint:check": "node tools/repoint-textures.mjs --check",
 		"oracle": "node tools/transcode-oracle.mjs",
 		"oracle:check": "node tools/transcode-oracle.mjs --check",
+		"material-trial": "node tools/material-trial.mjs",
+		"material-trial:check": "node tools/material-trial.mjs --check",
 		"budget": "node tools/check-budget.mjs",
 		"budget:update": "node tools/check-budget.mjs --update",
 		"lint": "eslint . --max-warnings 0",

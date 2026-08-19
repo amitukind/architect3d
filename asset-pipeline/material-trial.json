@@ -1,0 +1,1020 @@
+{
+	"note": [
+		"RM-011 H1 task one. Can ETC1S or UASTC carry a material library?",
+		"",
+		"Four of the tree's own material photographs, each turned into the three",
+		"maps a PBR material is, each encoded at three settings, and each rendered",
+		"against its source through the transcode oracle's harness and differenced",
+		"in the framebuffer. The normal and roughness maps are derived here rather",
+		"than downloaded - see the module comment for why, and for the derivation.",
+		"",
+		"THE LIBRARY'S SIZE IS DECIDED BY THIS FILE, not by RM-007's \"about ninety\"."
+	],
+	"gate": {
+		"codecRms": 3,
+		"source": "tools/resize-textures.mjs GATES"
+	},
+	"derivation": {
+		"normalStrength": 8,
+		"roughnessRadius": 2
+	},
+	"settings": {
+		"albedo": [
+			{
+				"label": "ETC1S q128",
+				"isUASTC": false,
+				"qualityLevel": 128
+			},
+			{
+				"label": "ETC1S q255",
+				"isUASTC": false,
+				"qualityLevel": 255
+			},
+			{
+				"label": "UASTC",
+				"isUASTC": true
+			}
+		],
+		"normal": [
+			{
+				"label": "ETC1S q128",
+				"isUASTC": false,
+				"qualityLevel": 128,
+				"isNormalMap": true,
+				"isPerceptual": false,
+				"isSetKTX2SRGBTransferFunc": false,
+				"isInputSRGB": false
+			},
+			{
+				"label": "ETC1S q255",
+				"isUASTC": false,
+				"qualityLevel": 255,
+				"isNormalMap": true,
+				"isPerceptual": false,
+				"isSetKTX2SRGBTransferFunc": false,
+				"isInputSRGB": false
+			},
+			{
+				"label": "UASTC",
+				"isUASTC": true,
+				"isNormalMap": true,
+				"isPerceptual": false,
+				"isSetKTX2SRGBTransferFunc": false,
+				"isInputSRGB": false
+			}
+		],
+		"normal-smooth": [
+			{
+				"label": "ETC1S q128",
+				"isUASTC": false,
+				"qualityLevel": 128,
+				"isNormalMap": true,
+				"isPerceptual": false,
+				"isSetKTX2SRGBTransferFunc": false,
+				"isInputSRGB": false
+			},
+			{
+				"label": "ETC1S q255",
+				"isUASTC": false,
+				"qualityLevel": 255,
+				"isNormalMap": true,
+				"isPerceptual": false,
+				"isSetKTX2SRGBTransferFunc": false,
+				"isInputSRGB": false
+			},
+			{
+				"label": "UASTC",
+				"isUASTC": true,
+				"isNormalMap": true,
+				"isPerceptual": false,
+				"isSetKTX2SRGBTransferFunc": false,
+				"isInputSRGB": false
+			}
+		],
+		"roughness": [
+			{
+				"label": "ETC1S q128",
+				"isUASTC": false,
+				"qualityLevel": 128,
+				"isPerceptual": false,
+				"isSetKTX2SRGBTransferFunc": false,
+				"isInputSRGB": false
+			},
+			{
+				"label": "ETC1S q255",
+				"isUASTC": false,
+				"qualityLevel": 255,
+				"isPerceptual": false,
+				"isSetKTX2SRGBTransferFunc": false,
+				"isInputSRGB": false
+			},
+			{
+				"label": "UASTC",
+				"isUASTC": true,
+				"isPerceptual": false,
+				"isSetKTX2SRGBTransferFunc": false,
+				"isInputSRGB": false
+			}
+		]
+	},
+	"colorSpace": {
+		"albedo": "srgb",
+		"normal": "linear",
+		"normal-smooth": "linear",
+		"roughness": "linear"
+	},
+	"candidates": [
+		{
+			"name": "hardwood.albedo",
+			"material": "hardwood",
+			"kind": "plank wood",
+			"map": "albedo",
+			"pixels": "512x512",
+			"sourceBytes": 145605,
+			"derivedAs": "the shipped photograph",
+			"highFrequencyShare": 0.0452
+		},
+		{
+			"name": "hardwood.normal",
+			"material": "hardwood",
+			"kind": "plank wood",
+			"map": "normal",
+			"pixels": "512x512",
+			"sourceBytes": 791843,
+			"derivedAs": "Sobel, strength 8, no smoothing",
+			"highFrequencyShare": 0.157
+		},
+		{
+			"name": "hardwood.normal-smooth",
+			"material": "hardwood",
+			"kind": "plank wood",
+			"map": "normal-smooth",
+			"pixels": "512x512",
+			"sourceBytes": 399297,
+			"derivedAs": "Sobel, strength 2, blurred r2",
+			"highFrequencyShare": 0.0221
+		},
+		{
+			"name": "hardwood.roughness",
+			"material": "hardwood",
+			"kind": "plank wood",
+			"map": "roughness",
+			"pixels": "512x512",
+			"sourceBytes": 391217,
+			"derivedAs": "local deviation, r2",
+			"highFrequencyShare": 0.0375
+		},
+		{
+			"name": "marbletiles.albedo",
+			"material": "marbletiles",
+			"kind": "stone tile",
+			"map": "albedo",
+			"pixels": "512x512",
+			"sourceBytes": 166198,
+			"derivedAs": "the shipped photograph",
+			"highFrequencyShare": 0.0453
+		},
+		{
+			"name": "marbletiles.normal",
+			"material": "marbletiles",
+			"kind": "stone tile",
+			"map": "normal",
+			"pixels": "512x512",
+			"sourceBytes": 777894,
+			"derivedAs": "Sobel, strength 8, no smoothing",
+			"highFrequencyShare": 0.1266
+		},
+		{
+			"name": "marbletiles.normal-smooth",
+			"material": "marbletiles",
+			"kind": "stone tile",
+			"map": "normal-smooth",
+			"pixels": "512x512",
+			"sourceBytes": 310705,
+			"derivedAs": "Sobel, strength 2, blurred r2",
+			"highFrequencyShare": 0.0133
+		},
+		{
+			"name": "marbletiles.roughness",
+			"material": "marbletiles",
+			"kind": "stone tile",
+			"map": "roughness",
+			"pixels": "512x512",
+			"sourceBytes": 272971,
+			"derivedAs": "local deviation, r2",
+			"highFrequencyShare": 0.0291
+		},
+		{
+			"name": "light_brick.albedo",
+			"material": "light_brick",
+			"kind": "masonry",
+			"map": "albedo",
+			"pixels": "256x256",
+			"sourceBytes": 60715,
+			"derivedAs": "the shipped photograph",
+			"highFrequencyShare": 0.0421
+		},
+		{
+			"name": "light_brick.normal",
+			"material": "light_brick",
+			"kind": "masonry",
+			"map": "normal",
+			"pixels": "256x256",
+			"sourceBytes": 188062,
+			"derivedAs": "Sobel, strength 8, no smoothing",
+			"highFrequencyShare": 0.1173
+		},
+		{
+			"name": "light_brick.normal-smooth",
+			"material": "light_brick",
+			"kind": "masonry",
+			"map": "normal-smooth",
+			"pixels": "256x256",
+			"sourceBytes": 107008,
+			"derivedAs": "Sobel, strength 2, blurred r2",
+			"highFrequencyShare": 0.0311
+		},
+		{
+			"name": "light_brick.roughness",
+			"material": "light_brick",
+			"kind": "masonry",
+			"map": "roughness",
+			"pixels": "256x256",
+			"sourceBytes": 116001,
+			"derivedAs": "local deviation, r2",
+			"highFrequencyShare": 0.0754
+		},
+		{
+			"name": "light_fine_wood.albedo",
+			"material": "light_fine_wood",
+			"kind": "fine wood",
+			"map": "albedo",
+			"pixels": "256x256",
+			"sourceBytes": 41528,
+			"derivedAs": "the shipped photograph",
+			"highFrequencyShare": 0.0331
+		},
+		{
+			"name": "light_fine_wood.normal",
+			"material": "light_fine_wood",
+			"kind": "fine wood",
+			"map": "normal",
+			"pixels": "256x256",
+			"sourceBytes": 168875,
+			"derivedAs": "Sobel, strength 8, no smoothing",
+			"highFrequencyShare": 0.0854
+		},
+		{
+			"name": "light_fine_wood.normal-smooth",
+			"material": "light_fine_wood",
+			"kind": "fine wood",
+			"map": "normal-smooth",
+			"pixels": "256x256",
+			"sourceBytes": 67639,
+			"derivedAs": "Sobel, strength 2, blurred r2",
+			"highFrequencyShare": 0.0115
+		},
+		{
+			"name": "light_fine_wood.roughness",
+			"material": "light_fine_wood",
+			"kind": "fine wood",
+			"map": "roughness",
+			"pixels": "256x256",
+			"sourceBytes": 61258,
+			"derivedAs": "local deviation, r2",
+			"highFrequencyShare": 0.0428
+		}
+	],
+	"verdicts": [
+		{
+			"map": "albedo",
+			"materials": 4,
+			"meanHighFrequency": 0.0414,
+			"meanSourceBytes": 103512,
+			"attempts": [
+				{
+					"setting": "ETC1S q128",
+					"passing": 1,
+					"worstRms": 7.379,
+					"meanBytes": 29946,
+					"meanPctOfSource": 28
+				},
+				{
+					"setting": "ETC1S q255",
+					"passing": 1,
+					"worstRms": 6.087,
+					"meanBytes": 55911,
+					"meanPctOfSource": 51
+				},
+				{
+					"setting": "UASTC",
+					"passing": 4,
+					"worstRms": 2.182,
+					"meanBytes": 201648,
+					"meanPctOfSource": 186
+				}
+			],
+			"ships": "its source, uncompressed",
+			"shipsMeanBytes": 103512,
+			"note": "clears the gate at UASTC but at 186 % of source, so the container costs more than it saves"
+		},
+		{
+			"map": "normal",
+			"materials": 4,
+			"meanHighFrequency": 0.1216,
+			"meanSourceBytes": 481669,
+			"attempts": [
+				{
+					"setting": "ETC1S q128",
+					"passing": 0,
+					"worstRms": 48.523,
+					"meanBytes": 45964,
+					"meanPctOfSource": 10
+				},
+				{
+					"setting": "ETC1S q255",
+					"passing": 0,
+					"worstRms": 47.104,
+					"meanBytes": 73152,
+					"meanPctOfSource": 16
+				},
+				{
+					"setting": "UASTC",
+					"passing": 0,
+					"worstRms": 15.298,
+					"meanBytes": 212724,
+					"meanPctOfSource": 46
+				}
+			],
+			"ships": "its source, uncompressed",
+			"shipsMeanBytes": 481669,
+			"note": "0 of 4 materials clear the 3 gate at best"
+		},
+		{
+			"map": "normal-smooth",
+			"materials": 4,
+			"meanHighFrequency": 0.0195,
+			"meanSourceBytes": 221162,
+			"attempts": [
+				{
+					"setting": "ETC1S q128",
+					"passing": 0,
+					"worstRms": 16.721,
+					"meanBytes": 32663,
+					"meanPctOfSource": 16
+				},
+				{
+					"setting": "ETC1S q255",
+					"passing": 0,
+					"worstRms": 16.651,
+					"meanBytes": 48709,
+					"meanPctOfSource": 23
+				},
+				{
+					"setting": "UASTC",
+					"passing": 3,
+					"worstRms": 3.47,
+					"meanBytes": 193293,
+					"meanPctOfSource": 90
+				}
+			],
+			"ships": "its source, uncompressed",
+			"shipsMeanBytes": 221162,
+			"note": "3 of 4 materials clear the 3 gate at best"
+		},
+		{
+			"map": "roughness",
+			"materials": 4,
+			"meanHighFrequency": 0.0462,
+			"meanSourceBytes": 210362,
+			"attempts": [
+				{
+					"setting": "ETC1S q128",
+					"passing": 3,
+					"worstRms": 6.135,
+					"meanBytes": 27228,
+					"meanPctOfSource": 14
+				},
+				{
+					"setting": "ETC1S q255",
+					"passing": 3,
+					"worstRms": 5.082,
+					"meanBytes": 42823,
+					"meanPctOfSource": 21
+				},
+				{
+					"setting": "UASTC",
+					"passing": 4,
+					"worstRms": 1.141,
+					"meanBytes": 172909,
+					"meanPctOfSource": 86
+				}
+			],
+			"ships": "UASTC",
+			"shipsMeanBytes": 172909,
+			"note": "every material clears the 3 gate at UASTC, at 86 % of source"
+		}
+	],
+	"sizing": {
+		"bytesPerMaterialThreeMaps": 497583,
+		"bytesPerMaterialAlbedoOnly": 103512,
+		"headroomBytes": 78894,
+		"materialsThatFitThreeMaps": 0,
+		"materialsThatFitAlbedoOnly": 0,
+		"raiseRequired": [
+			{
+				"materials": 10,
+				"threeMapsBytes": 4975830,
+				"albedoOnlyBytes": 1035120
+			},
+			{
+				"materials": 30,
+				"threeMapsBytes": 14927490,
+				"albedoOnlyBytes": 3105360
+			},
+			{
+				"materials": 90,
+				"threeMapsBytes": 44782470,
+				"albedoOnlyBytes": 9316080
+			}
+		]
+	},
+	"rows": [
+		{
+			"name": "hardwood.albedo",
+			"setting": "ETC1S q128",
+			"measuredAs": "srgb",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 6.147,
+			"max": 42,
+			"pctOver8": 15.23,
+			"bytes": 49687,
+			"pctOfSource": 34,
+			"clearsGate": false
+		},
+		{
+			"name": "hardwood.albedo",
+			"setting": "ETC1S q255",
+			"measuredAs": "srgb",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 4.518,
+			"max": 27,
+			"pctOver8": 6.08,
+			"bytes": 91305,
+			"pctOfSource": 63,
+			"clearsGate": false
+		},
+		{
+			"name": "hardwood.albedo",
+			"setting": "UASTC",
+			"measuredAs": "srgb",
+			"transcodedTo": "RGBA_ASTC_4x4_Format",
+			"rms": 1.589,
+			"max": 13,
+			"pctOver8": 0.01,
+			"bytes": 335460,
+			"pctOfSource": 230,
+			"clearsGate": true
+		},
+		{
+			"name": "hardwood.normal",
+			"setting": "ETC1S q128",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 48.523,
+			"max": 190,
+			"pctOver8": 87.99,
+			"bytes": 71737,
+			"pctOfSource": 9,
+			"clearsGate": false
+		},
+		{
+			"name": "hardwood.normal",
+			"setting": "ETC1S q255",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 47.104,
+			"max": 188,
+			"pctOver8": 87.77,
+			"bytes": 113548,
+			"pctOfSource": 14,
+			"clearsGate": false
+		},
+		{
+			"name": "hardwood.normal",
+			"setting": "UASTC",
+			"measuredAs": "linear",
+			"transcodedTo": "RGBA_ASTC_4x4_Format",
+			"rms": 15.298,
+			"max": 104,
+			"pctOver8": 52.08,
+			"bytes": 338950,
+			"pctOfSource": 43,
+			"clearsGate": false
+		},
+		{
+			"name": "hardwood.normal-smooth",
+			"setting": "ETC1S q128",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 7.772,
+			"max": 56,
+			"pctOver8": 22.72,
+			"bytes": 53938,
+			"pctOfSource": 14,
+			"clearsGate": false
+		},
+		{
+			"name": "hardwood.normal-smooth",
+			"setting": "ETC1S q255",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 7.666,
+			"max": 56,
+			"pctOver8": 22.15,
+			"bytes": 81939,
+			"pctOfSource": 21,
+			"clearsGate": false
+		},
+		{
+			"name": "hardwood.normal-smooth",
+			"setting": "UASTC",
+			"measuredAs": "linear",
+			"transcodedTo": "RGBA_ASTC_4x4_Format",
+			"rms": 2.091,
+			"max": 19,
+			"pctOver8": 0.33,
+			"bytes": 316100,
+			"pctOfSource": 79,
+			"clearsGate": true
+		},
+		{
+			"name": "hardwood.roughness",
+			"setting": "ETC1S q128",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 2.791,
+			"max": 24,
+			"pctOver8": 0.84,
+			"bytes": 45947,
+			"pctOfSource": 12,
+			"clearsGate": true
+		},
+		{
+			"name": "hardwood.roughness",
+			"setting": "ETC1S q255",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 2.27,
+			"max": 16,
+			"pctOver8": 0.23,
+			"bytes": 77603,
+			"pctOfSource": 20,
+			"clearsGate": true
+		},
+		{
+			"name": "hardwood.roughness",
+			"setting": "UASTC",
+			"measuredAs": "linear",
+			"transcodedTo": "RGBA_ASTC_4x4_Format",
+			"rms": 0.441,
+			"max": 4,
+			"pctOver8": 0,
+			"bytes": 284723,
+			"pctOfSource": 73,
+			"clearsGate": true
+		},
+		{
+			"name": "marbletiles.albedo",
+			"setting": "ETC1S q128",
+			"measuredAs": "srgb",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 4.12,
+			"max": 35,
+			"pctOver8": 4.14,
+			"bytes": 44423,
+			"pctOfSource": 27,
+			"clearsGate": false
+		},
+		{
+			"name": "marbletiles.albedo",
+			"setting": "ETC1S q255",
+			"measuredAs": "srgb",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 3.23,
+			"max": 29,
+			"pctOver8": 0.81,
+			"bytes": 86857,
+			"pctOfSource": 52,
+			"clearsGate": false
+		},
+		{
+			"name": "marbletiles.albedo",
+			"setting": "UASTC",
+			"measuredAs": "srgb",
+			"transcodedTo": "RGBA_ASTC_4x4_Format",
+			"rms": 1.187,
+			"max": 6,
+			"pctOver8": 0,
+			"bytes": 308313,
+			"pctOfSource": 186,
+			"clearsGate": true
+		},
+		{
+			"name": "marbletiles.normal",
+			"setting": "ETC1S q128",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 38.392,
+			"max": 163,
+			"pctOver8": 80.22,
+			"bytes": 71308,
+			"pctOfSource": 9,
+			"clearsGate": false
+		},
+		{
+			"name": "marbletiles.normal",
+			"setting": "ETC1S q255",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 36.776,
+			"max": 145,
+			"pctOver8": 79.58,
+			"bytes": 113838,
+			"pctOfSource": 15,
+			"clearsGate": false
+		},
+		{
+			"name": "marbletiles.normal",
+			"setting": "UASTC",
+			"measuredAs": "linear",
+			"transcodedTo": "RGBA_ASTC_4x4_Format",
+			"rms": 12.764,
+			"max": 97,
+			"pctOver8": 47.38,
+			"bytes": 341509,
+			"pctOfSource": 44,
+			"clearsGate": false
+		},
+		{
+			"name": "marbletiles.normal-smooth",
+			"setting": "ETC1S q128",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 4.52,
+			"max": 36,
+			"pctOver8": 7.41,
+			"bytes": 46934,
+			"pctOfSource": 15,
+			"clearsGate": false
+		},
+		{
+			"name": "marbletiles.normal-smooth",
+			"setting": "ETC1S q255",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 4.453,
+			"max": 36,
+			"pctOver8": 7.05,
+			"bytes": 72433,
+			"pctOfSource": 23,
+			"clearsGate": false
+		},
+		{
+			"name": "marbletiles.normal-smooth",
+			"setting": "UASTC",
+			"measuredAs": "linear",
+			"transcodedTo": "RGBA_ASTC_4x4_Format",
+			"rms": 1.247,
+			"max": 11,
+			"pctOver8": 0,
+			"bytes": 302305,
+			"pctOfSource": 97,
+			"clearsGate": true
+		},
+		{
+			"name": "marbletiles.roughness",
+			"setting": "ETC1S q128",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 1.736,
+			"max": 14,
+			"pctOver8": 0.02,
+			"bytes": 39548,
+			"pctOfSource": 14,
+			"clearsGate": true
+		},
+		{
+			"name": "marbletiles.roughness",
+			"setting": "ETC1S q255",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 1.571,
+			"max": 11,
+			"pctOver8": 0.01,
+			"bytes": 58901,
+			"pctOfSource": 22,
+			"clearsGate": true
+		},
+		{
+			"name": "marbletiles.roughness",
+			"setting": "UASTC",
+			"measuredAs": "linear",
+			"transcodedTo": "RGBA_ASTC_4x4_Format",
+			"rms": 0.261,
+			"max": 2,
+			"pctOver8": 0,
+			"bytes": 264133,
+			"pctOfSource": 97,
+			"clearsGate": true
+		},
+		{
+			"name": "light_brick.albedo",
+			"setting": "ETC1S q128",
+			"measuredAs": "srgb",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 7.379,
+			"max": 55,
+			"pctOver8": 20.11,
+			"bytes": 14736,
+			"pctOfSource": 24,
+			"clearsGate": false
+		},
+		{
+			"name": "light_brick.albedo",
+			"setting": "ETC1S q255",
+			"measuredAs": "srgb",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 6.087,
+			"max": 39,
+			"pctOver8": 14.15,
+			"bytes": 26245,
+			"pctOfSource": 43,
+			"clearsGate": false
+		},
+		{
+			"name": "light_brick.albedo",
+			"setting": "UASTC",
+			"measuredAs": "srgb",
+			"transcodedTo": "RGBA_ASTC_4x4_Format",
+			"rms": 2.182,
+			"max": 19,
+			"pctOver8": 0.33,
+			"bytes": 86098,
+			"pctOfSource": 142,
+			"clearsGate": true
+		},
+		{
+			"name": "light_brick.normal",
+			"setting": "ETC1S q128",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 40.785,
+			"max": 216,
+			"pctOver8": 80.28,
+			"bytes": 21285,
+			"pctOfSource": 11,
+			"clearsGate": false
+		},
+		{
+			"name": "light_brick.normal",
+			"setting": "ETC1S q255",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 39.199,
+			"max": 187,
+			"pctOver8": 79.68,
+			"bytes": 34731,
+			"pctOfSource": 18,
+			"clearsGate": false
+		},
+		{
+			"name": "light_brick.normal",
+			"setting": "UASTC",
+			"measuredAs": "linear",
+			"transcodedTo": "RGBA_ASTC_4x4_Format",
+			"rms": 12.888,
+			"max": 96,
+			"pctOver8": 42.99,
+			"bytes": 85762,
+			"pctOfSource": 46,
+			"clearsGate": false
+		},
+		{
+			"name": "light_brick.normal-smooth",
+			"setting": "ETC1S q128",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 16.721,
+			"max": 109,
+			"pctOver8": 39.93,
+			"bytes": 17844,
+			"pctOfSource": 17,
+			"clearsGate": false
+		},
+		{
+			"name": "light_brick.normal-smooth",
+			"setting": "ETC1S q255",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 16.651,
+			"max": 104,
+			"pctOver8": 39.39,
+			"bytes": 23959,
+			"pctOfSource": 22,
+			"clearsGate": false
+		},
+		{
+			"name": "light_brick.normal-smooth",
+			"setting": "UASTC",
+			"measuredAs": "linear",
+			"transcodedTo": "RGBA_ASTC_4x4_Format",
+			"rms": 3.47,
+			"max": 44,
+			"pctOver8": 3.71,
+			"bytes": 80359,
+			"pctOfSource": 75,
+			"clearsGate": false
+		},
+		{
+			"name": "light_brick.roughness",
+			"setting": "ETC1S q128",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 6.135,
+			"max": 45,
+			"pctOver8": 14.74,
+			"bytes": 12947,
+			"pctOfSource": 11,
+			"clearsGate": false
+		},
+		{
+			"name": "light_brick.roughness",
+			"setting": "ETC1S q255",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 5.082,
+			"max": 28,
+			"pctOver8": 10.79,
+			"bytes": 19231,
+			"pctOfSource": 17,
+			"clearsGate": false
+		},
+		{
+			"name": "light_brick.roughness",
+			"setting": "UASTC",
+			"measuredAs": "linear",
+			"transcodedTo": "RGBA_ASTC_4x4_Format",
+			"rms": 1.141,
+			"max": 7,
+			"pctOver8": 0,
+			"bytes": 76415,
+			"pctOfSource": 66,
+			"clearsGate": true
+		},
+		{
+			"name": "light_fine_wood.albedo",
+			"setting": "ETC1S q128",
+			"measuredAs": "srgb",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 2.639,
+			"max": 20,
+			"pctOver8": 0.53,
+			"bytes": 10939,
+			"pctOfSource": 26,
+			"clearsGate": true
+		},
+		{
+			"name": "light_fine_wood.albedo",
+			"setting": "ETC1S q255",
+			"measuredAs": "srgb",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 2.463,
+			"max": 14,
+			"pctOver8": 0.35,
+			"bytes": 19238,
+			"pctOfSource": 46,
+			"clearsGate": true
+		},
+		{
+			"name": "light_fine_wood.albedo",
+			"setting": "UASTC",
+			"measuredAs": "srgb",
+			"transcodedTo": "RGBA_ASTC_4x4_Format",
+			"rms": 0.971,
+			"max": 5,
+			"pctOver8": 0,
+			"bytes": 76722,
+			"pctOfSource": 185,
+			"clearsGate": true
+		},
+		{
+			"name": "light_fine_wood.normal",
+			"setting": "ETC1S q128",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 30.31,
+			"max": 164,
+			"pctOver8": 72.47,
+			"bytes": 19524,
+			"pctOfSource": 12,
+			"clearsGate": false
+		},
+		{
+			"name": "light_fine_wood.normal",
+			"setting": "ETC1S q255",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 29.482,
+			"max": 135,
+			"pctOver8": 71.5,
+			"bytes": 30489,
+			"pctOfSource": 18,
+			"clearsGate": false
+		},
+		{
+			"name": "light_fine_wood.normal",
+			"setting": "UASTC",
+			"measuredAs": "linear",
+			"transcodedTo": "RGBA_ASTC_4x4_Format",
+			"rms": 8.827,
+			"max": 92,
+			"pctOver8": 27.54,
+			"bytes": 84676,
+			"pctOfSource": 50,
+			"clearsGate": false
+		},
+		{
+			"name": "light_fine_wood.normal-smooth",
+			"setting": "ETC1S q128",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 4.424,
+			"max": 30,
+			"pctOver8": 6.94,
+			"bytes": 11934,
+			"pctOfSource": 18,
+			"clearsGate": false
+		},
+		{
+			"name": "light_fine_wood.normal-smooth",
+			"setting": "ETC1S q255",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 4.388,
+			"max": 30,
+			"pctOver8": 6.75,
+			"bytes": 16503,
+			"pctOfSource": 24,
+			"clearsGate": false
+		},
+		{
+			"name": "light_fine_wood.normal-smooth",
+			"setting": "UASTC",
+			"measuredAs": "linear",
+			"transcodedTo": "RGBA_ASTC_4x4_Format",
+			"rms": 1.049,
+			"max": 10,
+			"pctOver8": 0,
+			"bytes": 74407,
+			"pctOfSource": 110,
+			"clearsGate": true
+		},
+		{
+			"name": "light_fine_wood.roughness",
+			"setting": "ETC1S q128",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 1.813,
+			"max": 10,
+			"pctOver8": 0.01,
+			"bytes": 10470,
+			"pctOfSource": 17,
+			"clearsGate": true
+		},
+		{
+			"name": "light_fine_wood.roughness",
+			"setting": "ETC1S q255",
+			"measuredAs": "linear",
+			"transcodedTo": "RGB_ETC2_Format",
+			"rms": 1.642,
+			"max": 9,
+			"pctOver8": 0,
+			"bytes": 15558,
+			"pctOfSource": 25,
+			"clearsGate": true
+		},
+		{
+			"name": "light_fine_wood.roughness",
+			"setting": "UASTC",
+			"measuredAs": "linear",
+			"transcodedTo": "RGBA_ASTC_4x4_Format",
+			"rms": 0.274,
+			"max": 2,
+			"pctOver8": 0,
+			"bytes": 66363,
+			"pctOfSource": 108,
+			"clearsGate": true
+		}
+	]
+}
