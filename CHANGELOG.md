@@ -555,6 +555,69 @@ and the five files E touches cover 36–69% of statements — the least-covered 
 the library, against a branch floor with 0.77% of headroom — so every sprint
 states a test budget. No code, asset or test changed.
 
+**RM-008 F3 delivered: a flight of stairs is its numbers.** Straight, quarter-turn
+and half-turn flights generated in the browser, with a rise, a going, a tread
+count, a width and a handrail, a plan symbol with tread lines and an up arrow,
+and a stairwell hint the plan draws and nothing acts on. **M-37 met on the
+geometry rather than on the arithmetic**: every generated flight is built and its
+bounding box read, and tread count times rise is its height and tread count times
+going is its plan length to the millimetre, over thirty combinations of shape,
+count, rise, going and handrail.
+
+**The sprint opened by testing F1's interface, which is what RM-009 asked it to
+do.** The risk table said "the generator is written inside `Item` and F3 copies
+it", and the answer measured is: half right. F1 drew the boundary at the *call* -
+numbers in, a `BufferGeometry` and a material list out, nothing about doors
+leaking - but the four pieces underneath it were module-private to `opening.js`,
+so a second caller could only copy them or import from a module named after
+doors. They moved to `items/solid_builder.js` unchanged, `opening.js` became its
+first caller rather than its second, and F1's 34 tests passed without an edit.
+One function is new rather than moved: a rotation about the horizontal, because a
+door swings about the vertical and a handrail follows a pitch.
+
+**The item class needed *less* than F1's, not more, and that is the interesting
+result.** `ParametricOpening` had to override `objectHalfSize` because a door's
+leaf is drawn standing open and a 90 cm door's bounding box is 86 cm deep - the
+drawn thing escapes the described thing. A flight's does not, once the handrail
+and its posts are sized to stay inside the run they serve, so the inherited
+implementation is already right and an override would be a second copy of the
+same number. Making that true cost four lines and 4 cm: a rail the length of the
+pitch line overhangs its run by half its own section when rotated, and a post
+centred on the run's foot is half a post outside it, so a 400 cm flight measured
+404. The plan symbol and the solid now occupy one rectangle.
+
+**Nothing is stored that can be derived.** The height, the plan length, where
+the landing falls, and the rectangle a floor above would have to open are all
+computed from the seven fields that are saved. The stairwell is the one worth
+naming: the floor above sits at the flight's own height, so the opening has to
+cover every tread with less than two metres over it - for the default flight that
+is the top twelve treads and not the whole footprint, which is the difference
+between a hint worth recording and an assumption.
+
+**The four catalog stair meshes are superseded rather than scaled.** RM-009 U-3
+measured them arriving 5.5 m wide and 4 m tall; fixing the multiplier is RM-007
+J1's and a generated flight does not go near it. The browser tier loads one of
+those meshes and a generated flight into the same page and compares the two,
+rather than quoting the old measurement.
+
+**A bug in E4's sheet export, found by rendering one and reading it.**
+`renderPlanToCanvas` painted the paper before calling `renderTo`, and `draw()`
+opens with `backend.clear()` - so the ground was wiped a moment after being
+painted and a PNG came out transparent. It survived E4 because the application
+sets a themed background that `draw()` paints immediately afterwards, so it only
+showed for a library embedder who had not styled anything, and because the test
+that counts ink counts it by RGB, under which a transparent pixel reads as ink
+rather than as a hole. The ground now goes to the backend, which paints it after
+the clear, rounded up to the bitmap - the logical sheet size is fractional, and
+filling the logical rectangle left exactly one row of the image transparent.
+
+**77 new headless tests and 6 new browser tests, 1,727 and 94.** Coverage up on
+all four counters: statements 82.58 -> 83.12, branches 73.32 -> 73.73, functions
+80.29 -> 80.82, lines 82.63 -> 83.16. One budget moved, `lib-esm-gzip` by 3.9 KB
+gzipped, with the reason in `tools/budget.json`; the three F1 raised did not need
+to move again, which is what raising them to 5% headroom rather than to
+just-enough was for.
+
 ## [3.0.1] - 2026-08-16
 
 No shipped code changed — `src/` is byte-identical to 3.0.0 and so is every

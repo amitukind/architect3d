@@ -433,10 +433,34 @@ three's own addons — the previously vendored copies are gone as of S5.
 
 ### `items` — the furniture
 
-Eight classes over one `Item` base, and the class decides how a thing behaves:
+Ten classes over one `Item` base, and the class decides how a thing behaves:
 whether it snaps to a wall, cuts a hole in one, sits on the floor, hangs from
 the roof, or floats free. `factory.js` maps the numeric `item_type` in a save
-file to the class. Adding a ninth type means a class and a factory entry.
+file to the class. Adding another type means a class and a factory entry —
+appended, never filling one of the gaps at 5 and 6, because a type number is
+written into every save file and one that used to mean something else is a trap.
+
+**Two of the ten are generated rather than downloaded**: `ParametricOpening`
+(type 10, RM-008 F1) and `ParametricStair` (type 11, F3). They carry a
+description — seven numbers for a door, seven for a flight — and their mesh, the
+hole they cut, the symbol the plan draws and the record they save are all
+derived from it. Everything else about them is an ordinary item: they select,
+undo, project and persist through the same paths.
+
+The generator itself is three files with a deliberate seam:
+
+| File | What it is |
+|---|---|
+| `solid_builder.js` | Boxes into a buffer, with material groups, and two rotations. Knows nothing about doors or stairs |
+| `opening.js` | A door, window or archway: the description, the clamp, the geometry |
+| `stair.js` | A flight: the description, the shape of its runs and landings, the plan symbol, the stairwell hint, the geometry |
+
+`solid_builder.js` was written inside `opening.js` for F1 and moved out by F3,
+unchanged, when stairs became its second caller — which is the check RM-009's
+risk table asked F3 to make. What it found is that F1 had drawn the boundary at
+the *call* (numbers in, a `BufferGeometry` and a material list out) but not
+underneath it: the four builder pieces were module-private, so a second caller's
+only options were to copy them or to import from a module named after doors.
 
 ## The application layer
 

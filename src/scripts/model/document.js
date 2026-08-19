@@ -416,10 +416,12 @@ function validateItems(items, errors)
 		// Only the fields whose absence breaks the load. Everything else has a
 		// documented default in Model.newRoom, and inventing requirements here
 		// would refuse files that open perfectly well today.
-		// A parametric opening names no model, because it has none to name
-		// (RM-008 F1): its mesh is built from `opening`. Every other item must
-		// still say what to load, which is the check this has always been.
-		if (!isPlainObject(item.opening) && (typeof item.model_url !== 'string' || item.model_url === ''))
+		// A parametric item names no model, because it has none to name: an
+		// opening's mesh is built from `opening` (RM-008 F1) and a flight's from
+		// `stair` (F3). Every other item must still say what to load, which is the
+		// check this has always been.
+		if (!isPlainObject(item.opening) && !isPlainObject(item.stair)
+			&& (typeof item.model_url !== 'string' || item.model_url === ''))
 		{
 			errors.push({path: `items[${index}].model_url`, message: 'missing - an item must name the model to load'});
 		}
@@ -452,6 +454,33 @@ function validateItems(items, errors)
 						errors.push({
 							path: `items[${index}].opening.${field}`,
 							message: `must be a positive number of centimetres when present, not ${JSON.stringify(value)}`,
+						});
+					}
+				});
+			}
+		}
+
+		// The flight description, additive since RM-008 F3 and absent from every
+		// older file. Same rule as the opening above: `normaliseStair` fills in a
+		// missing going or handrail from the defaults and clamps a going of 4 cm
+		// to the minimum, but a rise of "steep" or a tread count of -3 is a file
+		// saying something it cannot mean.
+		if (item.stair !== undefined && item.stair !== null)
+		{
+			if (!isPlainObject(item.stair))
+			{
+				errors.push({path: `items[${index}].stair`, message: 'must be an object when present'});
+			}
+			else
+			{
+				['treads', 'rise', 'going', 'width'].forEach(function (field)
+				{
+					var value = item.stair[field];
+					if (value !== undefined && value !== null && (!isFiniteNumber(value) || value <= 0))
+					{
+						errors.push({
+							path: `items[${index}].stair.${field}`,
+							message: `must be a positive number when present, not ${JSON.stringify(value)}`,
 						});
 					}
 				});

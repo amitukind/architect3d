@@ -343,11 +343,11 @@ export function renderPlanToCanvas(view, floorplan, canvas, options)
 	{
 		return null;
 	}
-	// A PNG is composited over nothing, so it needs its own ground or the sheet
-	// arrives transparent and prints as whatever is behind it.
-	context.fillStyle = floorplannerPalette.labelHalo || '#ffffff';
-	context.fillRect(0, 0, canvas.width, canvas.height);
-	var backend = new CanvasBackend(context, floorplannerPalette.labelFont);
+	// The ground goes to the backend rather than being painted here: `draw()`
+	// opens with `backend.clear()`, so anything painted before `renderTo` is
+	// wiped a moment later. See `CanvasBackend.clear`.
+	var backend = new CanvasBackend(context, floorplannerPalette.labelFont,
+		floorplannerPalette.labelHalo || '#ffffff');
 	view.renderTo(backend, sheet.project, {width: sheet.width, height: sheet.height, inset: chromeInset(sheet)});
 	drawTitleBlock(backend, sheet, {
 		dimensioning: view.dimensioning,

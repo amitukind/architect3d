@@ -62,6 +62,26 @@ describe('the canvas backend', () =>
 		expect(ctx.lineWidth).toBe(2);
 	});
 
+	/**
+	 * The live view clears to transparency and paints its own themed ground a
+	 * line later; a sheet has no theme behind it, so it asks the backend for one.
+	 * Before F3 the sheet painted its ground BEFORE `renderTo`, where `draw()`'s
+	 * opening clear wiped it - see `CanvasBackend.clear`.
+	 */
+	it('clears to transparency, or to a ground when it is given one', () =>
+	{
+		const bare = context();
+		new CanvasBackend(/** @type {*} */ (bare)).clear(300, 200);
+		expect(bare.names()).toEqual(['clearRect']);
+
+		const grounded = context();
+		new CanvasBackend(/** @type {*} */ (grounded), 'Arial', '#ffffff').clear(300.4, 200.7);
+		expect(grounded.names()).toEqual(['clearRect', 'fillRect']);
+		// Rounded up: the bitmap is a whole number of pixels and the sheet is not.
+		expect(grounded.calls[1].args).toEqual([0, 0, 301, 201]);
+		expect(grounded.fillStyle).toBe('#ffffff');
+	});
+
 	it('draws a curve as a bezier', () =>
 	{
 		const ctx = context();

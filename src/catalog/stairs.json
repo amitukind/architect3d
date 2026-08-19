@@ -1,0 +1,29 @@
+{
+	"note": [
+		"Flights of stairs that are generated rather than downloaded (RM-008 F3).",
+		"Kept out of catalog.json for the same reason openings.json is: that file",
+		"is the list of model FILES this build ships, six suites assert exactly",
+		"that over it, and a generated flight has no file.",
+		"",
+		"These supersede the four stair meshes in catalog.json rather than",
+		"replacing them. RM-009 U-3 measured those arriving 5.5 m wide and 4 m",
+		"tall, because every model under two units across is multiplied by 300 on",
+		"load; fixing the multiplier is RM-007 J1's and a generated flight does",
+		"not go near it. The rows stay; there is now something else to reach for.",
+		"",
+		"Each row states only what differs from the defaults in items/stair.js -",
+		"16 treads at 175 x 250 mm, 900 wide, rail on the right."
+	],
+	"heading": "Stairs",
+	"order": 0,
+	"items": [
+		{"name": "Straight flight", "stair": {"shape": "straight"}},
+		{"name": "Straight, wide", "stair": {"shape": "straight", "width": 120, "handrail": "both"}},
+		{"name": "Straight, shallow", "stair": {"shape": "straight", "treads": 18, "rise": 15.5, "going": 28}},
+		{"name": "Quarter turn, right", "stair": {"shape": "l", "turn": "right"}},
+		{"name": "Quarter turn, left", "stair": {"shape": "l", "turn": "left"}},
+		{"name": "Half turn, right", "stair": {"shape": "u", "turn": "right"}},
+		{"name": "Half turn, left", "stair": {"shape": "u", "turn": "left"}},
+		{"name": "Loft flight", "stair": {"shape": "straight", "treads": 14, "rise": 20, "going": 22, "width": 70, "handrail": "left"}}
+	]
+}

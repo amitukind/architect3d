@@ -8,6 +8,7 @@ import {gridSpacing, configWallThickness, configWallHeight} from '../core/config
 import {resolveCanvas, measureViewport, pixelRatio} from '../core/dom.js';
 import {footprintCorners} from '../model/plan_projection.js';
 import {dimensionLine} from '../model/annotation.js';
+import {stairPlan, normaliseStair} from '../items/stair.js';
 import {OPENING_DOOR as OPENING_KIND_DOOR, OPENING_WINDOW as OPENING_KIND_WINDOW} from '../items/opening.js';
 import {CanvasBackend} from './backends.js';
 
@@ -249,6 +250,18 @@ export const floorplannerPalette = {
 	opening: '#2B5DA8',
 	openingFill: '#FFFFFF',
 	itemLabel: '#5D6F83',
+	/**
+	 * A generated flight (RM-008 F3).
+	 *
+	 * The same family as an opening rather than as furniture, because a stair is
+	 * part of the building: it is drawn, not placed in a room. The stairwell hint
+	 * is deliberately the annotation hue - it is the one mark here that is not
+	 * the building, because there is no floor above it yet.
+	 */
+	stair: '#2B5DA8',
+	stairFill: 'rgba(43,93,168,0.07)',
+	stairTread: 'rgba(43,93,168,0.55)',
+	stairWell: '#8A6D3B',
 
 	/**
 	 * What the plan says about itself (RM-008 E3).
@@ -1164,6 +1177,15 @@ export class FloorplannerView2D
 			this.drawOpening(footprint);
 			return;
 		}
+		// Asked of the footprint rather than of its type number, like the opening
+		// above: a flight is drawn as a flight because it says it is one, and the
+		// four mesh stairs - which are floor items with a `.glb` and nothing else -
+		// keep the plain box they have always had.
+		if (footprint.stair)
+		{
+			this.drawStair(footprint);
+			return;
+		}
 
 		var corners = footprintCorners(footprint).map((corner) => ({
 			x: this.project.convertX(corner.x),
@@ -1182,6 +1204,139 @@ export class FloorplannerView2D
 
 		this.drawItemFacing(corners, floorplannerPalette.itemFacing);
 		this.drawItemLabel(footprint);
+	}
+
+	/**
+	 * A flight of stairs, drawn as a plan draws one (RM-008 F3).
+	 *
+	 * A stair symbol is a rectangle with a line across it per tread and an arrow
+	 * up the walking line, and every one of those marks is `stairPlan()`'s -
+	 * derived from the same tread count, going and width the mesh is built from,
+	 * so the symbol and the solid are two drawings of one flight. A quarter or a
+	 * half turn is two of those rectangles with a landing between them, which is
+	 * why this draws runs and landings rather than one outline.
+	 *
+	 * The dashed rectangle is the **stairwell hint**: the part of the footprint a
+	 * floor above would have to open, worked out from the flight's own height and
+	 * two metres of headroom. Nothing acts on it - there is no floor above yet,
+	 * that is programme G - and drawing it is how it stops being a comment.
+	 *
+	 * @param {import('../model/plan_projection.js').ItemFootprint} footprint
+	 */
+	drawStair(footprint)
+	{
+		var scope = this;
+		// Normalised on the way in, because a footprint is plain data that a test
+		// or an embedder can hand over with a field missing, and `stairPlan` needs
+		// a complete flight. Total by construction, so there is no failing case.
+		var plan = stairPlan(normaliseStair(footprint.stair));
+		var state = this.itemState(footprint);
+		var stroke = (state === 'selected') ? floorplannerPalette.itemSelected
+			: (state === 'hover') ? floorplannerPalette.itemHover
+				: (footprint.fixed ? floorplannerPalette.itemFixed : floorplannerPalette.stair);
+		var weight = (state === 'plain') ? 1.5 : 2.5;
+
+		/** @param {{x: number, y: number}} point */
+		var place = function (point) {return scope.placeLocal(footprint, point);};
+		/** @param {{x0: number, y0: number, x1: number, y1: number}} rect */
+		var quad = function (rect)
+		{
+			return [
+				{x: rect.x0, y: rect.y0}, {x: rect.x1, y: rect.y0},
+				{x: rect.x1, y: rect.y1}, {x: rect.x0, y: rect.y1},
+			].map(place);
+		};
+
+		plan.runs.concat(plan.landings).forEach(function (rect)
+		{
+			var corners = quad(rect);
+			scope.drawPolygon(
+				corners.map((corner) => corner.x), corners.map((corner) => corner.y),
+				true, floorplannerPalette.stairFill, true, stroke, weight);
+		});
+
+		plan.treadLines.forEach(function (line)
+		{
+			var from = place({x: line.x1, y: line.y1});
+			var to = place({x: line.x2, y: line.y2});
+			scope.drawLine(from.x, from.y, to.x, to.y, 1, floorplannerPalette.stairTread);
+		});
+
+		this.drawStairWalk(plan.walk.map(place), stroke);
+
+		var well = quad(plan.well);
+		this.backend.dash([4, 4]);
+		this.drawPolygon(
+			well.map((corner) => corner.x), well.map((corner) => corner.y),
+			false, '', true, floorplannerPalette.stairWell, 1);
+		this.backend.dash([]);
+
+		this.drawItemLabel(footprint);
+	}
+
+	/**
+	 * The walking line, with an arrowhead at the top and UP at the foot.
+	 *
+	 * Which end each mark goes on is the whole content of the symbol: a flight
+	 * drawn without it is the same rectangle whichever way it climbs, and a plan
+	 * that does not say which way is up is a plan somebody will build backwards.
+	 *
+	 * @param {Array<{x: number, y: number}>} points In canvas pixels, foot first.
+	 * @param {string} color
+	 */
+	drawStairWalk(points, color)
+	{
+		if (points.length < 2)
+		{
+			return;
+		}
+		for (var i = 1; i < points.length; i++)
+		{
+			this.drawLine(points[i - 1].x, points[i - 1].y, points[i].x, points[i].y, 1.5, color);
+		}
+		var head = points[points.length - 1];
+		var before = points[points.length - 2];
+		var angle = Math.atan2(head.y - before.y, head.x - before.x);
+		// Short enough that it stays inside the top tread at any sane zoom: an
+		// arrowhead overhanging the flight reads as a dimension line.
+		var size = 9;
+		var spread = Math.PI / 7;
+		this.drawLine(head.x, head.y,
+			head.x - (size * Math.cos(angle - spread)), head.y - (size * Math.sin(angle - spread)), 1.5, color);
+		this.drawLine(head.x, head.y,
+			head.x - (size * Math.cos(angle + spread)), head.y - (size * Math.sin(angle + spread)), 1.5, color);
+
+		var foot = points[0];
+		var next = points[1];
+		var away = Math.atan2(next.y - foot.y, next.x - foot.x);
+		this.backend.text('UP', foot.x + (16 * Math.cos(away)), foot.y + (16 * Math.sin(away)), {
+			color: color,
+			halo: floorplannerPalette.labelHalo,
+			size: 10,
+			style: 'bold',
+		});
+	}
+
+	/**
+	 * A point in an item's own frame, in canvas pixels.
+	 *
+	 * The same rotate-then-translate `footprintCorners` applies to a box's four
+	 * corners, for the arbitrary number of points a flight of stairs has. Kept
+	 * here rather than in `plan_projection.js` because it converts to pixels, and
+	 * the projection is plain centimetres that the export reads at another scale.
+	 *
+	 * @param {import('../model/plan_projection.js').ItemFootprint} footprint
+	 * @param {{x: number, y: number}} point Centimetres, relative to the centre.
+	 * @returns {{x: number, y: number}}
+	 */
+	placeLocal(footprint, point)
+	{
+		var cos = Math.cos(footprint.rotation);
+		var sin = Math.sin(footprint.rotation);
+		return {
+			x: this.project.convertX(footprint.x + (point.x * cos) - (point.y * sin)),
+			y: this.project.convertY(footprint.y + (point.x * sin) + (point.y * cos)),
+		};
 	}
 
 	/**

@@ -34,6 +34,7 @@ import {Main} from '../src/scripts/three/main.js';
 import {floorplannerModes} from '../src/scripts/floorplanner/floorplanner_view.js';
 import catalog from '../src/catalog/catalog.json';
 import openings from '../src/catalog/openings.json';
+import stairs from '../src/catalog/stairs.json';
 import {LAYOUT_PLAN, LAYOUT_SPLIT, LAYOUT_VIEW} from '../src/app/composables/useLayout.js';
 
 import {resetAll} from './helpers/harness.js';
@@ -349,10 +350,12 @@ describe('the catalog drawer', () =>
 
 		// One flat list rather than eight accordions, so the count is the catalog.
 		// Now the 168 shipped models plus the nine generated openings RM-008 F1
-		// added, which come from `openings.json` rather than `catalog.json` because
-		// they name no file. Asserted as the sum rather than as 177, so it keeps
-		// saying what it means when either list grows.
-		expect(panel.querySelectorAll('li').length).toBe(catalog.items.length + openings.items.length);
+		// added and the eight generated flights F3 added, which come from
+		// `openings.json` and `stairs.json` rather than `catalog.json` because they
+		// name no file. Asserted as the sum rather than as 185, so it keeps saying
+		// what it means when any of the three lists grows.
+		expect(panel.querySelectorAll('li').length)
+			.toBe(catalog.items.length + openings.items.length + stairs.items.length);
 
 		const chips = [...panel.querySelectorAll('button')]
 			.map((button) => button.textContent.trim());

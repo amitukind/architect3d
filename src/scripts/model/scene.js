@@ -15,8 +15,9 @@ import {disposeMaterial} from '../core/resource_registry.js';
 import {Utils} from '../core/utils.js';
 import {mergeMeshes} from '../core/geometry_merge.js';
 import {resolveModelUrl} from '../core/legacy_models.js';
-import {ITEM_TYPE_PARAMETRIC_OPENING} from '../items/factory.js';
+import {ITEM_TYPE_PARAMETRIC_OPENING, ITEM_TYPE_PARAMETRIC_STAIR} from '../items/factory.js';
 import {buildOpeningGeometry, normaliseOpening} from '../items/opening.js';
+import {buildStairGeometry, normaliseStair} from '../items/stair.js';
 import {Factory} from '../items/factory.js';
 import {EVENT_ITEM_LOADING, EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED} from '../core/events.js';
 
@@ -360,10 +361,10 @@ export class Scene extends EventDispatcher
 		
 		var scope = this;
 
-		// A parametric opening has no file to name (RM-008 F1), so the legacy URL
-		// shim below is skipped for it - `resolveModelUrl` on an absent filename
-		// would invent one.
-		var parametric = (itemType === ITEM_TYPE_PARAMETRIC_OPENING);
+		// A parametric item has no file to name - an opening (RM-008 F1) or a
+		// flight of stairs (F3) - so the legacy URL shim below is skipped for it;
+		// `resolveModelUrl` on an absent filename would invent one.
+		var parametric = (itemType === ITEM_TYPE_PARAMETRIC_OPENING || itemType === ITEM_TYPE_PARAMETRIC_STAIR);
 
 		// Designs saved before S3 name models in the retired three.js JSON
 		// format. Rewriting here rather than in Model.newRoom covers every way an
@@ -421,16 +422,26 @@ export class Scene extends EventDispatcher
 				item.placeInRoom();
 			}
 		};
-		// Its mesh is built from the five numbers rather than downloaded, and then
-		// it takes exactly the path every other item takes (RM-008 F1). One
+		// Its mesh is built from its own numbers rather than downloaded, and then
+		// it takes exactly the path every other item takes (RM-008 F1, F3). One
 		// construction site, one placement, one event, one session check - which
 		// is why this is a short-circuit into the callback and not a second
-		// version of it.
+		// version of it. F3 added a second generator and did not add a second
+		// short-circuit: what differs between a door and a staircase is one
+		// expression, and everything after it is shared.
 		if (parametric)
 		{
-			var wall = newItemDefinitions && newItemDefinitions.edge && newItemDefinitions.edge.wall;
-			metadata.wallThickness = wall ? wall.thickness : undefined;
-			var built = buildOpeningGeometry(normaliseOpening(metadata.opening), metadata.wallThickness);
+			var built;
+			if (itemType === ITEM_TYPE_PARAMETRIC_STAIR)
+			{
+				built = buildStairGeometry(normaliseStair(metadata.stair));
+			}
+			else
+			{
+				var wall = newItemDefinitions && newItemDefinitions.edge && newItemDefinitions.edge.wall;
+				metadata.wallThickness = wall ? wall.thickness : undefined;
+				built = buildOpeningGeometry(normaliseOpening(metadata.opening), metadata.wallThickness);
+			}
 			this.dispatchEvent({type: EVENT_ITEM_LOADING});
 			buildItem(built.geometry, built.materials);
 			return;

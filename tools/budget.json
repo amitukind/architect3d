@@ -48,6 +48,20 @@
     "same as E1's, and it buys a second output format for the whole 2D view rather",
     "than a feature.",
     "",
+    "RM-008 F3 RAISED lib-esm-gzip, 65,600 -> 68,900, and nothing else moved. The",
+    "ESM entry went 62,493 -> 66,336 gzipped for parametric stairs: items/stair.js",
+    "(the description, the shape of a straight, quarter- and half-turn flight, the",
+    "plan symbol and the stairwell hint), items/parametric_stair.js, and the",
+    "drawStair pass in the 2D view. 3.9 KB, and about 0.6 KB of that is the",
+    "extraction F3 opened with - items/solid_builder.js, the box builder moved out",
+    "of opening.js so the second generator imports it rather than copying it.",
+    "",
+    "The demo limits did NOT move, which is worth saying because F1's three did:",
+    "demo-js-gzip sits at 365.7 KB against 378.9 and lib-iife-gzip at 264.4 against",
+    "267.6. F1 raised both to ~5% headroom rather than to just-enough, and this is",
+    "the sprint that shows what that bought - a feature of the same size landed",
+    "inside them without a commit that reads as \"the budget was in the way\".",
+    "",
     "RM-008 F1 RAISED three, and the three together are one feature: parametric",
     "doors and windows. lib-esm-gzip 62,900 -> 65,600, demo-total 14,140,000 ->",
     "14,330,000, demo-js-gzip 371,000 -> 388,000, lib-iife-gzip 268,000 -> 274,000.",
@@ -419,7 +433,7 @@
     "limits with, which is tight and is left tight on purpose: the next texture",
     "added to the catalog should have to argue for itself.",
     "",
-    "AND THE TREE WAS AUDITED BEFORE ACCEPTING THAT TIGHTNESS, so \u0027no slack\u0027 is a",
+    "AND THE TREE WAS AUDITED BEFORE ACCEPTING THAT TIGHTNESS, so 'no slack' is a",
     "measurement rather than a shrug. Every file under public/ was matched against",
     "the catalogs, all of src/, and the JSON chunk of every .glb: 376 files, 370",
     "named somewhere. The six that are not are draco/ and basis/, which are",
@@ -435,27 +449,27 @@
   "budgets": {
     "demo-js-gzip": {
       "limit": 388000,
-      "measured": 369910
+      "measured": 374521
     },
     "demo-css-gzip": {
       "limit": 10000,
-      "measured": 7324
+      "measured": 7330
     },
     "demo-total": {
       "limit": 14330000,
-      "measured": 14108397
+      "measured": 14215865
     },
     "lib-iife-gzip": {
       "limit": 274000,
-      "measured": 267194
+      "measured": 270710
     },
     "public-total": {
       "limit": 6200000,
       "measured": 6121106
     },
     "lib-esm-gzip": {
-      "limit": 65600,
-      "measured": 62493
+      "limit": 68900,
+      "measured": 66336
     },
     "public-largest": {
       "limit": 330000,

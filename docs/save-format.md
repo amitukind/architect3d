@@ -354,6 +354,48 @@ the wall grows to swallow it — RM-009 U-2 measured a 400 × 250 wall becoming
 387 cm tall.
 :::
 
+### `stair` — a flight that is numbers
+
+Present only on a **parametric stair**, item type 11, added by RM-008 F3 and
+absent from every file written before it. Like an opening, an item that carries
+one names no `model_url`.
+
+```json
+{
+  "shape": "straight",
+  "treads": 16,
+  "rise": 17.5,
+  "going": 25,
+  "width": 90,
+  "handrail": "right",
+  "turn": "right",
+  "style": "plain"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `shape` | `"straight"`, `"l"` (a quarter turn with a landing) or `"u"` (a half turn). Anything else is read as straight. |
+| `treads` | How many risers the flight climbs. A whole number, 2–40; a fractional one is rounded. |
+| `rise`, `going` | Centimetres, per step. These are what a building code is written in, and they are the only inputs to the two totals. |
+| `width` | Clear width of the flight, in centimetres. |
+| `handrail` | `"none"`, `"left"`, `"right"` or `"both"`, as seen by somebody climbing. |
+| `turn` | `"left"` or `"right"`. Ignored when the shape is straight. |
+| `style` | A name the generator understands. `"plain"` today. |
+
+**Nothing else is stored, and that is the point.** The height is `treads ×
+rise`, the plan length is `treads × going`, the landing sits after
+`ceil(treads / 2)` steps, and the stairwell a floor above would need is worked
+out from the height and two metres of headroom. None of those is a field, so
+none of them can disagree with the seven that are — which is metric M-37.
+
+::: tip Why this exists
+The four stair meshes this build ships arrive **5.5 m wide and 4 m tall**: every
+model under two units across is multiplied by 300 on load, and the kit is
+authored at roughly one unit per metre. RM-009 U-3 has the measurement. They are
+superseded rather than scaled — a generated flight has no mesh to scale.
+:::
+
 ### Item types
 
 | `item_type` | Class | Behaviour |
@@ -367,6 +409,7 @@ the wall grows to swallow it — RM-009 U-2 measured a 400 × 250 wall becoming
 | 8 | `OnFloorItem` | Renders under other items (a rug) |
 | 9 | `WallFloorItem` | Wall-bound and floor-bound |
 | 10 | `ParametricOpening` | A door, window or archway generated from its numbers (RM-008 F1). Names no model; carries `opening` |
+| 11 | `ParametricStair` | A flight of stairs generated from its numbers (RM-008 F3). Names no model; carries `stair` |
 
 The numbering is not contiguous — there is no type 5 or 6, and 7/8/9 are not
 the order you would guess. It is the registry in

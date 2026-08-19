@@ -7,6 +7,7 @@ import RoomInspector from './RoomInspector.vue';
 import Wall2DInspector from './Wall2DInspector.vue';
 import ItemInspector from './ItemInspector.vue';
 import OpeningInspector from './OpeningInspector.vue';
+import StairInspector from './StairInspector.vue';
 import DimensionInspector from './DimensionInspector.vue';
 import AnnotationInspector from './AnnotationInspector.vue';
 import SurfaceInspector from './SurfaceInspector.vue';
@@ -94,13 +95,13 @@ const INSPECTORS = {
 /**
  * Which panel a selection gets.
  *
- * One special case, and it is a selection *kind* rather than a type: a
- * parametric opening is an item like any other - it selects, undoes and
- * projects like one - but there is nothing useful to say about it in the item
- * panel, whose controls are a mesh's scale and colour. It has five numbers
- * instead, so it gets a panel about those (RM-008 F1). Asked of the object
- * rather than of `item_type`, so an embedder's own parametric item lands here
- * too.
+ * Two special cases, and both are a selection *kind* rather than a type: a
+ * parametric opening (RM-008 F1) and a parametric flight of stairs (F3) are
+ * items like any other - they select, undo and project like one - but there is
+ * nothing useful to say about either in the item panel, whose controls are a
+ * mesh's scale and colour. They have numbers instead, so each gets a panel
+ * about those. Asked of the object rather than of `item_type`, so an embedder's
+ * own parametric item lands here too.
  */
 const component = computed(() =>
 {
@@ -112,6 +113,11 @@ const component = computed(() =>
 		&& typeof props.selection.object.setOpening === 'function')
 	{
 		return OpeningInspector;
+	}
+	if (props.selection.type === SELECTION_ITEM && props.selection.object
+		&& typeof props.selection.object.setStair === 'function')
+	{
+		return StairInspector;
 	}
 	return INSPECTORS[props.selection.type] || null;
 });

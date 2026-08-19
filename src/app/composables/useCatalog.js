@@ -2,7 +2,8 @@
 import {computed} from 'vue';
 import catalog from '../../catalog/catalog.json';
 import openings from '../../catalog/openings.json';
-import {ITEM_TYPE_PARAMETRIC_OPENING} from '../../scripts/blueprint.js';
+import stairs from '../../catalog/stairs.json';
+import {ITEM_TYPE_PARAMETRIC_OPENING, ITEM_TYPE_PARAMETRIC_STAIR} from '../../scripts/blueprint.js';
 
 /**
  * The furniture palette, read straight from the catalog.
@@ -81,10 +82,35 @@ function openingSection()
 	};
 }
 
+/**
+ * The generated flights (RM-008 F3).
+ *
+ * Second in the list, after the openings and before the mesh catalog: the two
+ * generated sections belong together, and a stair is the second thing after a
+ * door that a person expects a floor planner to have.
+ *
+ * @returns {CatalogSection}
+ */
+function stairSection()
+{
+	return {
+		id: ITEM_TYPE_PARAMETRIC_STAIR,
+		heading: stairs.heading,
+		items: stairs.items.map((entry) => ({
+			name: entry.name,
+			image: '',
+			model: '',
+			type: ITEM_TYPE_PARAMETRIC_STAIR,
+			format: 'parametric',
+			stair: entry.stair,
+		})),
+	};
+}
+
 /** @returns {Array<CatalogSection>} */
 function buildSections()
 {
-	return [openingSection()].concat(Object.keys(catalog.itemTypes)
+	return [openingSection(), stairSection()].concat(Object.keys(catalog.itemTypes)
 		.map((key) => Object.assign({id: Number(key)}, catalog.itemTypes[key]))
 		.sort((a, b) => a.order - b.order)
 		.map((type) => ({
@@ -102,7 +128,7 @@ function buildSections()
 export function useCatalog(store, placementContext)
 {
 	var sections = computed(buildSections);
-	var count = computed(() => catalog.items.length + openings.items.length);
+	var count = computed(() => catalog.items.length + openings.items.length + stairs.items.length);
 
 	/**
 	 * Add one catalog entry to the scene.
@@ -143,6 +169,14 @@ export function useCatalog(store, placementContext)
 		if (entry.opening)
 		{
 			metadata.opening = entry.opening;
+		}
+
+		// The same arrangement for a generated flight (RM-008 F3): the row states
+		// only what differs from the defaults in `items/stair.js`, and
+		// `normaliseStair` fills the rest in where the item is built.
+		if (entry.stair)
+		{
+			metadata.stair = entry.stair;
 		}
 
 		if (WALL_BOUND_TYPES.indexOf(entry.type) !== -1 && context.wall)

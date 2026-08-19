@@ -476,22 +476,23 @@ describe('useCatalog', () =>
 	});
 
 	/**
-	 * The eight mesh sections, in the demo's order, with the generated openings
-	 * ahead of them.
+	 * The eight mesh sections, in the demo's order, with the two generated
+	 * sections ahead of them.
 	 *
-	 * The list used to be the eight alone. RM-008 F1 puts "Doors & Windows"
-	 * first, and re-checking says that is right rather than incidental: a door is
-	 * the first thing anybody puts in a wall, and it is a separate source because
-	 * `catalog.json` is the list of model FILES this build ships and a parametric
-	 * opening has none. The eight are still asserted in their order, which is what
-	 * the pin was for.
+	 * The list used to be the eight alone. RM-008 F1 put "Doors & Windows" first
+	 * and F3 put "Stairs" second, and re-checking says that is right rather than
+	 * incidental: both are separate sources because `catalog.json` is the list of
+	 * model FILES this build ships and a generated item has none, and both belong
+	 * ahead of the furniture because a door and a flight of stairs are parts of a
+	 * building rather than things put in one. The eight are still asserted in
+	 * their order, which is what the pin was for.
 	 */
 	it('offers every catalog item, grouped and ordered as the demo grouped them', () =>
 	{
 		const headings = catalog.sections.value.map((section) => section.heading);
 
 		expect(headings).toEqual([
-			'Doors & Windows',
+			'Doors & Windows', 'Stairs',
 			'Floor Items', 'Ceiling Items', 'Wall Items', 'In Wall Items',
 			'In Wall Floor Items', 'On Floor Items', 'Wall-Floor Items', 'Anywhere Items',
 		]);

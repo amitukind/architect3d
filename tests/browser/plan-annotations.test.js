@@ -343,6 +343,38 @@ describe('the plan on paper (RM-008 E4)', () =>
 		sheet.remove();
 	});
 
+	/**
+	 * The sheet is opaque everywhere, which it was not (RM-008 F3).
+	 *
+	 * `renderPlanToCanvas` filled the canvas with a ground before calling
+	 * `renderTo`, and `draw()` opens with `backend.clear()` - so the ground was
+	 * wiped a moment after being painted and a PNG came out transparent. It
+	 * survived E4 for two reasons: the application sets a themed background that
+	 * `draw()` paints immediately after the clear, so the bug only showed for a
+	 * library embedder who had not styled anything; and the test above counts ink
+	 * by RGB, under which a transparent (0,0,0,0) pixel reads as ink rather than
+	 * as a hole. Found by exporting a sheet in a bare page and reading the alpha
+	 * channel, which is what this now does.
+	 */
+	it('gives the sheet its own ground, so a PNG is not transparent', () =>
+	{
+		const sheet = document.createElement('canvas');
+		renderPlanToCanvas(planner.view, model.floorplan, sheet, {width: 600});
+
+		const data = sheet.getContext('2d').getImageData(0, 0, sheet.width, sheet.height).data;
+		let clear = 0;
+		for (let i = 3; i < data.length; i += 4)
+		{
+			if (data[i] < 255)
+			{
+				clear += 1;
+			}
+		}
+
+		expect(clear).toBe(0);
+		sheet.remove();
+	});
+
 	it('leaves the live canvas exactly as it found it', () =>
 	{
 		model.floorplan.getRooms()[0].name = 'Sitting Room';

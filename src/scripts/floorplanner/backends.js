@@ -79,11 +79,15 @@ export class CanvasBackend
 	/**
 	 * @param {CanvasRenderingContext2D} context
 	 * @param {string} [font] The family every label is set in.
+	 * @param {?string} [background] A ground to paint instead of clearing to
+	 *        transparency. The live view leaves this null - it clears, and
+	 *        `draw()` paints the theme's own ground a line later.
 	 */
-	constructor(context, font)
+	constructor(context, font, background)
 	{
 		this.context = context;
 		this.font = font || 'Arial';
+		this.background = background || null;
 	}
 
 	/**
@@ -93,6 +97,28 @@ export class CanvasBackend
 	clear(width, height)
 	{
 		this.context.clearRect(0, 0, width, height);
+		// A PNG is composited over nothing, so a sheet needs its own ground or it
+		// arrives transparent and prints as whatever is behind it.
+		//
+		// `renderPlanToCanvas` used to fill the canvas before calling `renderTo`,
+		// which cannot work: `draw()` opens with this clear, so the ground was
+		// wiped a moment after being painted. It went unnoticed because the app
+		// sets `floorplannerPalette.background` from its theme and `draw()` paints
+		// that immediately afterwards - so the sheet was opaque in the application
+		// and transparent for a library embedder who had not styled anything.
+		// Found by exporting a sheet in a bare page and reading the alpha channel
+		// (RM-008 F3).
+		if (this.background)
+		{
+			this.context.fillStyle = this.background;
+			// Rounded UP, because a sheet's size is a fraction of a pixel: the
+			// canvas bitmap is `Math.ceil(sheet.height)` tall and the logical size
+			// is not, so filling the logical rectangle left the last row of the
+			// image transparent. Measured as exactly `width` pixels with an alpha
+			// below 255 - one row - which is the sort of number that says what it
+			// is if you count it and says nothing if you eyeball it.
+			this.context.fillRect(0, 0, Math.ceil(width), Math.ceil(height));
+		}
 	}
 
 	/**

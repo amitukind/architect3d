@@ -84,6 +84,11 @@
  *           The five numbers and two choices, for a parametric opening
  *           (RM-008 F1); null for every other item. What lets the plan draw
  *           *this* door's swing rather than a convention.
+ * @property {?{shape: string, treads: number, rise: number, going: number, width: number, handrail: string, turn: string}} stair
+ *           The flight's own numbers, for a parametric stair (RM-008 F3); null
+ *           for every other item. What lets the plan draw this flight's treads,
+ *           its landing and the stairwell a floor above would need, rather than
+ *           a rectangle with a chair's outline.
  * @property {boolean} fixed Locked in place.
  * @property {?string} edgeId The half edge a wall-bound item is attached to, or
  *           null. Lets the plan draw an opening in the right wall without
@@ -162,6 +167,22 @@ export function projectItem(item)
 			sill: item.opening.sill,
 			hinge: item.opening.hinge,
 			swing: item.opening.swing,
+		} : null,
+		/**
+		 * The flight's numbers, for a stair that has them (RM-008 F3).
+		 *
+		 * Copied rather than referenced, for the reason above. Null for every
+		 * other item, which is every item in every design written before F3 - so
+		 * the four mesh stairs keep the plain box they have always had.
+		 */
+		stair: (item && item.stair) ? {
+			shape: item.stair.shape,
+			treads: item.stair.treads,
+			rise: item.stair.rise,
+			going: item.stair.going,
+			width: item.stair.width,
+			handrail: item.stair.handrail,
+			turn: item.stair.turn,
 		} : null,
 	};
 }

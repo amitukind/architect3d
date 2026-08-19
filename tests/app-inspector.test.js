@@ -27,6 +27,7 @@ import TexturePicker from '../src/app/inspector/TexturePicker.vue';
 import DimensionInspector from '../src/app/inspector/DimensionInspector.vue';
 import AnnotationInspector from '../src/app/inspector/AnnotationInspector.vue';
 import OpeningInspector from '../src/app/inspector/OpeningInspector.vue';
+import StairInspector from '../src/app/inspector/StairInspector.vue';
 import App from '../src/app/App.vue';
 
 import textures from '../src/catalog/textures.json';
@@ -38,6 +39,7 @@ import {WallTypes} from '../src/scripts/core/constants.js';
 import {SELECTION_WALL, SELECTION_FLOOR} from '../src/app/composables/useSelection.js';
 import {EVENT_CORNER_2D_CLICKED, EVENT_ROOM_2D_CLICKED, EVENT_DIMENSION_2D_CLICKED, EVENT_ANNOTATION_2D_CLICKED} from '../src/scripts/core/events.js';
 import {syncDisplayUnit} from '../src/app/composables/useDisplayUnit.js';
+import {normaliseStair, stairMetrics, stairwellHint} from '../src/scripts/items/stair.js';
 
 import {buildSquareRoom, resetAll} from './helpers/harness.js';
 import {installCanvas2D, installPointerApis, installResizeObserver} from './helpers/dom.js';
@@ -495,6 +497,133 @@ describe('OpeningInspector (RM-008 F1)', () =>
 		await setField(wrapper, 'Width', 0);
 
 		expect(fieldNamed(wrapper, 'Width').element.value).toBe('90');
+
+		wrapper.unmount();
+	});
+});
+
+describe('StairInspector (RM-008 F3)', () =>
+{
+	/**
+	 * A stand-in for the item, carrying the four things the panel touches. A real
+	 * `ParametricStair` needs a model, a scene and a generated mesh, none of which
+	 * this panel is about - and `tests/parametric-stairs.test.js` builds the real
+	 * one. The stand-in runs the real `normaliseStair`, so what the panel reads
+	 * back is what the item would have taken.
+	 */
+	function aStair(overrides)
+	{
+		return {
+			stair: normaliseStair(overrides || {}),
+			changes: [],
+			setStair(changes)
+			{
+				this.changes.push(changes);
+				this.stair = normaliseStair(Object.assign({}, this.stair, changes));
+				return this.stair;
+			},
+			metrics()
+			{
+				return stairMetrics(this.stair);
+			},
+			stairwell()
+			{
+				return stairwellHint(this.stair);
+			},
+		};
+	}
+
+	it('shows rise and going, because that is what a code is written in', () =>
+	{
+		const wrapper = mount(StairInspector, {props: {item: aStair()}});
+
+		expect(fieldNamed(wrapper, 'Rise').element.value).toBe('17.5');
+		expect(fieldNamed(wrapper, 'Going').element.value).toBe('25');
+		expect(fieldNamed(wrapper, 'Treads').element.value).toBe('16');
+
+		wrapper.unmount();
+	});
+
+	/**
+	 * M-37 made visible. The two totals are shown and not settable, because there
+	 * is nowhere for a height to come from except the multiplication.
+	 */
+	it('shows the height and the plan length as the multiplication they are', async () =>
+	{
+		const item = aStair();
+		const wrapper = mount(StairInspector, {props: {item}});
+
+		expect(wrapper.find('.inspector-readout').text()).toContain(Dimensioning.cmToMeasure(280));
+
+		await setField(wrapper, 'Treads', 20);
+
+		expect(item.stair.treads).toBe(20);
+		expect(wrapper.find('.inspector-readout').text()).toContain(Dimensioning.cmToMeasure(350));
+
+		wrapper.unmount();
+	});
+
+	it('shows what the item took, not what it was handed', async () =>
+	{
+		const item = aStair();
+		const wrapper = mount(StairInspector, {props: {item}});
+
+		await setField(wrapper, 'Treads', 900);
+
+		expect(item.stair.treads).toBe(40);
+		expect(fieldNamed(wrapper, 'Treads').element.value).toBe('40');
+
+		wrapper.unmount();
+	});
+
+	it('offers a turn for a quarter and a half flight and none for a straight one', async () =>
+	{
+		const item = aStair();
+		const wrapper = mount(StairInspector, {props: {item}});
+
+		expect(wrapper.findAll('.field-label').map((label) => label.text())).not.toContain('Turn');
+
+		const quarter = wrapper.findAll('.segment').find((button) => button.text() === 'Quarter');
+		await quarter.trigger('click');
+
+		expect(item.stair.shape).toBe('l');
+		expect(wrapper.findAll('.field-label').map((label) => label.text())).toContain('Turn');
+
+		wrapper.unmount();
+	});
+
+	it('sets the handrail side', async () =>
+	{
+		const item = aStair();
+		const wrapper = mount(StairInspector, {props: {item}});
+
+		const both = wrapper.findAll('.segment').find((button) => button.text() === 'Both');
+		await both.trigger('click');
+
+		expect(item.stair.handrail).toBe('both');
+
+		wrapper.unmount();
+	});
+
+	it('names the tread a floor above would have to open from', () =>
+	{
+		const wrapper = mount(StairInspector, {props: {item: aStair()}});
+
+		// 280 cm to the floor above and two metres of headroom: from tread 5.
+		expect(wrapper.find('.inspector-note').text()).toContain('tread 5');
+
+		wrapper.unmount();
+	});
+
+	it('re-reads when the display unit changes', async () =>
+	{
+		const wrapper = mount(StairInspector, {props: {item: aStair()}});
+
+		Configuration.setValue(configDimUnit, dimMeter);
+		syncDisplayUnit();
+		await nextTick();
+
+		expect(fieldNamed(wrapper, 'Going').element.value).toBe('0.25');
 
 		wrapper.unmount();
 	});

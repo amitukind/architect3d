@@ -1,5 +1,6 @@
 // @ts-check
-import {BufferGeometry, BufferAttribute, MeshStandardMaterial} from 'three';
+import {MeshStandardMaterial} from 'three';
+import {newSink, box, rotateAboutY, appendInto, finishGeometry} from './solid_builder.js';
 
 /**
  * A door, a window or an archway, described by numbers (RM-008 F1).
@@ -217,69 +218,11 @@ export function opensOnAHinge(opening)
 }
 
 /**
- * Buffers under construction.
+ * The box builder `buildOpeningGeometry` runs on lives in `solid_builder.js`.
  *
- * Named as a typedef because an object literal takes each property's type from
- * its initialiser, so `groups: []` is `never[]` and every push into it is an
- * error (RM-005 C2).
- *
- * @typedef {Object} BufferSink
- * @property {number[]} positions
- * @property {number[]} normals
- * @property {number[]} uvs
- * @property {number[]} indices
- * @property {Array<{start: number, count: number, material: number}>} groups
+ * It was written here for F1 and moved out by F3, unchanged, when stairs became
+ * its second caller - see that file's docblock for what the move discovered.
  */
-
-/**
- * Append one axis-aligned box to a geometry under construction.
- *
- * A box rather than three's `BoxGeometry` merged afterwards, and the reason is
- * material groups: an opening is three materials - frame, leaf, glass - and
- * building the buffers here means each box can name its slot as it goes. The
- * alternative is `BufferGeometryUtils.mergeGeometries`, which lives in three's
- * examples rather than its core and would be the first examples import in this
- * library.
- *
- * @param {BufferSink} sink
- * @param {number} cx Centre.
- * @param {number} cy
- * @param {number} cz
- * @param {number} width
- * @param {number} height
- * @param {number} depth
- * @param {number} materialIndex
- */
-function box(sink, cx, cy, cz, width, height, depth, materialIndex)
-{
-	var hx = width / 2;
-	var hy = height / 2;
-	var hz = depth / 2;
-	// Six faces, each four corners wound anticlockwise seen from outside, with
-	// its own normal. Written out rather than generated from a table: the table
-	// is the same length and reads as data about nothing.
-	var faces = [
-		{n: [0, 0, 1], v: [[-hx, -hy, hz], [hx, -hy, hz], [hx, hy, hz], [-hx, hy, hz]]},
-		{n: [0, 0, -1], v: [[hx, -hy, -hz], [-hx, -hy, -hz], [-hx, hy, -hz], [hx, hy, -hz]]},
-		{n: [1, 0, 0], v: [[hx, -hy, hz], [hx, -hy, -hz], [hx, hy, -hz], [hx, hy, hz]]},
-		{n: [-1, 0, 0], v: [[-hx, -hy, -hz], [-hx, -hy, hz], [-hx, hy, hz], [-hx, hy, -hz]]},
-		{n: [0, 1, 0], v: [[-hx, hy, hz], [hx, hy, hz], [hx, hy, -hz], [-hx, hy, -hz]]},
-		{n: [0, -1, 0], v: [[-hx, -hy, -hz], [hx, -hy, -hz], [hx, -hy, hz], [-hx, -hy, hz]]},
-	];
-	var start = sink.indices.length;
-	faces.forEach(function (face)
-	{
-		var base = sink.positions.length / 3;
-		face.v.forEach(function (vertex, corner)
-		{
-			sink.positions.push(cx + vertex[0], cy + vertex[1], cz + vertex[2]);
-			sink.normals.push(face.n[0], face.n[1], face.n[2]);
-			sink.uvs.push(corner === 1 || corner === 2 ? 1 : 0, corner >= 2 ? 1 : 0);
-		});
-		sink.indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
-	});
-	sink.groups.push({start: start, count: sink.indices.length - start, material: materialIndex});
-}
 
 /**
  * Build the mesh for an opening (RM-008 F1).
@@ -296,13 +239,12 @@ function box(sink, cx, cy, cz, width, height, depth, materialIndex)
  *
  * @param {Opening} opening
  * @param {number} wallThickness Centimetres; the frame is set into it.
- * @returns {{geometry: BufferGeometry, materials: Array<MeshStandardMaterial>}}
+ * @returns {{geometry: import('three').BufferGeometry, materials: Array<MeshStandardMaterial>}}
  */
 export function buildOpeningGeometry(opening, wallThickness)
 {
 	var depth = Math.max(4, (wallThickness || 10) + FRAME_DEPTH_MARGIN);
-	/** @type {BufferSink} */
-	var sink = {positions: [], normals: [], uvs: [], indices: [], groups: []};
+	var sink = newSink();
 	var w = opening.width;
 	var h = opening.height;
 	var jamb = Math.min(FRAME_WIDTH, w / 3);
@@ -331,8 +273,7 @@ export function buildOpeningGeometry(opening, wallThickness)
 		var swing = (opening.swing * Math.PI) / 180;
 		var sign = (opening.hinge === HINGE_RIGHT) ? -1 : 1;
 		var hingeX = sign * (innerWidth / 2);
-		/** @type {BufferSink} */
-		var leaf = {positions: [], normals: [], uvs: [], indices: [], groups: []};
+		var leaf = newSink();
 		box(leaf, -sign * (innerWidth / 2), 0, 0, innerWidth, innerHeight, LEAF_THICKNESS, 1);
 		rotateAboutY(leaf.positions, leaf.normals, -sign * swing);
 		appendInto(sink, leaf, hingeX, innerCentre, 0);
@@ -343,75 +284,14 @@ export function buildOpeningGeometry(opening, wallThickness)
 	}
 	// An arch has nothing in it, which is the whole point of an arch.
 
-	var geometry = new BufferGeometry();
-	geometry.setAttribute('position', new BufferAttribute(new Float32Array(sink.positions), 3));
-	geometry.setAttribute('normal', new BufferAttribute(new Float32Array(sink.normals), 3));
-	geometry.setAttribute('uv', new BufferAttribute(new Float32Array(sink.uvs), 2));
-	geometry.setIndex(sink.indices);
-	sink.groups.forEach(function (group)
-	{
-		geometry.addGroup(group.start, group.count, group.material);
-	});
-	geometry.computeBoundingBox();
-
 	return {
-		geometry: geometry,
+		geometry: finishGeometry(sink),
 		materials: [
 			new MeshStandardMaterial({color: 0xF2EFE9, roughness: 0.75, metalness: 0}),
 			new MeshStandardMaterial({color: 0xE7E2D8, roughness: 0.7, metalness: 0}),
 			new MeshStandardMaterial({color: 0xBFD6E4, roughness: 0.1, metalness: 0, transparent: true, opacity: 0.35}),
 		],
 	};
-}
-
-/**
- * Rotate positions and normals about the y axis, in place.
- *
- * @param {number[]} positions
- * @param {number[]} normals
- * @param {number} angle Radians.
- */
-function rotateAboutY(positions, normals, angle)
-{
-	var cos = Math.cos(angle);
-	var sin = Math.sin(angle);
-	for (var i = 0; i < positions.length; i += 3)
-	{
-		var x = positions[i];
-		var z = positions[i + 2];
-		positions[i] = x * cos + z * sin;
-		positions[i + 2] = -x * sin + z * cos;
-		var nx = normals[i];
-		var nz = normals[i + 2];
-		normals[i] = nx * cos + nz * sin;
-		normals[i + 2] = -nx * sin + nz * cos;
-	}
-}
-
-/**
- * Append one buffer sink into another, offset.
- *
- * @param {BufferSink} sink
- * @param {BufferSink} part
- * @param {number} dx
- * @param {number} dy
- * @param {number} dz
- */
-function appendInto(sink, part, dx, dy, dz)
-{
-	var base = sink.positions.length / 3;
-	var indexBase = sink.indices.length;
-	for (var i = 0; i < part.positions.length; i += 3)
-	{
-		sink.positions.push(part.positions[i] + dx, part.positions[i + 1] + dy, part.positions[i + 2] + dz);
-	}
-	part.normals.forEach(function (n) {sink.normals.push(n);});
-	part.uvs.forEach(function (u) {sink.uvs.push(u);});
-	part.indices.forEach(function (index) {sink.indices.push(index + base);});
-	part.groups.forEach(function (group)
-	{
-		sink.groups.push({start: group.start + indexBase, count: group.count, material: group.material});
-	});
 }
 
 /**
