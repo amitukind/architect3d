@@ -104,6 +104,10 @@ function kindOf(name)
 	// `tests/asset-integrity.test.js` before it reached a budget: the VRAM line
 	// asks every `texture` for its dimensions, and a markdown file has none.
 	if (!/\.(png|jpe?g|ktx2|webp|avif|basis)$/i.test(name)) { return 'document'; }
+	// `_new` is kept in the pattern although RM-012 J1 emptied that directory -
+	// every catalog thumbnail is now a render under `models/thumbnails/`. A
+	// classifier that stops recognising a name is a classifier that mislabels the
+	// day somebody restores one, and this costs two characters.
 	if (/(^|\/)thumbnails(_new)?\//.test(name)) { return 'thumbnail'; }
 	if (name.startsWith('rooms/textures/envs/')) { return 'environment'; }
 	if (name.startsWith('models/')) { return 'model-texture'; }

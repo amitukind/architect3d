@@ -12,6 +12,13 @@
  * unaffected because it draws the graph rather than the mesh. Seven of the ten
  * catalog openings are that size, which is why none of them had ever been
  * noticed to be unusable.
+ *
+ * Those figures are U-2's, measured when `Item.initObject` multiplied this kit
+ * by 300. RM-012 J1 replaced that with the 200 the kit is actually built on, so
+ * the same model is 200 x 258 today. The wall is 250, so the opening is still
+ * oversized and the clamp is still the thing under test - by 8 cm rather than by
+ * 137. The history stays as it was measured; this note is what stops the two
+ * disagreeing silently.
  */
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 import {Box3} from 'three';
@@ -134,10 +141,17 @@ describe('M-35 · an opening never makes its wall taller', () =>
 	 * The exact item U-2 was measured with. Before F1 this produced a wall 387 cm
 	 * tall; the assertion is that it now produces one 250 cm tall, with the
 	 * opening trimmed to fit rather than the wall grown to fit the opening.
+	 *
+	 * `unitScale` is passed because `useCatalog.addItem` passes it (RM-012 J1):
+	 * this kit is on a 2 m grid, so its wall module is 257.9 cm - still taller
+	 * than the 250 cm wall, which is what this test needs, and no longer the
+	 * 386.9 the `x300` hack produced. A caller of `Scene.addItem` that omits the
+	 * key now gets the model at the size its own file says, which is the new
+	 * contract and is why this line changed rather than the assertion below it.
 	 */
 	it('clamps a catalog opening taller than the wall', async () =>
 	{
-		const item = await place(3, 'models/gltf/wallDoorway.glb');
+		const item = await place(3, 'models/gltf/wallDoorway.glb', {unitScale: 200});
 		expect(item).not.toBeNull();
 		// The item is still the size it always was - this is a clamp on the hole,
 		// not a resize of somebody's furniture.

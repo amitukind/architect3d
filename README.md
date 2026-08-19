@@ -47,7 +47,7 @@ are checked in under `public/`, which Vite serves at the site root.
 | `npm run dev` | Dev server on port 10001, with hot reload |
 | `npm run build` | Library build &rarr; `dist/`: the ESM entry, the `BP3DJS` IIFE, and the declarations |
 | `npm run build:demo` | Application build &rarr; `dist-demo/` |
-| `npm test` | The vitest suite (1,647 tests, headless) |
+| `npm test` | The vitest suite (2,186 tests, headless) |
 | `npm run test:coverage` | The same suite, with coverage and its thresholds |
 | `npm run test:browser` | The browser tier: real canvas, real WebGL, axe (needs chromium) |
 | `npm run lint` | ESLint |
@@ -57,6 +57,8 @@ are checked in under `public/`, which Vite serves at the site root.
 | `npm run docs:build` | The documentation site &rarr; `docs/.vitepress/dist` |
 | `npm run fixtures` | Regenerate `tests/fixtures/*.blueprint3d` |
 | `npm run parity` | Render eleven states through three r98 and r185 side by side |
+| `npm run catalog` | Split `catalog.json` into the bundled index and the fetched detail |
+| `npm run thumbnails` | Re-render all 168 catalog thumbnails from the models (needs chromium) |
 
 Nothing deploys automatically. The Deploy workflow is `workflow_dispatch` only —
 GitHub Pages was never enabled for this repository, so a push-triggered deploy

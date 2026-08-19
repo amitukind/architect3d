@@ -62,6 +62,7 @@ const CATALOG = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog.json'), 
 const TEXTURES = JSON.parse(readFileSync(join(ROOT, 'src/catalog/textures.json'), 'utf8'));
 const SOURCES = JSON.parse(readFileSync(join(ROOT, 'src/catalog/sources.json'), 'utf8'));
 const DETAIL = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog-detail.json'), 'utf8'));
+const THUMBNAILS = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/thumbnails.json'), 'utf8'));
 const COMPRESSION = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/texture-compression.json'), 'utf8'));
 const MANIFEST_FILE = join(PUBLIC, 'asset-manifest.json');
 const MANIFEST_JSON = JSON.parse(readFileSync(MANIFEST_FILE, 'utf8'));
@@ -405,12 +406,16 @@ describe('the compression pass left nothing behind', () =>
 	it('every file it produced exists and every original is gone', () =>
 	{
 		// A file P6 produced may since have been replaced under a new name - B5
-		// transcoded twelve of them to KTX2. Present means "present under the
-		// name the LAST pass gave it", which is the same rule `reports honest
-		// numbers` applies below and the same one that keeps the chain honest.
-		const TRANSCODED = new Map(JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/texture-transcode.json'), 'utf8'))
-			.textures.map((entry) => [entry.from, entry.to]));
-		const nowAt = (name) => TRANSCODED.get(name) || name;
+		// transcoded twelve of them to KTX2, and RM-012 J1 replaced five of its
+		// thumbnails with renders. Present means "present under the name the LAST
+		// pass gave it", which is the same rule `reports honest numbers` applies
+		// below and the same one that keeps the chain honest.
+		const MOVED = new Map([
+			...JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/texture-transcode.json'), 'utf8'))
+				.textures.map((entry) => [entry.from, entry.to]),
+			...THUMBNAILS.thumbnails.filter((row) => row.replaced).map((row) => [row.replaced, row.image]),
+		]);
+		const nowAt = (name) => MOVED.get(name) || name;
 
 		const missing = COMPRESSION.converted.filter((entry) => !existsSync(join(PUBLIC, nowAt(entry.to))));
 		expect(missing.map((entry) => entry.to), 'converted files that are not there').toEqual([]);
@@ -454,6 +459,16 @@ describe('the compression pass left nothing behind', () =>
 				// where to look as well as what to expect.
 				name: 'RM-004 B5 KTX2 transcode',
 				entries: (report) => report.textures.map((entry) => [entry.from, {bytes: entry.bytesAfter, at: entry.to}]),
+			},
+			{
+				report: THUMBNAILS,
+				// The third pass, and the same shape as B5's: a rendered thumbnail
+				// both replaces the bytes and moves them to a name derived from the
+				// model rather than from whatever the file was called when somebody
+				// downloaded it (RM-012 J1, X-8).
+				name: 'RM-012 J1 thumbnail render',
+				entries: (report) => report.thumbnails.filter((row) => row.replaced)
+					.map((row) => [row.replaced, {bytes: row.bytes, at: row.image}]),
 			},
 		];
 		/** @type {Map<string, {bytes: number, at: string, pass: string}>} */

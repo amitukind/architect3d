@@ -691,20 +691,44 @@
 		"",
 		"Set at 3,940, ~5% over 3,759, the same tightness the line was created with -",
 		"deliberately not sized for J2's rows, because that is the decision J2 is",
-		"supposed to have to record."
+		"supposed to have to record.",
+		"",
+		"J1's thumbnail render moved four lines and RAISED NONE OF THEM. Every one",
+		"of the 168 collected thumbnails was replaced by a render of the model the",
+		"row actually places, at the same 300x225 and all in PNG - 19 .jpg and 2",
+		".JPG went with them, and the uppercase pair was a 404 waiting for a",
+		"case-sensitive host.",
+		"",
+		"public-total 10,609,326 -> 10,926,439 and demo-total 19,313,259 ->",
+		"19,629,535. That is +317,967 net: 1,330,113 bytes of renders against",
+		"1,012,146 deleted. Headroom on those two lines falls to 2.3% and 1.8%,",
+		"which is the number J2 needs in front of it - X-2 already says the first",
+		"task of that sprint is the deploy-size decision, and this is a third of the",
+		"remaining room spent before it starts. Not raised here: the ceiling is J2's",
+		"to move, with the arithmetic beside it, and moving it now would be spending",
+		"a decision that has not been taken.",
+		"",
+		"catalog-item-largest 363,192 -> 370,761, and the costliest item changes from",
+		"Side Table to Church Chair - Oak: a row is charged for its model plus its",
+		"thumbnail, and the renders are larger than the photographs they replace.",
+		"",
+		"And catalog-index went DOWN, 3,819 -> 3,553. A thumbnail is now named after",
+		"the model it was rendered from, so `image` and `model` are nearly the same",
+		"string on every row and gzip charges almost nothing for the second one. The",
+		"rename paid back 266 bytes - most of what `room` and `tags` cost together."
 	],
 	"budgets": {
 		"demo-js-gzip": {
 			"limit": 423200,
-			"measured": 413101
+			"measured": 412815
 		},
 		"demo-css-gzip": {
 			"limit": 10000,
-			"measured": 7449
+			"measured": 7457
 		},
 		"demo-total": {
 			"limit": 19990000,
-			"measured": 19313259
+			"measured": 19629535
 		},
 		"lib-iife-gzip": {
 			"limit": 307000,
@@ -712,7 +736,7 @@
 		},
 		"public-total": {
 			"limit": 11180000,
-			"measured": 10609326
+			"measured": 10926439
 		},
 		"lib-esm-gzip": {
 			"limit": 83000,
@@ -724,7 +748,7 @@
 		},
 		"catalog-item-largest": {
 			"limit": 384000,
-			"measured": 363192
+			"measured": 370761
 		},
 		"decoder-total": {
 			"limit": 881000,
@@ -736,11 +760,11 @@
 		},
 		"first-load": {
 			"limit": 421400,
-			"measured": 410394
+			"measured": 409941
 		},
 		"catalog-index": {
 			"limit": 3940,
-			"measured": 3819
+			"measured": 3553
 		}
 	}
 }

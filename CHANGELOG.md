@@ -1626,41 +1626,75 @@ a library to pick from, H2 gave the room a sun, lamps, occlusion and a
 photograph, and H3 lets you stand anywhere in it and take the whole view away as
 a file.
 
-**RM-012 J1: the `×300` hack goes, and the measurement replaces it.** RM-009 U-3
-measured the number wrong and assigned the fix here. `Item.initObject` read
-`if (halfSize.x < 1.0) resize(×300)` under a comment calling itself an ugly hack,
-and there were two guesses stacked in those four lines. *Which* models needed
-scaling was decided from one axis of one item — so a wide flat rug authored in
-centimetres has no axis under 1.0 and a tall thin lamp on the kit grid has two,
-which means the test answered a question about units by measuring a shape. And
-*how much* was 300; the Kenney kit is on a 2 m grid, so it is 200. At ×300 that
-kit's dining chair is 141 cm tall.
+**RM-012 J1: the catalog splits before the metadata lands.** The sprint's first
+bullet, and RM-012 X-3 put it first for a reason: as RM-007 drew it, J1 would add
+metadata to every bundled row and J2 would split the file afterwards — shipping a
+first-load regression and then removing it.
 
-The number is declared and arrives before the model does. `split-catalog.mjs`
-resolves each row's `unitScale` from its kit and writes it into the **bundled
-index**, not the detail, because it is read at the moment an item is placed and
-`addItem` is synchronous by construction — **60 gzipped bytes across all 168
-rows**, there being three distinct values in it.
+**Two files now, generated from the one that is still authored.**
+`src/catalog/catalog.json` remains the only place a row is written.
+`tools/split-catalog.mjs` divides it into `catalog-index.json`, which vite
+inlines, and `catalog-detail.json`, which is a dynamic `import()` and so becomes
+a chunk. `npm run catalog:check` regenerates and compares, and a test runs it —
+the mechanism `tsconfig.json`'s ledger drifted five times for want of.
 
-**A saved design does not move.** `scale_*` is absolute and includes this
-conversion, so a chair placed under the hack is recorded at 300 and stays at 300;
-applying the kit factor again on load would multiply an item by 200 every time a
-file was opened. The constructor records whether the scale came from a document
-and `applyUnitScale` returns when it did. Two copies of the same chair in one
-design, one placed before this change and one after, are genuinely different
-sizes, and both are exactly what their record says. Written up in
-[the save-format reference](docs/save-format.md).
+**Where the line goes was measured, not chosen.** Each candidate key was added to
+all 168 rows and the result gzipped at level 9:
 
-`Item.resize` was only ever exercised because the hack called it, and the
-inspector's own tests stub it out — so this would have quietly left the width,
-height and depth fields untested. Three tests now cover it directly, including
-the tenth-of-a-centimetre tolerance that stops a field round-tripping 49.99999
-from reading as a resize.
+    format   +40 B     168 identical strings
+    room    +369 B     a vocabulary of eight
+    tags    +116 B     a smaller vocabulary still
+    size    +907 B     every value different
 
-    branches   77.45 -> 77.48      lines      86.39 -> 86.41
-    statements 86.41 -> 86.43      functions  84.21 -> 84.22
+So the index carries what the grid filters on **and** what the placement path
+reads — which keeps `addItem` synchronous, worth far more than the 40 bytes
+`format` costs — and the detail carries what a person reads about one item. The
+filterable keys turn out to be the cheap ones because their vocabularies repeat;
+the expensive ones are exactly those nobody reads until they click.
 
-**8 new tests, 2,180 headless.** Still to come in J1: the thumbnail tool.
+**The two budget lines disagreed, which is the evidence the split worked.**
+`demo-js-gzip` rose 405,606 → 408,761 because the detail chunk is in the build;
+`first-load` rose 408,108 → 408,473, **365 bytes**, because it is a chunk nobody
+fetches until the drawer opens. H2's ambient occlusion produced the same pair of
+readings for the same reason.
+
+**M-44 is a twelfth budget line**, `catalog-index` at 3,580 with 3,408 measured —
+the file compacted and gzipped, which is what a bundler emits. Set at the usual
+~5% deliberately: a ceiling with J2's whole row growth pre-authorised inside it
+would notice nothing, and this line exists to make a key crossing back into the
+payload a decision somebody records.
+
+**The dimensions are measured rather than authored** — the one J1 field nobody
+should type. Each model's bounding box is computed by walking its glTF scene
+graph and transforming all eight corners of every primitive's own accessor
+bounds, which survives Draco because the extension replaces the buffer view and
+leaves the accessor's metadata alone. 168 of 168 measured, including the three
+plain `.gltf` files a binary-only reader missed.
+
+**And the catalog turns out to be authored in two units, with a 28-fold gap
+between them.** The largest extent of the small population is **1.82** and the
+smallest of the large is **51.42**: 141 models in metres, 27 already in
+centimetres. Both check out against real furniture — at ×100 a basin is 34 cm
+wide and a stack of books is 15; at ×1 a double bed is 140 × 200 and a door is
+97 × 222. This is what `Item.initObject` has been guessing at since the fork,
+with `if (halfSize.x < 1.0) resize(×300)` under a comment calling itself an ugly
+hack, and RM-009 U-3 measured the 300 wrong and assigned the fix here. At ×300
+that stack of books is 45 cm wide. **The band between the two populations is left
+ambiguous on purpose**: a model landing between 2 and 40 units is reported and
+the run fails rather than being silently assigned a unit, because the rule is
+fitted to this catalog and J2 will add packs it was not fitted to.
+
+The drawer shows the size in the unit the reader is working in, and shows nothing
+until the chunk lands — which is the split working rather than a defect.
+
+    branches   77.32 -> 77.37      lines      86.33 -> 86.33
+    statements 86.35 -> 86.36      functions  84.09 -> 84.09
+
+**21 new tests, 2,147 headless.** Still to come in J1: the metadata itself, browse
+by room, the twelve wall segments out of furniture, and the thumbnail tool.
+
+New public surface: `npm run catalog` / `catalog:check`, and
+`loadCatalogDetail()` from `useCatalog.js`.
 
 **RM-012 J1: every row says what it is, where it belongs and who made it — and
 the sizes shipped eight days ago were wrong.** M-29 is met from a measured
@@ -1739,75 +1773,134 @@ the other 1,260 being the drawer's new controls.
 **25 new tests, 2,172 headless.** Still to come in J1: the thumbnail tool, and
 the `×300` hack the measured scale now replaces.
 
-**RM-012 J1: the catalog splits before the metadata lands.** The sprint's first
-bullet, and RM-012 X-3 put it first for a reason: as RM-007 drew it, J1 would add
-metadata to every bundled row and J2 would split the file afterwards — shipping a
-first-load regression and then removing it.
+**RM-012 J1: the `×300` hack goes, and the measurement replaces it.** RM-009 U-3
+measured the number wrong and assigned the fix here. `Item.initObject` read
+`if (halfSize.x < 1.0) resize(×300)` under a comment calling itself an ugly hack,
+and there were two guesses stacked in those four lines. *Which* models needed
+scaling was decided from one axis of one item — so a wide flat rug authored in
+centimetres has no axis under 1.0 and a tall thin lamp on the kit grid has two,
+which means the test answered a question about units by measuring a shape. And
+*how much* was 300; the Kenney kit is on a 2 m grid, so it is 200. At ×300 that
+kit's dining chair is 141 cm tall.
 
-**Two files now, generated from the one that is still authored.**
-`src/catalog/catalog.json` remains the only place a row is written.
-`tools/split-catalog.mjs` divides it into `catalog-index.json`, which vite
-inlines, and `catalog-detail.json`, which is a dynamic `import()` and so becomes
-a chunk. `npm run catalog:check` regenerates and compares, and a test runs it —
-the mechanism `tsconfig.json`'s ledger drifted five times for want of.
+The number is declared and arrives before the model does. `split-catalog.mjs`
+resolves each row's `unitScale` from its kit and writes it into the **bundled
+index**, not the detail, because it is read at the moment an item is placed and
+`addItem` is synchronous by construction — **60 gzipped bytes across all 168
+rows**, there being three distinct values in it.
 
-**Where the line goes was measured, not chosen.** Each candidate key was added to
-all 168 rows and the result gzipped at level 9:
+**A saved design does not move.** `scale_*` is absolute and includes this
+conversion, so a chair placed under the hack is recorded at 300 and stays at 300;
+applying the kit factor again on load would multiply an item by 200 every time a
+file was opened. The constructor records whether the scale came from a document
+and `applyUnitScale` returns when it did. Two copies of the same chair in one
+design, one placed before this change and one after, are genuinely different
+sizes, and both are exactly what their record says. Written up in
+[the save-format reference](docs/save-format.md).
 
-    format   +40 B     168 identical strings
-    room    +369 B     a vocabulary of eight
-    tags    +116 B     a smaller vocabulary still
-    size    +907 B     every value different
+`Item.resize` was only ever exercised because the hack called it, and the
+inspector's own tests stub it out — so this would have quietly left the width,
+height and depth fields untested. Three tests now cover it directly, including
+the tenth-of-a-centimetre tolerance that stops a field round-tripping 49.99999
+from reading as a resize.
 
-So the index carries what the grid filters on **and** what the placement path
-reads — which keeps `addItem` synchronous, worth far more than the 40 bytes
-`format` costs — and the detail carries what a person reads about one item. The
-filterable keys turn out to be the cheap ones because their vocabularies repeat;
-the expensive ones are exactly those nobody reads until they click.
+    branches   77.45 -> 77.48      lines      86.39 -> 86.41
+    statements 86.41 -> 86.43      functions  84.21 -> 84.22
 
-**The two budget lines disagreed, which is the evidence the split worked.**
-`demo-js-gzip` rose 405,606 → 408,761 because the detail chunk is in the build;
-`first-load` rose 408,108 → 408,473, **365 bytes**, because it is a chunk nobody
-fetches until the drawer opens. H2's ambient occlusion produced the same pair of
-readings for the same reason.
+**8 new tests, 2,180 headless.** Still to come in J1: the thumbnail tool.
 
-**M-44 is a twelfth budget line**, `catalog-index` at 3,580 with 3,408 measured —
-the file compacted and gzipped, which is what a bundler emits. Set at the usual
-~5% deliberately: a ceiling with J2's whole row growth pre-authorised inside it
-would notice nothing, and this line exists to make a key crossing back into the
-payload a decision somebody records.
+**RM-012 J1 complete: the thumbnails are rendered, not collected.**
+`tools/render-thumbnails.mjs` drives headless chromium over SwiftShader and
+renders one 300 × 225 PNG per catalog row from the model that row actually
+places — at 600 × 450, box-filtered down, one model at a time. X-8 measured that
+all 168 collected thumbnails were already 300 × 225, so this is not about size:
+it is about **framing**, which is what a collected thumbnail cannot be consistent
+in and what a catalog several times larger cannot be kept consistent in by hand.
 
-**The dimensions are measured rather than authored** — the one J1 field nobody
-should type. Each model's bounding box is computed by walking its glTF scene
-graph and transforming all eight corners of every primitive's own accessor
-bounds, which survives Draco because the extension replaces the buffer view and
-leaves the accessor's metadata alone. 168 of 168 measured, including the three
-plain `.gltf` files a binary-only reader missed.
+The honest limit was measured before the tool was written. **139 of the 168
+models declare `KHR_materials_unlit`**, so no light reaches them and *lighting*
+consistency — half of what RM-007 asked for — is not available here. What the
+tool makes consistent is the camera, the framing margin, the background, the
+resolution and the format.
 
-**And the catalog turns out to be authored in two units, with a 28-fold gap
-between them.** The largest extent of the small population is **1.82** and the
-smallest of the large is **51.42**: 141 models in metres, 27 already in
-centimetres. Both check out against real furniture — at ×100 a basin is 34 cm
-wide and a stack of books is 15; at ×1 a double bed is 140 × 200 and a door is
-97 × 222. This is what `Item.initObject` has been guessing at since the fork,
-with `if (halfSize.x < 1.0) resize(×300)` under a comment calling itself an ugly
-hack, and RM-009 U-3 measured the 300 wrong and assigned the fix here. At ×300
-that stack of books is 45 cm wide. **The band between the two populations is left
-ambiguous on purpose**: a model landing between 2 and 40 units is reported and
-the run fails rather than being silently assigned a unit, because the rule is
-fitted to this catalog and J2 will add packs it was not fitted to.
+Every thumbnail is PNG now, and that is not tidiness: 19 were `.jpg` and 2 were
+`.JPG`, a 404 waiting for a case-sensitive host, and a JPEG cannot carry the
+alpha the other 147 have. The drawer paints tiles on a surface that changes with
+the theme.
 
-The drawer shows the size in the unit the reader is working in, and shows nothing
-until the chunk lands — which is the split working rather than a defect.
+Two numbers inside the render were measured rather than chosen, and they pull
+against each other. The first draft framed each model by its **bounding sphere**,
+which wastes the frame in exactly the cases a furniture catalog is full of — a
+sphere round a 200 × 30 × 90 bed takes the half-diagonal for a radius, so the bed
+is drawn at the size of a cube that would hold it. Fitting the projected **box**
+took mean frame coverage **15.8 % → 20.9 %** and cost 243 KB. Supersampling
+**twice rather than three times** gave 179 KB of that back at no visible cost on
+a 150 px tile: every extra sample level invents more part-covered edge pixels and
+each is a colour PNG has not seen before.
 
-    branches   77.32 -> 77.37      lines      86.33 -> 86.33
-    statements 86.35 -> 86.36      functions  84.09 -> 84.09
+**Four budget lines moved and none was raised.** `public-total` 10,609,326 →
+10,926,439 and `demo-total` 19,313,259 → 19,629,535, **+317,967 net** — 1,330,113
+bytes of renders against 1,012,146 deleted. Headroom on those two falls to 2.3 %
+and 1.8 %, which is the figure J2 needs in front of it. Deliberately not raised:
+the ceiling is J2's to move with the arithmetic beside it. And `catalog-index`
+went **down**, 3,819 → 3,553 — a thumbnail is named after the model it was
+rendered from, so `image` and `model` are nearly the same string on every row and
+gzip charges almost nothing for the second. That rename paid back 266 bytes, most
+of what `room` and `tags` cost together — and `first-load` fell with it, 410,394 →
+409,933, so a boot got smaller in the commit that added a quarter of a megabyte
+to the tree. The two lines disagreeing is the split working, for the third time
+in this sprint.
 
-**21 new tests, 2,147 headless.** Still to come in J1: the metadata itself, browse
-by room, the twelve wall segments out of furniture, and the thumbnail tool.
+`asset-pipeline/thumbnails.json` is the gate, because re-rendering takes minutes:
+it records every row's bytes, hash, and the `coverage` and `clipped` readings
+that check framing by arithmetic rather than by looking at 168 pictures. None
+empty, none clipped, mean coverage 20.9 %. It also records what each render
+*replaced* — P6's compression report names five of the deleted files as things it
+produced, so the chain is written down and the older report left true, the
+arrangement B5 established and this is the third pass to join.
 
-New public surface: `npm run catalog` / `catalog:check`, and
-`loadCatalogDetail()` from `useCatalog.js`.
+**The render caught the catalog lying about two of its own rows.** *Sectional –
+Olive* renders white, and so does *Media Console – Black*. Neither is a rendering
+fault: **4 of the 25 demo models carry no texture and no base colour factor at
+all** — those two, plus *Open Door* and *Wardrobe – White*, which are white anyway
+and so went unnoticed — and an untextured glTF material is three's default white.
+The collected thumbnails were product photographs of the real furniture, so they
+showed an olive sofa and a black console the files have never contained. Recorded
+for J2, because the fix is an acquisition question.
+
+The first draft accumulated all 168 buffers and pulled them across in one
+`page.evaluate`: at the 3× it was rendering then, 2.43 MB each is 408 MB raw and
+about 544 MB base64'd, and V8 threw `ERR_STRING_TOO_LONG`. One at a time is
+1.1 MB a call at today's 2×.
+
+**Two browser characterizations were re-stated rather than loosened**, both
+because the `×300` hack was in their numbers. U-3's stair: at the measured ×200
+the Kenney flight is 267.9 cm, still too tall to stand under a 250 cm wall and
+now too *short* to reach the 280 cm a storey rises — it fits neither end, which
+is a sharper form of the finding than the hack produced. U-2's opening: the same
+kit's wall module is 257.9 cm rather than 386.9, so the clamp is still under test
+and the opening still oversized, by 8 cm rather than by 137. Both docblocks keep
+the figures as they were measured and say why they moved.
+
+One defect is **recorded and not fixed**, because it belongs to J4 and is not a
+typo: `useItemActions.duplicateSelected` adds nothing. It reads `meta.itemType`
+and `meta.modelUrl` off `Item.getMetaData()`, which returns `item_type` and
+`model_url` — both undefined, so `Scene.addItem` defaults the type to 1 and asks
+the loader for `undefined`. It went unseen because the test's fake returns the
+camelCase shape the caller wishes for rather than the shape the real method
+returns. A duplicate also needs a new `designId` rather than the original's, so
+the fix is a decision about what that re-add path reads, and J4 owns copy, paste
+and duplicate.
+
+`Scene.addItem` has a contract change worth an embedder's attention: a model that
+arrives in units other than centimetres now needs `metadata.unitScale`. The `×300`
+fallback that used to guess is gone, and nothing is scaled that does not say so.
+
+    branches   77.48 -> 77.48      lines      86.41 -> 86.41
+    statements 86.43 -> 86.43      functions  84.22 -> 84.22
+
+**6 new tests, 2,186 headless.** Sprint J1 is complete: five bullets from the
+drawing and a sixth RM-009 U-3 assigned to it, across three commits.
 
 ## [3.0.1] - 2026-08-16
 

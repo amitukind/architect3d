@@ -61,7 +61,7 @@
 	"items": [
 		{
 			"name": "Closed Door",
-			"image": "models/thumbnails/thumbnail_Screen_Shot_2014-10-27_at_8.04.12_PM.jpg",
+			"image": "models/thumbnails/closed-door28x80_baked.png",
 			"model": "models/js-glb/closed-door28x80_baked.glb",
 			"type": 7,
 			"room": "structure",
@@ -73,7 +73,7 @@
 		},
 		{
 			"name": "Open Door",
-			"image": "models/thumbnails/thumbnail_Screen_Shot_2014-10-27_at_8.22.46_PM.jpg",
+			"image": "models/thumbnails/open_door.png",
 			"model": "models/js-glb/open_door.glb",
 			"type": 7,
 			"room": "structure",
@@ -85,7 +85,7 @@
 		},
 		{
 			"name": "Window",
-			"image": "models/thumbnails/thumbnail_window.png",
+			"image": "models/thumbnails/whitewindow.png",
 			"model": "models/js-glb/whitewindow.glb",
 			"type": 3,
 			"room": "structure",
@@ -97,7 +97,7 @@
 		},
 		{
 			"name": "Church Chair - Oak",
-			"image": "models/thumbnails/thumbnail_Church-Chair-oak-white_1024x1024.jpg",
+			"image": "models/thumbnails/gus-churchchair-whiteoak.png",
 			"model": "models/js-glb/gus-churchchair-whiteoak.glb",
 			"type": 1,
 			"room": "dining",
@@ -109,7 +109,7 @@
 		},
 		{
 			"name": "Red Chair",
-			"image": "models/thumbnails/thumbnail_tn-orange.png",
+			"image": "models/thumbnails/ik-ekero-orange_baked.png",
 			"model": "models/js-glb/ik-ekero-orange_baked.glb",
 			"type": 1,
 			"room": "dining",
@@ -121,7 +121,7 @@
 		},
 		{
 			"name": "Blue Chair",
-			"image": "models/thumbnails/thumbnail_ekero-blue3.png",
+			"image": "models/thumbnails/ik-ekero-blue_baked.png",
 			"model": "models/js-glb/ik-ekero-blue_baked.glb",
 			"type": 1,
 			"room": "dining",
@@ -133,7 +133,7 @@
 		},
 		{
 			"name": "Dresser - Dark Wood",
-			"image": "models/thumbnails/thumbnail_matera_dresser_5.jpg",
+			"image": "models/thumbnails/DWR_MATERA_DRESSER2.png",
 			"model": "models/js-glb/DWR_MATERA_DRESSER2.glb",
 			"type": 1,
 			"room": "bedroom",
@@ -145,7 +145,7 @@
 		},
 		{
 			"name": "Dresser - White",
-			"image": "models/thumbnails/thumbnail_img25o.jpg",
+			"image": "models/thumbnails/we-narrow6white_baked.png",
 			"model": "models/js-glb/we-narrow6white_baked.glb",
 			"type": 1,
 			"room": "bedroom",
@@ -157,7 +157,7 @@
 		},
 		{
 			"name": "Bedside table - Shale",
-			"image": "models/thumbnails/thumbnail_Blu-Dot-Shale-Bedside-Table.jpg",
+			"image": "models/thumbnails/bd-shalebedside-smoke_baked.png",
 			"model": "models/js-glb/bd-shalebedside-smoke_baked.glb",
 			"type": 1,
 			"room": "bedroom",
@@ -170,7 +170,7 @@
 		},
 		{
 			"name": "Bedside table - White",
-			"image": "models/thumbnails/thumbnail_arch-white-oval-nightstand.jpg",
+			"image": "models/thumbnails/cb-archnight-white_baked.png",
 			"model": "models/js-glb/cb-archnight-white_baked.glb",
 			"type": 1,
 			"room": "bedroom",
@@ -183,7 +183,7 @@
 		},
 		{
 			"name": "Wardrobe - White",
-			"image": "models/thumbnails/thumbnail_TN-ikea-kvikine.png",
+			"image": "models/thumbnails/ik-kivine_baked.png",
 			"model": "models/js-glb/ik-kivine_baked.glb",
 			"type": 1,
 			"room": "bedroom",
@@ -195,7 +195,7 @@
 		},
 		{
 			"name": "Full Bed",
-			"image": "models/thumbnails/thumbnail_nordli-bed-frame__0159270_PE315708_S4.JPG",
+			"image": "models/thumbnails/ik_nordli_full.png",
 			"model": "models/js-glb/ik_nordli_full.glb",
 			"type": 1,
 			"room": "bedroom",
@@ -207,7 +207,7 @@
 		},
 		{
 			"name": "Bookshelf",
-			"image": "models/thumbnails/thumbnail_kendall-walnut-bookcase.jpg",
+			"image": "models/thumbnails/cb-kendallbookcasewalnut_baked.png",
 			"model": "models/js-glb/cb-kendallbookcasewalnut_baked.glb",
 			"type": 1,
 			"room": "living",
@@ -219,7 +219,7 @@
 		},
 		{
 			"name": "Media Console - White",
-			"image": "models/thumbnails/thumbnail_clapboard-white-60-media-console-1.jpg",
+			"image": "models/thumbnails/cb-clapboard_baked.png",
 			"model": "models/js-glb/cb-clapboard_baked.glb",
 			"type": 9,
 			"room": "living",
@@ -231,7 +231,7 @@
 		},
 		{
 			"name": "Media Console - Black",
-			"image": "models/thumbnails/thumbnail_moore-60-media-console-1.jpg",
+			"image": "models/thumbnails/cb-moore_baked.png",
 			"model": "models/js-glb/cb-moore_baked.glb",
 			"type": 9,
 			"room": "living",
@@ -243,7 +243,7 @@
 		},
 		{
 			"name": "Sectional - Olive",
-			"image": "models/thumbnails/thumbnail_img21o.jpg",
+			"image": "models/thumbnails/we-crosby2piece-greenbaked.png",
 			"model": "models/js-glb/we-crosby2piece-greenbaked.glb",
 			"type": 1,
 			"room": "living",
@@ -255,7 +255,7 @@
 		},
 		{
 			"name": "Sofa - Grey",
-			"image": "models/thumbnails/thumbnail_rochelle-sofa-3.jpg",
+			"image": "models/thumbnails/cb-rochelle-gray_baked.png",
 			"model": "models/js-glb/cb-rochelle-gray_baked.glb",
 			"type": 1,
 			"room": "living",
@@ -267,7 +267,7 @@
 		},
 		{
 			"name": "Wooden Trunk",
-			"image": "models/thumbnails/thumbnail_teca-storage-trunk.jpg",
+			"image": "models/thumbnails/cb-tecs_baked.png",
 			"model": "models/js-glb/cb-tecs_baked.glb",
 			"type": 1,
 			"room": "living",
@@ -279,7 +279,7 @@
 		},
 		{
 			"name": "Floor Lamp",
-			"image": "models/thumbnails/thumbnail_ore-white.jpg",
+			"image": "models/thumbnails/ore-3legged-white_baked.png",
 			"model": "models/js-glb/ore-3legged-white_baked.glb",
 			"type": 1,
 			"room": "living",
@@ -292,7 +292,7 @@
 		},
 		{
 			"name": "Coffee Table - Wood",
-			"image": "models/thumbnails/thumbnail_stockholm-coffee-table__0181245_PE332924_S4.JPG",
+			"image": "models/thumbnails/ik-stockholmcoffee-brown.png",
 			"model": "models/js-glb/ik-stockholmcoffee-brown.glb",
 			"type": 1,
 			"room": "living",
@@ -304,7 +304,7 @@
 		},
 		{
 			"name": "Side Table",
-			"image": "models/thumbnails/thumbnail_Screen_Shot_2014-02-21_at_1.24.58_PM.jpg",
+			"image": "models/thumbnails/GUSossingtonendtable.png",
 			"model": "models/js-glb/GUSossingtonendtable.glb",
 			"type": 1,
 			"room": "living",
@@ -316,7 +316,7 @@
 		},
 		{
 			"name": "Dining Table - Scholar",
-			"image": "models/thumbnails/thumbnail_scholar-dining-table.jpg",
+			"image": "models/thumbnails/cb-scholartable_baked.png",
 			"model": "models/js-glb/cb-scholartable_baked.glb",
 			"type": 1,
 			"room": "dining",
@@ -328,7 +328,7 @@
 		},
 		{
 			"name": "Dining Table - Joshua Tree",
-			"image": "models/thumbnails/thumbnail_Screen_Shot_2014-01-28_at_6.49.33_PM.jpg",
+			"image": "models/thumbnails/BlakeAvenuejoshuatreecheftable.png",
 			"model": "models/js-glb/BlakeAvenuejoshuatreecheftable.glb",
 			"type": 1,
 			"room": "dining",
@@ -340,7 +340,7 @@
 		},
 		{
 			"name": "Blue Rug",
-			"image": "models/thumbnails/thumbnail_cb-blue-block60x96.jpg",
+			"image": "models/thumbnails/cb-blue-block-60x96.png",
 			"model": "models/js-glb/cb-blue-block-60x96.glb",
 			"type": 8,
 			"room": "living",
@@ -352,7 +352,7 @@
 		},
 		{
 			"name": "NYC Poster",
-			"image": "models/thumbnails/thumbnail_nyc2.jpg",
+			"image": "models/thumbnails/nyc-poster2.png",
 			"model": "models/js-glb/nyc-poster2.glb",
 			"type": 2,
 			"room": "living",
@@ -364,7 +364,7 @@
 		},
 		{
 			"name": "Duck",
-			"image": "models/thumbnails/thumbnail_duck.png",
+			"image": "models/thumbnails/Duck.png",
 			"model": "models/js/Duck.gltf",
 			"type": 1,
 			"room": "living",
@@ -376,7 +376,7 @@
 		},
 		{
 			"name": "Simplecabinet",
-			"image": "models/thumbnails_new/SimpleCabinet.png",
+			"image": "models/thumbnails/SimpleCabinet.png",
 			"model": "models/gltf/SimpleCabinet.glb",
 			"type": 9,
 			"room": "kitchen",
@@ -389,7 +389,7 @@
 		},
 		{
 			"name": "Bathroomcabinet",
-			"image": "models/thumbnails_new/bathroomCabinet.png",
+			"image": "models/thumbnails/bathroomCabinet.png",
 			"model": "models/gltf/bathroomCabinet.glb",
 			"type": 2,
 			"room": "bathroom",
@@ -401,7 +401,7 @@
 		},
 		{
 			"name": "Bathroomcabinetdrawer",
-			"image": "models/thumbnails_new/bathroomCabinetDrawer.png",
+			"image": "models/thumbnails/bathroomCabinetDrawer.png",
 			"model": "models/gltf/bathroomCabinetDrawer.glb",
 			"type": 9,
 			"room": "bathroom",
@@ -413,7 +413,7 @@
 		},
 		{
 			"name": "Bathroommirror",
-			"image": "models/thumbnails_new/bathroomMirror.png",
+			"image": "models/thumbnails/bathroomMirror.png",
 			"model": "models/gltf/bathroomMirror.glb",
 			"type": 2,
 			"room": "bathroom",
@@ -425,7 +425,7 @@
 		},
 		{
 			"name": "Bathroomsink",
-			"image": "models/thumbnails_new/bathroomSink.png",
+			"image": "models/thumbnails/bathroomSink.png",
 			"model": "models/gltf/bathroomSink.glb",
 			"type": 9,
 			"room": "bathroom",
@@ -437,7 +437,7 @@
 		},
 		{
 			"name": "Bathroomsinksquare",
-			"image": "models/thumbnails_new/bathroomSinkSquare.png",
+			"image": "models/thumbnails/bathroomSinkSquare.png",
 			"model": "models/gltf/bathroomSinkSquare.glb",
 			"type": 9,
 			"room": "bathroom",
@@ -449,7 +449,7 @@
 		},
 		{
 			"name": "Bathtub",
-			"image": "models/thumbnails_new/bathtub.png",
+			"image": "models/thumbnails/bathtub.png",
 			"model": "models/gltf/bathtub.glb",
 			"type": 1,
 			"room": "bathroom",
@@ -461,7 +461,7 @@
 		},
 		{
 			"name": "Bear",
-			"image": "models/thumbnails_new/bear.png",
+			"image": "models/thumbnails/bear.png",
 			"model": "models/gltf/bear.glb",
 			"type": 2,
 			"room": "living",
@@ -473,7 +473,7 @@
 		},
 		{
 			"name": "Bedbunk",
-			"image": "models/thumbnails_new/bedBunk.png",
+			"image": "models/thumbnails/bedBunk.png",
 			"model": "models/gltf/bedBunk.glb",
 			"type": 1,
 			"room": "bedroom",
@@ -485,7 +485,7 @@
 		},
 		{
 			"name": "Beddouble",
-			"image": "models/thumbnails_new/bedDouble.png",
+			"image": "models/thumbnails/bedDouble.png",
 			"model": "models/gltf/bedDouble.glb",
 			"type": 1,
 			"room": "bedroom",
@@ -497,7 +497,7 @@
 		},
 		{
 			"name": "Bedsingle",
-			"image": "models/thumbnails_new/bedSingle.png",
+			"image": "models/thumbnails/bedSingle.png",
 			"model": "models/gltf/bedSingle.glb",
 			"type": 1,
 			"room": "bedroom",
@@ -509,7 +509,7 @@
 		},
 		{
 			"name": "Bench",
-			"image": "models/thumbnails_new/bench.png",
+			"image": "models/thumbnails/bench.png",
 			"model": "models/gltf/bench.glb",
 			"type": 1,
 			"room": "living",
@@ -521,7 +521,7 @@
 		},
 		{
 			"name": "Benchcushion",
-			"image": "models/thumbnails_new/benchCushion.png",
+			"image": "models/thumbnails/benchCushion.png",
 			"model": "models/gltf/benchCushion.glb",
 			"type": 1,
 			"room": "living",
@@ -533,7 +533,7 @@
 		},
 		{
 			"name": "Benchcushionlow",
-			"image": "models/thumbnails_new/benchCushionLow.png",
+			"image": "models/thumbnails/benchCushionLow.png",
 			"model": "models/gltf/benchCushionLow.glb",
 			"type": 1,
 			"room": "living",
@@ -545,7 +545,7 @@
 		},
 		{
 			"name": "Bookcaseclosed",
-			"image": "models/thumbnails_new/bookcaseClosed.png",
+			"image": "models/thumbnails/bookcaseClosed.png",
 			"model": "models/gltf/bookcaseClosed.glb",
 			"type": 9,
 			"room": "living",
@@ -557,7 +557,7 @@
 		},
 		{
 			"name": "Bookcasecloseddoors",
-			"image": "models/thumbnails_new/bookcaseClosedDoors.png",
+			"image": "models/thumbnails/bookcaseClosedDoors.png",
 			"model": "models/gltf/bookcaseClosedDoors.glb",
 			"type": 9,
 			"room": "living",
@@ -569,7 +569,7 @@
 		},
 		{
 			"name": "Bookcaseclosedwide",
-			"image": "models/thumbnails_new/bookcaseClosedWide.png",
+			"image": "models/thumbnails/bookcaseClosedWide.png",
 			"model": "models/gltf/bookcaseClosedWide.glb",
 			"type": 9,
 			"room": "living",
@@ -581,7 +581,7 @@
 		},
 		{
 			"name": "Bookcaseopen",
-			"image": "models/thumbnails_new/bookcaseOpen.png",
+			"image": "models/thumbnails/bookcaseOpen.png",
 			"model": "models/gltf/bookcaseOpen.glb",
 			"type": 1,
 			"room": "living",
@@ -593,7 +593,7 @@
 		},
 		{
 			"name": "Bookcaseopenlow",
-			"image": "models/thumbnails_new/bookcaseOpenLow.png",
+			"image": "models/thumbnails/bookcaseOpenLow.png",
 			"model": "models/gltf/bookcaseOpenLow.glb",
 			"type": 1,
 			"room": "living",
@@ -605,7 +605,7 @@
 		},
 		{
 			"name": "Books",
-			"image": "models/thumbnails_new/books.png",
+			"image": "models/thumbnails/books.png",
 			"model": "models/gltf/books.glb",
 			"type": 0,
 			"room": "living",
@@ -617,7 +617,7 @@
 		},
 		{
 			"name": "Cabinetbed",
-			"image": "models/thumbnails_new/cabinetBed.png",
+			"image": "models/thumbnails/cabinetBed.png",
 			"model": "models/gltf/cabinetBed.glb",
 			"type": 1,
 			"room": "bedroom",
@@ -629,7 +629,7 @@
 		},
 		{
 			"name": "Cabinetbeddrawer",
-			"image": "models/thumbnails_new/cabinetBedDrawer.png",
+			"image": "models/thumbnails/cabinetBedDrawer.png",
 			"model": "models/gltf/cabinetBedDrawer.glb",
 			"type": 1,
 			"room": "bedroom",
@@ -641,7 +641,7 @@
 		},
 		{
 			"name": "Cabinetbeddrawertable",
-			"image": "models/thumbnails_new/cabinetBedDrawerTable.png",
+			"image": "models/thumbnails/cabinetBedDrawerTable.png",
 			"model": "models/gltf/cabinetBedDrawerTable.glb",
 			"type": 1,
 			"room": "bedroom",
@@ -654,7 +654,7 @@
 		},
 		{
 			"name": "Cabinettelevision",
-			"image": "models/thumbnails_new/cabinetTelevision.png",
+			"image": "models/thumbnails/cabinetTelevision.png",
 			"model": "models/gltf/cabinetTelevision.glb",
 			"type": 1,
 			"room": "living",
@@ -666,7 +666,7 @@
 		},
 		{
 			"name": "Cabinettelevisiondoors",
-			"image": "models/thumbnails_new/cabinetTelevisionDoors.png",
+			"image": "models/thumbnails/cabinetTelevisionDoors.png",
 			"model": "models/gltf/cabinetTelevisionDoors.glb",
 			"type": 1,
 			"room": "living",
@@ -678,7 +678,7 @@
 		},
 		{
 			"name": "Cardboardboxclosed",
-			"image": "models/thumbnails_new/cardboardBoxClosed.png",
+			"image": "models/thumbnails/cardboardBoxClosed.png",
 			"model": "models/gltf/cardboardBoxClosed.glb",
 			"type": 0,
 			"room": "utility",
@@ -690,7 +690,7 @@
 		},
 		{
 			"name": "Cardboardboxopen",
-			"image": "models/thumbnails_new/cardboardBoxOpen.png",
+			"image": "models/thumbnails/cardboardBoxOpen.png",
 			"model": "models/gltf/cardboardBoxOpen.glb",
 			"type": 0,
 			"room": "utility",
@@ -702,7 +702,7 @@
 		},
 		{
 			"name": "Ceilingfan",
-			"image": "models/thumbnails_new/ceilingFan.png",
+			"image": "models/thumbnails/ceilingFan.png",
 			"model": "models/gltf/ceilingFan.gltf",
 			"type": 4,
 			"room": "living",
@@ -715,7 +715,7 @@
 		},
 		{
 			"name": "Chair",
-			"image": "models/thumbnails_new/chair.png",
+			"image": "models/thumbnails/chair.png",
 			"model": "models/gltf/chair.glb",
 			"type": 1,
 			"room": "dining",
@@ -727,7 +727,7 @@
 		},
 		{
 			"name": "Chaircushion",
-			"image": "models/thumbnails_new/chairCushion.png",
+			"image": "models/thumbnails/chairCushion.png",
 			"model": "models/gltf/chairCushion.glb",
 			"type": 1,
 			"room": "dining",
@@ -739,7 +739,7 @@
 		},
 		{
 			"name": "Chairdesk",
-			"image": "models/thumbnails_new/chairDesk.png",
+			"image": "models/thumbnails/chairDesk.png",
 			"model": "models/gltf/chairDesk.glb",
 			"type": 1,
 			"room": "office",
@@ -751,7 +751,7 @@
 		},
 		{
 			"name": "Chairmoderncushion",
-			"image": "models/thumbnails_new/chairModernCushion.png",
+			"image": "models/thumbnails/chairModernCushion.png",
 			"model": "models/gltf/chairModernCushion.glb",
 			"type": 1,
 			"room": "dining",
@@ -763,7 +763,7 @@
 		},
 		{
 			"name": "Chairmodernframecushion",
-			"image": "models/thumbnails_new/chairModernFrameCushion.png",
+			"image": "models/thumbnails/chairModernFrameCushion.png",
 			"model": "models/gltf/chairModernFrameCushion.glb",
 			"type": 1,
 			"room": "dining",
@@ -775,7 +775,7 @@
 		},
 		{
 			"name": "Chairrounded",
-			"image": "models/thumbnails_new/chairRounded.png",
+			"image": "models/thumbnails/chairRounded.png",
 			"model": "models/gltf/chairRounded.glb",
 			"type": 1,
 			"room": "dining",
@@ -787,7 +787,7 @@
 		},
 		{
 			"name": "Chandelier",
-			"image": "models/thumbnails_new/nopreview.png",
+			"image": "models/thumbnails/chandelier.png",
 			"model": "models/gltf/chandelier.gltf",
 			"type": 4,
 			"room": "dining",
@@ -806,7 +806,7 @@
 		},
 		{
 			"name": "Coatrack",
-			"image": "models/thumbnails_new/coatRack.png",
+			"image": "models/thumbnails/coatRack.png",
 			"model": "models/gltf/coatRack.glb",
 			"type": 2,
 			"room": "utility",
@@ -818,7 +818,7 @@
 		},
 		{
 			"name": "Coatrackstanding",
-			"image": "models/thumbnails_new/coatRackStanding.png",
+			"image": "models/thumbnails/coatRackStanding.png",
 			"model": "models/gltf/coatRackStanding.glb",
 			"type": 1,
 			"room": "utility",
@@ -830,7 +830,7 @@
 		},
 		{
 			"name": "Computerkeyboard",
-			"image": "models/thumbnails_new/computerKeyboard.png",
+			"image": "models/thumbnails/computerKeyboard.png",
 			"model": "models/gltf/computerKeyboard.glb",
 			"type": 0,
 			"room": "office",
@@ -842,7 +842,7 @@
 		},
 		{
 			"name": "Computermouse",
-			"image": "models/thumbnails_new/computerMouse.png",
+			"image": "models/thumbnails/computerMouse.png",
 			"model": "models/gltf/computerMouse.glb",
 			"type": 0,
 			"room": "office",
@@ -854,7 +854,7 @@
 		},
 		{
 			"name": "Computerscreen",
-			"image": "models/thumbnails_new/computerScreen.png",
+			"image": "models/thumbnails/computerScreen.png",
 			"model": "models/gltf/computerScreen.glb",
 			"type": 2,
 			"room": "office",
@@ -866,7 +866,7 @@
 		},
 		{
 			"name": "Desk",
-			"image": "models/thumbnails_new/desk.png",
+			"image": "models/thumbnails/desk.png",
 			"model": "models/gltf/desk.glb",
 			"type": 1,
 			"room": "office",
@@ -878,7 +878,7 @@
 		},
 		{
 			"name": "Deskcorner",
-			"image": "models/thumbnails_new/deskCorner.png",
+			"image": "models/thumbnails/deskCorner.png",
 			"model": "models/gltf/deskCorner.glb",
 			"type": 2,
 			"room": "office",
@@ -890,7 +890,7 @@
 		},
 		{
 			"name": "Doorway",
-			"image": "models/thumbnails_new/doorway.png",
+			"image": "models/thumbnails/doorway.png",
 			"model": "models/gltf/doorway.glb",
 			"type": 3,
 			"room": "structure",
@@ -902,7 +902,7 @@
 		},
 		{
 			"name": "Doorwayfront",
-			"image": "models/thumbnails_new/doorwayFront.png",
+			"image": "models/thumbnails/doorwayFront.png",
 			"model": "models/gltf/doorwayFront.glb",
 			"type": 3,
 			"room": "structure",
@@ -914,7 +914,7 @@
 		},
 		{
 			"name": "Doorwayopen",
-			"image": "models/thumbnails_new/doorwayOpen.png",
+			"image": "models/thumbnails/doorwayOpen.png",
 			"model": "models/gltf/doorwayOpen.glb",
 			"type": 3,
 			"room": "structure",
@@ -926,7 +926,7 @@
 		},
 		{
 			"name": "Dryer",
-			"image": "models/thumbnails_new/dryer.png",
+			"image": "models/thumbnails/dryer.png",
 			"model": "models/gltf/dryer.glb",
 			"type": 2,
 			"room": "utility",
@@ -938,7 +938,7 @@
 		},
 		{
 			"name": "Floorcorner",
-			"image": "models/thumbnails_new/floorCorner.png",
+			"image": "models/thumbnails/floorCorner.png",
 			"model": "models/gltf/floorCorner.glb",
 			"type": 0,
 			"room": "structure",
@@ -950,7 +950,7 @@
 		},
 		{
 			"name": "Floorcornerround",
-			"image": "models/thumbnails_new/floorCornerRound.png",
+			"image": "models/thumbnails/floorCornerRound.png",
 			"model": "models/gltf/floorCornerRound.glb",
 			"type": 0,
 			"room": "structure",
@@ -962,7 +962,7 @@
 		},
 		{
 			"name": "Floorfull",
-			"image": "models/thumbnails_new/floorFull.png",
+			"image": "models/thumbnails/floorFull.png",
 			"model": "models/gltf/floorFull.glb",
 			"type": 0,
 			"room": "structure",
@@ -974,7 +974,7 @@
 		},
 		{
 			"name": "Floorhalf",
-			"image": "models/thumbnails_new/floorHalf.png",
+			"image": "models/thumbnails/floorHalf.png",
 			"model": "models/gltf/floorHalf.glb",
 			"type": 0,
 			"room": "structure",
@@ -986,7 +986,7 @@
 		},
 		{
 			"name": "Hoodlarge",
-			"image": "models/thumbnails_new/hoodLarge.png",
+			"image": "models/thumbnails/hoodLarge.png",
 			"model": "models/gltf/hoodLarge.glb",
 			"type": 0,
 			"room": "kitchen",
@@ -998,7 +998,7 @@
 		},
 		{
 			"name": "Hoodmodern",
-			"image": "models/thumbnails_new/hoodModern.png",
+			"image": "models/thumbnails/hoodModern.png",
 			"model": "models/gltf/hoodModern.glb",
 			"type": 0,
 			"room": "kitchen",
@@ -1010,7 +1010,7 @@
 		},
 		{
 			"name": "Kitchenbar",
-			"image": "models/thumbnails_new/kitchenBar.png",
+			"image": "models/thumbnails/kitchenBar.png",
 			"model": "models/gltf/kitchenBar.glb",
 			"type": 9,
 			"room": "kitchen",
@@ -1023,7 +1023,7 @@
 		},
 		{
 			"name": "Kitchenbarend",
-			"image": "models/thumbnails_new/kitchenBarEnd.png",
+			"image": "models/thumbnails/kitchenBarEnd.png",
 			"model": "models/gltf/kitchenBarEnd.glb",
 			"type": 9,
 			"room": "kitchen",
@@ -1036,7 +1036,7 @@
 		},
 		{
 			"name": "Kitchenblender",
-			"image": "models/thumbnails_new/kitchenBlender.png",
+			"image": "models/thumbnails/kitchenBlender.png",
 			"model": "models/gltf/kitchenBlender.glb",
 			"type": 0,
 			"room": "kitchen",
@@ -1048,7 +1048,7 @@
 		},
 		{
 			"name": "Kitchencabinet",
-			"image": "models/thumbnails_new/kitchenCabinet.png",
+			"image": "models/thumbnails/kitchenCabinet.png",
 			"model": "models/gltf/kitchenCabinet.glb",
 			"type": 9,
 			"room": "kitchen",
@@ -1060,7 +1060,7 @@
 		},
 		{
 			"name": "Kitchencabinetcornerinner",
-			"image": "models/thumbnails_new/kitchenCabinetCornerInner.png",
+			"image": "models/thumbnails/kitchenCabinetCornerInner.png",
 			"model": "models/gltf/kitchenCabinetCornerInner.glb",
 			"type": 9,
 			"room": "kitchen",
@@ -1072,7 +1072,7 @@
 		},
 		{
 			"name": "Kitchencabinetcornerround",
-			"image": "models/thumbnails_new/kitchenCabinetCornerRound.png",
+			"image": "models/thumbnails/kitchenCabinetCornerRound.png",
 			"model": "models/gltf/kitchenCabinetCornerRound.glb",
 			"type": 9,
 			"room": "kitchen",
@@ -1084,7 +1084,7 @@
 		},
 		{
 			"name": "Kitchencabinetdrawer",
-			"image": "models/thumbnails_new/kitchenCabinetDrawer.png",
+			"image": "models/thumbnails/kitchenCabinetDrawer.png",
 			"model": "models/gltf/kitchenCabinetDrawer.glb",
 			"type": 2,
 			"room": "kitchen",
@@ -1096,7 +1096,7 @@
 		},
 		{
 			"name": "Kitchencabinetupper",
-			"image": "models/thumbnails_new/kitchenCabinetUpper.png",
+			"image": "models/thumbnails/kitchenCabinetUpper.png",
 			"model": "models/gltf/kitchenCabinetUpper.glb",
 			"type": 2,
 			"room": "kitchen",
@@ -1108,7 +1108,7 @@
 		},
 		{
 			"name": "Kitchencabinetuppercorner",
-			"image": "models/thumbnails_new/kitchenCabinetUpperCorner.png",
+			"image": "models/thumbnails/kitchenCabinetUpperCorner.png",
 			"model": "models/gltf/kitchenCabinetUpperCorner.glb",
 			"type": 2,
 			"room": "kitchen",
@@ -1120,7 +1120,7 @@
 		},
 		{
 			"name": "Kitchencabinetupperdouble",
-			"image": "models/thumbnails_new/kitchenCabinetUpperDouble.png",
+			"image": "models/thumbnails/kitchenCabinetUpperDouble.png",
 			"model": "models/gltf/kitchenCabinetUpperDouble.glb",
 			"type": 2,
 			"room": "kitchen",
@@ -1132,7 +1132,7 @@
 		},
 		{
 			"name": "Kitchencabinetupperlow",
-			"image": "models/thumbnails_new/kitchenCabinetUpperLow.png",
+			"image": "models/thumbnails/kitchenCabinetUpperLow.png",
 			"model": "models/gltf/kitchenCabinetUpperLow.glb",
 			"type": 2,
 			"room": "kitchen",
@@ -1144,7 +1144,7 @@
 		},
 		{
 			"name": "Kitchencoffeemachine",
-			"image": "models/thumbnails_new/kitchenCoffeeMachine.png",
+			"image": "models/thumbnails/kitchenCoffeeMachine.png",
 			"model": "models/gltf/kitchenCoffeeMachine.glb",
 			"type": 0,
 			"room": "kitchen",
@@ -1156,7 +1156,7 @@
 		},
 		{
 			"name": "Kitchenfridge",
-			"image": "models/thumbnails_new/kitchenFridge.png",
+			"image": "models/thumbnails/kitchenFridge.png",
 			"model": "models/gltf/kitchenFridge.glb",
 			"type": 1,
 			"room": "kitchen",
@@ -1168,7 +1168,7 @@
 		},
 		{
 			"name": "Kitchenfridgebuiltin",
-			"image": "models/thumbnails_new/kitchenFridgeBuiltIn.png",
+			"image": "models/thumbnails/kitchenFridgeBuiltIn.png",
 			"model": "models/gltf/kitchenFridgeBuiltIn.glb",
 			"type": 1,
 			"room": "kitchen",
@@ -1180,7 +1180,7 @@
 		},
 		{
 			"name": "Kitchenfridgelarge",
-			"image": "models/thumbnails_new/kitchenFridgeLarge.png",
+			"image": "models/thumbnails/kitchenFridgeLarge.png",
 			"model": "models/gltf/kitchenFridgeLarge.glb",
 			"type": 1,
 			"room": "kitchen",
@@ -1192,7 +1192,7 @@
 		},
 		{
 			"name": "Kitchenfridgesmall",
-			"image": "models/thumbnails_new/kitchenFridgeSmall.png",
+			"image": "models/thumbnails/kitchenFridgeSmall.png",
 			"model": "models/gltf/kitchenFridgeSmall.glb",
 			"type": 1,
 			"room": "kitchen",
@@ -1204,7 +1204,7 @@
 		},
 		{
 			"name": "Kitchenmicrowave",
-			"image": "models/thumbnails_new/kitchenMicrowave.png",
+			"image": "models/thumbnails/kitchenMicrowave.png",
 			"model": "models/gltf/kitchenMicrowave.glb",
 			"type": 0,
 			"room": "kitchen",
@@ -1216,7 +1216,7 @@
 		},
 		{
 			"name": "Kitchensink",
-			"image": "models/thumbnails_new/kitchenSink.png",
+			"image": "models/thumbnails/kitchenSink.png",
 			"model": "models/gltf/kitchenSink.glb",
 			"type": 1,
 			"room": "kitchen",
@@ -1228,7 +1228,7 @@
 		},
 		{
 			"name": "Kitchenstove",
-			"image": "models/thumbnails_new/kitchenStove.png",
+			"image": "models/thumbnails/kitchenStove.png",
 			"model": "models/gltf/kitchenStove.glb",
 			"type": 1,
 			"room": "kitchen",
@@ -1240,7 +1240,7 @@
 		},
 		{
 			"name": "Kitchenstoveelectric",
-			"image": "models/thumbnails_new/kitchenStoveElectric.png",
+			"image": "models/thumbnails/kitchenStoveElectric.png",
 			"model": "models/gltf/kitchenStoveElectric.glb",
 			"type": 1,
 			"room": "kitchen",
@@ -1252,7 +1252,7 @@
 		},
 		{
 			"name": "Lamproundfloor",
-			"image": "models/thumbnails_new/lampRoundFloor.png",
+			"image": "models/thumbnails/lampRoundFloor.png",
 			"model": "models/gltf/lampRoundFloor.glb",
 			"type": 1,
 			"room": "living",
@@ -1265,7 +1265,7 @@
 		},
 		{
 			"name": "Lamproundtable",
-			"image": "models/thumbnails_new/lampRoundTable.png",
+			"image": "models/thumbnails/lampRoundTable.png",
 			"model": "models/gltf/lampRoundTable.glb",
 			"type": 0,
 			"room": "living",
@@ -1281,7 +1281,7 @@
 		},
 		{
 			"name": "Lampsquareceiling",
-			"image": "models/thumbnails_new/lampSquareCeiling.png",
+			"image": "models/thumbnails/lampSquareCeiling.png",
 			"model": "models/gltf/lampSquareCeiling.glb",
 			"type": 4,
 			"room": "living",
@@ -1298,7 +1298,7 @@
 		},
 		{
 			"name": "Lampsquarefloor",
-			"image": "models/thumbnails_new/lampSquareFloor.png",
+			"image": "models/thumbnails/lampSquareFloor.png",
 			"model": "models/gltf/lampSquareFloor.glb",
 			"type": 1,
 			"room": "living",
@@ -1311,7 +1311,7 @@
 		},
 		{
 			"name": "Lampsquaretable",
-			"image": "models/thumbnails_new/lampSquareTable.png",
+			"image": "models/thumbnails/lampSquareTable.png",
 			"model": "models/gltf/lampSquareTable.glb",
 			"type": 0,
 			"room": "living",
@@ -1327,7 +1327,7 @@
 		},
 		{
 			"name": "Lampwall",
-			"image": "models/thumbnails_new/lampWall.png",
+			"image": "models/thumbnails/lampWall.png",
 			"model": "models/gltf/lampWall.glb",
 			"type": 2,
 			"room": "living",
@@ -1344,7 +1344,7 @@
 		},
 		{
 			"name": "Laptop",
-			"image": "models/thumbnails_new/laptop.png",
+			"image": "models/thumbnails/laptop.png",
 			"model": "models/gltf/laptop.glb",
 			"type": 0,
 			"room": "office",
@@ -1356,7 +1356,7 @@
 		},
 		{
 			"name": "Loungechair",
-			"image": "models/thumbnails_new/loungeChair.png",
+			"image": "models/thumbnails/loungeChair.png",
 			"model": "models/gltf/loungeChair.glb",
 			"type": 1,
 			"room": "living",
@@ -1368,7 +1368,7 @@
 		},
 		{
 			"name": "Loungechairrelax",
-			"image": "models/thumbnails_new/loungeChairRelax.png",
+			"image": "models/thumbnails/loungeChairRelax.png",
 			"model": "models/gltf/loungeChairRelax.glb",
 			"type": 1,
 			"room": "living",
@@ -1380,7 +1380,7 @@
 		},
 		{
 			"name": "Loungedesignchair",
-			"image": "models/thumbnails_new/loungeDesignChair.png",
+			"image": "models/thumbnails/loungeDesignChair.png",
 			"model": "models/gltf/loungeDesignChair.glb",
 			"type": 1,
 			"room": "living",
@@ -1392,7 +1392,7 @@
 		},
 		{
 			"name": "Loungedesignsofa",
-			"image": "models/thumbnails_new/loungeDesignSofa.png",
+			"image": "models/thumbnails/loungeDesignSofa.png",
 			"model": "models/gltf/loungeDesignSofa.glb",
 			"type": 1,
 			"room": "living",
@@ -1404,7 +1404,7 @@
 		},
 		{
 			"name": "Loungedesignsofacorner",
-			"image": "models/thumbnails_new/loungeDesignSofaCorner.png",
+			"image": "models/thumbnails/loungeDesignSofaCorner.png",
 			"model": "models/gltf/loungeDesignSofaCorner.glb",
 			"type": 9,
 			"room": "living",
@@ -1416,7 +1416,7 @@
 		},
 		{
 			"name": "Loungesofa",
-			"image": "models/thumbnails_new/loungeSofa.png",
+			"image": "models/thumbnails/loungeSofa.png",
 			"model": "models/gltf/loungeSofa.glb",
 			"type": 1,
 			"room": "living",
@@ -1428,7 +1428,7 @@
 		},
 		{
 			"name": "Loungesofacorner",
-			"image": "models/thumbnails_new/loungeSofaCorner.png",
+			"image": "models/thumbnails/loungeSofaCorner.png",
 			"model": "models/gltf/loungeSofaCorner.glb",
 			"type": 9,
 			"room": "living",
@@ -1440,7 +1440,7 @@
 		},
 		{
 			"name": "Loungesofalong",
-			"image": "models/thumbnails_new/loungeSofaLong.png",
+			"image": "models/thumbnails/loungeSofaLong.png",
 			"model": "models/gltf/loungeSofaLong.glb",
 			"type": 1,
 			"room": "living",
@@ -1452,7 +1452,7 @@
 		},
 		{
 			"name": "Loungesofaottoman",
-			"image": "models/thumbnails_new/loungeSofaOttoman.png",
+			"image": "models/thumbnails/loungeSofaOttoman.png",
 			"model": "models/gltf/loungeSofaOttoman.glb",
 			"type": 1,
 			"room": "living",
@@ -1464,7 +1464,7 @@
 		},
 		{
 			"name": "Paneling",
-			"image": "models/thumbnails_new/paneling.png",
+			"image": "models/thumbnails/paneling.png",
 			"model": "models/gltf/paneling.glb",
 			"type": 2,
 			"room": "structure",
@@ -1476,7 +1476,7 @@
 		},
 		{
 			"name": "Pillow",
-			"image": "models/thumbnails_new/pillow.png",
+			"image": "models/thumbnails/pillow.png",
 			"model": "models/gltf/pillow.glb",
 			"type": 0,
 			"room": "bedroom",
@@ -1488,7 +1488,7 @@
 		},
 		{
 			"name": "Pillowblue",
-			"image": "models/thumbnails_new/pillowBlue.png",
+			"image": "models/thumbnails/pillowBlue.png",
 			"model": "models/gltf/pillowBlue.glb",
 			"type": 0,
 			"room": "bedroom",
@@ -1500,7 +1500,7 @@
 		},
 		{
 			"name": "Pillowbluelong",
-			"image": "models/thumbnails_new/pillowBlueLong.png",
+			"image": "models/thumbnails/pillowBlueLong.png",
 			"model": "models/gltf/pillowBlueLong.glb",
 			"type": 0,
 			"room": "bedroom",
@@ -1512,7 +1512,7 @@
 		},
 		{
 			"name": "Pillowlong",
-			"image": "models/thumbnails_new/pillowLong.png",
+			"image": "models/thumbnails/pillowLong.png",
 			"model": "models/gltf/pillowLong.glb",
 			"type": 0,
 			"room": "bedroom",
@@ -1524,7 +1524,7 @@
 		},
 		{
 			"name": "Plantsmall1",
-			"image": "models/thumbnails_new/plantSmall1.png",
+			"image": "models/thumbnails/plantSmall1.png",
 			"model": "models/gltf/plantSmall1.glb",
 			"type": 1,
 			"room": "living",
@@ -1536,7 +1536,7 @@
 		},
 		{
 			"name": "Plantsmall2",
-			"image": "models/thumbnails_new/plantSmall2.png",
+			"image": "models/thumbnails/plantSmall2.png",
 			"model": "models/gltf/plantSmall2.glb",
 			"type": 1,
 			"room": "living",
@@ -1548,7 +1548,7 @@
 		},
 		{
 			"name": "Plantsmall3",
-			"image": "models/thumbnails_new/plantSmall3.png",
+			"image": "models/thumbnails/plantSmall3.png",
 			"model": "models/gltf/plantSmall3.glb",
 			"type": 1,
 			"room": "living",
@@ -1560,7 +1560,7 @@
 		},
 		{
 			"name": "Pottedplant",
-			"image": "models/thumbnails_new/pottedPlant.png",
+			"image": "models/thumbnails/pottedPlant.png",
 			"model": "models/gltf/pottedPlant.glb",
 			"type": 1,
 			"room": "living",
@@ -1572,7 +1572,7 @@
 		},
 		{
 			"name": "Radio",
-			"image": "models/thumbnails_new/radio.png",
+			"image": "models/thumbnails/radio.png",
 			"model": "models/gltf/radio.glb",
 			"type": 0,
 			"room": "living",
@@ -1584,7 +1584,7 @@
 		},
 		{
 			"name": "Rugdoormat",
-			"image": "models/thumbnails_new/rugDoormat.png",
+			"image": "models/thumbnails/rugDoormat.png",
 			"model": "models/gltf/rugDoormat.glb",
 			"type": 1,
 			"room": "utility",
@@ -1596,7 +1596,7 @@
 		},
 		{
 			"name": "Rugrectangle",
-			"image": "models/thumbnails_new/rugRectangle.png",
+			"image": "models/thumbnails/rugRectangle.png",
 			"model": "models/gltf/rugRectangle.glb",
 			"type": 1,
 			"room": "living",
@@ -1608,7 +1608,7 @@
 		},
 		{
 			"name": "Ruground",
-			"image": "models/thumbnails_new/rugRound.png",
+			"image": "models/thumbnails/rugRound.png",
 			"model": "models/gltf/rugRound.glb",
 			"type": 1,
 			"room": "living",
@@ -1620,7 +1620,7 @@
 		},
 		{
 			"name": "Rugrounded",
-			"image": "models/thumbnails_new/rugRounded.png",
+			"image": "models/thumbnails/rugRounded.png",
 			"model": "models/gltf/rugRounded.glb",
 			"type": 1,
 			"room": "living",
@@ -1632,7 +1632,7 @@
 		},
 		{
 			"name": "Rugsquare",
-			"image": "models/thumbnails_new/rugSquare.png",
+			"image": "models/thumbnails/rugSquare.png",
 			"model": "models/gltf/rugSquare.glb",
 			"type": 1,
 			"room": "living",
@@ -1644,7 +1644,7 @@
 		},
 		{
 			"name": "Shower",
-			"image": "models/thumbnails_new/shower.png",
+			"image": "models/thumbnails/shower.png",
 			"model": "models/gltf/shower.glb",
 			"type": 9,
 			"room": "bathroom",
@@ -1656,7 +1656,7 @@
 		},
 		{
 			"name": "Showerround",
-			"image": "models/thumbnails_new/showerRound.png",
+			"image": "models/thumbnails/showerRound.png",
 			"model": "models/gltf/showerRound.glb",
 			"type": 9,
 			"room": "bathroom",
@@ -1668,7 +1668,7 @@
 		},
 		{
 			"name": "Sidetable",
-			"image": "models/thumbnails_new/sideTable.png",
+			"image": "models/thumbnails/sideTable.png",
 			"model": "models/gltf/sideTable.glb",
 			"type": 1,
 			"room": "living",
@@ -1680,7 +1680,7 @@
 		},
 		{
 			"name": "Sidetabledrawers",
-			"image": "models/thumbnails_new/sideTableDrawers.png",
+			"image": "models/thumbnails/sideTableDrawers.png",
 			"model": "models/gltf/sideTableDrawers.glb",
 			"type": 1,
 			"room": "living",
@@ -1693,7 +1693,7 @@
 		},
 		{
 			"name": "Speaker",
-			"image": "models/thumbnails_new/speaker.png",
+			"image": "models/thumbnails/speaker.png",
 			"model": "models/gltf/speaker.glb",
 			"type": 1,
 			"room": "living",
@@ -1705,7 +1705,7 @@
 		},
 		{
 			"name": "Speakersmall",
-			"image": "models/thumbnails_new/speakerSmall.png",
+			"image": "models/thumbnails/speakerSmall.png",
 			"model": "models/gltf/speakerSmall.glb",
 			"type": 1,
 			"room": "living",
@@ -1717,7 +1717,7 @@
 		},
 		{
 			"name": "Stairs",
-			"image": "models/thumbnails_new/stairs.png",
+			"image": "models/thumbnails/stairs.png",
 			"model": "models/gltf/stairs.glb",
 			"type": 1,
 			"room": "structure",
@@ -1729,7 +1729,7 @@
 		},
 		{
 			"name": "Stairscorner",
-			"image": "models/thumbnails_new/stairsCorner.png",
+			"image": "models/thumbnails/stairsCorner.png",
 			"model": "models/gltf/stairsCorner.glb",
 			"type": 1,
 			"room": "structure",
@@ -1741,7 +1741,7 @@
 		},
 		{
 			"name": "Stairsopen",
-			"image": "models/thumbnails_new/stairsOpen.png",
+			"image": "models/thumbnails/stairsOpen.png",
 			"model": "models/gltf/stairsOpen.glb",
 			"type": 1,
 			"room": "structure",
@@ -1753,7 +1753,7 @@
 		},
 		{
 			"name": "Stairsopensingle",
-			"image": "models/thumbnails_new/stairsOpenSingle.png",
+			"image": "models/thumbnails/stairsOpenSingle.png",
 			"model": "models/gltf/stairsOpenSingle.glb",
 			"type": 1,
 			"room": "structure",
@@ -1765,7 +1765,7 @@
 		},
 		{
 			"name": "Stoolbar",
-			"image": "models/thumbnails_new/stoolBar.png",
+			"image": "models/thumbnails/stoolBar.png",
 			"model": "models/gltf/stoolBar.glb",
 			"type": 1,
 			"room": "kitchen",
@@ -1777,7 +1777,7 @@
 		},
 		{
 			"name": "Stoolbarsquare",
-			"image": "models/thumbnails_new/stoolBarSquare.png",
+			"image": "models/thumbnails/stoolBarSquare.png",
 			"model": "models/gltf/stoolBarSquare.glb",
 			"type": 1,
 			"room": "kitchen",
@@ -1789,7 +1789,7 @@
 		},
 		{
 			"name": "Table",
-			"image": "models/thumbnails_new/table.png",
+			"image": "models/thumbnails/table.png",
 			"model": "models/gltf/table.glb",
 			"type": 1,
 			"room": "dining",
@@ -1801,7 +1801,7 @@
 		},
 		{
 			"name": "Tablecloth",
-			"image": "models/thumbnails_new/tableCloth.png",
+			"image": "models/thumbnails/tableCloth.png",
 			"model": "models/gltf/tableCloth.glb",
 			"type": 1,
 			"room": "dining",
@@ -1813,7 +1813,7 @@
 		},
 		{
 			"name": "Tablecoffee",
-			"image": "models/thumbnails_new/tableCoffee.png",
+			"image": "models/thumbnails/tableCoffee.png",
 			"model": "models/gltf/tableCoffee.glb",
 			"type": 1,
 			"room": "living",
@@ -1825,7 +1825,7 @@
 		},
 		{
 			"name": "Tablecoffeeglass",
-			"image": "models/thumbnails_new/tableCoffeeGlass.png",
+			"image": "models/thumbnails/tableCoffeeGlass.png",
 			"model": "models/gltf/tableCoffeeGlass.glb",
 			"type": 1,
 			"room": "living",
@@ -1837,7 +1837,7 @@
 		},
 		{
 			"name": "Tablecoffeeglasssquare",
-			"image": "models/thumbnails_new/tableCoffeeGlassSquare.png",
+			"image": "models/thumbnails/tableCoffeeGlassSquare.png",
 			"model": "models/gltf/tableCoffeeGlassSquare.glb",
 			"type": 1,
 			"room": "living",
@@ -1849,7 +1849,7 @@
 		},
 		{
 			"name": "Tablecoffeesquare",
-			"image": "models/thumbnails_new/tableCoffeeSquare.png",
+			"image": "models/thumbnails/tableCoffeeSquare.png",
 			"model": "models/gltf/tableCoffeeSquare.glb",
 			"type": 1,
 			"room": "living",
@@ -1861,7 +1861,7 @@
 		},
 		{
 			"name": "Tablecross",
-			"image": "models/thumbnails_new/tableCross.png",
+			"image": "models/thumbnails/tableCross.png",
 			"model": "models/gltf/tableCross.glb",
 			"type": 1,
 			"room": "dining",
@@ -1873,7 +1873,7 @@
 		},
 		{
 			"name": "Tablecrosscloth",
-			"image": "models/thumbnails_new/tableCrossCloth.png",
+			"image": "models/thumbnails/tableCrossCloth.png",
 			"model": "models/gltf/tableCrossCloth.glb",
 			"type": 1,
 			"room": "dining",
@@ -1885,7 +1885,7 @@
 		},
 		{
 			"name": "Tableglass",
-			"image": "models/thumbnails_new/tableGlass.png",
+			"image": "models/thumbnails/tableGlass.png",
 			"model": "models/gltf/tableGlass.glb",
 			"type": 1,
 			"room": "dining",
@@ -1897,7 +1897,7 @@
 		},
 		{
 			"name": "Tableround",
-			"image": "models/thumbnails_new/tableRound.png",
+			"image": "models/thumbnails/tableRound.png",
 			"model": "models/gltf/tableRound.glb",
 			"type": 1,
 			"room": "dining",
@@ -1909,7 +1909,7 @@
 		},
 		{
 			"name": "Televisionantenna",
-			"image": "models/thumbnails_new/televisionAntenna.png",
+			"image": "models/thumbnails/televisionAntenna.png",
 			"model": "models/gltf/televisionAntenna.glb",
 			"type": 2,
 			"room": "living",
@@ -1921,7 +1921,7 @@
 		},
 		{
 			"name": "Televisionmodern",
-			"image": "models/thumbnails_new/televisionModern.png",
+			"image": "models/thumbnails/televisionModern.png",
 			"model": "models/gltf/televisionModern.glb",
 			"type": 2,
 			"room": "living",
@@ -1933,7 +1933,7 @@
 		},
 		{
 			"name": "Televisionvintage",
-			"image": "models/thumbnails_new/televisionVintage.png",
+			"image": "models/thumbnails/televisionVintage.png",
 			"model": "models/gltf/televisionVintage.glb",
 			"type": 2,
 			"room": "living",
@@ -1945,7 +1945,7 @@
 		},
 		{
 			"name": "Toaster",
-			"image": "models/thumbnails_new/toaster.png",
+			"image": "models/thumbnails/toaster.png",
 			"model": "models/gltf/toaster.glb",
 			"type": 0,
 			"room": "kitchen",
@@ -1957,7 +1957,7 @@
 		},
 		{
 			"name": "Toilet",
-			"image": "models/thumbnails_new/toilet.png",
+			"image": "models/thumbnails/toilet.png",
 			"model": "models/gltf/toilet.glb",
 			"type": 1,
 			"room": "bathroom",
@@ -1969,7 +1969,7 @@
 		},
 		{
 			"name": "Toiletsquare",
-			"image": "models/thumbnails_new/toiletSquare.png",
+			"image": "models/thumbnails/toiletSquare.png",
 			"model": "models/gltf/toiletSquare.glb",
 			"type": 1,
 			"room": "bathroom",
@@ -1981,7 +1981,7 @@
 		},
 		{
 			"name": "Trashcan",
-			"image": "models/thumbnails_new/trashcan.png",
+			"image": "models/thumbnails/trashcan.png",
 			"model": "models/gltf/trashcan.glb",
 			"type": 1,
 			"room": "kitchen",
@@ -1993,7 +1993,7 @@
 		},
 		{
 			"name": "Wall",
-			"image": "models/thumbnails_new/wall.png",
+			"image": "models/thumbnails/wall.png",
 			"model": "models/gltf/wall.glb",
 			"type": 0,
 			"room": "structure",
@@ -2005,7 +2005,7 @@
 		},
 		{
 			"name": "Wallcorner",
-			"image": "models/thumbnails_new/wallCorner.png",
+			"image": "models/thumbnails/wallCorner.png",
 			"model": "models/gltf/wallCorner.glb",
 			"type": 0,
 			"room": "structure",
@@ -2017,7 +2017,7 @@
 		},
 		{
 			"name": "Wallcornerrond",
-			"image": "models/thumbnails_new/wallCornerRond.png",
+			"image": "models/thumbnails/wallCornerRond.png",
 			"model": "models/gltf/wallCornerRond.glb",
 			"type": 0,
 			"room": "structure",
@@ -2029,7 +2029,7 @@
 		},
 		{
 			"name": "Walldoorway",
-			"image": "models/thumbnails_new/wallDoorway.png",
+			"image": "models/thumbnails/wallDoorway.png",
 			"model": "models/gltf/wallDoorway.glb",
 			"type": 3,
 			"room": "structure",
@@ -2042,7 +2042,7 @@
 		},
 		{
 			"name": "Walldoorwaywide",
-			"image": "models/thumbnails_new/wallDoorwayWide.png",
+			"image": "models/thumbnails/wallDoorwayWide.png",
 			"model": "models/gltf/wallDoorwayWide.glb",
 			"type": 3,
 			"room": "structure",
@@ -2055,7 +2055,7 @@
 		},
 		{
 			"name": "Wallhalf",
-			"image": "models/thumbnails_new/wallHalf.png",
+			"image": "models/thumbnails/wallHalf.png",
 			"model": "models/gltf/wallHalf.glb",
 			"type": 0,
 			"room": "structure",
@@ -2067,7 +2067,7 @@
 		},
 		{
 			"name": "Wallwindow",
-			"image": "models/thumbnails_new/wallWindow.png",
+			"image": "models/thumbnails/wallWindow.png",
 			"model": "models/gltf/wallWindow.glb",
 			"type": 3,
 			"room": "structure",
@@ -2080,7 +2080,7 @@
 		},
 		{
 			"name": "Wallwindowslide",
-			"image": "models/thumbnails_new/wallWindowSlide.png",
+			"image": "models/thumbnails/wallWindowSlide.png",
 			"model": "models/gltf/wallWindowSlide.glb",
 			"type": 3,
 			"room": "structure",
@@ -2093,7 +2093,7 @@
 		},
 		{
 			"name": "Washer",
-			"image": "models/thumbnails_new/washer.png",
+			"image": "models/thumbnails/washer.png",
 			"model": "models/gltf/washer.glb",
 			"type": 1,
 			"room": "utility",
@@ -2105,7 +2105,7 @@
 		},
 		{
 			"name": "Washerdryerstacked",
-			"image": "models/thumbnails_new/washerDryerStacked.png",
+			"image": "models/thumbnails/washerDryerStacked.png",
 			"model": "models/gltf/washerDryerStacked.glb",
 			"type": 1,
 			"room": "utility",

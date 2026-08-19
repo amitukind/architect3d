@@ -1300,676 +1300,676 @@
 			"bytes": 162795,
 			"kind": "model"
 		},
-		"models/thumbnails/thumbnail_Blu-Dot-Shale-Bedside-Table.jpg": {
-			"bytes": 10157,
+		"models/thumbnails/BlakeAvenuejoshuatreecheftable.png": {
+			"bytes": 22249,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails/thumbnail_Church-Chair-oak-white_1024x1024.jpg": {
-			"bytes": 7820,
+		"models/thumbnails/DWR_MATERA_DRESSER2.png": {
+			"bytes": 27325,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails/thumbnail_Screen_Shot_2014-01-28_at_6.49.33_PM.jpg": {
-			"bytes": 20226,
+		"models/thumbnails/Duck.png": {
+			"bytes": 14380,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails/thumbnail_Screen_Shot_2014-02-21_at_1.24.58_PM.jpg": {
-			"bytes": 25921,
+		"models/thumbnails/GUSossingtonendtable.png": {
+			"bytes": 24853,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails/thumbnail_Screen_Shot_2014-10-27_at_8.04.12_PM.jpg": {
-			"bytes": 11866,
+		"models/thumbnails/SimpleCabinet.png": {
+			"bytes": 5006,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails/thumbnail_Screen_Shot_2014-10-27_at_8.22.46_PM.jpg": {
-			"bytes": 13232,
+		"models/thumbnails/bathroomCabinet.png": {
+			"bytes": 3943,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails/thumbnail_TN-ikea-kvikine.png": {
-			"bytes": 15773,
+		"models/thumbnails/bathroomCabinetDrawer.png": {
+			"bytes": 6144,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails/thumbnail_arch-white-oval-nightstand.jpg": {
-			"bytes": 4960,
+		"models/thumbnails/bathroomMirror.png": {
+			"bytes": 5870,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails/thumbnail_cb-blue-block60x96.jpg": {
-			"bytes": 17457,
+		"models/thumbnails/bathroomSink.png": {
+			"bytes": 4507,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails/thumbnail_clapboard-white-60-media-console-1.jpg": {
-			"bytes": 7529,
+		"models/thumbnails/bathroomSinkSquare.png": {
+			"bytes": 3909,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails/thumbnail_duck.png": {
-			"bytes": 35389,
+		"models/thumbnails/bathtub.png": {
+			"bytes": 9194,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails/thumbnail_ekero-blue3.png": {
-			"bytes": 39449,
+		"models/thumbnails/bd-shalebedside-smoke_baked.png": {
+			"bytes": 24713,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails/thumbnail_img21o.jpg": {
-			"bytes": 5516,
+		"models/thumbnails/bear.png": {
+			"bytes": 6844,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails/thumbnail_img25o.jpg": {
-			"bytes": 3720,
+		"models/thumbnails/bedBunk.png": {
+			"bytes": 14863,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails/thumbnail_kendall-walnut-bookcase.jpg": {
-			"bytes": 3611,
+		"models/thumbnails/bedDouble.png": {
+			"bytes": 10697,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails/thumbnail_matera_dresser_5.jpg": {
-			"bytes": 20583,
+		"models/thumbnails/bedSingle.png": {
+			"bytes": 9792,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails/thumbnail_moore-60-media-console-1.jpg": {
-			"bytes": 6711,
+		"models/thumbnails/bench.png": {
+			"bytes": 7567,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails/thumbnail_nordli-bed-frame__0159270_PE315708_S4.JPG": {
-			"bytes": 9057,
+		"models/thumbnails/benchCushion.png": {
+			"bytes": 8756,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails/thumbnail_nyc2.jpg": {
-			"bytes": 14545,
+		"models/thumbnails/benchCushionLow.png": {
+			"bytes": 8140,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails/thumbnail_ore-white.jpg": {
-			"bytes": 5790,
+		"models/thumbnails/bookcaseClosed.png": {
+			"bytes": 5163,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails/thumbnail_rochelle-sofa-3.jpg": {
-			"bytes": 5547,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails/thumbnail_scholar-dining-table.jpg": {
-			"bytes": 6100,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails/thumbnail_stockholm-coffee-table__0181245_PE332924_S4.JPG": {
-			"bytes": 7874,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails/thumbnail_teca-storage-trunk.jpg": {
-			"bytes": 6959,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails/thumbnail_tn-orange.png": {
-			"bytes": 43785,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails/thumbnail_window.png": {
-			"bytes": 80683,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/SimpleCabinet.png": {
-			"bytes": 29360,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/bathroomCabinet.png": {
-			"bytes": 1261,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/bathroomCabinetDrawer.png": {
-			"bytes": 3457,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/bathroomMirror.png": {
-			"bytes": 3191,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/bathroomSink.png": {
-			"bytes": 4491,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/bathroomSinkSquare.png": {
-			"bytes": 3595,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/bathtub.png": {
-			"bytes": 2035,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/bear.png": {
-			"bytes": 7809,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/bedBunk.png": {
-			"bytes": 10656,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/bedDouble.png": {
-			"bytes": 5448,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/bedSingle.png": {
-			"bytes": 5275,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/bench.png": {
-			"bytes": 4728,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/benchCushion.png": {
-			"bytes": 4926,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/benchCushionLow.png": {
-			"bytes": 3610,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/bookcaseClosed.png": {
-			"bytes": 9245,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/bookcaseClosedDoors.png": {
-			"bytes": 4016,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/bookcaseClosedWide.png": {
-			"bytes": 9677,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/bookcaseOpen.png": {
-			"bytes": 6953,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/bookcaseOpenLow.png": {
-			"bytes": 3976,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/books.png": {
-			"bytes": 2086,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/cabinetBed.png": {
-			"bytes": 2829,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/cabinetBedDrawer.png": {
-			"bytes": 3331,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/cabinetBedDrawerTable.png": {
-			"bytes": 2701,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/cabinetTelevision.png": {
-			"bytes": 4886,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/cabinetTelevisionDoors.png": {
-			"bytes": 4257,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/cardboardBoxClosed.png": {
-			"bytes": 1670,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/cardboardBoxOpen.png": {
-			"bytes": 2612,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/ceilingFan.png": {
-			"bytes": 2614,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/chair.png": {
-			"bytes": 3914,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/chairCushion.png": {
-			"bytes": 3995,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/chairDesk.png": {
-			"bytes": 7051,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/chairModernCushion.png": {
-			"bytes": 3162,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/chairModernFrameCushion.png": {
-			"bytes": 3020,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/chairRounded.png": {
-			"bytes": 4687,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/coatRack.png": {
-			"bytes": 4918,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/coatRackStanding.png": {
-			"bytes": 4706,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/computerKeyboard.png": {
-			"bytes": 1349,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/computerMouse.png": {
-			"bytes": 1090,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/computerScreen.png": {
-			"bytes": 3108,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/desk.png": {
-			"bytes": 4895,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/deskCorner.png": {
-			"bytes": 5381,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/doorway.png": {
-			"bytes": 5930,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/doorwayFront.png": {
-			"bytes": 3984,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/doorwayOpen.png": {
-			"bytes": 1529,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/dryer.png": {
-			"bytes": 3363,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/floorCorner.png": {
-			"bytes": 970,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/floorCornerRound.png": {
-			"bytes": 1012,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/floorFull.png": {
-			"bytes": 935,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/floorHalf.png": {
-			"bytes": 943,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/hoodLarge.png": {
-			"bytes": 2311,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/hoodModern.png": {
-			"bytes": 2810,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/kitchenBar.png": {
-			"bytes": 2066,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/kitchenBarEnd.png": {
-			"bytes": 2598,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/kitchenBlender.png": {
-			"bytes": 2946,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/kitchenCabinet.png": {
-			"bytes": 3538,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/kitchenCabinetCornerInner.png": {
-			"bytes": 2767,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/kitchenCabinetCornerRound.png": {
-			"bytes": 4678,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/kitchenCabinetDrawer.png": {
-			"bytes": 4186,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/kitchenCabinetUpper.png": {
-			"bytes": 1769,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/kitchenCabinetUpperCorner.png": {
-			"bytes": 5105,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/kitchenCabinetUpperDouble.png": {
-			"bytes": 2501,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/kitchenCabinetUpperLow.png": {
-			"bytes": 2022,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/kitchenCoffeeMachine.png": {
-			"bytes": 2777,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/kitchenFridge.png": {
-			"bytes": 3024,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/kitchenFridgeBuiltIn.png": {
-			"bytes": 3691,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/kitchenFridgeLarge.png": {
-			"bytes": 5401,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/kitchenFridgeSmall.png": {
-			"bytes": 2857,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/kitchenMicrowave.png": {
-			"bytes": 2239,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/kitchenSink.png": {
-			"bytes": 3954,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/kitchenStove.png": {
-			"bytes": 4684,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/kitchenStoveElectric.png": {
-			"bytes": 4395,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/lampRoundFloor.png": {
-			"bytes": 2801,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/lampRoundTable.png": {
-			"bytes": 2827,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/lampSquareCeiling.png": {
-			"bytes": 1634,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/lampSquareFloor.png": {
-			"bytes": 1663,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/lampSquareTable.png": {
-			"bytes": 1825,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/lampWall.png": {
-			"bytes": 1691,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/laptop.png": {
-			"bytes": 2695,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/loungeChair.png": {
-			"bytes": 5359,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/loungeChairRelax.png": {
-			"bytes": 6362,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/loungeDesignChair.png": {
-			"bytes": 5242,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/loungeDesignSofa.png": {
-			"bytes": 4989,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/loungeDesignSofaCorner.png": {
-			"bytes": 5161,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/loungeSofa.png": {
-			"bytes": 5470,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/loungeSofaCorner.png": {
-			"bytes": 6335,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/loungeSofaLong.png": {
-			"bytes": 6336,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/loungeSofaOttoman.png": {
-			"bytes": 2620,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/nopreview.png": {
-			"bytes": 11006,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/paneling.png": {
-			"bytes": 3120,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/pillow.png": {
-			"bytes": 2725,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/pillowBlue.png": {
-			"bytes": 1815,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/pillowBlueLong.png": {
-			"bytes": 2549,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/pillowLong.png": {
-			"bytes": 2584,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/plantSmall1.png": {
-			"bytes": 2056,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/plantSmall2.png": {
-			"bytes": 2022,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/plantSmall3.png": {
-			"bytes": 2087,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/pottedPlant.png": {
-			"bytes": 5876,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/radio.png": {
-			"bytes": 3031,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/rugDoormat.png": {
-			"bytes": 967,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/rugRectangle.png": {
-			"bytes": 885,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/rugRound.png": {
-			"bytes": 1177,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/rugRounded.png": {
-			"bytes": 1148,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/rugSquare.png": {
-			"bytes": 906,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/shower.png": {
-			"bytes": 5929,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/showerRound.png": {
-			"bytes": 6995,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/sideTable.png": {
-			"bytes": 3547,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/sideTableDrawers.png": {
-			"bytes": 4585,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/speaker.png": {
-			"bytes": 3209,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/speakerSmall.png": {
-			"bytes": 2776,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/stairs.png": {
-			"bytes": 11666,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/stairsCorner.png": {
-			"bytes": 11949,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/stairsOpen.png": {
-			"bytes": 16002,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/stairsOpenSingle.png": {
-			"bytes": 9999,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/stoolBar.png": {
-			"bytes": 3496,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails_new/stoolBarSquare.png": {
+		"models/thumbnails/bookcaseClosedDoors.png": {
 			"bytes": 2915,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/table.png": {
-			"bytes": 3692,
+		"models/thumbnails/bookcaseClosedWide.png": {
+			"bytes": 8516,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/tableCloth.png": {
-			"bytes": 4109,
+		"models/thumbnails/bookcaseOpen.png": {
+			"bytes": 6235,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/tableCoffee.png": {
-			"bytes": 2867,
+		"models/thumbnails/bookcaseOpenLow.png": {
+			"bytes": 6099,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/tableCoffeeGlass.png": {
-			"bytes": 2912,
+		"models/thumbnails/books.png": {
+			"bytes": 5888,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/tableCoffeeGlassSquare.png": {
-			"bytes": 2648,
+		"models/thumbnails/cabinetBed.png": {
+			"bytes": 4698,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/tableCoffeeSquare.png": {
-			"bytes": 2555,
+		"models/thumbnails/cabinetBedDrawer.png": {
+			"bytes": 5248,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/tableCross.png": {
-			"bytes": 8702,
+		"models/thumbnails/cabinetBedDrawerTable.png": {
+			"bytes": 4471,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/tableCrossCloth.png": {
-			"bytes": 8938,
+		"models/thumbnails/cabinetTelevision.png": {
+			"bytes": 8207,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/tableGlass.png": {
-			"bytes": 3948,
+		"models/thumbnails/cabinetTelevisionDoors.png": {
+			"bytes": 6375,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/tableRound.png": {
-			"bytes": 2540,
+		"models/thumbnails/cardboardBoxClosed.png": {
+			"bytes": 5007,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/televisionAntenna.png": {
-			"bytes": 2358,
+		"models/thumbnails/cardboardBoxOpen.png": {
+			"bytes": 4683,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/televisionModern.png": {
-			"bytes": 1827,
+		"models/thumbnails/cb-archnight-white_baked.png": {
+			"bytes": 18484,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/televisionVintage.png": {
-			"bytes": 3426,
+		"models/thumbnails/cb-blue-block-60x96.png": {
+			"bytes": 17142,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/toaster.png": {
-			"bytes": 1904,
+		"models/thumbnails/cb-clapboard_baked.png": {
+			"bytes": 26654,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/toilet.png": {
-			"bytes": 5694,
+		"models/thumbnails/cb-kendallbookcasewalnut_baked.png": {
+			"bytes": 17988,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/toiletSquare.png": {
-			"bytes": 5543,
+		"models/thumbnails/cb-moore_baked.png": {
+			"bytes": 15653,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/trashcan.png": {
-			"bytes": 2253,
+		"models/thumbnails/cb-rochelle-gray_baked.png": {
+			"bytes": 31395,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/wall.png": {
-			"bytes": 1025,
+		"models/thumbnails/cb-scholartable_baked.png": {
+			"bytes": 15000,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/wallCorner.png": {
-			"bytes": 1002,
+		"models/thumbnails/cb-tecs_baked.png": {
+			"bytes": 32108,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/wallCornerRond.png": {
-			"bytes": 1021,
+		"models/thumbnails/ceilingFan.png": {
+			"bytes": 3904,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/wallDoorway.png": {
-			"bytes": 2432,
+		"models/thumbnails/chair.png": {
+			"bytes": 4873,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/wallDoorwayWide.png": {
-			"bytes": 2293,
+		"models/thumbnails/chairCushion.png": {
+			"bytes": 5674,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/wallHalf.png": {
-			"bytes": 1004,
+		"models/thumbnails/chairDesk.png": {
+			"bytes": 8095,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/wallWindow.png": {
-			"bytes": 4004,
+		"models/thumbnails/chairModernCushion.png": {
+			"bytes": 4187,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/wallWindowSlide.png": {
-			"bytes": 4951,
+		"models/thumbnails/chairModernFrameCushion.png": {
+			"bytes": 5798,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/washer.png": {
-			"bytes": 6031,
+		"models/thumbnails/chairRounded.png": {
+			"bytes": 7163,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails_new/washerDryerStacked.png": {
-			"bytes": 9219,
+		"models/thumbnails/chandelier.png": {
+			"bytes": 9837,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/closed-door28x80_baked.png": {
+			"bytes": 5505,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/coatRack.png": {
+			"bytes": 6902,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/coatRackStanding.png": {
+			"bytes": 5044,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/computerKeyboard.png": {
+			"bytes": 5851,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/computerMouse.png": {
+			"bytes": 4149,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/computerScreen.png": {
+			"bytes": 6391,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/desk.png": {
+			"bytes": 5247,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/deskCorner.png": {
+			"bytes": 4675,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/doorway.png": {
+			"bytes": 4291,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/doorwayFront.png": {
+			"bytes": 3549,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/doorwayOpen.png": {
+			"bytes": 2162,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/dryer.png": {
+			"bytes": 5268,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/floorCorner.png": {
+			"bytes": 3852,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/floorCornerRound.png": {
+			"bytes": 5234,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/floorFull.png": {
+			"bytes": 3969,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/floorHalf.png": {
+			"bytes": 4008,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/gus-churchchair-whiteoak.png": {
+			"bytes": 16410,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/hoodLarge.png": {
+			"bytes": 5190,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/hoodModern.png": {
+			"bytes": 4140,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/ik-ekero-blue_baked.png": {
+			"bytes": 13631,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/ik-ekero-orange_baked.png": {
+			"bytes": 23030,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/ik-kivine_baked.png": {
+			"bytes": 13396,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/ik-stockholmcoffee-brown.png": {
+			"bytes": 14302,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/ik_nordli_full.png": {
+			"bytes": 21751,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/kitchenBar.png": {
+			"bytes": 6132,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/kitchenBarEnd.png": {
+			"bytes": 2436,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/kitchenBlender.png": {
+			"bytes": 6055,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/kitchenCabinet.png": {
+			"bytes": 6812,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/kitchenCabinetCornerInner.png": {
+			"bytes": 4720,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/kitchenCabinetCornerRound.png": {
+			"bytes": 4464,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/kitchenCabinetDrawer.png": {
+			"bytes": 7836,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/kitchenCabinetUpper.png": {
+			"bytes": 6268,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/kitchenCabinetUpperCorner.png": {
+			"bytes": 4290,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/kitchenCabinetUpperDouble.png": {
+			"bytes": 6047,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/kitchenCabinetUpperLow.png": {
+			"bytes": 8132,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/kitchenCoffeeMachine.png": {
+			"bytes": 5889,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/kitchenFridge.png": {
+			"bytes": 3017,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/kitchenFridgeBuiltIn.png": {
+			"bytes": 4342,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/kitchenFridgeLarge.png": {
+			"bytes": 5067,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/kitchenFridgeSmall.png": {
+			"bytes": 3430,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/kitchenMicrowave.png": {
+			"bytes": 7297,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/kitchenSink.png": {
+			"bytes": 7764,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/kitchenStove.png": {
+			"bytes": 12934,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/kitchenStoveElectric.png": {
+			"bytes": 11466,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/lampRoundFloor.png": {
+			"bytes": 2154,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/lampRoundTable.png": {
+			"bytes": 3885,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/lampSquareCeiling.png": {
+			"bytes": 4149,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/lampSquareFloor.png": {
+			"bytes": 2210,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/lampSquareTable.png": {
+			"bytes": 4200,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/lampWall.png": {
+			"bytes": 5845,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/laptop.png": {
+			"bytes": 7394,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/loungeChair.png": {
+			"bytes": 5665,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/loungeChairRelax.png": {
+			"bytes": 6144,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/loungeDesignChair.png": {
+			"bytes": 6920,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/loungeDesignSofa.png": {
+			"bytes": 7451,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/loungeDesignSofaCorner.png": {
+			"bytes": 6457,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/loungeSofa.png": {
+			"bytes": 6814,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/loungeSofaCorner.png": {
+			"bytes": 5615,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/loungeSofaLong.png": {
+			"bytes": 6338,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/loungeSofaOttoman.png": {
+			"bytes": 4902,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/nyc-poster2.png": {
+			"bytes": 19171,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/open_door.png": {
+			"bytes": 4302,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/ore-3legged-white_baked.png": {
+			"bytes": 5855,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/paneling.png": {
+			"bytes": 5331,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/pillow.png": {
+			"bytes": 4345,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/pillowBlue.png": {
+			"bytes": 5868,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/pillowBlueLong.png": {
+			"bytes": 6214,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/pillowLong.png": {
+			"bytes": 5116,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/plantSmall1.png": {
+			"bytes": 5163,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/plantSmall2.png": {
+			"bytes": 4732,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/plantSmall3.png": {
+			"bytes": 4191,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/pottedPlant.png": {
+			"bytes": 4320,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/radio.png": {
+			"bytes": 11672,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/rugDoormat.png": {
+			"bytes": 3950,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/rugRectangle.png": {
+			"bytes": 5760,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/rugRound.png": {
+			"bytes": 4339,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/rugRounded.png": {
+			"bytes": 5355,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/rugSquare.png": {
+			"bytes": 5921,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/shower.png": {
+			"bytes": 6083,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/showerRound.png": {
+			"bytes": 4084,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/sideTable.png": {
+			"bytes": 5044,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/sideTableDrawers.png": {
+			"bytes": 5323,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/speaker.png": {
+			"bytes": 3891,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/speakerSmall.png": {
+			"bytes": 6417,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/stairs.png": {
+			"bytes": 5549,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/stairsCorner.png": {
+			"bytes": 7731,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/stairsOpen.png": {
+			"bytes": 4988,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/stairsOpenSingle.png": {
+			"bytes": 4780,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/stoolBar.png": {
+			"bytes": 4036,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/stoolBarSquare.png": {
+			"bytes": 4274,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/table.png": {
+			"bytes": 8496,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/tableCloth.png": {
+			"bytes": 8526,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/tableCoffee.png": {
+			"bytes": 9683,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/tableCoffeeGlass.png": {
+			"bytes": 12289,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/tableCoffeeGlassSquare.png": {
+			"bytes": 10297,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/tableCoffeeSquare.png": {
+			"bytes": 8507,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/tableCross.png": {
+			"bytes": 9589,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/tableCrossCloth.png": {
+			"bytes": 10512,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/tableGlass.png": {
+			"bytes": 10955,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/tableRound.png": {
+			"bytes": 4367,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/televisionAntenna.png": {
+			"bytes": 5285,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/televisionModern.png": {
+			"bytes": 6656,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/televisionVintage.png": {
+			"bytes": 6975,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/toaster.png": {
+			"bytes": 7627,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/toilet.png": {
+			"bytes": 7381,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/toiletSquare.png": {
+			"bytes": 5820,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/trashcan.png": {
+			"bytes": 3064,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/wall.png": {
+			"bytes": 2902,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/wallCorner.png": {
+			"bytes": 2331,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/wallCornerRond.png": {
+			"bytes": 3203,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/wallDoorway.png": {
+			"bytes": 3339,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/wallDoorwayWide.png": {
+			"bytes": 3766,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/wallHalf.png": {
+			"bytes": 1916,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/wallWindow.png": {
+			"bytes": 4754,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/wallWindowSlide.png": {
+			"bytes": 5249,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/washer.png": {
+			"bytes": 9103,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/washerDryerStacked.png": {
+			"bytes": 7725,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/we-crosby2piece-greenbaked.png": {
+			"bytes": 18422,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/we-narrow6white_baked.png": {
+			"bytes": 29082,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/whitewindow.png": {
+			"bytes": 13787,
 			"kind": "thumbnail"
 		},
 		"rooms/textures/Ground_4K.jpg": {

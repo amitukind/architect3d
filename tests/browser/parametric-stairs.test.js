@@ -181,21 +181,42 @@ describe('M-37 in a real page', () =>
 	});
 
 	/**
-	 * U-3, measured again rather than quoted. Both are loaded into the same page
-	 * and their sizes read off the live items; the assertion is the comparison,
-	 * so it stays true whatever the multiplier does next.
+	 * U-3, measured again rather than quoted - and the measurement moved, which is
+	 * why it was written as a comparison of two live items rather than as a pair of
+	 * numbers.
+	 *
+	 * RM-012 J1 replaced `initObject`'s `x300` with the unit each kit declares.
+	 * The Kenney stair was 401.9 cm tall under the hack and is **267.9** at the
+	 * measured x200, so half of what this used to assert has flipped: the mesh
+	 * stair is still too tall for a 250 cm wall, and it is now **shorter** than the
+	 * 280 cm a storey actually rises.
+	 *
+	 * That is a sharper statement of U-3, not a weaker one. A flight has to reach
+	 * from one floor to the next; a mesh that is 268 cm cannot, and it is too tall
+	 * to stand under the wall it would lean against. It fails at both ends, and it
+	 * is a fixed lump of geometry either way - which is the whole argument for
+	 * generating one from the storey it is in.
+	 *
+	 * `unitScale` is passed because `useCatalog.addItem` passes it: it is a catalog
+	 * key resolved into the bundled index by `tools/split-catalog.mjs`, and a
+	 * caller of `Scene.addItem` that omits it gets the model at the size its own
+	 * file says. That is the new contract and it is deliberate - the old fallback
+	 * guessed, and guessed wrong.
 	 */
-	it('supersedes a catalog stair that arrives too big for any storey', async () =>
+	it('supersedes a catalog stair that fits neither the wall nor the storey', async () =>
 	{
-		const mesh = await place(1, 'models/gltf/stairs.glb');
+		const mesh = await place(1, 'models/gltf/stairs.glb', {unitScale: 200});
 		expect(mesh).not.toBeNull();
 		const meshHeight = mesh.halfSize.y * 2;
 
 		const generated = await place(11, '', {format: 'parametric', stair: {shape: 'straight', handrail: 'none'}});
 		const generatedHeight = generated.halfSize.y * 2;
 
+		// Too tall to stand under the wall...
 		expect(meshHeight).toBeGreaterThan(WALL_HEIGHT);
+		// ...and too short to reach the next floor, which the generated one does by
+		// construction because it is built from the storey rather than downloaded.
 		expect(generatedHeight).toBeCloseTo(280, 3);
-		expect(generatedHeight).toBeLessThan(meshHeight);
+		expect(meshHeight).toBeLessThan(generatedHeight);
 	});
 });

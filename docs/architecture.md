@@ -215,6 +215,32 @@ and `addItem` is synchronous by construction. It costs 60 gzipped bytes across
 all 168 rows, there being three distinct values in it.
 :::
 
+::: tip The thumbnails are rendered, and the tool is what renders them
+`npm run thumbnails` renders one 300 × 225 PNG per catalog row from the model
+that row actually places — `tools/render-thumbnails.mjs`, in headless chromium
+over SwiftShader, at 600 × 450 and box-filtered down, one model at a time. The
+camera fits each model's projected **box**, not its bounding sphere — a sphere
+round a low bed takes the half-diagonal for a radius and draws it at the size of
+a cube — which is worth 15.8 % → 20.9 % of mean frame coverage.
+`asset-pipeline/thumbnails.json` records what came out; `tests/thumbnails.test.js`
+asserts the tree still matches it without needing a GPU, which is the same
+division `tools/transcode-oracle.mjs` uses.
+
+X-8 measured that all 168 collected thumbnails were already 300 × 225, so this is
+not about size. It is about **framing** — a collected thumbnail is whatever the
+person who collected it happened to crop, and a catalog several times larger
+cannot be kept consistent by hand — and about **format**: 21 of the 168 were
+JPEG and so could not carry the alpha the other 147 have and the drawer's theming
+needs. Two of those 21 were `.JPG`, uppercase.
+
+The honest limit, measured first: **139 of the 168 models declare
+`KHR_materials_unlit`**, so no light reaches them and lighting is not something
+this tool can make consistent. What it makes consistent is the camera, the
+framing margin, the background, the resolution and the format. The 29 that are
+lit get a soft frontal rig; the rest ignore it, which is also what they will do
+in the scene.
+:::
+
 ### The material library
 
 Thirty CC0 materials from Poly Haven, an albedo and a roughness map each, under
