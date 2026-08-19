@@ -1,7 +1,9 @@
 // @ts-check
 import {Mesh, Matrix4, Object3D, Vector2, Vector3, Box3, BoxHelper, MeshBasicMaterial, AdditiveBlending} from 'three';
 import {CanvasTexture, PlaneGeometry, DoubleSide, SRGBColorSpace} from 'three';
-import {Color} from 'three';
+import {Color, PointLight} from 'three';
+import {isStudio, renderProfile} from '../core/render_profile.js';
+import {normaliseLamp, lampToJSON} from './lamp.js';
 import {Utils} from '../core/utils.js';
 import {disposeObject, disposeMaterial} from '../core/resource_registry.js';
 import {Dimensioning} from '../core/dimensioning.js';
@@ -246,6 +248,21 @@ export class Item extends Mesh
 		this._pickedColorSlots = new Set();
 
 		this.resizable = metadata.resizable;
+		/**
+		 * What this item emits, or null if it emits nothing (RM-011 H2, W-11).
+		 *
+		 * Read from the catalog row when the item is placed and from the saved
+		 * record when a design is opened, which is the same two paths `opening`,
+		 * `stair` and `structure` take - the difference being that those three
+		 * belong to one `Item` subclass each and a lamp can be any of them. A
+		 * pendant is a `RoofItem`, a standard lamp is a `FloorItem` and a sconce
+		 * is a `WallItem`, so this lives on the base class.
+		 *
+		 * @type {?import('./lamp.js').Lamp}
+		 */
+		this.lamp = metadata.lamp ? normaliseLamp(metadata.lamp) : null;
+		/** @type {?import('three').PointLight} Built by `initObject`. */
+		this.bulb = null;
 
 		this.castShadow = true;
 		this.receiveShadow = false;
@@ -616,7 +633,68 @@ export class Item extends Mesh
 	/** Subclass can define to take action after a resize. */
 	resized()
 	{
+		this.placeBulb();
+	}
 
+	/**
+	 * Give this item its light, if it has one (RM-011 H2).
+	 *
+	 * **Studio only, and off rather than dimmed under classic.** `classic` draws
+	 * walls with an unlit `MeshBasicMaterial` and floors with Phong: a point light
+	 * would reach the floors and nothing else, which is a lamp that lights the
+	 * carpet and not the room. H2's acceptance says every light it adds is off, or
+	 * free, under classic, and not building one is the cheapest way to be both.
+	 *
+	 * The bulb is a **child of the item**, so it moves, turns and scales with it
+	 * for free - dragging a lamp across a room takes its light with it and nothing
+	 * here has to hear about the move.
+	 *
+	 * @returns {void}
+	 */
+	buildBulb()
+	{
+		if (!this.lamp || this.bulb || !isStudio(renderProfile))
+		{
+			return;
+		}
+		// `power` is lumens; three divides by 4*pi to get the candela its shader
+		// wants. Saying it in lumens is what makes 800 checkable against a box in
+		// a shop - see the docblock in `lamp.js`.
+		var bulb = new PointLight(new Color(this.lamp.color), 1, this.lamp.range, 2);
+		bulb.power = this.lamp.brightness;
+		// Named for what it is, and findable: the browser tier counts these.
+		bulb.name = 'bulb';
+		// See `lamp.js`: a shadow-casting point light is a cube of six renders,
+		// and four lamps in a room would be twenty-four. The key casts the
+		// shadows; lamps light surfaces.
+		bulb.castShadow = false;
+		this.bulb = bulb;
+		this.add(bulb);
+		this.placeBulb();
+	}
+
+	/**
+	 * Put the bulb where the description says, as a fraction of the item's height.
+	 *
+	 * Derived on every resize rather than stored, so a lamp scaled to twice its
+	 * height keeps its bulb at the top rather than halfway up the shade. The
+	 * offset is from the item's own centre, which is where a child's local origin
+	 * sits.
+	 *
+	 * @returns {void}
+	 */
+	placeBulb()
+	{
+		if (!this.bulb || !this.lamp)
+		{
+			return;
+		}
+		// In the item's own space, so the parent's scale applies on top - which is
+		// why this divides by it. Without that a lamp scaled to 2x would put its
+		// bulb twice as far from its own centre as its own top.
+		var height = this.halfSize.y * 2;
+		var scale = this.scale.y || 1;
+		this.bulb.position.set(0, ((this.lamp.at - 0.5) * height) / scale, 0);
 	}
 
 	/** */
@@ -655,6 +733,12 @@ export class Item extends Mesh
 		this.bhelper = new BoxHelper(this);
 		this.scene.add(this.bhelper);
 		this.bhelper.visible = false;
+		// Guarded rather than unconditional: almost nothing in the catalog is a
+		// lamp, and an item that emits nothing should not pay a call to find out.
+		if (this.lamp)
+		{
+			this.buildBulb();
+		}
 		// select and stuff
 		this.scene.needsUpdate = true;
 
@@ -722,6 +806,16 @@ export class Item extends Mesh
 		}
 		disposeMaterial(this.originalmaterial);
 		disposeMaterial(this.wirematerial);
+
+		// A PointLight holds no GPU resource of its own, but it is in the scene
+		// graph and the renderer counts it - an undisposed one keeps a deleted lamp
+		// lighting the room. A0's rule: whatever this object added, it removes.
+		if (this.bulb)
+		{
+			this.remove(this.bulb);
+			this.bulb.dispose();
+			this.bulb = null;
+		}
 	}
 
 	/** on is a bool */
@@ -1100,6 +1194,16 @@ export class Item extends Mesh
 		if(matattribs)
 		{
 			data.material_colors = matattribs;
+		}
+		// Additive and conditional, like every key added since E2: an item that
+		// emits nothing writes no `lamp` key, so a design of chairs is
+		// byte-identical to the file it was before H2. A lamp records its own
+		// description rather than pointing at a catalog row, for the reason
+		// `newFloorTextures` records a URL rather than a texture id - a design
+		// saved against one catalog must open the same way against the next.
+		if (this.lamp)
+		{
+			data.lamp = lampToJSON(this.lamp);
 		}
 		return data;
 	}

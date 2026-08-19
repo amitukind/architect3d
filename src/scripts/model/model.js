@@ -1169,7 +1169,7 @@ export class Model extends EventDispatcher
 			// and is present only on a parametric door, window or archway. Passed
 			// through as it was read: `normaliseOpening` is what completes it, once,
 			// where the item is built.
-			var metadata = {itemName: item.item_name,resizable: item.resizable,format: item.format, itemType: item.item_type, modelUrl: item.model_url, materialColors: matColors, designId: item.id, opening: item.opening, stair: item.stair, structure: item.structure};
+			var metadata = {itemName: item.item_name,resizable: item.resizable,format: item.format, itemType: item.item_type, modelUrl: item.model_url, materialColors: matColors, designId: item.id, opening: item.opening, stair: item.stair, structure: item.structure, lamp: item.lamp};
 			this.scene.addItem(item.item_type,item.model_url,metadata,position,item.rotation,scale,item.fixed);
 		});
 		this.activeLevelIndex = Math.max(0, Math.min(this.levels.length - 1, wasActive));

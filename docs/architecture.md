@@ -552,6 +552,20 @@ materials pick their class while being built, so the profile has to be set
 first. `Main.applyRenderProfile()` switches a live viewer, at the cost of
 rebuilding every `Edge` and `Floor`.
 
+::: tip Lamps, and the catalog's sixth key
+`items/lamp.js` is a colour, a brightness in **lumens**, a range and a fraction
+of the item's height where the bulb sits. RM-011 W-11 counted the catalog — all
+168 rows carried exactly `format`, `image`, `model`, `name`, `type`, and eight
+were named like lamps with nothing a renderer could read — so this was priced as
+schema work over a file six suites assert about, and the eight rows say only what
+differs from the defaults.
+
+An item builds a `PointLight` as its own child, so dragging a lamp takes its
+light with it. **Studio-only and shadowless**, both for measured reasons: an
+unlit `MeshBasicMaterial` wall cannot receive a point light, and a
+shadow-casting one is a cube of six renders.
+:::
+
 ::: tip The sun, and the one north a building has
 `model/sun.js` turns a latitude, a day and an hour into an elevation and a
 bearing, and `Main.syncSun()` hands the direction to `Lights`. **Presence is the

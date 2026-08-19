@@ -5027,7 +5027,13 @@ this.roofPlane = this.buildRoofVaryingHeight();</pre></div>
 
         <li><strong>A sun below the horizon does not move the key underground.</strong> Held at the horizon, dimmed to nothing, and the intensity assigned on every pass rather than inside the branch &mdash; otherwise taking a night-time sun away would leave the lights off.</li>
 
-        <li style="opacity:.7"><strong>Still to land in H2:</strong> lamps that emit by a sixth catalog key (W-11), ambient occlusion behind the profile switch, and the photo capture through <code>Main.dataUrl()</code>.</li>
+        <li><strong>Lamps that emit, and W-11's count was right.</strong> Eight of the 168 rows are lamps and the other 160 keep exactly the five keys they had, asserted row by row. <code>items/lamp.js</code> follows the shape <code>opening</code>, <code>stair</code> and <code>structure</code> set: a row says only what differs, three of the eight say <code>{}</code>, and the record is saved with the item so a design carries its own lamps rather than depending on a catalog that has moved on.</li>
+
+        <li><strong>Brightness is in lumens</strong>, because it means something outside this repository &mdash; a 60 W incandescent is about 800, and three's <code>PointLight.power</code> is documented in lumens and divides by 4&pi; itself. The bulb's position is <strong>a fraction of the item's height and is never stored</strong>: a chandelier lights from near its bottom, a standard lamp from near its top, and both survive a resize.</li>
+
+        <li><strong>Studio-only and shadowless, and the bulb is not built at all under classic.</strong> A point light there would reach the Phong floors and nothing else &mdash; a lamp that lights the carpet and not the room. And a shadow-casting point light is a cube of six renders, so four lamps would be twenty-four; <code>lights.js</code> declined the same trade for its fill light.</li>
+
+        <li style="opacity:.7"><strong>Still to land in H2:</strong> ambient occlusion behind the profile switch, and the photo capture through <code>Main.dataUrl()</code>.</li>
       </ul>
     </div>
   </div>

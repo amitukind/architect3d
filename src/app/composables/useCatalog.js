@@ -213,6 +213,14 @@ export function useCatalog(store, placementContext)
 			metadata.structure = entry.structure;
 		}
 
+		// The sixth key, and the first that is not a generator (RM-011 H2, W-11).
+		// A row saying `"lamp": {}` is an item that emits at the defaults in
+		// `items/lamp.js`; one saying `{"brightness": 2400}` is a chandelier.
+		if (entry.lamp)
+		{
+			metadata.lamp = entry.lamp;
+		}
+
 		if (WALL_BOUND_TYPES.indexOf(entry.type) !== -1 && context.wall)
 		{
 			scene.addItem(entry.type, entry.model, metadata, null, null, null, false,

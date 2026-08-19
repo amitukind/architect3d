@@ -607,6 +607,38 @@ rectangular houses most plans are and a box over an L-shaped one.
 outline without touching the three generators.
 :::
 
+### `lamp` — an item that emits light
+
+Added in RM-011 H2, on an **item** rather than at the top level, and absent from
+every item that does not emit — which is 160 of the 168 the catalog offers.
+
+```json
+{"item_name": "Chandelier", "item_type": 4, "lamp": {"brightness": 2400, "at": 0.25}}
+```
+
+| Field | Default | Meaning |
+|---|---|---|
+| `color` | `"#ffe9c4"` | Six-digit hex. A warm bulb; unfiltered white reads as a fluorescent tube. |
+| `brightness` | `800` | **Lumens.** A 60 W incandescent is about 800. |
+| `range` | `300` | Centimetres at which the light has fallen to nothing. |
+| `at` | `0.85` | Where the bulb sits, as a **fraction of the item's own height**. |
+
+Lumens because it is a unit that means something outside this repository:
+three's `PointLight.power` is documented in lumens and divides by `4π` to get the
+candela its shader wants, so the number in the file is one anybody can check
+against a box in a shop.
+
+`at` is a fraction rather than a distance so it survives a resize — a floor
+lamp scaled to twice its height keeps its bulb at the top rather than halfway up
+the shade. **Nothing about where the bulb ends up is stored**; it is derived from
+the item's bounding box every time.
+
+**Lamps are Studio-only and cast no shadows.** `classic` draws walls with an
+unlit `MeshBasicMaterial`, so a point light there would reach the floors and
+nothing else; the bulb is not built at all rather than built and dimmed. And a
+shadow-casting point light is a cube of six renders — four lamps would be
+twenty-four — so the key light casts the shadows and lamps light surfaces.
+
 ### `sun` — a sun over the building
 
 Added in RM-011 H2, top level beside `roof`, and absent from every file written

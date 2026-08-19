@@ -190,7 +190,8 @@
 			"image": "models/thumbnails/thumbnail_ore-white.jpg",
 			"model": "models/js-glb/ore-3legged-white_baked.glb",
 			"type": 1,
-			"format": "gltf"
+			"format": "gltf",
+			"lamp": {}
 		},
 		{
 			"name": "Coffee Table - Wood",
@@ -484,7 +485,13 @@
 			"image": "models/thumbnails_new/nopreview.png",
 			"model": "models/gltf/chandelier.gltf",
 			"type": 4,
-			"format": "gltf"
+			"format": "gltf",
+			"lamp": {
+				"brightness": 2400,
+				"range": 550,
+				"at": 0.25,
+				"color": "#fff3de"
+			}
 		},
 		{
 			"name": "Coatrack",
@@ -750,42 +757,62 @@
 			"image": "models/thumbnails_new/lampRoundFloor.png",
 			"model": "models/gltf/lampRoundFloor.glb",
 			"type": 1,
-			"format": "gltf"
+			"format": "gltf",
+			"lamp": {}
 		},
 		{
 			"name": "Lamproundtable",
 			"image": "models/thumbnails_new/lampRoundTable.png",
 			"model": "models/gltf/lampRoundTable.glb",
 			"type": 0,
-			"format": "gltf"
+			"format": "gltf",
+			"lamp": {
+				"brightness": 450,
+				"range": 220
+			}
 		},
 		{
 			"name": "Lampsquareceiling",
 			"image": "models/thumbnails_new/lampSquareCeiling.png",
 			"model": "models/gltf/lampSquareCeiling.glb",
 			"type": 4,
-			"format": "gltf"
+			"format": "gltf",
+			"lamp": {
+				"brightness": 1200,
+				"range": 450,
+				"at": 0.2
+			}
 		},
 		{
 			"name": "Lampsquarefloor",
 			"image": "models/thumbnails_new/lampSquareFloor.png",
 			"model": "models/gltf/lampSquareFloor.glb",
 			"type": 1,
-			"format": "gltf"
+			"format": "gltf",
+			"lamp": {}
 		},
 		{
 			"name": "Lampsquaretable",
 			"image": "models/thumbnails_new/lampSquareTable.png",
 			"model": "models/gltf/lampSquareTable.glb",
 			"type": 0,
-			"format": "gltf"
+			"format": "gltf",
+			"lamp": {
+				"brightness": 450,
+				"range": 220
+			}
 		},
 		{
 			"name": "Lampwall",
 			"image": "models/thumbnails_new/lampWall.png",
 			"model": "models/gltf/lampWall.glb",
 			"type": 2,
-			"format": "gltf"
+			"format": "gltf",
+			"lamp": {
+				"brightness": 500,
+				"range": 250,
+				"at": 0.5
+			}
 		},
 		{
 			"name": "Laptop",

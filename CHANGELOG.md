@@ -1386,6 +1386,51 @@ every light this sprint adds is off, or free, there.
 statements 86.08 → 86.19, branches 77.08 → 77.35, functions 83.61 → 83.76, lines
 86.06 → 86.17. No budget moved.
 
+**RM-011 H2: lamps that emit, by the catalog's sixth key.** RM-011 W-11 counted
+the catalog — all 168 rows carried exactly `format`, `image`, `model`, `name`,
+`type`, **eight of them are named like lamps**, and not one carried anything a
+renderer could read. So the drawing priced this as schema work over a file six
+suites assert about rather than as lighting work, and that is what it turned out
+to be.
+
+**`items/lamp.js` follows the shape `opening`, `stair` and `structure` set.** A
+row states only what differs from the defaults — three of the eight say `{}`,
+because the defaults were chosen to be what a standard lamp is — and the record
+is saved with the item, so a design carries its own lamps rather than depending
+on a catalog that may have moved on. The other 160 rows keep exactly the five
+keys they had, asserted row by row.
+
+**Brightness is in lumens**, because it is a unit that means something outside
+this repository: a 60 W incandescent is about 800, and three's `PointLight.power`
+is documented in lumens and divides by `4π` itself. Nothing here does arithmetic
+three already does correctly, and the number in the catalog is one anybody can
+check against a box in a shop.
+
+**The bulb's position is a fraction of the item's height, and is never stored.**
+A chandelier lights from near its bottom and a standard lamp from near its top,
+and both stay true when somebody resizes the model — which a stored centimetre
+offset would not. It is a child of the item, so dragging a lamp takes its light
+with it and nothing has to hear about the move.
+
+**Studio-only and shadowless, both measured rather than assumed.** `classic`
+draws walls with an unlit `MeshBasicMaterial`, so a point light there reaches the
+Phong floors and nothing else — a lamp that lights the carpet and not the room.
+The bulb is **not built at all** rather than built and dimmed, which is the
+cheapest way to satisfy H2's *"off, or free, under classic"*. And a
+shadow-casting point light is a cube of six renders, so four lamps would be
+twenty-four; `three/lights.js` declined the same trade for its fill light and
+the argument transfers.
+
+**One thing the tests got wrong before the code did.** The bulb's *local*
+position is invariant under a resize — the parent's scale applies on top, and
+`placeBulb` divides it out — which looks like a bug until you notice it is
+exactly what keeps the world position at the top of the shade. The first draft
+of the test expected the local number to move. Both are asserted now.
+
+**19 new tests, 2,048 headless and 150 browser.** Coverage up on all four:
+statements 86.19 → 86.25, branches 77.35 → 77.48, functions 83.76 → 83.81, lines
+86.17 → 86.24. No budget moved.
+
 ## [3.0.1] - 2026-08-16
 
 No shipped code changed — `src/` is byte-identical to 3.0.0 and so is every

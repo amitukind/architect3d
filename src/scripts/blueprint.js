@@ -80,6 +80,7 @@ export {OPENING_DOOR, OPENING_WINDOW, OPENING_ARCH, OPENING_KINDS, OPENING_DEFAU
 export {ParametricStair} from './items/parametric_stair.js';
 export {ParametricStructure} from './items/parametric_structure.js';
 export {STRUCTURE_COLUMN, STRUCTURE_BEAM, STRUCTURE_KINDS, STRUCTURE_DEFAULTS, SECTION_RECTANGULAR, SECTION_ROUND, STRUCTURE_SECTIONS, newStructure, normaliseStructure, structureExtent, isOverhead, buildStructureGeometry, structureToJSON} from './items/structure.js';
+export {LAMP_COLOR, LAMP_DEFAULTS, normaliseLamp, lampToJSON} from './items/lamp.js';
 export {STAIR_STRAIGHT, STAIR_L, STAIR_U, STAIR_SHAPES, STAIR_DEFAULTS, STAIR_MATERIALS, TURN_LEFT, TURN_RIGHT, HANDRAIL_NONE, HANDRAIL_LEFT, HANDRAIL_RIGHT, HANDRAIL_BOTH, HANDRAIL_SIDES, HEADROOM, newStair, normaliseStair, stairMetrics, stairParts, stairPlan, stairwellHint, buildStairGeometry, stairToJSON} from './items/stair.js';
 export {Dimension, TextAnnotation, dimensionLine, DEFAULT_DIMENSION_OFFSET, DEFAULT_ANNOTATION_TEXT, DEFAULT_ANNOTATION_SIZE, ANNOTATION_SIZES} from './model/annotation.js';
 export {Model} from './model/model.js';
