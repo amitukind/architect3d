@@ -562,7 +562,44 @@
 		"lib-esm-gzip did NOT move for the library, and that is the property worth",
 		"naming: 72,813 -> 74,565 is Room.eachWallSide and setRoomWallsMaterial, 32",
 		"bytes. The catalog is imported by src/app, never by src/scripts, so an embedder",
-		"who takes the library gets none of it - the one-way arrow paying out in bytes."
+		"who takes the library gets none of it - the one-way arrow paying out in bytes.",
+		"",
+		"RM-011 H1 ADDED first-load, the eleventh line, and it paid for itself on its",
+		"first reading. RM-007 asked for a first-load budget before there was a number",
+		"to put in it; RM-011 W-7 measured 407,324 bytes gzipped. This is what a person",
+		"waits for: the document, the scripts and stylesheets it references, and",
+		"asset-manifest.json, which useAssets fetches before the viewer can resolve a",
+		"single texture. That last one belongs to no other line in this file and is the",
+		"one that grows when the asset tree does - which is why M-43 wanted the line at",
+		"the same time as the material library.",
+		"",
+		"Measured on the build that carries the library: 401,316 bytes, which is 6,008",
+		"BELOW the figure W-7 recorded before it. The limit is that plus 5%, and it",
+		"trips at almost exactly the moment demo-js-gzip does - by design, since the",
+		"bundle is 96 % of it. What this line adds over that one is the manifest and",
+		"the document, which nothing else here watches.",
+		"",
+		"How a library of thirty materials made the first load smaller: it did not.",
+		"The library cost 10,724 bytes - 6,554 of catalog, picker and inspector in the",
+		"bundle, and 4,170 of manifest entries for ninety new files - and M-43's letter",
+		"(\"does not grow by one byte\") is therefore not met, only its substance. What",
+		"paid for it was the finding this line made on the way in.",
+		"",
+		"17,065 of the manifest's 22,208 gzipped bytes were subresource-integrity",
+		"hashes. 4.1 % of everything a person downloads before their first wall, on",
+		"every boot, for a feature AssetResolver documents as off by default and that",
+		"guards nothing at all for a same-origin public/ - it matters for a",
+		"cross-origin CDN deployment, which is exactly the build that should ask for",
+		"it. They now live in asset-pipeline/asset-integrity.json, which is generated",
+		"in the same pass, verified by tests/asset-integrity.test.js and never served;",
+		"`npm run manifest -- --integrity` writes them into the manifest for a",
+		"deployment that wants them. No schema changed - AssetManifest.parse has always",
+		"read `hash` defensively - only which builds pay for it.",
+		"",
+		"The manifest went 22,208 -> 5,476 gzipped, so the net of this sprint on a",
+		"boot is -6,008 bytes with thirty materials added. A budget's first job is to",
+		"be a number somebody looks at; this one found something on the day it was",
+		"installed."
 	],
 	"budgets": {
 		"demo-js-gzip": {
@@ -575,7 +612,7 @@
 		},
 		"demo-total": {
 			"limit": 19990000,
-			"measured": 19035625
+			"measured": 19005525
 		},
 		"lib-iife-gzip": {
 			"limit": 288100,
@@ -583,7 +620,7 @@
 		},
 		"public-total": {
 			"limit": 11180000,
-			"measured": 10640264
+			"measured": 10609326
 		},
 		"lib-esm-gzip": {
 			"limit": 78300,
@@ -604,6 +641,10 @@
 		"texture-vram": {
 			"limit": 26250000,
 			"measured": 25004576
+		},
+		"first-load": {
+			"limit": 421400,
+			"measured": 401316
 		}
 	}
 }

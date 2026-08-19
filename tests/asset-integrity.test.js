@@ -63,6 +63,7 @@ const TEXTURES = JSON.parse(readFileSync(join(ROOT, 'src/catalog/textures.json')
 const COMPRESSION = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/texture-compression.json'), 'utf8'));
 const MANIFEST_FILE = join(PUBLIC, 'asset-manifest.json');
 const MANIFEST_JSON = JSON.parse(readFileSync(MANIFEST_FILE, 'utf8'));
+const INTEGRITY_JSON = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/asset-integrity.json'), 'utf8'));
 
 /** Anything that looks like a path into public/, wherever it appears. */
 const ASSET_URL = /(?:models|rooms)\/[A-Za-z0-9_./-]+\.(?:png|jpg|jpeg|glb|gltf|js)/g;
@@ -406,6 +407,13 @@ describe('the asset manifest describes the tree it ships with (RM-003 A5)', () =
 		// Not a spot check: a stale byte count makes the prefetch budget and the
 		// per-item ceiling lie, and a stale hash makes integrity enforcement - the
 		// thing A5 records it for - reject a file that is perfectly good.
+		//
+		// The two halves come from two files since RM-011 H1. The byte counts are
+		// still in the served manifest because the runtime weighs assets with
+		// them; the hashes moved to `asset-pipeline/asset-integrity.json`, which
+		// is generated in the same pass and never served. M-43 is why: they were
+		// 17,065 of the manifest's 22,208 gzipped bytes, downloaded by everybody
+		// on every boot for a feature that is off by default.
 		const wrong = [];
 		for (const [name, entry] of Object.entries(MANIFEST_JSON.assets))
 		{
@@ -416,13 +424,35 @@ describe('the asset manifest describes the tree it ships with (RM-003 A5)', () =
 				continue;
 			}
 			const hash = 'sha256-' + createHash('sha256').update(bytes).digest('base64');
-			if (hash !== entry.hash)
+			if (hash !== INTEGRITY_JSON.assets[name])
 			{
 				wrong.push(`${name}: hash does not match`);
 			}
 		}
 
 		expect(wrong, `run \`npm run manifest\`:\n  ${wrong.join('\n  ')}`).toEqual([]);
+	});
+
+	it('hashes every name the manifest declares, retired ones included', () =>
+	{
+		// The split's own risk: two generated files that can disagree about which
+		// names exist. A retired name inherits its target's hash the same way it
+		// inherits its bytes, and nothing else may be missing from either side.
+		expect(Object.keys(INTEGRITY_JSON.assets).sort()).toEqual(Object.keys(MANIFEST_JSON.assets).sort());
+		for (const [name, hash] of Object.entries(INTEGRITY_JSON.assets))
+		{
+			expect(hash, `${name} has no hash`).toMatch(/^sha256-/);
+		}
+	});
+
+	it('serves no hashes, which is what makes the first load smaller', () =>
+	{
+		// The property M-43 bought, asserted rather than assumed: a plain
+		// `npm run manifest` writes no `hash` into the file a browser downloads.
+		// `npm run manifest -- --integrity` puts them back for a cross-origin
+		// deployment that wants `fetch(url, {integrity})`.
+		const served = Object.values(MANIFEST_JSON.assets).filter((entry) => entry.hash);
+		expect(served).toEqual([]);
 	});
 
 	it('parses through the library, at the version the library understands', () =>
@@ -474,7 +504,14 @@ describe('the asset manifest describes the tree it ships with (RM-003 A5)', () =
 		expect(resolution.name).toBe(name);
 		expect(resolution.url).toBe('https://cdn.example.com/a3d/rooms/textures/hardwood.jpg');
 		expect(resolution.known).toBe(true);
-		expect(resolution.hash).toMatch(/^sha256-/);
+		// Null on a plain build since H1, and that is the point of the change
+		// rather than a gap: `integrityFor` answers when a deployment asks for
+		// hashes with `npm run manifest -- --integrity`, and costs nobody 17 KB
+		// when it does not. The parse path is unchanged and still reads them.
+		expect(resolution.hash).toBeNull();
+		expect(AssetManifest.parse({version: MANIFEST_VERSION, assets: {
+			[name]: {bytes: 1, hash: 'sha256-abc', kind: 'texture'},
+		}}).manifest.entry(name).hash).toBe('sha256-abc');
 
 		// And a live name still behaves the plain way, so the indirection is not
 		// quietly rewriting everything.

@@ -205,6 +205,19 @@ that has ever named a texture names one of them; `src/catalog/materials.json` is
 generated, and regenerated whenever the library changes. A material entry is a
 superset of a texture entry, which is the whole integration.
 
+**`first-load` is the eleventh budget** (M-43): the document, the scripts and
+stylesheets it references, and `asset-manifest.json`, which `useAssets` fetches
+before the viewer can resolve a texture. **401,316 bytes gzipped**, which is
+6,008 *below* what RM-011 W-7 measured before the library existed — the library
+cost 10,724 and the line's own first reading found 17,065 to give back, because
+that much of the manifest was subresource-integrity hashes for a feature nothing
+turns on. They live in `asset-pipeline/asset-integrity.json` now and
+`npm run manifest -- --integrity` puts them back for a cross-origin deployment.
+The other half of M-43 is `tests/browser/first-load.test.js`, which reads a
+boot's `performance.getEntriesByType('resource')` and asserts no material image
+is among them — a byte count cannot tell a tree that grew from a boot that
+fetches more.
+
 **`texture-vram` measures a scene now, not the tree.** RM-011 W-5 measured a
 three-storey house holding 7 textures on the GPU and a furnished 20-item design
 holding 15, against 202 images in the tree — so the tree figure was a number no

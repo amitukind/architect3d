@@ -1234,6 +1234,56 @@ wrong; first time a test found it rather than a budget.
 statements 86.04 → 86.08, branches 77.01 → 77.08, functions 83.54 → 83.61, lines
 86.01 → 86.06.
 
+**RM-011 H1 closed: the eleventh budget, and what it found on day one.** M-43 —
+*nothing unpicked is downloaded* — is the last thing in H1, and it is two
+assertions rather than one.
+
+**The budget line.** `first-load` measures what a person waits for: the
+document, the scripts and stylesheets it references, and `asset-manifest.json`,
+which `useAssets` fetches before the viewer can resolve a single texture. That
+last one belongs to no other line in `tools/budget.json` and is the one that
+grows when the asset tree does, which is exactly the coupling M-43 exists to
+watch. The file list is read out of the built `index.html` rather than off the
+`assets/` directory, so the number stays honest the first time anything is
+code-split.
+
+**The metric's letter is not met, and that is stated rather than finessed.** The
+library grew the payload by **10,724 bytes** — 6,554 of catalog, picker and
+inspector in the bundle, and 4,170 of manifest entries for ninety new files. So
+"does not grow by one byte for a material nobody has chosen" is false as
+written. What is true, and is the substance of it, is that **a boot fetches no
+material at all**: `tests/browser/first-load.test.js` reads
+`performance.getEntriesByType('resource')` after the application settles and
+checks the whole catalog's urls against it, not a sample. A picker that eagerly
+loaded one thumbnail per swatch would fail there and pass every byte count in
+the repository, because the tree is the same size either way.
+
+**And the line paid for the library four times over on its first reading.**
+**17,065 of the served manifest's 22,208 gzipped bytes were subresource-integrity
+hashes** — 4.1% of everything a person downloads before their first wall, on
+every boot, for a feature `AssetResolver` documents as off by default and which
+guards nothing whatsoever for a same-origin `public/`. It matters for a
+cross-origin CDN deployment, which is precisely the build that should ask for it.
+`npm run manifest` now writes them to `asset-pipeline/asset-integrity.json`,
+which is generated in the same pass, verified by the same test that always
+verified them, and never served; `npm run manifest -- --integrity` writes them
+into the manifest for a deployment that wants `fetch(url, {integrity})`. **No
+schema changed** — `AssetManifest.parse` has always read `hash` defensively and
+`integrityFor` has always been able to return null — only which builds pay for
+it.
+
+**So the first load is 401,316 bytes: 6,008 below what RM-011 W-7 measured
+before any of this existed.** Thirty materials added, and a boot got smaller.
+`public-total` and `demo-total` fell with it, by the 30,938 raw bytes the
+manifest lost.
+
+**H1 is closed**, in three slices — the encode trial that sized the library, the
+material model, and the library with its budget moves. RM-007's gap Q-4 —
+*"seven textures, no colour picker for walls, no ceiling material, no PBR"* — is
+answered in full for the profile the application boots. H2 is next, and W-8 is
+waiting for it: `three/main.js:301` assigns a shadow filter three no longer
+implements, so "softer shadows" is a repair before it is a feature.
+
 ## [3.0.1] - 2026-08-16
 
 No shipped code changed — `src/` is byte-identical to 3.0.0 and so is every

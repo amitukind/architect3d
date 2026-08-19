@@ -572,6 +572,71 @@ function jpegSize(b)
 	return null;
 }
 
+/* -------------------------------------------------------------------------
+ * What a person waits for (RM-011 W-7, M-43)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Everything a browser fetches before the first wall is drawn.
+ *
+ * ## Why this is not covered by the four lines above it
+ *
+ * `demo-js-gzip` and `demo-css-gzip` measure the bundle, `demo-total` measures
+ * the deployment, and none of the three is the number a person experiences. A
+ * boot is the document, the scripts and stylesheets it references, **and
+ * `asset-manifest.json`**, which `useAssets` fetches before the viewer can
+ * resolve a single texture. That last one belongs to no other line here and is
+ * the one that grows when the asset tree does - which is exactly the coupling
+ * M-43 exists to watch, because H1 added ninety files to that tree.
+ *
+ * RM-007 asked for a first-load budget before there was a number to put in it.
+ * RM-011 W-7 measured one: **407,324 bytes gzipped**, of which 380,846 is the
+ * application and 18,038 the manifest.
+ *
+ * ## Read from the document rather than from a list
+ *
+ * The scripts and stylesheets are the ones `index.html` actually references, not
+ * every file in `assets/`. Today those are the same set; they stop being the same
+ * set the moment anything is code-split, and a budget that kept summing the
+ * directory would then charge a boot for chunks it never fetches - which is the
+ * shape of mistake `texture-vram` spent three sprints making.
+ *
+ * ## What it deliberately does not count
+ *
+ * Anything fetched *after* the first paint: the Basis transcoder, the skybox
+ * ground, a texture somebody picks. W-7 measured 595,263 bytes of that, 98 % of
+ * it a transcoder for one 10 KB image, and it is a real cost - but it is a cost
+ * of *using* the application rather than of opening it, and a single number that
+ * mixed the two could fall while the wait got worse.
+ */
+function firstLoadPayload()
+{
+	const root = 'dist-demo';
+	const document = join(root, 'index.html');
+	if (!existsSync(document)) { return null; }
+
+	const html = readFileSync(document, 'utf8');
+	const referenced = new Set();
+	for (const match of html.matchAll(/(?:src|href)="([^"]+)"/g))
+	{
+		const url = match[1];
+		if (!/\.(js|css)$/i.test(url)) { continue; }
+		// Same-origin, relative to the document. An absolute URL is somebody
+		// else's server and not part of what this build ships.
+		if (/^[a-z]+:|^\/\//i.test(url)) { continue; }
+		referenced.add(url.replace(/^\.?\//, ''));
+	}
+
+	let total = gzipFile(document);
+	for (const name of [...referenced].sort())
+	{
+		total += gzipFile(join(root, name)) || 0;
+	}
+	// The one fetch that is not in the document. `useAssets.MANIFEST_URL`.
+	total += gzipFile(join(root, 'asset-manifest.json')) || 0;
+	return total;
+}
+
 const MEASUREMENTS = [
 	{key: 'demo-js-gzip', label: 'Demo JS (gzip)', needs: 'build:demo',
 		measure: () => gzipBytes('dist-demo/assets', ['.js'])},
@@ -621,6 +686,10 @@ const MEASUREMENTS = [
 	// measurement W-5 made and why a tree walk stopped being the right question.
 	{key: 'texture-vram', label: 'Scene texture VRAM', needs: null,
 		measure: () => sceneVram()},
+	// The eleventh line, added by RM-011 H1 (M-43). Every other entry here asks
+	// what something weighs; this one asks what a person waits for.
+	{key: 'first-load', label: 'First load (gzip)', needs: 'build:demo',
+		measure: () => firstLoadPayload()},
 ];
 
 function human(bytes)
@@ -704,7 +773,11 @@ function main()
 
 	if (update)
 	{
-		writeFileSync(BUDGET_FILE, JSON.stringify(budget, null, 2) + '\n');
+		// Tabs, which is what the committed file uses and what everything else in
+		// this repository does. Two spaces here made every `budget:update` a
+		// 600-line reformat of a file whose whole value is that a reviewer can
+		// see which number moved (found by RM-011 H1, adding the eleventh line).
+		writeFileSync(BUDGET_FILE, JSON.stringify(budget, null, '\t') + '\n');
 		console.log(`Recorded current measurements in ${BUDGET_FILE}.`);
 		console.log('Limits were NOT changed — edit them by hand, with a reason in the commit message.');
 		process.exit(0);
