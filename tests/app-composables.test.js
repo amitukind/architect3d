@@ -14,7 +14,7 @@
  * The library runs for real; only the WebGL renderer is faked, through the
  * `Main.setRendererFactory` seam S0 added.
  */
-import {afterEach, beforeEach, describe, expect, it} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {effectScope, isReactive, nextTick, toRaw} from 'vue';
 
 import {Main} from '../src/scripts/three/main.js';
@@ -35,6 +35,9 @@ import {useFloorplannerMode} from '../src/app/composables/useFloorplannerMode.js
 import {useDesignIO} from '../src/app/composables/useDesignIO.js';
 import {useWalkthrough} from '../src/app/composables/useWalkthrough.js';
 import {useCatalog, loadCatalogDetail} from '../src/app/composables/useCatalog.js';
+import {useCatalogBrowse} from '../src/app/composables/useCatalogBrowse.js';
+import {ROOMS} from '../src/app/composables/useCatalog.js';
+import {ROOMS as SPLIT_ROOMS} from '../tools/split-catalog.mjs';
 import {DEFAULT_DESIGN} from '../src/app/designs/default-design.js';
 
 import {resetAll} from './helpers/harness.js';
@@ -588,7 +591,8 @@ describe('the catalog detail is a chunk, not a payload (RM-012 J1, X-3)', () =>
 		const first = await loadCatalogDetail();
 		expect(first).toBeTruthy();
 		expect(catalog.detailFor(bed).size.w).toBeCloseTo(140, 3);
-		expect(catalog.detailFor(bed).size.unit).toBe('cm');
+		expect(catalog.detailFor(bed).size.scale, 'the demo kit is authored in centimetres').toBe(1);
+		expect(catalog.detailFor(bed).source).toBe('blueprint3d');
 
 		// A second caller gets the same object rather than a second chunk.
 		expect(await loadCatalogDetail()).toBe(first);
@@ -791,6 +795,94 @@ describe('useDesignIO', () =>
 
 		expect(io.lastError.value).toContain('the recovered draft');
 		expect(blueprint.model.exportSerialized()).toBe(before);
+	});
+});
+
+describe('the room vocabulary lives in two files (RM-012 J1)', () =>
+{
+	it('and they agree, which is the only reason that is allowed', () =>
+	{
+		// One list drives the chips and the other refuses to write a row carrying
+		// anything else. A vocabulary in two files is a vocabulary that drifts, and
+		// this is the assertion instead of the hope - the same mechanism the type
+		// ledger got after drifting five times.
+		expect(ROOMS.map((room) => room.id).sort()).toEqual(SPLIT_ROOMS.slice().sort());
+		expect(ROOMS.every((room) => room.label)).toBe(true);
+	});
+});
+
+describe('useCatalogBrowse (RM-012 J1)', () =>
+{
+	afterEach(() =>
+	{
+		// The composable holds module-level state, deliberately - there is one
+		// person at the keyboard - so each test clears both halves rather than
+		// re-importing the module.
+		const browse = useCatalogBrowse();
+		browse.favourites.value.slice().forEach((model) => browse.toggleFavourite(model));
+		browse.recent.value = [];
+		window.localStorage.removeItem('architect3d.catalog');
+	});
+
+	it('stars and unstars by model url, and writes it down', () =>
+	{
+		const browse = useCatalogBrowse();
+		expect(browse.isFavourite('models/gltf/chair.glb')).toBe(false);
+
+		browse.toggleFavourite('models/gltf/chair.glb');
+		expect(browse.isFavourite('models/gltf/chair.glb')).toBe(true);
+		expect(JSON.parse(window.localStorage.getItem('architect3d.catalog')).favourites)
+			.toEqual(['models/gltf/chair.glb']);
+
+		browse.toggleFavourite('models/gltf/chair.glb');
+		expect(browse.isFavourite('models/gltf/chair.glb')).toBe(false);
+	});
+
+	it('keeps recents newest first, once each, and capped', () =>
+	{
+		const browse = useCatalogBrowse();
+		browse.noteUsed('a.glb');
+		browse.noteUsed('b.glb');
+		browse.noteUsed('a.glb');
+
+		// Adding the same chair six times is the behaviour this drawer was built
+		// around, so it has to leave one entry at the front and not six.
+		expect(browse.recent.value).toEqual(['a.glb', 'b.glb']);
+
+		for (let at = 0; at < browse.limit + 5; at++)
+		{
+			browse.noteUsed(`m${at}.glb`);
+		}
+		expect(browse.recent.value).toHaveLength(browse.limit);
+		expect(browse.recent.value[0]).toBe(`m${browse.limit + 4}.glb`);
+	});
+
+	it('records nothing for a row with no model file', () =>
+	{
+		// A parametric opening, stair or column. It is still something somebody
+		// added, but there is nothing here that tells one from another - recording
+		// it would make every parametric row the same entry.
+		const browse = useCatalogBrowse();
+		browse.noteUsed('');
+		browse.noteUsed(undefined);
+		expect(browse.recent.value).toEqual([]);
+	});
+
+	it('survives a corrupt entry the way every other preference does', async () =>
+	{
+		window.localStorage.setItem('architect3d.catalog', 'not json');
+		vi.resetModules();
+		const fresh = await import('../src/app/composables/useCatalogBrowse.js?corrupt');
+		expect(fresh.useCatalogBrowse().favourites.value).toEqual([]);
+		expect(fresh.useCatalogBrowse().recent.value).toEqual([]);
+	});
+
+	it('is one shared shortlist, not one per caller', () =>
+	{
+		const first = useCatalogBrowse();
+		const second = useCatalogBrowse();
+		first.toggleFavourite('models/gltf/desk.glb');
+		expect(second.isFavourite('models/gltf/desk.glb')).toBe(true);
 	});
 });
 

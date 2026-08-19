@@ -360,10 +360,75 @@ describe('the catalog drawer', () =>
 		expect(panel.querySelectorAll('li').length)
 			.toBe(catalog.items.length + openings.items.length + stairs.items.length + structures.items.length);
 
+		// The chips are the eight rooms now, plus All and Starred (RM-012 J1).
+		// Placement type is still there and is still every section - it moved to a
+		// <select>, because twelve chips of a filter used rarely crowded out the
+		// eight that answer the question somebody furnishing a bedroom is asking.
 		const chips = [...panel.querySelectorAll('button')]
 			.map((button) => button.textContent.trim());
-		expect(chips).toContain('Floor Items');
-		expect(chips).toContain('Anywhere Items');
+		expect(chips).toContain('Living');
+		expect(chips).toContain('Structure');
+		expect(chips).toContain('Starred');
+
+		const placements = [...panel.querySelectorAll('select option')]
+			.map((option) => option.textContent.trim());
+		expect(placements).toContain('Floor Items');
+		expect(placements).toContain('Anywhere Items');
+		expect(placements[0]).toBe('Any placement');
+
+		wrapper.unmount();
+	});
+
+	it('browses by room, and the building is not among the furniture', async () =>
+	{
+		const wrapper = await mountApp();
+		await openCatalog(wrapper);
+
+		const chip = (label) => [...drawer().querySelectorAll('button')]
+			.find((button) => button.textContent.trim() === label);
+		const names = () => [...drawer().querySelectorAll('li')].map((li) => li.textContent);
+
+		await chip('Bedroom').click();
+		await nextTick();
+		expect(names().some((text) => text.includes('Beddouble'))).toBe(true);
+		expect(names().some((text) => text.includes('Kitchensink'))).toBe(false);
+
+		// The twelve wall segments RM-012 measured are under Structure with the
+		// openings and the flights, and nowhere else. That is the whole of "came
+		// out of furniture" - a catalog edit, not a feature.
+		await chip('Structure').click();
+		await nextTick();
+		const structure = names();
+		expect(structure.some((text) => text.includes('Wallcorner'))).toBe(true);
+		expect(structure.some((text) => text.includes('Sofa - Grey'))).toBe(false);
+
+		wrapper.unmount();
+	});
+
+	it('stars an item without adding it, and shows the shortlist', async () =>
+	{
+		const wrapper = await mountApp();
+		await openCatalog(wrapper);
+
+		const tile = [...drawer().querySelectorAll('li')]
+			.find((li) => li.textContent.includes('Bathtub'));
+		// The second button in the tile, and a real one: nesting it inside the add
+		// button read fine and axe called it `nested-interactive` on all 193 tiles.
+		const star = () => tile.querySelectorAll('button')[1];
+		expect(star().getAttribute('aria-pressed')).toBe('false');
+
+		star().dispatchEvent(new window.MouseEvent('click', {bubbles: true}));
+		await nextTick();
+		expect(star().getAttribute('aria-pressed')).toBe('true');
+
+		const chip = (label) => [...drawer().querySelectorAll('button')]
+			.find((button) => button.textContent.trim() === label);
+		await chip('Starred').click();
+		await nextTick();
+
+		const shown = [...drawer().querySelectorAll('li')].map((li) => li.textContent);
+		expect(shown).toHaveLength(1);
+		expect(shown[0]).toContain('Bathtub');
 
 		wrapper.unmount();
 	});

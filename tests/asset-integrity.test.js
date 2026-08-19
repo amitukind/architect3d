@@ -60,6 +60,8 @@ const FIXTURES = join(ROOT, 'tests/fixtures');
 
 const CATALOG = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog.json'), 'utf8'));
 const TEXTURES = JSON.parse(readFileSync(join(ROOT, 'src/catalog/textures.json'), 'utf8'));
+const SOURCES = JSON.parse(readFileSync(join(ROOT, 'src/catalog/sources.json'), 'utf8'));
+const DETAIL = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog-detail.json'), 'utf8'));
 const COMPRESSION = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/texture-compression.json'), 'utf8'));
 const MANIFEST_FILE = join(PUBLIC, 'asset-manifest.json');
 const MANIFEST_JSON = JSON.parse(readFileSync(MANIFEST_FILE, 'utf8'));
@@ -214,6 +216,132 @@ describe('the catalogs point at real files', () =>
 
 		const missing = [...new Set(referenced)].filter((url) => !existsSync(join(PUBLIC, url)));
 		expect(missing, `textures.json names missing files:\n  ${missing.join('\n  ')}`).toEqual([]);
+	});
+});
+
+/**
+ * M-29, and the reason it is here rather than beside the splitter.
+ *
+ * `tools/split-catalog.mjs` validates the same vocabulary before it writes
+ * anything, which stops a bad row reaching the generated files. That is a gate
+ * on the *generator*, and a generator can be bypassed by editing what it
+ * produced. This is the gate on the *tree*: it reads the authored catalog, the
+ * provenance table and the generated detail, and asserts the property M-29
+ * actually states - that every row says what it is, where it belongs, how big
+ * it is and who made it - from a measured baseline of zero, which is what
+ * RM-012 X-1 counted before J1 started.
+ */
+describe('every catalog row carries its metadata (RM-012 J1, M-29)', () =>
+{
+	const ROOMS = ['living', 'kitchen', 'dining', 'bedroom', 'bathroom', 'office', 'utility', 'structure'];
+	const TAGS = ['seating', 'table', 'storage', 'bed', 'lighting', 'appliance', 'plumbing',
+		'decor', 'electronics', 'textile', 'plant', 'stairs', 'opening', 'panel'];
+
+	it('names a room from the closed list, on 100 % of rows', () =>
+	{
+		const without = CATALOG.items.filter((item) => ROOMS.indexOf(item.room) === -1);
+		expect(without.map((item) => item.name)).toEqual([]);
+		expect(CATALOG.items).toHaveLength(168);
+
+		// The vocabulary is closed for a reason X-3 priced rather than for tidiness:
+		// eight words repeated is what makes the key affordable in the bundled
+		// index. A ninth room is allowed - it just has to be added here too, which
+		// is the point.
+		expect(new Set(CATALOG.items.map((item) => item.room)).size).toBe(8);
+	});
+
+	it('carries at least one tag, all from the closed list', () =>
+	{
+		const bad = CATALOG.items.filter((item) => !Array.isArray(item.tags) || !item.tags.length
+			|| item.tags.some((tag) => TAGS.indexOf(tag) === -1));
+		expect(bad.map((item) => `${item.name}: ${JSON.stringify(item.tags)}`)).toEqual([]);
+	});
+
+	it('names a source that resolves, on 100 % of rows', () =>
+	{
+		const unresolved = CATALOG.items.filter((item) => !SOURCES.sources[item.source]);
+		expect(unresolved.map((item) => `${item.name} -> ${item.source}`)).toEqual([]);
+	});
+
+	it('and every source states a licence, an author, a link and its evidence', () =>
+	{
+		for (const [key, source] of Object.entries(SOURCES.sources))
+		{
+			expect(source.name, key).toBeTruthy();
+			expect(source.licence, key).toBeTruthy();
+			expect(source.licence.name, key).toBeTruthy();
+			expect(source.evidence, key).toBeTruthy();
+			// `author` and `url` may be null and the licence may be `unknown`, but
+			// only for a source that says so in its evidence. A row is never allowed
+			// to have *no* answer; it is allowed to have the answer "not established",
+			// which is a different thing and is the one J2 has to decide about.
+			expect(Object.prototype.hasOwnProperty.call(source, 'author'), key).toBe(true);
+			expect(Object.prototype.hasOwnProperty.call(source, 'url'), key).toBe(true);
+		}
+	});
+
+	it('says out loud how many rows ship on a licence nobody could establish', () =>
+	{
+		const unknown = Object.entries(SOURCES.sources)
+			.filter(([, source]) => source.licence.name === 'unknown')
+			.map(([key]) => key);
+		const rows = CATALOG.items.filter((item) => unknown.indexOf(item.source) !== -1);
+
+		// Two, and they are named. This assertion is not a pass/fail on the licence
+		// - it is a pass/fail on whether the number is still the one anybody agreed
+		// to. Adding a third unattributed model has to be a deliberate edit here.
+		expect(rows.map((item) => item.model).sort())
+			.toEqual(['models/gltf/SimpleCabinet.glb', 'models/gltf/chandelier.gltf']);
+		expect(unknown.every((key) => SOURCES.sources[key].caveat)).toBe(true);
+	});
+
+	it('has a measured size for 100 % of rows, in the detail rather than the payload', () =>
+	{
+		const missing = CATALOG.items.filter((item) =>
+		{
+			const detail = DETAIL.items[item.model];
+			return !detail || !detail.size || !(detail.size.w > 0) || !(detail.size.h > 0) || !(detail.size.d > 0);
+		});
+		expect(missing.map((item) => item.name)).toEqual([]);
+
+		// And the expensive half is on the far side of the split: nothing a person
+		// reads about one item is in the file every visitor downloads.
+		const index = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog-index.json'), 'utf8'));
+		expect(index.items.every((row) => row.size === undefined && row.source === undefined)).toBe(true);
+		expect(index.sources).toBeUndefined();
+	});
+
+	it('gives every row a name no other row has', () =>
+	{
+		// RM-012 X-1 found two rows both called Chair by counting. A name is what
+		// the drawer shows and what a saved design records, so two of them are two
+		// things a person cannot tell apart. Both were renamed from what their own
+		// thumbnail files are called, which is where the evidence was.
+		const names = CATALOG.items.map((item) => item.name);
+		expect(names.length - new Set(names).size).toBe(0);
+	});
+
+	it('took the building out of the furniture', () =>
+	{
+		// The twelve wall and floor segments RM-012 measured, plus the openings, the
+		// panel and the flights that are the same argument: part of the building
+		// rather than something you furnish it with.
+		const structure = CATALOG.items.filter((item) => item.room === 'structure');
+		expect(structure).toHaveLength(23);
+
+		// Thirteen carry `panel`: RM-012's twelve - eight typed `Item` and four
+		// in-wall, which is how it identified them - and `Paneling`, a wall item,
+		// which is the same kind of thing and came with them.
+		const segments = structure.filter((item) => item.tags.indexOf('panel') !== -1);
+		expect(segments).toHaveLength(13);
+		expect(segments.filter((item) => item.type === 0)).toHaveLength(8);
+		expect(segments.filter((item) => item.type === 3)).toHaveLength(4);
+		expect(segments.filter((item) => item.type === 2).map((item) => item.name)).toEqual(['Paneling']);
+
+		// Nothing in structure is in a room, and nothing in a room claims to be
+		// structure - which is the whole content of "came out of furniture".
+		expect(CATALOG.items.filter((item) => item.room !== 'structure'
+			&& item.tags.indexOf('panel') !== -1)).toEqual([]);
 	});
 });
 

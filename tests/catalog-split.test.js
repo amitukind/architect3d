@@ -18,6 +18,19 @@
  * whatever the tool emitted when it was written. A double bed is 140 by 200, a
  * door is about a metre by about 2.2, and a stack of books is not three metres
  * wide - which is what the hack this measurement replaces makes it.
+ *
+ * ## And against architecture, because that is what the first attempt missed
+ *
+ * J1's first slice detected the unit from the model's own extent and got the
+ * factor wrong for 141 of 168 rows. It shipped with a check exactly like the
+ * paragraph above - a basin, a stack of books - and both of those are plausible
+ * at either reading, so the check passed a catalog of half-size furniture.
+ *
+ * What discriminates is architecture, because architecture has standard sizes:
+ * at the wrong scale this kit's floor tile is a metre square under a 1.29 m
+ * ceiling. Those assertions are here now, and so is the cross-check that settles
+ * it - two kits authored in different units by different people, agreeing on the
+ * width of a door to one millimetre.
  */
 import {describe, expect, it} from 'vitest';
 import {execFileSync} from 'node:child_process';
@@ -25,12 +38,13 @@ import {gzipSync} from 'node:zlib';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 
-import {split, modelBounds, nativeUnit} from '../tools/split-catalog.mjs';
+import {split, validate, modelBounds, unitScale, sizeOf} from '../tools/split-catalog.mjs';
 
 const ROOT = process.cwd();
 const SOURCE = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog.json'), 'utf8'));
 const INDEX = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog-index.json'), 'utf8'));
 const DETAIL = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog-detail.json'), 'utf8'));
+const SOURCES = JSON.parse(readFileSync(join(ROOT, 'src/catalog/sources.json'), 'utf8'));
 
 /** What a key costs, gzipped, across the whole index - the unit X-3 measured in. */
 function gzipped(value)
@@ -130,7 +144,7 @@ describe('the dimensions are measured, and they are real', () =>
 	{
 		// Centimetres, and each of these is a thing with a known size. A test that
 		// pinned the tool's output would pass just as happily on a catalog of
-		// three-metre chairs, which is what ships today.
+		// three-metre chairs, which is what shipped before this.
 		const near = (value, want, tolerance) => Math.abs(value - want) <= tolerance;
 
 		const bed = detailOf('Full Bed').size;
@@ -142,12 +156,43 @@ describe('the dimensions are measured, and they are real', () =>
 		const wardrobe = detailOf('Wardrobe - White').size;
 		expect(near(wardrobe.h, 190, 15), `wardrobe ${wardrobe.h} tall`).toBe(true);
 
-		const chair = detailOf('Chair').size;
-		expect(chair.h).toBeGreaterThan(60);
-		expect(chair.h, 'a chair is not two metres tall').toBeLessThan(120);
+		const chair = detailOf('Church Chair - Oak').size;
+		expect(near(chair.h, 79, 10), `church chair ${chair.h} tall`).toBe(true);
 
 		const books = detailOf('Books').size;
 		expect(books.w, 'a stack of books is not a metre wide').toBeLessThan(40);
+	});
+
+	it('and on the architecture, which is what the first attempt got wrong', () =>
+	{
+		// The two readings a basin cannot tell apart, a ceiling can. J1's first
+		// slice put this kit at x100, which makes a room tile a metre square under
+		// a 1.29 m ceiling - and the sanity check it shipped with was run on a
+		// basin and a stack of books, both of which are plausible either way.
+		const wall = detailOf('Wall').size;
+		expect(wall.h, `a ceiling is not ${wall.h} cm`).toBeGreaterThan(220);
+		expect(wall.h, `a ceiling is not ${wall.h} cm`).toBeLessThan(300);
+
+		const tile = detailOf('Floorfull').size;
+		expect(tile.w).toBe(tile.d);
+		expect(tile.w, 'the kit is modular, so its floor tile is a round number').toBe(200);
+
+		const chair = detailOf('Chair').size;
+		expect(chair.h, `a dining chair is not ${chair.h} cm tall`).toBeGreaterThan(80);
+		expect(chair.h).toBeLessThan(110);
+	});
+
+	it('and two kits, authored in different units, agree on the width of a door', () =>
+	{
+		// The cross-check that costs nothing and settles it. One kit is authored in
+		// centimetres and states its size in its own filename - 28x80 inches of
+		// door leaf - and the other is on a 2 m grid. Nothing connects them but the
+		// building regulations both were drawn against.
+		const kenney = detailOf('Doorwayopen').size;
+		const demo = detailOf('Closed Door').size;
+		expect(kenney.scale).toBe(200);
+		expect(demo.scale).toBe(1);
+		expect(Math.abs(kenney.w - demo.w), `${kenney.w} against ${demo.w}`).toBeLessThan(1);
 	});
 
 	it('nothing in the catalog is furniture-sized only by accident', () =>
@@ -159,36 +204,106 @@ describe('the dimensions are measured, and they are real', () =>
 		Object.entries(DETAIL.items).forEach(([model, entry]) =>
 		{
 			const largest = Math.max(entry.size.w, entry.size.h, entry.size.d);
-			expect(largest, `${model} largest extent ${largest} cm`).toBeGreaterThan(1);
-			expect(largest, `${model} largest extent ${largest} cm`).toBeLessThan(400);
+			// The band the tool itself refuses outside of, asserted here over the
+			// tree it actually produced rather than over a hypothetical.
+			expect(largest, `${model} largest extent ${largest} cm`).toBeGreaterThanOrEqual(5);
+			expect(largest, `${model} largest extent ${largest} cm`).toBeLessThanOrEqual(600);
 		});
 	});
 });
 
-describe('the unit rule', () =>
+describe('the unit rule is declared, not detected', () =>
 {
-	it('reads a metre kit as metres and a centimetre kit as centimetres', () =>
+	it('takes the scale from the row when it has one, and from its kit otherwise', () =>
 	{
-		expect(nativeUnit({min: [0, 0, 0], max: [0.34, 0.56, 0.29]})).toEqual({unit: 'm', scale: 100});
-		expect(nativeUnit({min: [0, 0, 0], max: [140, 100, 200]})).toEqual({unit: 'cm', scale: 1});
+		expect(unitScale({source: 'kenney-furniture-kit'}, SOURCES)).toBe(200);
+		expect(unitScale({source: 'blueprint3d'}, SOURCES)).toBe(1);
+		expect(unitScale({source: 'kenney-furniture-kit', unitScale: 1}, SOURCES)).toBe(1);
 	});
 
-	it('refuses to guess in the band between them', () =>
+	it('has no answer for a row whose kit declares none, which is the point', () =>
 	{
-		// Measured over this catalog, the largest of the small population is 1.82
-		// and the smallest of the large is 51.42 - a 28-fold gap. A model landing
-		// inside it is a model this rule was not fitted to, and J2 is going to add
-		// packs it was not fitted to.
-		expect(nativeUnit({min: [0, 0, 0], max: [10, 10, 10]})).toBeNull();
-		expect(nativeUnit({min: [0, 0, 0], max: [2, 2, 2]})).toBeNull();
-		expect(nativeUnit({min: [0, 0, 0], max: [39.9, 1, 1]})).toBeNull();
+		// `unattributed` states null deliberately: its two rows have nothing in
+		// common but that nobody knows where they came from, and they are not at
+		// the same scale. Null forces each to declare its own on the row.
+		expect(unitScale({source: 'unattributed'}, SOURCES)).toBeNull();
+		expect(unitScale({source: 'no-such-kit'}, SOURCES)).toBeNull();
 	});
 
-	it('splits this catalog into exactly two populations', () =>
+	it('refuses a size it will not stand behind rather than writing one', () =>
 	{
-		const units = Object.values(DETAIL.items).map((entry) => entry.size.unit);
-		expect(units.filter((unit) => unit === 'cm')).toHaveLength(27);
-		expect(units.filter((unit) => unit === 'm')).toHaveLength(141);
+		const bounds = {min: [0, 0, 0], max: [0.2, 0.47, 0.2]};
+		expect(sizeOf(bounds, 200).size).toEqual({w: 40, h: 94, d: 40, scale: 200});
+
+		// The same chair at the factor J1 shipped: 47 cm tall, which is a stool,
+		// and outside nothing - which is exactly why an extent band alone could
+		// never have caught it. What the band does catch is the gross error.
+		expect(sizeOf(bounds, 100).size).toEqual({w: 20, h: 47, d: 20, scale: 100});
+		expect(sizeOf(bounds, 1).refused).toMatch(/outside/);
+		expect(sizeOf(bounds, 10000).refused).toMatch(/outside/);
+		expect(sizeOf(bounds, null).refused).toMatch(/no unitScale/);
+	});
+
+	it('puts this catalog on three scales, and says which', () =>
+	{
+		const scales = Object.values(DETAIL.items).map((entry) => entry.size.scale);
+		const count = (value) => scales.filter((scale) => scale === value).length;
+		expect(count(1), 'centimetres: 25 demo models, a ceiling fan and a chandelier').toBe(27);
+		expect(count(10), 'the duck, which has no real-world size at all').toBe(1);
+		expect(count(200), 'the 2 m kit grid, and one cabinet that is on it').toBe(140);
+		expect(scales).toHaveLength(168);
+	});
+
+	it('records the scale in the file, so the conversion can be undone by a reader', () =>
+	{
+		// Not a unit name. The quantity that matters is centimetres per authored
+		// unit, and writing it down is what lets `Item.initObject` apply it instead
+		// of guessing - which is the hack RM-009 U-3 assigned to this sprint.
+		Object.entries(DETAIL.items).forEach(([model, entry]) =>
+		{
+			expect(entry.size.scale, model).toBeTypeOf('number');
+			expect(entry.size.scale, model).toBeGreaterThan(0);
+		});
+	});
+});
+
+describe('what a row has to carry before either file is written', () =>
+{
+	const row = (extra) => Object.assign({
+		name: 'A thing', image: 'a.png', model: 'models/a.glb', type: 1, format: 'gltf',
+		room: 'living', tags: ['table'], source: 'blueprint3d',
+	}, extra);
+
+	it('passes the catalog that ships', () =>
+	{
+		expect(validate(SOURCE, SOURCES)).toEqual([]);
+	});
+
+	it('rejects a room nobody defined', () =>
+	{
+		expect(validate({items: [row({room: 'conservatory'})]}, SOURCES)).toHaveLength(1);
+		expect(validate({items: [row({room: undefined})]}, SOURCES)[0]).toMatch(/room/);
+	});
+
+	it('rejects a tag nobody defined, and a row with none', () =>
+	{
+		expect(validate({items: [row({tags: ['comfy']})]}, SOURCES)[0]).toMatch(/tag/);
+		expect(validate({items: [row({tags: []})]}, SOURCES)[0]).toMatch(/no tags/);
+	});
+
+	it('rejects a source that resolves to nothing', () =>
+	{
+		expect(validate({items: [row({source: 'somewhere'})]}, SOURCES)[0]).toMatch(/sources\.json/);
+	});
+
+	it('rejects two rows a person could not tell apart', () =>
+	{
+		// X-1 found two rows both called Chair by counting them. This is what stops
+		// it coming back: a name is what the drawer shows and what a saved design
+		// records.
+		const problems = validate({items: [row({model: 'a.glb'}), row({model: 'b.glb'})]}, SOURCES);
+		expect(problems).toHaveLength(1);
+		expect(problems[0]).toMatch(/also used by/);
 	});
 });
 
@@ -250,7 +365,7 @@ describe('split() itself', () =>
 	{
 		const result = split({version: '1', itemTypes: {}, items: [
 			{name: 'Nowhere', image: 'a.png', model: 'models/does-not-exist.glb', type: 1, format: 'gltf'},
-		]});
+		]}, SOURCES);
 		expect(result.measured).toBe(0);
 		expect(result.unmeasured).toEqual(['Nowhere']);
 		expect(result.index.items[0].name).toBe('Nowhere');

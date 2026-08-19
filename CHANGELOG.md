@@ -1626,6 +1626,83 @@ a library to pick from, H2 gave the room a sun, lamps, occlusion and a
 photograph, and H3 lets you stand anywhere in it and take the whole view away as
 a file.
 
+**RM-012 J1: every row says what it is, where it belongs and who made it — and
+the sizes shipped eight days ago were wrong.** M-29 is met from a measured
+baseline of zero: all 168 rows carry a room from a closed list of eight, at least
+one tag from a closed list of fourteen, a source that resolves, and a measured
+size. The vocabularies are closed for a reason X-3 priced rather than for
+tidiness — eight words repeated is what makes the key affordable in the bundled
+index. Two gates hold it: `split-catalog.mjs` refuses to write either generated
+file for a catalog that fails, and seven assertions in the asset-integrity suite
+check the tree, because a generator can be bypassed by editing what it produced.
+
+The licence lives once per kit in a new `src/catalog/sources.json`, and each
+entry carries **the evidence for its own identification** rather than an
+assertion. The upstream blueprint3d repository holds exactly 25 model files and
+all 25 of this catalog's `js-glb` rows match one by basename. The Kenney kit's
+page states 140 files and CC0; 139 of this catalog's 142 `gltf` rows draw only
+from one shared 14-name material palette, and excluding the two that share none
+leaves exactly 140. The duck's licence is read from the Khronos sample set's own
+README. **Two rows ship on a licence nobody could establish** — `SimpleCabinet`
+and `chandelier` — and they are recorded as unknown and named in a test, rather
+than assumed CC0 by resemblance, which is the entire point of writing provenance
+down. Whether they ship at all is J2's decision to take.
+
+**The correction.** J1's first slice detected each model's unit from its own
+extent and read the Kenney kit as metres. The kit is on a **2 m grid**, so 141 of
+168 rows shipped at half their size. What let it through is worth more than the
+fix: the sanity check was run against a basin and a stack of books, and both are
+plausible at either reading. Architecture is not — `floorFull` is exactly
+1.000 × 1.000 units and `wall` is 1.000 × 1.290, so ×100 is a room tile one metre
+square under a **1.29 m ceiling**. Six standard heights then agree on ×200 to
+within 5 %, and at ×200 the Kenney door frame is 97.2 cm wide against the
+blueprint3d door's 97.1 — two kits, authored in different units by different
+people, agreeing on the width of a door to a millimetre.
+
+So the scale is now **declared** rather than detected: `unitScale` on the kit,
+overridable on a row, with the extent rule kept only as a 5 cm–6 m sanity band.
+That is only possible because the same sprint put `source` on every row —
+**X-1's provenance is what fixes X-3's measurement**, and the two halves of J1
+turn out to be one thing. Four rows override their kit; each is a model that is
+not really of it, the duck included, which is declared at ×10 with the note that
+a test asset has no real-world size to be authored at.
+
+The building came out of the furniture as a catalog edit: RM-012's twelve
+segments plus the panel, six openings and four flights that are the same
+argument — 23 rows whose room is `structure`. The two rows both called *Chair*
+are distinguished, and so are two more the count had missed, differing only in
+the case of one letter. All three new names were read off the models' own
+thumbnail filenames rather than invented.
+
+**The drawer browses by room, and remembers.** Eight room chips, plus *Starred*
+and *Recent* — a third axis rather than a ninth room, because the point of a
+favourite is not having to remember which room it was filed under. Both live
+where the eye height H3 added lives: in this browser, for this person, across
+designs, never in a design file. Keyed by model URL, which is already a row's
+identity everywhere else. The search box now matches tags as well as names, whole
+word against the closed list, so *seating* finds twenty-five chairs that do not
+contain the word. Placement type moved from twelve chips to a `<select>` and
+nothing was removed — it is the filter an embedder reaches for, and the eight
+that answer "what goes in a bedroom" deserved the row.
+
+The star was drawn first as a control inside the tile, which is itself a button.
+It read fine and axe called it: `nested-interactive`, on **all 193 tiles**. A
+button inside a button is one element to a screen reader and the inner one cannot
+be reached. It is a sibling positioned over the tile now.
+
+X-3's own key prices are corrected in place while its file is open: `room` costs
+**131** gzipped bytes across 168 rows and `tags` **178**, not 369 and 116, and
+the ordering is the other way round. `catalog-index` is raised 3,580 → 3,940 for
+them, measured 3,408 → 3,759, with the reason in `tools/budget.json`. The whole
+metadata pass costs the payload **544 bytes**; `first-load` ended at 410,277,
+the other 1,260 being the drawer's new controls.
+
+    branches   77.37 -> 77.45      lines      86.33 -> 86.39
+    statements 86.36 -> 86.41      functions  84.09 -> 84.21
+
+**25 new tests, 2,172 headless.** Still to come in J1: the thumbnail tool, and
+the `×300` hack the measured scale now replaces.
+
 **RM-012 J1: the catalog splits before the metadata lands.** The sprint's first
 bullet, and RM-012 X-3 put it first for a reason: as RM-007 drew it, J1 would add
 metadata to every bundled row and J2 would split the file afterwards — shipping a

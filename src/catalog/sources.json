@@ -1,0 +1,44 @@
+{
+	"version": 1,
+	"_comment": "Where each model in catalog.json came from, and under what licence (RM-012 J1, X-1). A row names one of these keys in its `source` field; the licence and the author live here rather than on the row, because 168 copies of the same licence string is a fact about the catalog's shape rather than about any item. `evidence` records how the identification was made, not who asserted it: nothing here is taken on trust, and a source that could not be established says so instead of guessing. Copied verbatim into catalog-detail.json by tools/split-catalog.mjs - the drawer resolves a row's licence once the detail chunk lands, and a visitor who never opens the drawer never downloads it.",
+	"sources": {
+		"blueprint3d": {
+			"name": "blueprint3d demo models",
+			"author": "furnishup",
+			"url": "https://github.com/furnishup/blueprint3d",
+			"licence": {"name": "MIT", "url": "https://github.com/furnishup/blueprint3d/blob/master/LICENSE.txt"},
+			"unitScale": 1,
+			"unitEvidence": "Centimetres, and the kit says so itself: closed-door28x80_baked measures 97.1 x 221.58, and 28x80 is the door leaf in inches - 71.1 x 203.2 cm - inside a frame. A double bed measures 140 x 200 and a basin 34 wide.",
+			"evidence": "This project descends from furnishup/blueprint3d, and these are its demo models: the upstream repository holds exactly 25 model files under example/models/js, and all 25 of this catalog's models/js-glb/*.glb rows match one of them by basename. Checked against the repository tree on 2026-08-19; the licence is the one GitHub reports for the repository, MIT.",
+			"caveat": "The upstream repository states one licence for its contents and none separately for its assets, and these filenames name commercial products - cb- is Crate & Barrel, we- is West Elm, ik- is IKEA, bd- is Blu Dot, DWR_ is Design Within Reach, GUS is Gus* Modern. So the licence recorded here is the one the source repository publishes, which is not the same thing as a licence from the manufacturer of the furniture. J2 should acquire against sources that state an asset licence directly."
+		},
+		"kenney-furniture-kit": {
+			"name": "Furniture Kit",
+			"author": "Kenney",
+			"url": "https://kenney.nl/assets/furniture-kit",
+			"licence": {"name": "CC0 1.0 Universal", "url": "https://creativecommons.org/publicdomain/zero/1.0/"},
+			"unitScale": 200,
+			"unitEvidence": "One unit is two metres, so the kit's floor tile - floorFull, exactly 1.000 x 1.000 - is 2 m square and its wall is 2 m wide by 2.58 m tall. Six standard heights agree to within 5 %: kitchen base unit 0.450 u for 90 cm (x200.0), bar stool 0.435 for 87 (x200.0), door frame 1.010 for 203 (x201.1), round table 0.367 for 75 (x204.5), fridge 0.920 for 180 (x195.7), desk 0.384 for 75 (x195.1). And at x200 this kit's door frame is 97.2 cm wide against the blueprint3d door's 97.1 - two catalogs, authored in different units by different people, agreeing on the width of a door to one millimetre.",
+			"evidence": "Three independent readings agree. The kit's own page states 140 files and a CC0 licence, read on 2026-08-19. This catalog has 142 rows under models/gltf, of which 139 draw their materials only from one shared 14-name palette - wood, metal, metalDark, carpet, _defaultMat, metalMedium, glass, carpetWhite, woodDark, metalLight, lamp, carpetBlue, carpetDarker, plant - which is the kit's signature; Bear adds one name, fur, and nothing else in a furniture kit is furry. Excluding the two rows that share no palette at all leaves exactly 140, which is the count the kit publishes."
+		},
+		"khronos": {
+			"name": "glTF Sample Assets",
+			"author": "Sony Computer Entertainment Inc.",
+			"url": "https://github.com/KhronosGroup/glTF-Sample-Assets",
+			"licence": {"name": "SCEA Shared Source License 1.0", "url": "https://web.archive.org/web/20160320123355/http://research.scea.com/scea_shared_source_license.html"},
+			"unitScale": 10,
+			"unitEvidence": "None, and this is the one row where that is the honest answer: a test asset has no real-world size to be authored at. The duck is 1.655 units across, and x10 makes it a 16.5 cm bath toy. Declared rather than measured, so that it reads as a duck rather than as a bathtub, and recorded here as a choice instead of hidden in a threshold.",
+			"evidence": "models/js/Duck.gltf carries the generator COLLADA2GLTF and is the COLLADA duck from the Khronos sample set. Its licence is the one that set publishes for it, read from the upstream README on 2026-08-19: Copyright 2006 Sony Computer Entertainment Inc., licensed under the SCEA Shared Source License, Version 1.0. It is the one row in this catalog that came in with the demo build rather than with the models."
+		},
+		"unattributed": {
+			"name": "Provenance not established",
+			"author": null,
+			"url": null,
+			"licence": {"name": "unknown", "url": null},
+			"unitScale": null,
+			"unitEvidence": "Nothing shared: the two rows have nothing in common but the fact that nobody knows where they came from, and they are not authored at the same scale. Each declares its own on the row, which is what unitScale being null here forces.",
+			"evidence": "Two rows: models/gltf/SimpleCabinet.glb and models/gltf/chandelier.gltf. Both arrived in commit 731bc65 with the rest of the models and neither carries a copyright field. Each fails every test the kit above passes - SimpleCabinet's materials are Body, Door, Handle and Top and it is the only PascalCase filename in the directory; the chandelier's are Mat, Mat.1 and black metal, its mesh is Untitled.068 and its node is lamp_lowres, and it is the only row in the catalog with no thumbnail of its own. Recorded as unknown rather than assumed to be CC0 because the whole point of writing provenance down is that it is not filled in by resemblance.",
+			"caveat": "Two files of unknown licence ship in public/. That is a decision to take rather than a fact to record, and J2 - which is the sprint about what this deploy is allowed to carry - is where to take it."
+		}
+	}
+}

@@ -79,16 +79,28 @@ describe('the catalog\'s sixth key (W-11)', () =>
 		]);
 	});
 
-	it('leaves the other 160 rows at exactly the five keys they had', () =>
+	it('leaves the other 160 rows without it', () =>
 	{
 		// The cost W-11 priced. A sixth key on a shared file is only cheap if it
 		// appears on the rows that need it and nowhere else.
+		//
+		// This used to pin the whole key set at the five a row had in H2. J1 then
+		// wrote room, tags and source onto every row - unconditionally, because a
+		// row with no category is the thing M-29 exists to forbid - so pinning the
+		// set would now say a true thing about H2 and a false one about the file.
+		// What W-11 actually cared about is the *conditionality*, and that is what
+		// is asserted instead: `lamp` is on eight rows and nothing else is optional
+		// except the three unit overrides, which are named.
 		const untouched = CATALOG.items.filter((item) => !item.lamp);
+		const OPTIONAL = ['lamp', 'unitScale'];
 		for (const item of untouched)
 		{
-			expect(Object.keys(item).sort(), item.name)
-				.toEqual(['format', 'image', 'model', 'name', 'type']);
+			expect(Object.keys(item).filter((key) => OPTIONAL.indexOf(key) === -1).sort(), item.name)
+				.toEqual(['format', 'image', 'model', 'name', 'room', 'source', 'tags', 'type']);
+			expect(item.lamp, item.name).toBeUndefined();
 		}
+		expect(CATALOG.items.filter((item) => item.unitScale !== undefined).map((item) => item.name))
+			.toEqual(['Simplecabinet', 'Ceilingfan', 'Chandelier']);
 	});
 
 	it('says only what differs from the defaults', () =>

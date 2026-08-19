@@ -2,8 +2,9 @@
 // @ts-check
 import {computed, nextTick, ref, watch} from 'vue';
 import {DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose} from 'reka-ui';
-import {Search, X, Plus} from '@lucide/vue';
-import {loadCatalogDetail} from '../composables/useCatalog.js';
+import {Search, X, Plus, Star} from '@lucide/vue';
+import {loadCatalogDetail, ROOMS} from '../composables/useCatalog.js';
+import {useCatalogBrowse} from '../composables/useCatalogBrowse.js';
 import {Dimensioning} from '../../scripts/blueprint.js';
 
 /**
@@ -26,9 +27,24 @@ import {Dimensioning} from '../../scripts/blueprint.js';
  * better index than the categories are, so it is the first control and the
  * categories become a filter beside it rather than the only way in.
  *
- * Matching is a case-insensitive substring over the item name. Not fuzzy:
- * fuzzy matching on 168 short strings mostly produces confident wrong answers,
- * and every name here is a word someone would actually type.
+ * Matching is a case-insensitive substring over the item name **and its tags**,
+ * so typing "seating" finds twenty-five chairs whose names do not contain the
+ * word. Not fuzzy: fuzzy matching on 168 short strings mostly produces confident
+ * wrong answers, and every name here is a word someone would actually type.
+ *
+ * ## Three filters, and why they are drawn differently (RM-012 J1)
+ *
+ * **Room** is the one a person browses by, so it is chips: eight of them, always
+ * visible, one click each. **Favourites and recents** are two more chips at the
+ * front of the same row, because they answer the same question - "show me a
+ * smaller set" - and a person who has starred six things wants them one click
+ * away, not behind a menu.
+ *
+ * **Placement type** is a `<select>`. It was the chip row before J1, and it is
+ * the filter an embedder or a power user reaches for rather than the one
+ * somebody furnishing a bedroom reaches for; twelve chips of it crowded out the
+ * eight that answer the everyday question. Nothing was removed - it moved to the
+ * control that suits a long list that is used rarely.
  */
 
 const props = defineProps({
@@ -52,6 +68,20 @@ const props = defineProps({
 const emit = defineEmits(['update:open', 'add-item', 'prefetch-item']);
 
 const query = ref('');
+/** @type {import('vue').Ref<?string>} The room filter, or null for all. */
+const activeRoom = ref(null);
+/**
+ * Which shortlist is showing: 'favourites', 'recent', or null for neither.
+ *
+ * A third filter axis rather than a room, because it cuts across rooms - the
+ * point of a favourite is that you do not have to remember which room it was
+ * filed under.
+ *
+ * @type {import('vue').Ref<?string>}
+ */
+const activeList = ref(null);
+
+const browse = useCatalogBrowse();
 // `ref(null)` infers `Ref<null>`, so assigning anything else is an error and
 // reading a property off it is an error on `never`. Both of these hold null
 // most of the time and something else the rest, which is what the annotation
@@ -77,11 +107,67 @@ const total = computed(() => props.sections.reduce((sum, section) => sum + secti
 const results = computed(function ()
 {
 	const needle = query.value.trim().toLowerCase();
+	// Order matters for one of the three: a recents list is *in* recency order,
+	// and re-sorting it into catalog order would throw away the only information
+	// it carries. The other two keep the catalog's own order.
+	const shortlist = (activeList.value === 'favourites') ? browse.favourites.value
+		: (activeList.value === 'recent') ? browse.recent.value : null;
 
-	return props.sections
+	const rows = props.sections
 		.filter((section) => activeSection.value === null || section.id === activeSection.value)
 		.flatMap((section) => section.items.map((item) => ({item: item, section: section})))
-		.filter((row) => needle === '' || row.item.name.toLowerCase().includes(needle));
+		.filter((row) => activeRoom.value === null || row.item.room === activeRoom.value)
+		.filter((row) => needle === '' || matches(row.item, needle));
+
+	if (!shortlist)
+	{
+		return rows;
+	}
+	// Built by walking the shortlist rather than by filtering `rows`, because the
+	// shortlist's order is the answer for recents and `filter` would discard it.
+	// A push loop rather than `map(...).filter(Boolean)`: the latter is typed
+	// `Array<Row|undefined>` and every reader in the template then has to prove
+	// the row exists (RM-004 B3).
+	const kept = new Map(rows.map((row) => [row.item.model, row]));
+	const ordered = [];
+	for (const model of shortlist)
+	{
+		const row = kept.get(model);
+		if (row)
+		{
+			ordered.push(row);
+		}
+	}
+	return ordered;
+});
+
+/**
+ * Does this row answer the search?
+ *
+ * Name first, then tags. A tag is a whole word from a closed list of fourteen,
+ * so it is compared whole rather than by substring: typing "bed" should find the
+ * beds by name, not every row tagged `bed` *and* every row whose name contains
+ * the letters - which for this catalog is the difference between four results
+ * and eleven.
+ *
+ * @param {Object} item
+ * @param {string} needle Already lowercased and trimmed.
+ */
+function matches(item, needle)
+{
+	return item.name.toLowerCase().includes(needle)
+		|| (item.tags || []).some((tag) => tag === needle);
+}
+
+/** The room chips, with what each would show, so an empty one can be dimmed. */
+const roomCounts = computed(function ()
+{
+	const counts = {};
+	props.sections.forEach((section) => section.items.forEach(function (item)
+	{
+		counts[item.room] = (counts[item.room] || 0) + 1;
+	}));
+	return counts;
 });
 
 /** Whether picking this item right now needs a wall that has not been clicked. */
@@ -93,6 +179,24 @@ function needsWall(item)
 function pick(item)
 {
 	emit('add-item', item);
+}
+
+/**
+ * Star or unstar, without adding the thing.
+ *
+ * The button sits over the tile rather than inside it - axe called the nested
+ * form `nested-interactive` on all 193 tiles, and it was right: a button inside
+ * a button is one element to a screen reader and the inner one cannot be
+ * reached. `stopPropagation` stays anyway, because the star is positioned over
+ * the tile and a click landing on both would place a chair.
+ *
+ * @param {Object} item
+ * @param {Event} event
+ */
+function star(item, event)
+{
+	event.stopPropagation();
+	browse.toggleFavourite(item.model);
 }
 
 function close()
@@ -108,7 +212,7 @@ function close()
  * That is the whole point of RM-012 X-3's split - a visitor who never opens this
  * drawer never downloads a dimension.
  */
-/** @type {import('vue').Ref<?{items: Object<string, {size?: {w: number, h: number, d: number}}>}>} */
+/** @type {import('vue').Ref<?{items: Object<string, {size?: {w: number, h: number, d: number}, source?: string}>, sources?: Object}>} */
 const detail = ref(null);
 
 /**
@@ -186,18 +290,42 @@ watch(() => props.open, async function (open)
 					<div class="mt-2 flex flex-wrap gap-1">
 						<button
 							type="button" class="btn h-6 px-2 text-[11px]"
-							:class="{'is-active': activeSection === null}"
-							@click="activeSection = null">
+							:class="{'is-active': activeRoom === null && activeList === null}"
+							@click="activeRoom = null; activeList = null">
 							All
 						</button>
 						<button
-							v-for="section in props.sections" :key="section.id" type="button"
+							type="button" class="btn h-6 gap-1 px-2 text-[11px]"
+							:class="{'is-active': activeList === 'favourites'}"
+							:title="`${browse.favourites.value.length} starred`"
+							@click="activeList = activeList === 'favourites' ? null : 'favourites'">
+							<Star :size="11" :fill="activeList === 'favourites' ? 'currentColor' : 'none'" />
+							Starred
+						</button>
+						<button
+							v-if="browse.recent.value.length" type="button" class="btn h-6 px-2 text-[11px]"
+							:class="{'is-active': activeList === 'recent'}"
+							@click="activeList = activeList === 'recent' ? null : 'recent'">
+							Recent
+						</button>
+						<button
+							v-for="room in ROOMS" :key="room.id" type="button"
 							class="btn h-6 px-2 text-[11px]"
-							:class="{'is-active': activeSection === section.id}"
-							@click="activeSection = activeSection === section.id ? null : section.id">
-							{{ section.heading }}
+							:class="{'is-active': activeRoom === room.id}"
+							:disabled="!roomCounts[room.id]"
+							@click="activeRoom = activeRoom === room.id ? null : room.id">
+							{{ room.label }}
 						</button>
 					</div>
+
+					<select
+						v-model="activeSection" class="field-input mt-2 h-7 text-[11px]"
+						aria-label="Filter by placement type">
+						<option :value="null">Any placement</option>
+						<option v-for="section in props.sections" :key="section.id" :value="section.id">
+							{{ section.heading }}
+						</option>
+					</select>
 				</div>
 
 				<div class="flex-1 overflow-y-auto p-3">
@@ -206,10 +334,10 @@ watch(() => props.open, async function (open)
 					</p>
 
 					<ul v-else class="grid grid-cols-2 gap-2">
-						<li v-for="row in results" :key="row.item.model">
+						<li v-for="row in results" :key="row.item.model" class="group relative">
 							<button
 								type="button"
-								class="group relative w-full overflow-hidden rounded-lg border border-line-soft bg-sunk p-2 text-left transition-colors hover:border-accent"
+								class="w-full overflow-hidden rounded-lg border border-line-soft bg-sunk p-2 text-left transition-colors group-hover:border-accent"
 								:title="`Add ${row.item.name}`"
 								@click="pick(row.item)"
 								@pointerenter="emit('prefetch-item', row.item)"
@@ -232,6 +360,20 @@ watch(() => props.open, async function (open)
 									class="pointer-events-none absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-md bg-accent text-accent-ink opacity-0 transition-opacity group-hover:opacity-100">
 									<Plus :size="12" />
 								</span>
+							</button>
+							<!-- A sibling of the tile, not a child of it. Nesting it read fine and
+							     axe called it: `nested-interactive`, on all 193 tiles. A button inside
+							     a button is one element to a screen reader and the inner one is
+							     unreachable. Shown always when starred and on hover otherwise, so a
+							     shortlist is visible at a glance rather than only under the pointer. -->
+							<button
+								type="button"
+								class="absolute left-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-md bg-surface/90 transition-opacity hover:text-accent focus-visible:opacity-100 group-hover:opacity-100"
+								:class="browse.isFavourite(row.item.model) ? 'text-accent opacity-100' : 'text-ink-faint opacity-0'"
+								:aria-label="browse.isFavourite(row.item.model) ? `Unstar ${row.item.name}` : `Star ${row.item.name}`"
+								:aria-pressed="browse.isFavourite(row.item.model)"
+								@click="star(row.item, $event)">
+								<Star :size="11" :fill="browse.isFavourite(row.item.model) ? 'currentColor' : 'none'" />
 							</button>
 						</li>
 					</ul>

@@ -665,20 +665,46 @@
 		"public-total moved 10,609,326 -> 10,609,326: the split adds two files to",
 		"src/ and none to public/, so the tree is untouched. first-load rose by the",
 		"index's 61 bytes over the file it replaces and by nothing else, because the",
-		"detail is a chunk."
+		"detail is a chunk.",
+		"",
+		"J1 RAISED catalog-index 3,580 -> 3,940, from 3,408 measured to 3,759, for the",
+		"two keys the line was created to price: `room` and `tags` on all 168 rows.",
+		"This is the raise M-44 was set tight in order to force somebody to write, so",
+		"here is the writing.",
+		"",
+		"Both keys are in the index rather than the detail because both are read",
+		"before anybody clicks: `room` is the filter the drawer browses by, and `tags`",
+		"is what the search box matches besides the name, so typing seating finds",
+		"twenty-five chairs. Everything J1 added that is *read about one item* -",
+		"source, licence, author, dimensions - went to the detail and costs the",
+		"payload nothing.",
+		"",
+		"X-3 predicted room +369 and tags +116. The measurement is room +131 and tags",
+		"+178, and the ordering is the other way round. Two reasons, both visible",
+		"once the data exists rather than before: the eight rooms arrive in runs -",
+		"twenty-seven consecutive kitchen rows - which is the case gzip is best at,",
+		"while a tag list is an array, so it pays four bytes of brackets and quotes",
+		"per row before any word is spelled. X-3's figures were priced against a",
+		"vocabulary guessed at; these are priced against the one that shipped. The other",
+		"20 bytes of the 351 this line moved are three rows that got longer names,",
+		"because two of them were both called Chair.",
+		"",
+		"Set at 3,940, ~5% over 3,759, the same tightness the line was created with -",
+		"deliberately not sized for J2's rows, because that is the decision J2 is",
+		"supposed to have to record."
 	],
 	"budgets": {
 		"demo-js-gzip": {
 			"limit": 423200,
-			"measured": 408761
+			"measured": 413004
 		},
 		"demo-css-gzip": {
 			"limit": 10000,
-			"measured": 7405
+			"measured": 7449
 		},
 		"demo-total": {
 			"limit": 19990000,
-			"measured": 19256486
+			"measured": 19307479
 		},
 		"lib-iife-gzip": {
 			"limit": 307000,
@@ -710,11 +736,11 @@
 		},
 		"first-load": {
 			"limit": 421400,
-			"measured": 408473
+			"measured": 410277
 		},
 		"catalog-index": {
-			"limit": 3580,
-			"measured": 3408
+			"limit": 3940,
+			"measured": 3759
 		}
 	}
 }

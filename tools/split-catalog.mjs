@@ -56,6 +56,7 @@ import {dirname, join, resolve} from 'node:path';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE = join(ROOT, 'src/catalog/catalog.json');
+const SOURCES = join(ROOT, 'src/catalog/sources.json');
 const INDEX = join(ROOT, 'src/catalog/catalog-index.json');
 const DETAIL = join(ROOT, 'src/catalog/catalog-detail.json');
 const CHECK = process.argv.includes('--check');
@@ -213,61 +214,198 @@ export function modelBounds(json)
 }
 
 /**
- * This catalog is authored in two units, and the gap between them is 28-fold.
+ * A model's real-world size is its authored size times a number, and that number
+ * is a property of the **kit**, not of the model.
  *
- * Measured over all 168 models, the largest extent of the small population is
- * **1.82** and the smallest of the large population is **51.42** - the Kenney
- * kits are in metres and the baked kits are already in centimetres. Both
- * populations check out against real furniture: at x100 a bathroom basin is
- * 34 cm wide and a stack of books is 15, and at x1 a double bed is 140 x 200 and
- * a door is 97 x 222.
+ * ## What this replaced, and why
  *
- * `Item.initObject` has been guessing at exactly this since the fork - `if
- * (halfSize.x < 1.0) resize(x300)`, under a comment calling itself an ugly hack
- * - and RM-009 U-3 measured the 300 wrong and assigned the fix here. This is the
- * measurement that replaces it.
+ * J1's first slice guessed it from the model's own extent: under 2 units meant
+ * metres and x100, over 40 meant centimetres and x1. The two populations it
+ * found are real - the gap between them is 28-fold - but **the factor for the
+ * small one was wrong**, and the sanity check that was supposed to catch that
+ * was run on the two items least able to discriminate. A bathroom basin at 34 cm
+ * and a stack of books at 15 are both plausible; so are the same two at 68 and
+ * 30. Neither reading can be told from the other by looking at a basin.
  *
- * The band between the two populations is left **ambiguous on purpose**: a model
- * whose largest extent falls in it is reported and the run fails, rather than
- * being silently assigned a unit. The rule is fitted to this catalog, and J2 is
- * going to add packs it was not fitted to.
+ * What tells them apart is architecture, because architecture has standard
+ * sizes. `floorFull` is exactly 1.000 x 1.000 units and `wall` is 1.000 x 1.290:
+ * at x100 that is a room tile one metre square under a **1.29 m ceiling**, which
+ * nobody has ever built. Six standard heights then agree on the factor to
+ * within 5 %:
+ *
+ *   kitchen base unit  0.450 u   x200.0 for 90 cm
+ *   bar stool          0.435 u   x200.0 for 87 cm
+ *   door frame         1.010 u   x201.1 for 203 cm
+ *   round table        0.367 u   x204.5 for 75 cm
+ *   fridge             0.920 u   x195.7 for 180 cm
+ *   desk               0.384 u   x195.1 for 75 cm
+ *
+ * **x200**, which makes the kit's floor tile 2 m square and its wall 2.58 m tall,
+ * and which is the round number a modular kit is built on. And the cross-check
+ * that costs nothing: at x200 this kit's door frame is **97.2 cm** wide, while
+ * the blueprint3d door - a different kit, authored in centimetres, measured
+ * independently - is **97.1**. Two catalogs agreeing on the width of a door to
+ * one millimetre is not a coincidence a heuristic produced.
+ *
+ * ## So it is declared, not detected
+ *
+ * `sources.json` states `unitScale` - centimetres per authored unit - for each
+ * kit, and a row may override it. That is only possible because X-1 put `source`
+ * on every row in this same sprint: the provenance metadata is what makes the
+ * unit knowable, and the two halves of J1 turn out to be one thing.
+ *
+ * Four rows override their kit, and each is a model that is not really of it:
+ * the ceiling fan and the chandelier are Blender exports in centimetres, the
+ * cabinet of unknown origin is on the kit's own grid, and the duck is a Khronos
+ * sample asset with no real-world size at all.
+ *
+ * The extent rule survives only as a **sanity band**: whatever the declaration
+ * says, a catalog item between 5 cm and 6 m is furniture and anything outside is
+ * a declaration that is wrong. That is the check J1's first slice needed and did
+ * not have - it verified the guess against the thing being guessed at.
  */
-const METRES_BELOW = 2;
-const CENTIMETRES_ABOVE = 40;
+const MIN_EXTENT = 5;
+const MAX_EXTENT = 600;
 
 /** Three decimals, which for a centimetre is ten microns - far past meaningful. */
 const round = (value) => Math.round(value * 1000) / 1000;
 
 /**
- * Which unit a model was authored in, or null if it cannot be told.
+ * Centimetres per authored unit for one row: its own, or its kit's.
+ *
+ * @param {Object} item A catalog row.
+ * @param {Object} sources The parsed sources.json.
+ * @returns {?number} Null when neither states one, which is a failure.
+ */
+export function unitScale(item, sources)
+{
+	if (typeof item.unitScale === 'number')
+	{
+		return item.unitScale;
+	}
+	const source = ((sources && sources.sources) || {})[item.source];
+	return (source && typeof source.unitScale === 'number') ? source.unitScale : null;
+}
+
+/**
+ * The model's size in centimetres, or a reason it could not be had.
  *
  * @param {{min: Array<number>, max: Array<number>}} bounds
- * @returns {?{unit: string, scale: number}}
+ * @param {?number} scale
+ * @returns {{size: ?Object, refused: ?string}}
  */
-export function nativeUnit(bounds)
+export function sizeOf(bounds, scale)
 {
-	const extent = Math.max(
-		bounds.max[0] - bounds.min[0],
-		bounds.max[1] - bounds.min[1],
-		bounds.max[2] - bounds.min[2]);
-	if (extent < METRES_BELOW)
+	if (scale === null || !(scale > 0))
 	{
-		return {unit: 'm', scale: 100};
+		return {size: null, refused: 'no unitScale on the row or its source'};
 	}
-	if (extent >= CENTIMETRES_ABOVE)
+	const size = {
+		w: round((bounds.max[0] - bounds.min[0]) * scale),
+		h: round((bounds.max[1] - bounds.min[1]) * scale),
+		d: round((bounds.max[2] - bounds.min[2]) * scale),
+		scale: scale,
+	};
+	const extent = Math.max(size.w, size.h, size.d);
+	if (extent < MIN_EXTENT || extent > MAX_EXTENT)
 	{
-		return {unit: 'cm', scale: 1};
+		return {size: null, refused: `largest extent ${round(extent)} cm is outside `
+			+ `${MIN_EXTENT}-${MAX_EXTENT} cm at the declared scale of ${scale}`};
 	}
-	return null;
+	return {size: size, refused: null};
+}
+
+/**
+ * The eight rooms, and why a closed list rather than free text.
+ *
+ * X-3 priced `room` at **+369 gzipped bytes across all 168 rows**, and that
+ * price is only available because the vocabulary repeats: gzip charges for
+ * novelty, so eight words used twenty times each cost a fraction of what 168
+ * distinct phrases would. A closed list is therefore not tidiness - it is the
+ * reason the key can live in the index at all.
+ *
+ * `structure` is the eighth and it is not a room. It is what the twelve wall
+ * segments RM-012 measured are for, and the six openings and the panel and the
+ * four flights that came out with them: things that are part of the building
+ * rather than things you furnish it with. Naming them is what takes them out of
+ * furniture, and it is a catalog edit rather than a feature - the drawer's
+ * sections are still placement types, because that is what they are.
+ */
+export const ROOMS = ['living', 'kitchen', 'dining', 'bedroom', 'bathroom', 'office', 'utility', 'structure'];
+
+/**
+ * The fourteen tags, likewise closed, and likewise for the price.
+ *
+ * These are what the search box matches besides the name, so somebody looking
+ * for a chair by typing "seating" finds twenty-five of them. A row carries at
+ * least one and usually exactly one; the pairs are the honest cases, where a
+ * bedside table is storage *and* a table.
+ */
+export const TAGS = ['seating', 'table', 'storage', 'bed', 'lighting', 'appliance', 'plumbing',
+	'decor', 'electronics', 'textile', 'plant', 'stairs', 'opening', 'panel'];
+
+/**
+ * What every row has to carry before either file is written.
+ *
+ * M-29 is the acceptance gate - category, dimensions, source and licence on
+ * 100 % of rows, from a measured baseline of zero - and this is the half of it
+ * that runs before the data exists rather than after. A row with no room, a tag
+ * nobody defined, or a source that resolves to nothing fails the run, which
+ * means the generated files cannot be written in that state and the gate in
+ * tests/asset-integrity.test.js cannot be reached with them.
+ *
+ * @param {Object} catalog
+ * @param {Object} sources
+ * @returns {Array<string>} One line per problem; empty when the catalog passes.
+ */
+export function validate(catalog, sources)
+{
+	const problems = [];
+	const known = Object.keys((sources && sources.sources) || {});
+	const names = new Map();
+
+	for (const item of catalog.items)
+	{
+		const where = item.name || item.model;
+		if (ROOMS.indexOf(item.room) === -1)
+		{
+			problems.push(`${where}: room ${JSON.stringify(item.room)} is not one of ${ROOMS.join(', ')}`);
+		}
+		if (!Array.isArray(item.tags) || !item.tags.length)
+		{
+			problems.push(`${where}: no tags`);
+		}
+		for (const tag of item.tags || [])
+		{
+			if (TAGS.indexOf(tag) === -1)
+			{
+				problems.push(`${where}: tag ${JSON.stringify(tag)} is not one of ${TAGS.join(', ')}`);
+			}
+		}
+		if (known.indexOf(item.source) === -1)
+		{
+			problems.push(`${where}: source ${JSON.stringify(item.source)} is not in sources.json`);
+		}
+		// Two rows both called Chair is what RM-012 found by counting; this is what
+		// stops it coming back. A name is what the drawer shows and what a saved
+		// design records, so two of them are two things a person cannot tell apart.
+		if (names.has(item.name))
+		{
+			problems.push(`${where}: name is also used by ${names.get(item.name)}`);
+		}
+		names.set(item.name, item.model);
+	}
+	return problems;
 }
 
 /**
  * Split one catalog into the two files.
  *
  * @param {Object} catalog
+ * @param {Object} [sources] The provenance table, copied into the detail.
  * @returns {{index: Object, detail: Object, measured: number, unmeasured: Array<string>}}
  */
-export function split(catalog)
+export function split(catalog, sources)
 {
 	const index = {
 		_comment: 'GENERATED by tools/split-catalog.mjs from catalog.json. Do not edit.',
@@ -278,6 +416,12 @@ export function split(catalog)
 	const detail = {
 		_comment: 'GENERATED by tools/split-catalog.mjs from catalog.json. Do not edit.',
 		version: catalog.version,
+		// One entry per source rather than one licence string per row, and in the
+		// detail rather than the index because nobody filters by licence - they
+		// read it, about one item, after clicking it. Four entries against 168
+		// rows, so the whole provenance table costs less than the key that would
+		// have named it on every row.
+		sources: (sources && sources.sources) || {},
 		items: {},
 	};
 	const unmeasured = [];
@@ -304,30 +448,30 @@ export function split(catalog)
 
 		const path = join(ROOT, 'public', item.model);
 		const bounds = existsSync(path) ? modelBounds(modelJson(path)) : null;
-		const native = bounds ? nativeUnit(bounds) : null;
-		if (bounds && native)
+		if (!bounds)
 		{
-			// Width, height and depth in **centimetres**, which is the unit
-			// everything downstream of the model layer works in. `unit` records
-			// what the file itself was authored in, so the conversion is visible
-			// and can be undone by a reader rather than inferred again.
-			rest.size = {
-				w: round((bounds.max[0] - bounds.min[0]) * native.scale),
-				h: round((bounds.max[1] - bounds.min[1]) * native.scale),
-				d: round((bounds.max[2] - bounds.min[2]) * native.scale),
-				unit: native.unit,
-			};
-			units[native.unit] = (units[native.unit] || 0) + 1;
-			measured++;
-		}
-		else if (bounds)
-		{
-			ambiguous.push(`${item.name} (largest extent `
-				+ `${round(Math.max(bounds.max[0] - bounds.min[0], bounds.max[1] - bounds.min[1], bounds.max[2] - bounds.min[2]))})`);
+			unmeasured.push(item.name);
 		}
 		else
 		{
-			unmeasured.push(item.name);
+			// Width, height and depth in **centimetres**, which is the unit
+			// everything downstream of the model layer works in. `scale` records
+			// how many centimetres one authored unit is, so the conversion is
+			// visible in the file and can be undone by a reader rather than
+			// inferred again - and so `Item.initObject` can apply it instead of
+			// guessing, which is what RM-009 U-3 assigned to this sprint.
+			const scale = unitScale(item, sources);
+			const measurement = sizeOf(bounds, scale);
+			if (measurement.size)
+			{
+				rest.size = measurement.size;
+				units[scale] = (units[scale] || 0) + 1;
+				measured++;
+			}
+			else
+			{
+				ambiguous.push(`${item.name}: ${measurement.refused}`);
+			}
 		}
 
 		if (Object.keys(rest).length)
@@ -352,15 +496,25 @@ function serialise(value)
 function main()
 {
 	const catalog = JSON.parse(readFileSync(SOURCE, 'utf8'));
-	const result = split(catalog);
+	const sources = JSON.parse(readFileSync(SOURCES, 'utf8'));
+
+	const problems = validate(catalog, sources);
+	if (problems.length)
+	{
+		console.error(`${problems.length} row(s) in catalog.json are not ready to be split:`);
+		problems.forEach((entry) => console.error(`  ${entry}`));
+		process.exit(1);
+	}
+
+	const result = split(catalog, sources);
 
 	if (result.ambiguous.length)
 	{
-		// Loud rather than guessed. A model between the two populations is a model
-		// whose unit this rule was not fitted to, and assigning it one silently is
-		// how a chair ends up three metres tall.
-		console.error(`${result.ambiguous.length} model(s) fall between the two unit populations `
-			+ `(${METRES_BELOW} to ${CENTIMETRES_ABOVE} units) and cannot be classified:`);
+		// Loud rather than guessed. A row with no declared scale, or one whose
+		// declared scale produces something that is not furniture, is a row whose
+		// size nobody has established - and writing a number for it anyway is how
+		// a ceiling ends up 1.29 m high for eight months.
+		console.error(`${result.ambiguous.length} model(s) have no size this tool will stand behind:`);
 		result.ambiguous.forEach((entry) => console.error(`  ${entry}`));
 		process.exit(1);
 	}
@@ -382,7 +536,8 @@ function main()
 		{
 			process.exit(1);
 		}
-		console.log(`catalog split is up to date (${result.index.items.length} rows, ${result.measured} measured).`);
+		console.log(`catalog split is up to date (${result.index.items.length} rows, ${result.measured} measured, `
+			+ `${Object.keys(result.detail.sources).length} sources).`);
 	}
 	else
 	{
@@ -391,8 +546,9 @@ function main()
 			writeFileSync(path, text);
 		}
 		console.log(`catalog split: ${result.index.items.length} rows, ${result.measured} measured`
-			+ ` (${Object.entries(result.units).map(([unit, n]) => `${n} in ${unit}`).join(', ')})`
-			+ (result.unmeasured.length ? `, ${result.unmeasured.length} unmeasured (${result.unmeasured.join(', ')})` : ''));
+			+ ` (${Object.entries(result.units).map(([unit, n]) => `${n} at x${unit}`).join(', ')})`
+			+ (result.unmeasured.length ? `, ${result.unmeasured.length} unmeasured (${result.unmeasured.join(', ')})` : '')
+			+ `; ${Object.keys(result.detail.sources).length} sources`);
 	}
 }
 

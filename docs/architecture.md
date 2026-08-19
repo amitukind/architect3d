@@ -177,19 +177,37 @@ bytes of growth against 13,292 bytes of `first-load` headroom**. Split, the same
 rows cost 9,857.
 
 Where the line goes was decided by gzipping each candidate key across all 168
-rows rather than by taste — `format` costs **40 bytes**, `room` 369, `tags` 116,
-`size` **907**. So the index carries what the grid filters on *and* what
+rows rather than by taste — `format` costs **40 bytes**, `room` **131**, `tags`
+**178**, `size` **907**. So the index carries what the grid filters on *and* what
 `addItem` reads, which keeps adding an item synchronous; the detail carries what
-a person reads about one item. The filterable keys turn out to be the cheap ones
-because their vocabularies repeat. `catalog-index` is a budget line of its own
-(M-44) so a key crossing back into the payload is a decision somebody records.
+a person reads about one item — its measured size, and which kit it came from.
+The filterable keys turn out to be the cheap ones because their vocabularies
+repeat. `catalog-index` is a budget line of its own (M-44) so a key crossing back
+into the payload is a decision somebody records.
+
+Every row names a **room** from a closed list of eight, at least one **tag** from
+a closed list of fourteen, and a **source** that resolves in
+`src/catalog/sources.json` — where the licence, the author and *the evidence for
+the identification* live, once per kit rather than once per row. Two rows resolve
+to a source whose licence is `unknown`, and they are named in the test that
+counts them: recording that is the point, and assuming CC0 by resemblance is what
+writing provenance down exists to prevent.
 
 The dimensions in the detail are **measured, not authored**: each model's
 bounding box is computed by walking its glTF scene graph and transforming all
-eight corners of every primitive's accessor bounds. That found the catalog is
-authored in two units with a 28-fold gap between them — 141 models in metres, 27
-already in centimetres — which is what `Item.initObject`'s `if (halfSize.x < 1.0)
-resize(×300)` has been guessing at since the fork.
+eight corners of every primitive's accessor bounds. What multiplies that box into
+centimetres is **declared**, not detected — `unitScale` on the kit in
+`sources.json`, overridable per row — which is only possible because the same
+sprint put `source` on every row.
+
+The first attempt did detect it, from the model's own extent, and got it wrong
+for 141 of 168 rows: it read the Kenney kit as metres when the kit is on a **2 m
+grid**. The sanity check that should have caught that was run on a basin and a
+stack of books, which are plausible at either reading. Architecture is not: at
+the wrong scale the kit's floor tile is a metre square under a **1.29 m ceiling**.
+Six standard heights then agree on ×200 to within 5 %, and at ×200 this kit's
+door frame is 97.2 cm wide against the demo kit's 97.1 — two catalogs, authored
+in different units, agreeing on the width of a door.
 :::
 
 ### The material library
