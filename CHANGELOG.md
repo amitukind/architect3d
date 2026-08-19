@@ -849,6 +849,114 @@ absorbed this sprint, which is exactly what raising them to ~5 % rather than to
 just-enough was for. The ESM entry is back to 1.2 % of headroom, so G3 will
 likely trip it.
 
+**RM-010 G3 delivered: the house, driven.** A three-storey fixture through every
+tier, an exterior view, per-storey visibility connected and tested, V-7 measured,
+and **the levels flag is off** — `levelsEnabled` defaults to true.
+
+**The fixture is the sprint.** The other three fixtures are plans;
+`tests/fixtures/three-storey.blueprint3d` is a building — three whole
+`Floorplan`s, a straight flight and a quarter turn, the stairwells those imply
+in the two upper floors, a column, a beam, a door, a window and a gable roof. It
+is produced by `tools/make-fixtures.mjs` through the real `Model`, so it is
+exactly what the application writes, and it is driven through save, load, undo,
+autosave, the plan, an exported sheet and the 3D view.
+
+**Driving it found four defects, three of them shipped.** None is reachable
+without a building.
+
+**No saved column or beam had ever loaded.** `Item`'s constructor calls
+`setScale()` whenever a scale is supplied, `setScale()` calls `resized()`, and
+F2's `ParametricStructure.resized()` reads a description its own constructor has
+not assigned yet. The catalog path supplies no scale, so *placing* a column
+worked and *opening* one threw `Cannot read properties of undefined (reading
+'kind')`. F2 anticipated exactly this window in `objectHalfSize()` and guarded
+that method only.
+
+**Room names on any storey with a stairwell were destroyed on the second load.**
+G2 re-applies floor openings inside `Floorplan.update()` and put that block
+*above* the loop that restores each room's name. `setFloorOpenings` calls
+`updateArea`, `updateArea` announces an attribute change, and the listener writes
+the room straight back into `metaroomsdata` carrying the name it has at that
+moment — which is still "A New Room". The saved name was overwritten by the
+default a few statements before it was read. It is the same read-before-write
+hazard the comment inside that loop describes, one level up. Moved below the
+names.
+
+**`tools/make-fixtures.mjs` had stopped reproducing its own fixtures**, four
+programmes ago, when RM-003 A1 gave every plan a `DesignRuntime` and that runtime
+an id: constructing a `Floorplan` now draws eight random numbers before a corner
+is made, and every builder seeded *first*. Every corner id in all three files
+shifted by one position. Nothing caught it because nothing re-ran the script. The
+builders seed after construction now, and a clean `git diff tests/fixtures` after
+running it is the check.
+
+**`Controller.deselect()` was not idempotent, and `Main.clearSelection()` was
+worse.** `setSelectedObject(null)` switched UNSELECTED → SELECTED on the way in
+whatever it was handed, so a method named `deselect` selected, and the method the
+application calls every time it shows the plan pane left the machine claiming a
+selection it did not have. One condition fixes both, and it makes the recursion
+that method's own comment warns about impossible by construction. **Correction to
+this file's E1 entry**, which says that state "stops `checkWallsAndFloors` and
+makes every wall in the 3D view unclickable": measured before changing it, and it
+does not — `mouseUpEvent`'s SELECTED branch transitions and checks within the same
+click, so a floor click after `clearSelection()` still reports the floor. What was
+wrong was the state, not the click.
+
+**An exterior view, which turned out to be three things that happen together.**
+Every storey shown, because the outside of a house is not the outside of its
+ground floor; the roof with them; and the camera framed against
+`Model.buildingBounds()` rather than against the plan being edited — the union of
+the storeys' corners, the eaves at `roofBase()`, and the ridge the pitch implies.
+The distance comes from the camera's own field of view and aspect, so the box
+fits a wide viewport and a tall one. Asserted in Chromium by testing every corner
+of the building's box against the camera's frustum.
+
+**Per-level visibility was built in G1 and connected in G3**, which is what V-8
+asked for: `Scene.syncLevels` has taken an `activeOnly` option since G1 and
+nothing passed it, and an untaken branch is an untested one. `Main.showStoreys()`
+drives it, the roof follows it, and the storey switcher has the control. What it
+is *for* is picking: the raycast is offered the active storey's items and the
+active storey's plan, so with every storey drawn the upper floors are visible and
+inert. That is the answer this build gives, it is defensible, and now something
+says so.
+
+**The plan draws the stairwell it was leaving out.** G2 cut the opening from the
+3D floor and from the room's stated area and left the 2D plan drawing a solid
+room, so the two views disagreed about the same building — and the plan is the
+one that gets printed. It is drawn as a void, in the same dashed style
+`drawStair` gives the hint on the storey below, because they are the same
+rectangle seen from either side.
+
+**V-7, measured rather than assumed.** A snapshot is 3,137 bytes at one storey,
+7,884 at two and 10,331 at three — ×3.29, which is the arithmetic the finding
+predicted. `exportSerialized`, the part autosave still does on the main thread,
+runs in **0.010, 0.020 and 0.024 ms** — five readings, stable to the
+microsecond, and well inside a frame. (Under `--coverage` the same call reads
+0.022 / 0.024 / 0.034; the instrumented figure is not the one to quote, and both
+are recorded so the difference is not rediscovered.) Ten commits held
+104,190 bytes, so the 50-entry ceiling is about 505 KiB for this house — and
+about 1.2 MiB with sixty items on it, extrapolating at the 247 bytes a furniture
+record costs in `legacy-items`. **Decision: incremental history does not become
+its own sprint.** Half a megabyte of strings and 24 µs a write is not a problem,
+and the change would land on a single-level editor equally well, so it is not
+this programme's to smuggle in. The number to watch is the file, not the storey
+count.
+
+**56 new headless tests and 8 new browser tests, 1,968 and 119.** All six files
+V-8 named are up on statements *and* branches, which was the acceptance line:
+`three/controller.js` **51.65 → 84.43** and **36.14 → 71.42**, `useAutosave.js`
+52.94 → 71.56 and 31.25 → 56.25, `three/main.js` 76.35 → 84.18 and 62.50 → 70.56,
+`useDesignIO.js` 48.97 → 50.34 and 30.00 → 34.00, `model/model.js` 89.45 → 90.87
+and 79.41 → 80.98, `floorplanner_view.js` 85.65 → 85.93 and 71.59 → 71.75.
+Overall: statements 83.42 → 85.94, branches 74.16 → 76.93, functions
+81.19 → 83.32, lines 83.44 → 85.90. **No budget moved.** The ESM entry is down to
+0.5 % of headroom, which G2 predicted would be tight and is the first thing the
+next sprint should look at.
+
+**The flag stays in the code.** What G3 removes is one default, not the switch:
+it is the line an embedder hosting a single-storey plan turns off, and the branch
+it guards is one `v-if`.
+
 ## [3.0.1] - 2026-08-16
 
 No shipped code changed — `src/` is byte-identical to 3.0.0 and so is every

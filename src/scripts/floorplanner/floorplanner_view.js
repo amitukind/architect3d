@@ -1291,9 +1291,13 @@ export class FloorplannerView2D
 	 * why this draws runs and landings rather than one outline.
 	 *
 	 * The dashed rectangle is the **stairwell hint**: the part of the footprint a
-	 * floor above would have to open, worked out from the flight's own height and
-	 * two metres of headroom. Nothing acts on it - there is no floor above yet,
-	 * that is programme G - and drawing it is how it stops being a comment.
+	 * floor above has to open, worked out from the flight's own height and two
+	 * metres of headroom. RM-010 G2 made the floor above act on it, so this is
+	 * now one half of a pair - the same rectangle appears as a void in the storey
+	 * above, drawn by `drawRoom` in the same dashed style so the two read as the
+	 * same thing seen from either side. (This comment said "nothing acts on it -
+	 * there is no floor above yet, that is programme G" until G3; programme G
+	 * happened.)
 	 *
 	 * @param {import('../model/plan_projection.js').ItemFootprint} footprint
 	 */
@@ -2342,7 +2346,9 @@ export class FloorplannerView2D
 		}
 		
 		this.drawPolygonCurved(polygonPoints, true, color);
-		
+
+		this.drawFloorOpenings(room);
+
 		// '#00FF0000' is an eight-digit hex with a zero alpha: a transparent halo,
 		// i.e. no halo. Kept - the room label sits on the room's own fill, which
 		// is already a flat colour, and a halo there would read as a smudge.
@@ -2382,6 +2388,48 @@ export class FloorplannerView2D
 	 *
 	 * @param {import('../model/room.js').Room} room
 	 */
+	/**
+	 * The holes the storey below punches in this floor (RM-010 G3).
+	 *
+	 * G2 cut the stairwell out of the 3D floor and out of the room's stated area,
+	 * and left the plan drawing a solid room - so the two views disagreed about
+	 * the same building, and the plan was the one a builder would print. The
+	 * opening is drawn as a void: the ground painted back over the room's fill,
+	 * with the same dashed outline `drawStair` gives the hint on the storey
+	 * below, because they are the same rectangle seen from either side.
+	 *
+	 * Nothing is derived here. `room.floorOpenings` is already clamped to the
+	 * room, already in plan coordinates, and already what the 3D floor is cut
+	 * with; drawing it a second way would be a second answer.
+	 *
+	 * @param {import('../model/room.js').Room} room
+	 * @returns {void}
+	 */
+	drawFloorOpenings(room)
+	{
+		var scope = this;
+		var openings = room.floorOpenings || [];
+		if (!openings.length)
+		{
+			return;
+		}
+		openings.forEach(function (polygon)
+		{
+			var xs = polygon.map((point) => scope.project.convertX(point.x));
+			var ys = polygon.map((point) => scope.project.convertY(point.y));
+			// A void, so it is filled with whatever the plan's ground is rather
+			// than with a colour of its own. A transparent canvas has no ground to
+			// paint, and painting nothing is the right answer there too.
+			if (floorplannerPalette.background)
+			{
+				scope.drawPolygon(xs, ys, true, floorplannerPalette.background, false, '', 0);
+			}
+			scope.backend.dash([4, 4]);
+			scope.drawPolygon(xs, ys, false, '', true, floorplannerPalette.stairWell, 1);
+			scope.backend.dash([]);
+		});
+	}
+
 	drawRoomAnnotation(room)
 	{
 		var centre = room.areaCenter;

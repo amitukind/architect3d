@@ -4,7 +4,7 @@ import {EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED, EVENT_ITEM_MOVE_FINISH, EVENT_LEV
 import {projectItems} from './plan_projection.js';
 import {projectPlanOutline} from './level_projection.js';
 import {placeRectangle} from './floor_opening.js';
-import {normaliseRoof, roofToJSON, roofFootprint} from '../items/roof.js';
+import {normaliseRoof, roofToJSON, roofFootprint, roofMetrics} from '../items/roof.js';
 import {stairPlan} from '../items/stair.js';
 import {EventDispatcher, Vector3, Mesh} from 'three';
 import {Level, DEFAULT_LEVEL_HEIGHT} from './level.js';
@@ -271,6 +271,49 @@ export class Model extends EventDispatcher
 			? Math.max.apply(null, elevations)
 			: this.configuration.getNumericValue('wallHeight');
 		return this.levelBase(top) + wallTop;
+	}
+
+	/**
+	 * The box the whole building stands in (RM-010 G3).
+	 *
+	 * Every other extent in this class answers a question about one storey:
+	 * `floorplan.getSize()` is the plan being edited, and `roofFootprint()` is
+	 * what the roof has to cover. Neither frames a house. `switchView` used the
+	 * first of them, so on a three-storey design the camera framed the ground
+	 * floor and cut the top two off - which is fine for the four elevations,
+	 * because a person asking for "front" is asking about the storey they are
+	 * working on, and wrong for the one view whose whole subject is the outside.
+	 *
+	 * Plain data, and derived rather than stored, like every other height in this
+	 * programme: the footprint is the union of the storeys' corners (the same
+	 * union the roof already takes, without the overhang), the eaves are
+	 * `roofBase()`, and the ridge is the eaves plus the rise the pitch implies.
+	 * A building with no roof stops at its eaves. Nothing here knows about three,
+	 * which is the one-way arrow: the *camera* is placed in `three/main.js`, and
+	 * this only says where the building is.
+	 *
+	 * @returns {?{x0: number, y0: number, x1: number, y1: number, width: number,
+	 *   depth: number, cx: number, cy: number, base: number, top: number,
+	 *   height: number}} Null when no storey has a plan yet.
+	 */
+	buildingBounds()
+	{
+		var footprint = roofFootprint(this.levels, this.roof ? this.roof.overhang : 0);
+		if (!footprint)
+		{
+			return null;
+		}
+		var top = this.roofBase();
+		if (this.roof)
+		{
+			top += roofMetrics(this.roof, footprint).rise + this.roof.thickness;
+		}
+		return {
+			x0: footprint.x0, y0: footprint.y0, x1: footprint.x1, y1: footprint.y1,
+			width: footprint.width, depth: footprint.depth,
+			cx: footprint.cx, cy: footprint.cy,
+			base: 0, top: top, height: top,
+		};
 	}
 
 	/**

@@ -1,6 +1,6 @@
 <script setup>
 // @ts-check
-import {Layers, Plus, Trash2} from '@lucide/vue';
+import {Layers, Plus, Trash2, Eye, EyeOff} from '@lucide/vue';
 import AppTip from './AppTip.vue';
 import {Dimensioning} from '../../scripts/blueprint.js';
 
@@ -29,9 +29,11 @@ const props = defineProps({
 		required: true,
 	},
 	unit: {type: String, default: ''},
+	/** Whether the 3D view is showing every storey (RM-010 G3). */
+	allStoreys: {type: Boolean, default: true},
 });
 
-const emit = defineEmits(['set-active', 'add', 'remove']);
+const emit = defineEmits(['set-active', 'add', 'remove', 'set-all-storeys']);
 
 /** A height as the display unit writes it. */
 function measure(cm)
@@ -70,6 +72,20 @@ function measure(cm)
 					:disabled="props.levels.length < 2"
 					@click="emit('remove')">
 					<Trash2 :size="15" />
+				</button>
+			</AppTip>
+			<AppTip
+				:label="props.allStoreys
+					? 'Showing every storey in 3D'
+					: 'Showing only the storey being edited'">
+				<button
+					type="button" class="btn btn-icon ml-auto"
+					:class="{'is-active': !props.allStoreys}"
+					:aria-pressed="!props.allStoreys"
+					:title="props.allStoreys ? 'Show only this storey' : 'Show every storey'"
+					@click="emit('set-all-storeys', !props.allStoreys)">
+					<Eye v-if="props.allStoreys" :size="15" />
+					<EyeOff v-else :size="15" />
 				</button>
 			</AppTip>
 		</div>

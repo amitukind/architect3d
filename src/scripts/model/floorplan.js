@@ -2007,23 +2007,6 @@ export class Floorplan extends EventDispatcher
 		// the key the successor now has.
 		this.carryRoomIdentity(previousRooms);
 
-		// The holes the storey below punches in this one (RM-010 G2).
-		//
-		// Re-applied here because `update(true)` constructs a NEW `Room` for every
-		// room - room identity is derived from its corners rather than assigned,
-		// which is finding H-5 - so the openings a room was carrying are on an
-		// object that no longer exists. Without this, drawing one wall anywhere on
-		// the plan silently filled in every stairwell. Found by placing a flight
-		// in a real page and calling `update()` afterwards, which is what a load
-		// does.
-		//
-		// Applied directly rather than through `setFloorOpenings`, which would
-		// call `update()` again from inside `update()`.
-		if (this._floorOpenings.length)
-		{
-			this.rooms.forEach((room) => {room.setFloorOpenings(scope._floorOpenings);});
-		}
-
 		this.rooms.forEach(function (room)
 		{
 			if(scope.metaroomsdata)
@@ -2050,6 +2033,37 @@ export class Floorplan extends EventDispatcher
 				}
 			}
 		});
+		// The holes the storey below punches in this one (RM-010 G2).
+		//
+		// Re-applied because `update(true)` constructs a NEW `Room` for every room
+		// - room identity is derived from its corners rather than assigned, which
+		// is finding H-5 - so the openings a room was carrying are on an object
+		// that no longer exists. Without this, drawing one wall anywhere on the
+		// plan silently filled in every stairwell.
+		//
+		// **After the names, not before them** (RM-010 G3). G2 put this block
+		// above the loop that restores each room's name, and that is the same
+		// read-before-write hazard the comment inside that loop describes, one
+		// level up: `setFloorOpenings` calls `updateArea`, `updateArea` announces
+		// an attribute change, and the listener installed above writes the room
+		// straight back into `metaroomsdata` - carrying the name the room has
+		// *now*, which before the loop runs is still "A New Room". So the saved
+		// name was overwritten by the default a few statements before it was read.
+		//
+		// It only bit when a plan already held openings as `update(true)` ran,
+		// which a first load never does - `Model._updateFloorOpenings()` runs
+		// after it - and a second load into the same document always does.
+		// Measured as: open the three-storey fixture, save, open the result, and
+		// every room with a stairwell in it is called "A New Room". Found by
+		// re-saving G3's fixture twice through one `Model`.
+		//
+		// Applied directly rather than through `setFloorOpenings`, which would
+		// call `update()` again from inside `update()`.
+		if (this._floorOpenings.length)
+		{
+			this.rooms.forEach((room) => {room.setFloorOpenings(scope._floorOpenings);});
+		}
+
 		this.assignOrphanEdges();
 		this.updateFloorTextures();
 		// A topology change, and the rooms it carries are the set as re-derived -

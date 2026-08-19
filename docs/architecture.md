@@ -240,6 +240,22 @@ storeys — measured before the sprint, they ask a scene for `add`, `remove` and
 each storey's `Floorplan3D` a three-method façade and none of those files
 changed.
 
+**Where a building is, as opposed to where a plan is** (RM-010 G3).
+`Model.buildingBounds()` is the only extent that answers a question about the
+whole house: the union of every storey's corners, the eaves at `roofBase()`, and
+the ridge the pitch implies. Everything else — `floorplan.getSize()`,
+`roofFootprint()` — answers about one storey or about what the roof must cover.
+The exterior view is the caller, and it is a caller in `three/`: this function
+says where the building is and nothing about a camera, which is the arrow
+holding.
+
+**What a click can hit is the storey being edited, not what is drawn.**
+`Controller.updateIntersections` raycasts `scene.getItems()` and
+`checkWallsAndFloors` asks `model.floorplan`, so with every storey visible the
+upper floors are drawn and inert. `Main.showStoreys(false)` is the way to make
+what you see and what you can click the same set; the roof follows it, because a
+roof over one visible storey is a lid on a box you are looking into.
+
 ::: warning The model does hold GPU resources
 This section used to say it held none, and that was wrong. `Room` builds two
 `Mesh`es — `floorPlane` and `roofPlane` — and every `HalfEdge` builds a third.

@@ -19,7 +19,7 @@ import InspectorPanel from './inspector/InspectorPanel.vue';
 
 import {provideBlueprint} from './composables/useBlueprint.js';
 import {useSelection, SELECTION_DIMENSION, SELECTION_ANNOTATION} from './composables/useSelection.js';
-import {useCameraViews, MODE_WALKTHROUGH} from './composables/useCameraViews.js';
+import {useCameraViews, MODE_WALKTHROUGH, MODE_EXTERIOR} from './composables/useCameraViews.js';
 import {useFloorplannerMode} from './composables/useFloorplannerMode.js';
 import {useDesignIO} from './composables/useDesignIO.js';
 import {useCatalog} from './composables/useCatalog.js';
@@ -97,6 +97,7 @@ const inspectorTab = ref('settings');
 const renderMode = ref(renderProfile.mode);
 
 const walkthrough = computed(() => camera.mode.value === MODE_WALKTHROUGH);
+const exterior = computed(() => camera.mode.value === MODE_EXTERIOR);
 
 onMounted(() =>
 {
@@ -255,6 +256,14 @@ function applyLayoutToCamera(next)
 		camera.showFloorplan();
 		return;
 	}
+	// Except when the exterior view asked for the layout in the first place
+	// (RM-010 G3). `toggleExterior` sets LAYOUT_VIEW and then frames the
+	// building; without this the watcher fires in between and `showDesign()`
+	// puts the mode straight back, so the button lit up and nothing moved.
+	if (camera.mode.value === MODE_EXTERIOR)
+	{
+		return;
+	}
 	camera.showDesign();
 }
 
@@ -268,7 +277,7 @@ watch(() => workspace.layout.value, applyLayoutToCamera);
  */
 watch(() => camera.mode.value, function (mode)
 {
-	if (mode === MODE_WALKTHROUGH && workspace.layout.value === LAYOUT_PLAN)
+	if ((mode === MODE_WALKTHROUGH || mode === MODE_EXTERIOR) && workspace.layout.value === LAYOUT_PLAN)
 	{
 		workspace.setLayout(LAYOUT_VIEW);
 	}
@@ -302,6 +311,29 @@ function toggleWalkthrough()
 		workspace.setLayout(LAYOUT_VIEW);
 	}
 	camera.showWalkthrough();
+}
+
+/**
+ * Step outside, or come back in.
+ *
+ * Same shape as the walk-through toggle above and for the same reason: both
+ * arrange their own precondition, which is that the 3D view is on screen. The
+ * way back is `showDesign()`, which puts the camera back on the storey being
+ * edited without moving it - so leaving the exterior view returns you to the
+ * design rather than to wherever the framing left the camera.
+ */
+function toggleExterior()
+{
+	if (exterior.value)
+	{
+		camera.showDesign();
+		return;
+	}
+	if (workspace.layout.value === LAYOUT_PLAN)
+	{
+		workspace.setLayout(LAYOUT_VIEW);
+	}
+	camera.showExterior();
 }
 
 /**
@@ -498,6 +530,7 @@ const bindings = computed(() => /** @type {Array<import('./composables/useShortc
 	{group: 'View', keys: '2', label: 'Split view', run: () => workspace.setLayout(LAYOUT_SPLIT)},
 	{group: 'View', keys: '3', label: '3D only', run: () => workspace.setLayout(LAYOUT_VIEW)},
 	{group: 'View', keys: 'f', label: 'Walk through', run: toggleWalkthrough},
+	{group: 'View', keys: 'e', label: 'Exterior view', run: toggleExterior},
 	{group: 'View', keys: 'o', label: 'Orthographic camera', run: () => camera.setOrthographic(!camera.orthographic.value)},
 	{group: 'View', keys: 'g', label: 'Wireframe', run: () => camera.setWireframe(!camera.wireframe.value)},
 	{group: 'View', keys: '=', label: 'Zoom in', run: zoom.zoomIn},
@@ -579,11 +612,13 @@ useShortcuts(() => bindings.value);
 					:can-act-on-item="items.canActOnItem.value"
 					:catalog-open="catalogOpen"
 					:walkthrough="walkthrough"
+					:exterior="exterior"
 					@set-mode="editor.setMode"
 					@open-catalog="toggleCatalog"
 					@duplicate-item="items.duplicateSelected"
 					@delete-item="items.deleteSelected"
 					@toggle-walkthrough="toggleWalkthrough"
+					@toggle-exterior="toggleExterior"
 					@open-backdrop="openBackdropSettings" />
 
 				<AppWorkspace
@@ -602,9 +637,11 @@ useShortcuts(() => bindings.value);
 								<LevelSwitcher
 									:levels="levels.levels.value"
 									:unit="display.unit.value"
+									:all-storeys="camera.allStoreys.value"
 									@set-active="levels.setActive"
 									@add="levels.addAbove"
-									@remove="levels.remove(levels.active.value)" />
+									@remove="levels.remove(levels.active.value)"
+									@set-all-storeys="camera.setAllStoreys" />
 							</div>
 							<PlanOverlay
 								:zoom-percent="zoom.percent.value"

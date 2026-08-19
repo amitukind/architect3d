@@ -95,10 +95,29 @@ export class ParametricStructure extends FloorItem
 
 	/**
 	 * How high the member's middle sits above the floor.
+	 *
+	 * Guarded for the same window `objectHalfSize()` above is guarded for, and
+	 * the omission was a shipped bug rather than a hypothetical one: `Item`'s
+	 * constructor calls `setScale()` whenever a scale is supplied, `setScale()`
+	 * calls `resized()`, and `resized()` is this. The catalog path supplies no
+	 * scale, so placing a column worked; **the load path supplies the saved
+	 * `scale_x/y/z`, so no file containing a column or a beam has ever opened** -
+	 * `Cannot read properties of undefined (reading 'kind')`, thrown out of
+	 * `structureExtent`. Found by loading G3's three-storey fixture, which is the
+	 * first saved design in this repository to contain one.
+	 *
+	 * The fallback is what `FloorItem` would have done unaided, and it stands for
+	 * one statement: the constructor assigns `this.structure` and then sets
+	 * `position.y` from it directly.
+	 *
 	 * @returns {number}
 	 */
 	elevation()
 	{
+		if (!this.structure)
+		{
+			return this.halfSize.y;
+		}
 		return structureExtent(this.structure).centre;
 	}
 

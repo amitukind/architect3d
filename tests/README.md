@@ -269,9 +269,26 @@ byte-identical files. A surprise diff means the model layer changed.
 - `rich-design.blueprint3d` — two rooms sharing a wall, per-surface textures,
   varied corner elevations, floor textures, a carbon sheet
 - `curved-walls.blueprint3d` — two curved walls
+- `three-storey.blueprint3d` — a **building**, not a plan (RM-010 G3): three
+  storeys at 280 / 280 / 300, a straight flight and a quarter turn, the
+  stairwells those cut in the two upper floors, a column, a beam, a door, a
+  window and a gable roof. It is the subject of `three-storey.test.js` and
+  `browser/three-storey.test.js`, and it exists because the first three are
+  plans and the application builds buildings — driving it turned up three
+  shipped defects in its first hour.
 
-All three are written in **centimetres**; set `configDimUnit = dimCentiMeter`
+All four are written in **centimetres**; set `configDimUnit = dimCentiMeter`
 before loading them, or the coordinates come back scaled by 100.
+
+**Seed after constructing the plan, not before it** (RM-010 V-10). `new
+Floorplan()` draws eight random numbers before a corner is made, because
+RM-003 A1 gave every document a `DesignRuntime` with an id — so a builder that
+seeds first pushes every id along by one, and the script silently stopped
+reproducing its own output for four programmes. The check is one command:
+
+```bash
+npm run fixtures && git diff --stat tests/fixtures    # must be empty
+```
 
 The curved-wall design is deliberately kept **separate** from wall-bound items:
 `WallItem.placeInRoom` → `closestWallEdge` → `HalfEdge.distanceTo` dereferences

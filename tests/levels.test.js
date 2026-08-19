@@ -29,6 +29,9 @@ import {installCanvas2D} from './helpers/dom.js';
 
 const FIXTURES = join(process.cwd(), 'tests', 'fixtures');
 
+/** The one fixture that is a building rather than a plan (RM-010 G3). */
+const MULTI_LEVEL = 'three-storey.blueprint3d';
+
 let canvasStub;
 
 beforeEach(() =>
@@ -198,9 +201,16 @@ describe('M-26 - two levels, one file', () =>
 	 * The byte-identity half, run against the fixtures rather than a design
 	 * written for the purpose - those are what "every existing single-level
 	 * fixture" means.
+	 *
+	 * Re-pointed rather than relaxed in G3, which added a fourth fixture that is
+	 * a three-storey house. The `['floorplan', 'items']` assertion is what M-26's
+	 * second half actually says - *a single-level design writes no levels key* -
+	 * so it belongs to the single-level fixtures and not to the enumeration. The
+	 * building gets the byte-identity half of the same claim below, where the key
+	 * list it is allowed to write is stated explicitly.
 	 */
-	it.each(readdirSync(FIXTURES).filter((name) => name.endsWith('.blueprint3d')))(
-		're-saves %s byte-identically', (name) =>
+	it.each(readdirSync(FIXTURES).filter((name) => name.endsWith('.blueprint3d') && name !== MULTI_LEVEL))(
+		're-saves %s byte-identically, and still writes no levels key', (name) =>
 		{
 			const model = new Model('/textures/');
 			const original = readFileSync(join(FIXTURES, name), 'utf8');

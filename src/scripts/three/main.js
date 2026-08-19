@@ -13,7 +13,7 @@ import {EVENT_LEVELS_CHANGED, EVENT_CHANGESET, EVENT_WALL_CLICKED, EVENT_NOTHING
 import {EVENT_ITEMS_PROJECTED} from '../core/events.js';
 import {CHANGE_TOPOLOGY} from '../core/change_set.js';
 import {EVENT_FPS_EXIT, EVENT_CAMERA_VIEW_CHANGE} from '../core/events.js';
-import {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY} from '../core/constants.js';
+import {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY, VIEW_EXTERIOR} from '../core/constants.js';
 import {resolveElement, elementBox, measureViewport, pixelRatio} from '../core/dom.js';
 
 import {OrbitControls} from './orbitcontrols.js';
@@ -216,6 +216,18 @@ export class Main extends EventDispatcher
 		this._watchedPlans = new Set();
 		/** @type {?Mesh} The building's roof, or null when it has none (RM-010 G2). */
 		this._roofMesh = null;
+		/**
+		 * Whether every storey is shown, or only the one being edited (RM-010 G3).
+		 *
+		 * `Scene.syncLevels` has taken an `activeOnly` option since G1 and nothing
+		 * passed it, which is the shape RM-010 V-8 warned about: per-level
+		 * visibility is a branch in what a click may hit, and an untaken branch is
+		 * an untested one. It defaults to every storey, so a build that never
+		 * touches it behaves exactly as G1 left it.
+		 *
+		 * @type {boolean}
+		 */
+		this._allStoreys = true;
 
 		/**
 		 * The plan extent the camera was last framed against, or null before the
@@ -818,7 +830,12 @@ export class Main extends EventDispatcher
 	{
 		if (this.controller)
 		{
-			this.controller.setSelectedObject(null);
+			// `deselect`, not `setSelectedObject(null)`, for the reason
+			// `showItemSelected` gives below: the second leaves the state machine
+			// claiming a selection. E1 pointed that method at `deselect` and left
+			// this one, which is the method the application actually calls - every
+			// time it shows the plan pane (RM-010 G3).
+			this.controller.deselect();
 		}
 	}
 
@@ -1183,7 +1200,9 @@ export class Main extends EventDispatcher
 				scope._watchedPlans.delete(plan);
 			}
 		});
-		this.scene.syncLevels();
+		// With the mode the view is in, not unconditionally: switching storey while
+		// showing one at a time has to move which one is shown (G3).
+		this.scene.syncLevels({activeOnly: !this._allStoreys});
 		this.syncRoof();
 	}
 
@@ -1215,6 +1234,9 @@ export class Main extends EventDispatcher
 		var built = buildRoofGeometry(roof, footprint);
 		this._roofMesh = new Mesh(built.geometry, built.materials[0]);
 		this._roofMesh.name = 'roof';
+		// Rebuilt from scratch every time, so the visibility the storey mode
+		// decided has to be re-applied rather than assumed (G3).
+		this._roofMesh.visible = this._allStoreys;
 		this._roofMesh.position.set(footprint.cx, this.model.roofBase(), footprint.cy);
 		this._roofMesh.castShadow = true;
 		this.scene.add(this._roofMesh);
@@ -1245,6 +1267,13 @@ export class Main extends EventDispatcher
 		// one that has been torn down must not resurrect anything (RM-005 C2).
 		if (!this.camera || !this.controls)
 		{
+			return;
+		}
+		// The one viewpoint that is about the building rather than about the
+		// storey being edited, so it frames its own subject and returns (G3).
+		if (viewpoint === VIEW_EXTERIOR)
+		{
+			this.showExterior();
 			return;
 		}
 		var center = this.model.floorplan.getCenter();
@@ -1281,6 +1310,95 @@ export class Main extends EventDispatcher
 		this.controls.signalCameraActive();
 		this.controls.needsUpdate = true;
 		this.controls.update();
+		this.render(true);
+	}
+
+	/**
+	 * Show every storey, or only the one being edited (RM-010 G3).
+	 *
+	 * The affordance G1 built and did not connect. What it is *for* is picking:
+	 * `Controller.updateIntersections` raycasts `Scene.getItems()`, which is the
+	 * active storey's furniture, and `checkWallsAndFloors` asks the active
+	 * storey's plan for its walls and floors - so with every storey drawn, the
+	 * first floor's walls are visible and inert, and a click aimed at one lands
+	 * on whatever the ground floor has behind it. Showing one storey at a time
+	 * makes what you see and what you can click the same set.
+	 *
+	 * The roof follows, and that is the one derived consequence rather than a
+	 * second switch: a roof over a single visible storey is a lid on a box you
+	 * are looking into. A design with no roof has nothing to follow.
+	 *
+	 * @param {boolean} flag True for the whole building, false for one storey.
+	 * @returns {void}
+	 */
+	showStoreys(flag)
+	{
+		this._allStoreys = flag !== false;
+		this.scene.syncLevels({activeOnly: !this._allStoreys});
+		if (this._roofMesh)
+		{
+			this._roofMesh.visible = this._allStoreys;
+		}
+		this.render(true);
+	}
+
+	/**
+	 * Frame the whole building from outside (RM-010 G3).
+	 *
+	 * RM-007 costed "an exterior view" inside G2 and named nothing else about it;
+	 * what it turns out to be, once there are storeys and a roof to look at, is
+	 * three things that have to happen together. Every storey is shown, because
+	 * the outside of a house is not the outside of its ground floor. The roof
+	 * comes with them. And the camera is placed against `Model.buildingBounds()`
+	 * rather than against the plan being edited, which is the difference between
+	 * framing a building and framing a footprint.
+	 *
+	 * The distance is derived from the camera's own field of view and aspect, so
+	 * the whole box fits whatever shape the viewport is - a wide viewer is
+	 * limited by height and a tall one by width, and taking the larger of the two
+	 * is what covers both. Isometric rather than square-on, because a single
+	 * elevation of a building tells you less than a corner of it does.
+	 *
+	 * @returns {void}
+	 */
+	showExterior()
+	{
+		if (!this.camera || !this.controls)
+		{
+			return;
+		}
+		this.showStoreys(true);
+		var bounds = this.model.buildingBounds();
+		if (!bounds)
+		{
+			return;
+		}
+		var target = new Vector3(bounds.cx, bounds.height / 2, bounds.cy);
+		// Half the diagonal of the box, which is the radius of the sphere that
+		// contains it however the camera is turned.
+		var radius = 0.5 * Math.sqrt(
+			(bounds.width * bounds.width) + (bounds.depth * bounds.depth)
+			+ (bounds.height * bounds.height));
+		// Read off the perspective camera rather than off `this.camera`, which may
+		// be the orthographic one: a field of view is what turns a radius into a
+		// distance, and an orthographic camera has none. It frames by zoom
+		// instead, which `switchOrthographicMode` owns; the position below is
+		// still the right position for it.
+		var lens = this.perspectivecamera;
+		var fov = ((lens && lens.fov) || 45) * Math.PI / 180;
+		var aspect = (lens && lens.aspect) || 1;
+		var vertical = radius / Math.sin(fov / 2);
+		var horizontal = radius / Math.sin((2 * Math.atan(Math.tan(fov / 2) * aspect)) / 2);
+		// A tenth of clear air, so the building is framed rather than touching
+		// the edges of the viewport.
+		var distance = Math.max(vertical, horizontal) * 1.1;
+		var direction = new Vector3(1, 0.6, 1).normalize();
+		this.controls.target.copy(target);
+		this.camera.position.copy(target.clone().add(direction.multiplyScalar(distance)));
+		this.controls.signalCameraActive();
+		this.controls.needsUpdate = true;
+		this.controls.update();
+		this.dispatchEvent({type: EVENT_CAMERA_VIEW_CHANGE, view: VIEW_EXTERIOR});
 		this.render(true);
 	}
 

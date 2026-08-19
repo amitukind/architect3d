@@ -18,15 +18,21 @@ export const configSystemUI = 'systemUI';
 /**
  * Whether the storey controls appear (RM-010 G1).
  *
- * Off by default, which is what RM-010 asked for: *"behind a flag until the
- * fixture suite covers it."* What the flag gates is the **affordance**, not the
- * feature - the model, the file, the 3D stacking and the ghosted underlay all
- * work with it off, and a two-storey file opens and renders correctly either
- * way. What it withholds is the control that lets somebody make a second storey
- * by accident before G3 has driven a three-storey house through every tier.
+ * **On since RM-010 G3.** It was off for G1 and G2, which is what RM-010 asked
+ * for: *"behind a flag until the fixture suite covers it."* What the flag gates
+ * is the **affordance**, not the feature - the model, the file, the 3D stacking
+ * and the ghosted underlay all worked with it off, and a two-storey file opened
+ * and rendered correctly either way. What it withheld is the control that lets
+ * somebody make a second storey by accident before a three-storey house had
+ * been driven through every tier.
  *
  * That distinction is the point of a flag rather than a branch: turning it on
- * changes nothing about how anything behaves, so what G3 removes is one default.
+ * changes nothing about how anything behaves, so what G3 removed is one default.
+ *
+ * It is kept rather than deleted, because it is the switch an embedder turns
+ * *off*: a widget that hosts a single-storey plan and does not want a storey
+ * control now has one line that says so. Deleting it would take that away and
+ * buy nothing - the branch it guards is one `v-if`.
  */
 export const configLevels = 'levelsEnabled';
 
@@ -39,7 +45,7 @@ export const snapTolerance = 'snapTolerance';//In CMS
 /** The values a Configuration starts with when it is given none. */
 function defaultValues()
 {
-	return {dimUnit: dimCentiMeter, wallHeight: 250, wallThickness: 10, systemUI: false, scale: 1, snapToGrid: false, snapTolerance: 25, gridSpacing: 25, levelsEnabled: false};
+	return {dimUnit: dimCentiMeter, wallHeight: 250, wallThickness: 10, systemUI: false, scale: 1, snapToGrid: false, snapTolerance: 25, gridSpacing: 25, levelsEnabled: true};
 }
 
 /**

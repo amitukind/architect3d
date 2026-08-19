@@ -3,7 +3,7 @@
 import {computed} from 'vue';
 import {
 	MousePointer2, PencilRuler, RectangleHorizontal, Eraser, Sofa, Footprints,
-	Copy, Trash2, Image as ImageIcon, Ruler, Type,
+	Copy, Trash2, Image as ImageIcon, Ruler, Type, Home,
 } from '@lucide/vue';
 
 import AppTip from './AppTip.vue';
@@ -49,11 +49,12 @@ const props = defineProps({
 	canActOnItem: {type: Boolean, default: false},
 	catalogOpen: {type: Boolean, default: false},
 	walkthrough: {type: Boolean, default: false},
+	exterior: {type: Boolean, default: false},
 });
 
 const emit = defineEmits([
 	'set-mode', 'open-catalog', 'duplicate-item', 'delete-item',
-	'toggle-walkthrough', 'open-backdrop',
+	'toggle-walkthrough', 'toggle-exterior', 'open-backdrop',
 ]);
 
 /**
@@ -119,6 +120,14 @@ const showPlanTools = computed(() => props.layout !== LAYOUT_VIEW);
 				:aria-pressed="props.walkthrough"
 				title="Walk through" @click="emit('toggle-walkthrough')">
 				<Footprints :size="17" />
+			</button>
+		</AppTip>
+		<AppTip label="Exterior view" keys="e" side="right" :delay="0">
+			<button
+				type="button" class="btn btn-tool" :class="{'is-active': props.exterior}"
+				:aria-pressed="props.exterior"
+				title="Exterior view" @click="emit('toggle-exterior')">
+				<Home :size="17" />
 			</button>
 		</AppTip>
 

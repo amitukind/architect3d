@@ -1,7 +1,7 @@
 // @ts-check
 import {onScopeDispose, ref, watch} from 'vue';
 import {EVENT_FPS_EXIT} from '../../scripts/blueprint.js';
-import {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY} from '../../scripts/blueprint.js';
+import {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY, VIEW_EXTERIOR} from '../../scripts/blueprint.js';
 
 /**
  * Which pane is showing, and everything the 3D camera can be told to do.
@@ -26,6 +26,16 @@ export const CAMERA_VIEWS = [
 export const MODE_FLOORPLAN = 'floorplan';
 export const MODE_DESIGN = 'design';
 export const MODE_WALKTHROUGH = 'walkthrough';
+/**
+ * The building from outside (RM-010 G3).
+ *
+ * A mode rather than a sixth preset on the view cube, and beside the
+ * walkthrough rather than beside the elevations, because it is the same kind of
+ * thing the walkthrough is: a way of looking at the design that is not a way of
+ * editing it. The elevations point the camera at whatever is being edited; both
+ * of these two put you somewhere and show you the whole house.
+ */
+export const MODE_EXTERIOR = 'exterior';
 
 /**
  * @param {import('./useBlueprint.js').BlueprintStore} store
@@ -37,6 +47,8 @@ export function useCameraViews(store)
 	var wireframe = ref(false);
 	var viewLocked = ref(false);
 	var activeView = ref(VIEW_ISOMETRY);
+	/** Whether the 3D view shows every storey or only the one being edited. */
+	var allStoreys = ref(true);
 
 	function three()
 	{
@@ -109,6 +121,42 @@ export function useCameraViews(store)
 		// Main.switchFPSMode clears it in the library anyway; keep the flag in
 		// step so the button does not lie.
 		wireframe.value = false;
+	}
+
+	/**
+	 * Show the whole building from outside.
+	 *
+	 * Everything `showDesign` does, and then the framing - it is a design view
+	 * that has been pointed at the building rather than at the storey, so the
+	 * plan still has to be brought up to date and the renderer still has to be
+	 * running before the camera is moved.
+	 */
+	function showExterior()
+	{
+		var view = three();
+		mode.value = MODE_EXTERIOR;
+		if (!view)
+		{
+			return;
+		}
+		store.model.value.floorplan.update();
+		view.pauseTheRendering(false);
+		view.switchFPSMode(false);
+		allStoreys.value = true;
+		view.showExterior();
+		activeView.value = VIEW_EXTERIOR;
+	}
+
+	/**
+	 * @param {boolean} flag True for the whole building, false for one storey.
+	 */
+	function setAllStoreys(flag)
+	{
+		allStoreys.value = flag;
+		if (three())
+		{
+			three().showStoreys(flag);
+		}
 	}
 
 	function switchView(viewId)
@@ -207,9 +255,9 @@ export function useCameraViews(store)
 	onScopeDispose(detach);
 
 	return {
-		mode, orthographic, wireframe, viewLocked, activeView,
-		showFloorplan, showDesign, showWalkthrough,
-		switchView, setOrthographic, setWireframe, setViewLocked,
+		mode, orthographic, wireframe, viewLocked, activeView, allStoreys,
+		showFloorplan, showDesign, showWalkthrough, showExterior,
+		switchView, setOrthographic, setWireframe, setViewLocked, setAllStoreys,
 		setClipping, resetClipping,
 	};
 }

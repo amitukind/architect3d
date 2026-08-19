@@ -709,7 +709,26 @@ export class Controller extends EventDispatcher
 
 	setSelectedObject(object)
 	{
-		if (this.state === states.UNSELECTED)
+		// Only when there is something to select (RM-010 G3).
+		//
+		// It used to switch on the way in whatever it had been handed, so
+		// `setSelectedObject(null)` on a controller that was already UNSELECTED
+		// *selected*: state SELECTED, `selectedObject` null. Two public methods
+		// reach it that way - `Controller.deselect()`, which is documented as the
+		// safe way out and was therefore not idempotent, and `Main.clearSelection()`,
+		// which the application calls every time it shows the plan pane.
+		//
+		// Measured before changing it, because E1's note below says that state
+		// stopped `checkWallsAndFloors` running and made every wall unclickable:
+		// **it does not, today.** `mouseUpEvent`'s SELECTED branch transitions to
+		// UNSELECTED and checks in the same click, so a floor click after
+		// `clearSelection()` still reports the floor. What is wrong is the state
+		// itself, and a machine that claims a selection it does not have is one
+		// edit away from the failure E1 measured.
+		//
+		// It also makes the recursion the null branch below warns about
+		// impossible by construction rather than by the caller being careful.
+		if (object != null && this.state === states.UNSELECTED)
 		{
 			this.switchState(states.SELECTED);
 		}
