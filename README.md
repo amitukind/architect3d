@@ -52,6 +52,7 @@ are checked in under `public/`, which Vite serves at the site root.
 | `npm run test:browser` | The browser tier: real canvas, real WebGL, axe (needs chromium) |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | Type-check the JSDoc and the SFC templates (`vue-tsc`) |
+| `npm run admit` | Price every catalog pack, and what the headroom still buys |
 | `npm run budget` | Check the built output against `tools/budget.json` |
 | `npm run docs` | The documentation site, with hot reload |
 | `npm run docs:build` | The documentation site &rarr; `docs/.vitepress/dist` |

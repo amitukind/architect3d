@@ -198,6 +198,30 @@ is grouped by are the same unit. Each pack carries its own provenance rather tha
 pointing at a shared table, so acquiring one is a file dropped in and a manifest
 line — not an edit to a file the pack does not own.
 
+::: tip A pack is admitted on its measured mean, not on its name
+`npm run admit` prices every shipped pack; `npm run admit -- --candidate <f>`
+prices a candidate and admits or refuses it; `npm run admit:check` gates.
+
+The question is not "is this pack expensive" — that is a question about a pack in
+isolation and has no answer. It is whether admitting N items at this price leaves
+RM-007's 400 reachable. A large pack of cheap items passes; a small pack of dear
+ones fails, because it spends headroom the remaining items need at a price that
+will not get there. It also refuses an unestablished licence, an item over
+`catalog-item-largest`, and a source that resolves to nothing — and *notes*,
+rather than refusing, a candidate not yet through Draco (its price is a
+pre-pipeline one) or one whose mean is twice its median (a tail that trimming
+fixes more cheaply than refusing).
+
+Reachable *at what price* is the whole question, and the benchmark is a kit in
+this tree rather than an estimate: the Kenney furniture kit, **12,285 bytes an
+item**, 140 CC0 rows already through Draco. At that price the headroom buys 469
+against the 432 still needed for 600.
+
+The first run found where the catalog's mean lives. `blueprint3d` is 25 rows —
+**14.9 % of the catalog and 55.7 % of its bytes**, a mean of 104,850 against
+12,285. The tail has an address, and it is the 2014 demo's own models.
+:::
+
 Two budget lines hold it. `catalog-bundled` (M-44, re-pointed in J2) is the
 manifest plus the three generated sections, so catalog content entering the
 payload is a decision somebody records. `catalog-packs` is what opening the

@@ -51,6 +51,8 @@
 		"catalog:check": "node tools/split-catalog.mjs --check",
 		"catalog:cost": "node tools/catalog-cost.mjs",
 		"catalog:cost:check": "node tools/catalog-cost.mjs --check",
+		"admit": "node tools/admit-pack.mjs",
+		"admit:check": "node tools/admit-pack.mjs --check",
 		"thumbnails": "node tools/render-thumbnails.mjs",
 		"thumbnails:check": "node tools/render-thumbnails.mjs --check",
 		"encode": "node tools/encode-assets.mjs",

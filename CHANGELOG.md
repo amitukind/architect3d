@@ -2,6 +2,38 @@
 
 ## [Unreleased]
 
+**RM-012 J2: curation is the lever, and now it is a command.**
+`tools/admit-pack.mjs` measures a candidate the way `catalog-cost.mjs` measures
+the catalog — same `filesFor`, so a pack's mean and the catalog's mean are the
+same kind of number — and answers one question: after admitting these N items,
+would more packs at this price still reach RM-007's 400? Not "is this pack
+expensive", which is a question about a pack in isolation and has no answer.
+`npm run admit`, `npm run admit -- --candidate <rows.json>`, `npm run admit:check`.
+
+**It corrected task one's own sentence on its first run.** That landing said 1.5×
+reaches *the top* of RM-007's range only with curation. Re-run rather than
+quoted: **232 items are needed for the bottom of it and the headroom buys 206**,
+so neither end is reachable standing still. Corrected in place in the roadmap.
+What it changes is not the decision but how much of it was load-bearing.
+
+The gate is set at a price a kit in this tree is actually had at — the cheapest
+shipped pack of ten rows or more, which is the Kenney kit at **12,285 B an item,
+140 CC0 rows already through Draco**. Proof by existence rather than an estimate.
+At that price the headroom buys 469, so both figures are reachable and
+`admit:check` fails the day they stop being.
+
+**And the first run found where the mean lives.** `blueprint3d` is 25 rows,
+**14.9 % of the catalog and 55.7 % of its bytes**, at a mean of 104,850 against
+the Kenney kit's 12,285 — eight and a half times. The tail X-2 identified has an
+address, and it is the 2014 demo's own models. The cheapest way to buy items is
+to re-price twenty-five rows already shipped.
+
+Three refusals that are not arithmetic: an unestablished licence, an item over
+`catalog-item-largest`, a source that resolves to nothing. Two notes that are not
+refusals, because both have a better answer than no: a candidate not through
+Draco has not been priced yet, and one whose mean is twice its median is carrying
+a tail that trimming fixes more cheaply than refusing.
+
 **RM-012 J2: packs are fetched, not bundled.** No catalog row is in the
 application bundle any more. `tools/split-catalog.mjs` divides the catalog a
 second time — J1 split it by *tier*, this splits both tiers by *pack* — and
