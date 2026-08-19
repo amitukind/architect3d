@@ -422,7 +422,10 @@ describe('Floor', () =>
 
 	it('builds the same varying-height roof fan', () =>
 	{
-		expectMatchesGolden('floor.buildRoofVaryingHeight', floor.buildRoofVaryingHeight().geometry, {checkUv: false});
+		// Renamed to `buildCeiling` by RM-010 G2, because it is a lid on one room and
+		// not a roof. The geometry is unchanged, which is what this golden pins - the
+		// key stays as it was captured.
+		expectMatchesGolden('floor.buildRoofVaryingHeight', floor.buildCeiling().geometry, {checkUv: false});
 	});
 
 	it('builds the same uniform-height roof', () =>

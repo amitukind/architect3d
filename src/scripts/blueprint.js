@@ -62,6 +62,11 @@ export {defaultFloorPlanTolerance, Floorplan, SAVE_UNITS} from './model/floorpla
 // one; see `model/level.js` for the measurement that decided it.
 export {Level, DEFAULT_LEVEL_HEIGHT, MIN_LEVEL_HEIGHT, MAX_LEVEL_HEIGHT, defaultLevelName} from './model/level.js';
 export {projectPlanOutline} from './model/level_projection.js';
+// Holes in a floor where the stairs from below arrive (RM-010 G2), and the
+// building's first roof. The polygon predicates here are new and correct; the
+// four in core/utils.js stay pinned and nothing is built on them.
+export {pointInside, polygonInside, polygonArea, centroid, clampOpeningToRoom, placeRectangle} from './model/floor_opening.js';
+export {ROOF_FLAT, ROOF_GABLE, ROOF_HIP, ROOF_KINDS, RIDGE_X, RIDGE_Z, RIDGE_AXES, ROOF_DEFAULTS, MAX_PITCH, newRoof, normaliseRoof, roofFootprint, roofMetrics, buildRoofGeometry, roofToJSON} from './items/roof.js';
 // What the 2D plan is allowed to know about the furniture (RM-008 E1). A
 // footprint is plain data - the plan draws a description of an item, never the
 // item - which is what lets the 2D view show furniture without a Floorplan

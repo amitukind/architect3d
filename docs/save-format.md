@@ -488,6 +488,58 @@ over it — so N floorplans is a proven property rather than a proposal.
 RM-010 V-5 has the count.
 :::
 
+### `roof` — the building's roof
+
+Present only on a design that has one, added by RM-010 G2 and absent from every
+file written before it. **There is no roof by default** — which is what keeps
+older files byte-identical, and is honest about what the application had before:
+RM-010 V-1 measured that `roofPlanes()` returns a *ceiling* per room, not a roof.
+
+```json
+{
+  "kind": "gable",
+  "pitch": 30,
+  "overhang": 40,
+  "thickness": 20,
+  "ridge": "x"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `kind` | `"flat"`, `"gable"` or `"hip"`. |
+| `pitch` | Degrees from horizontal, 0–60. Ignored for a flat roof. |
+| `overhang` | How far the eaves project past the walls, in centimetres. |
+| `thickness` | The slab's depth. Flat roofs only. |
+| `ridge` | `"x"` or `"z"` — which way the ridge runs in plan. Ignored for a flat roof. |
+
+**Nothing about where the roof sits is stored.** Its eaves are the top storey's
+base plus that storey's wall top, and its rise is the half-span times the tangent
+of the pitch — so raising a storey raises the roof and changing a pitch changes a
+rise, with no second number to go stale.
+
+::: warning The footprint is the plan's bounding rectangle
+Stated rather than hidden. A gable or a hip over an arbitrary outline is a
+straight-skeleton problem; what this generates is a roof over the bounding
+rectangle of every storey's corners plus the overhang. That is right for the
+rectangular houses most plans are and a box over an L-shaped one.
+`roofFootprint()` is a separate function so a later sprint can make it a real
+outline without touching the three generators.
+:::
+
+### Stairwells are not in the file
+
+A hole in a floor is **derived**, not recorded. A flight of stairs on one storey
+computes the part of its own footprint with less than two metres of headroom
+under the floor above (RM-008 F3), and the storey above cuts that rectangle out
+of whichever room it lands in. The stair is saved; the hole follows.
+
+The opening is **clamped to the room** before it is cut, and that clamp is not a
+nicety. `ShapeGeometry` does not cut a hole that pokes outside its outline — it
+merges the hole *into* the outline, so the floor gets **bigger**. RM-009 U-2
+measured a wall growing 137 cm that way and RM-010 V-3 measured a 400 cm floor
+coming out as −100..500.
+
 ### Item types
 
 | `item_type` | Class | Behaviour |

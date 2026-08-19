@@ -765,6 +765,90 @@ moved 1.4 KB and 2.3 KB gzipped, the cheapest of the five features this
 programme set has added — because a level is a floorplan rather than a filter on
 one, so almost nothing existing grew.
 
+**RM-010 G2 delivered: a hole where the stairs arrive, and the first roof.**
+Floor openings derived from F3's stairwell hint and clamped to the room they
+land in, room areas that subtract them, and flat, gable and hip roofs over the
+building. **M-39 and M-40 both met.**
+
+**A stairwell is derived, not drawn.** F3 already computes the rectangle — the
+part of a flight's footprint with less than two metres of headroom under the
+floor above, which for a default sixteen-tread flight is its top twelve treads —
+so nothing new is persisted and nothing has to be authored. What G2 adds is the
+frame change: the hint is in the item's own frame and a room is in plan space, so
+it is rotated and translated by the item's own placement. A stairwell under a
+flight turned thirty degrees is a rectangle turned thirty degrees.
+
+**The clamp is the sprint's real content, and RM-009 U-2 is why.**
+`ShapeGeometry` does not cut a hole that pokes outside its outline — it merges
+the hole *into* the outline, so the floor gets **bigger**. U-2 measured a wall
+growing 137 cm that way and RM-010 V-3 measured a 400 cm floor coming out as
+−100..500. Every opening is now clamped inside its room by bisection on one
+scale factor, and the containment test is a real one rather than a bounding-box
+one, because a room can be L-shaped and a rectangle can have all four corners
+inside such a room while spanning the notch.
+
+**The polygon predicates here are new, and deliberately.** `core/utils.js` holds
+four preserved bugs — `pointInPolygon` returns false, `polygonPolygonIntersect`
+returns false — pinned by characterization tests and left alone on purpose;
+turning them on is RM-007 J4's re-baseline. `model/floor_opening.js` carries a
+fresh, correct pair used by that module and nothing else, which is the rule
+`plan_projection.js` already states.
+
+**A test caught a real bug in that new predicate.** The first draft tested the
+*centroid* of the inner polygon plus "no edge crossings", which sounds like a
+proof and is not: a rectangle that **encloses** the room has its centroid inside
+the room and no edge crossings at all, because the two boundaries never meet. It
+was reported as contained, and a 1400 cm hole went through into a 400 cm floor.
+Containment is not symmetric and a centroid cannot tell which way round it is.
+Every vertex is tested now.
+
+**The area is the floor you can stand on**, which is F2's own rule applied to
+the thing that now punches holes in it. A 600 × 600 room loses 27,000 cm² of its
+348,100 to a default flight's stairwell — 7.8 %, the same order as the 5.2 % F2
+existed to fix.
+
+**M-40: the first roof this application has ever had.** RM-010 V-1 traversed
+every mesh of a loaded design and found what `roofPlanes()` actually returns —
+one *ceiling* per room, a triangle fan at that room's corner elevations. There is
+no envelope over the building and nothing in the file that could describe one. So
+there was nothing to supersede, and the per-room ceiling stays, because a ceiling
+and a roof are different things.
+
+**A gable and a hip are the same solid with one number different.** Both are the
+volume between a rectangle at eaves level and a ridge segment above it; a hip's
+ridge is inset from the ends by the hip run and a gable's is not inset at all.
+Written once with an inset, a gable is the inset-zero case and its two vertical
+triangular ends fall out rather than being special-cased. Asserted over three
+kinds × two ridge axes × thirteen pitches, and the rise is the half-span times
+the tangent of the pitch with nothing stored beside it.
+
+**The first draft wound all four slopes backwards** — every slope normal pointed
+down into the roof. Faces are emitted through an outward test against the solid's
+own centre now, which is exact for a convex body and is four fewer chances to
+get a sign wrong.
+
+**A second bug found by placing a flight in a real page.** `Floorplan.update(true)`
+constructs a **new `Room` for every room** — room identity is derived from its
+corners rather than assigned, which is finding H-5 — so the openings a room was
+carrying were on an object that no longer existed. Drawing one wall anywhere on
+the plan silently filled in every stairwell.
+
+**One correction to G2's own bullet.** RM-010 said both stale things in
+`three/floor.js` would be cleared. The misleading comment is gone — it claimed
+the live roof call was commented out while the line below it ran on every
+redraw — and `buildRoofVaryingHeight` is renamed `buildCeiling`, which is what it
+builds. But `buildRoofUniformHeight`, the dead method nothing calls, **stays**:
+it carries a frozen r98 golden, three r98 is gone, and deleting it would delete a
+parity check the project cannot recapture in exchange for removing eleven lines
+nobody runs. Dead code is untidy; a lost parity check is unrecoverable.
+
+**102 new headless tests and 6 new browser tests, 1,912 and 111.** Coverage up
+on all four: statements 83.36 → 83.42, branches 74.13 → 74.16, functions
+81.01 → 81.19, lines 83.40 → 83.44. **No budget moved** — the three raised for G1
+absorbed this sprint, which is exactly what raising them to ~5 % rather than to
+just-enough was for. The ESM entry is back to 1.2 % of headroom, so G3 will
+likely trip it.
+
 ## [3.0.1] - 2026-08-16
 
 No shipped code changed — `src/` is byte-identical to 3.0.0 and so is every

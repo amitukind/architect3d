@@ -3,6 +3,9 @@ import {EVENT_LOADED, EVENT_LOADING, EVENT_GLTF_READY} from '../core/events.js';
 import {EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED, EVENT_ITEM_MOVE_FINISH, EVENT_LEVELS_CHANGED} from '../core/events.js';
 import {projectItems} from './plan_projection.js';
 import {projectPlanOutline} from './level_projection.js';
+import {placeRectangle} from './floor_opening.js';
+import {normaliseRoof, roofToJSON, roofFootprint} from '../items/roof.js';
+import {stairPlan} from '../items/stair.js';
 import {EventDispatcher, Vector3, Mesh} from 'three';
 import {Level, DEFAULT_LEVEL_HEIGHT} from './level.js';
 import {Scene} from './scene.js';
@@ -137,6 +140,17 @@ export class Model extends EventDispatcher
 		 * @type {number}
 		 */
 		this.activeLevelIndex = 0;
+		/**
+		 * The building's roof, or null when it has none (RM-010 G2).
+		 *
+		 * Null is the default and every design written before G2 has one, which is
+		 * what keeps those files byte-identical. RM-010 V-1 measured that there was
+		 * no roof in this tree at all - `roofPlanes()` returns a ceiling per room -
+		 * so this is the first, and it is opt-in rather than assumed.
+		 *
+		 * @type {?import('../items/roof.js').Roof}
+		 */
+		this.roof = null;
 		// Constructed after the levels, because a `Scene` reads its runtime off the
 		// model's floorplan - which is now the ground level's.
 		this.scene = new Scene(this, textureDir);
@@ -159,7 +173,11 @@ export class Model extends EventDispatcher
 		 * Held as a field so `dispose()` can take them off again. A `Model` that
 		 * outlives its listeners is how a document keeps a dead scene alive.
 		 */
-		this._reproject = () => {this.projectItemsToPlan();};
+		// A stairwell is a consequence of a flight of stairs, so it is recomputed
+		// exactly when the furniture changes - an item arrives, leaves, or finishes
+		// being moved (RM-010 G2). The same three signals the projection uses, and
+		// for the same reason: those are the three ways the answer can change.
+		this._reproject = () => {this.projectItemsToPlan(); this._updateFloorOpenings();};
 		this.scene.addEventListener(EVENT_ITEM_LOADED, this._reproject);
 		this.scene.addEventListener(EVENT_ITEM_REMOVED, this._reproject);
 		this.scene.addEventListener(EVENT_ITEM_MOVE_FINISH, this._reproject);
@@ -204,6 +222,100 @@ export class Model extends EventDispatcher
 	{
 		var below = this.levels[this.activeLevelIndex - 1];
 		this.floorplan.setGhostPlan(below ? projectPlanOutline(below.floorplan) : null);
+	}
+
+	/**
+	 * Give the building a roof, or change the one it has (RM-010 G2).
+	 *
+	 * @param {?Partial<import('../items/roof.js').Roof>} changes Null removes it.
+	 * @returns {?import('../items/roof.js').Roof} What the building took.
+	 */
+	setRoof(changes)
+	{
+		if (changes === null)
+		{
+			this.roof = null;
+		}
+		else
+		{
+			this.roof = normaliseRoof(Object.assign({}, this.roof || {}, changes || {}));
+		}
+		this.dispatchEvent({type: EVENT_LEVELS_CHANGED, model: this, active: this.activeLevelIndex});
+		return this.roof;
+	}
+
+	/**
+	 * The rectangle the roof covers, or null when there is nothing to cover.
+	 * @returns {?ReturnType<typeof roofFootprint>}
+	 */
+	roofFootprint()
+	{
+		return this.roof ? roofFootprint(this.levels, this.roof.overhang) : null;
+	}
+
+	/**
+	 * How high the eaves sit above the ground floor (RM-010 G2).
+	 *
+	 * The top storey's base plus the highest thing on it, which is a corner's
+	 * elevation - the number that has always been the top of a wall. Derived like
+	 * every other height in this programme, so raising a storey raises the roof
+	 * with nothing left holding the old figure.
+	 *
+	 * @returns {number} Centimetres.
+	 */
+	roofBase()
+	{
+		var top = this.levels.length - 1;
+		var elevations = this.levels[top].floorplan.getCorners().map((corner) => corner.elevation);
+		var wallTop = elevations.length
+			? Math.max.apply(null, elevations)
+			: this.configuration.getNumericValue('wallHeight');
+		return this.levelBase(top) + wallTop;
+	}
+
+	/**
+	 * Cut each storey's floor where the flight below it arrives (RM-010 G2).
+	 *
+	 * The stairwell rectangle is F3's - the part of a flight's footprint with
+	 * less than two metres of headroom under the floor above - so nothing new is
+	 * stored and nothing has to be drawn by hand. What this adds is the frame
+	 * change: the hint is in the item's own frame and a room is in plan space, so
+	 * each is rotated and translated by the item's own placement, which is what
+	 * makes the stairwell under a flight turned thirty degrees a rectangle turned
+	 * thirty degrees.
+	 *
+	 * The ground floor is deliberately never cut. There is nothing below it, and
+	 * a flight going *down* from the ground floor is a basement - a level with a
+	 * negative index, which this build does not have.
+	 *
+	 * @returns {void}
+	 */
+	_updateFloorOpenings()
+	{
+		var scope = this;
+		this.levels.forEach(function (level, index)
+		{
+			var below = scope.levels[index - 1];
+			if (!below)
+			{
+				level.floorplan.setFloorOpenings([]);
+				return;
+			}
+			var openings = [];
+			below.items.forEach(function (item)
+			{
+				if (!item.stair)
+				{
+					return;
+				}
+				openings.push(placeRectangle(stairPlan(item.stair).well, {
+					x: item.position.x,
+					y: item.position.z,
+					rotation: item.rotation ? item.rotation.y : 0,
+				}));
+			});
+			level.floorplan.setFloorOpenings(openings);
+		});
 	}
 
 	/**
@@ -269,6 +381,7 @@ export class Model extends EventDispatcher
 		{
 			this.activeLevelIndex = next;
 			this._updateGhostPlan();
+			this._updateFloorOpenings();
 			this.dispatchEvent({type: EVENT_LEVELS_CHANGED, model: this, active: next});
 		}
 		return this.activeLevelIndex;
@@ -292,6 +405,7 @@ export class Model extends EventDispatcher
 		this.levels.splice(this.activeLevelIndex + 1, 0, level);
 		this.activeLevelIndex += 1;
 		this._updateGhostPlan();
+		this._updateFloorOpenings();
 		this.dispatchEvent({type: EVENT_LEVELS_CHANGED, model: this, active: this.activeLevelIndex});
 		return level;
 	}
@@ -321,6 +435,7 @@ export class Model extends EventDispatcher
 		this.levels.splice(index, 1);
 		this.activeLevelIndex = Math.max(0, Math.min(this.levels.length - 1, this.activeLevelIndex));
 		this._updateGhostPlan();
+		this._updateFloorOpenings();
 		this.dispatchEvent({type: EVENT_LEVELS_CHANGED, model: this, active: this.activeLevelIndex});
 		return true;
 	}
@@ -341,6 +456,7 @@ export class Model extends EventDispatcher
 		}
 		var taken = level.setHeight(value);
 		this._updateGhostPlan();
+		this._updateFloorOpenings();
 		this.dispatchEvent({type: EVENT_LEVELS_CHANGED, model: this, active: this.activeLevelIndex});
 		return taken;
 	}
@@ -593,6 +709,7 @@ export class Model extends EventDispatcher
 		this.scene.loadSession.begin();
 		this.scene.abortPendingLoads();
 
+		this.roof = result.document.roof ? normaliseRoof(result.document.roof) : null;
 		this.newRoom(result.document.floorplan, result.document.items,
 			options && options.reason, result.document.levels || undefined);
 
@@ -688,6 +805,12 @@ export class Model extends EventDispatcher
 		if (this._needsLevelsRecord())
 		{
 			room.levels = this.levels.map((level, index) => savedLevel(level, index));
+		}
+		// Additive and conditional again: a building with no roof writes no `roof`
+		// key, which is every design written before G2.
+		if (this.roof)
+		{
+			room.roof = roofToJSON(this.roof);
 		}
 		return JSON.stringify(room);
 	}
@@ -937,6 +1060,7 @@ export class Model extends EventDispatcher
 		// storey's projection has to be built after its plan is loaded rather than
 		// before - so this cannot move up beside `_reshapeLevels`.
 		this._updateGhostPlan();
+		this._updateFloorOpenings();
 		this.dispatchEvent({type: EVENT_LEVELS_CHANGED, model: this, active: this.activeLevelIndex});
 	}
 

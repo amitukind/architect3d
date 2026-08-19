@@ -9,7 +9,8 @@ import RangeField from './fields/RangeField.vue';
 import TextField from './fields/TextField.vue';
 import {Configuration, Dimensioning, wallInformation} from '../../scripts/blueprint.js';
 import {snapTolerance, gridSpacing} from '../../scripts/blueprint.js';
-import {EVENT_ANNOTATIONS_CHANGED} from '../../scripts/blueprint.js';
+import {EVENT_ANNOTATIONS_CHANGED, EVENT_LEVELS_CHANGED} from '../../scripts/blueprint.js';
+import {ROOF_FLAT, ROOF_GABLE, ROOF_HIP, RIDGE_X, RIDGE_Z, MAX_PITCH} from '../../scripts/blueprint.js';
 import {useDisplayUnit} from '../composables/useDisplayUnit.js';
 import {onConfigChange, useBooleanConfig} from '../composables/useConfiguration.js';
 
@@ -73,6 +74,61 @@ const floorplanner = computed(() => props.store.floorplanner.value);
  * bound straight to `floorplan.north` renders once and then sits there.
  */
 const north = ref(0);
+
+/**
+ * The building's roof (RM-010 G2).
+ *
+ * A design-level thing rather than a selection, so it belongs here beside north
+ * and the wall measurements rather than in a panel that appears when something
+ * is clicked. There was no roof in this application before G2 — RM-010 V-1
+ * measured that `roofPlanes()` returns a *ceiling* per room — so "None" is the
+ * default and every design written before it has one.
+ *
+ * Mirrored into a ref for the reason the whole of this panel is: `Model` is not
+ * reactive, so a template bound straight to `model.roof` renders once and then
+ * sits there.
+ */
+const ROOF_KINDS_UI = [
+	// `''` rather than `null` for "no roof": a `v-for` key has to be a
+	// PropertyKey, and the one place the distinction matters is `setRoof`, which
+	// reads an empty kind as a removal.
+	{value: '', label: 'None'},
+	{value: ROOF_FLAT, label: 'Flat'},
+	{value: ROOF_GABLE, label: 'Gable'},
+	{value: ROOF_HIP, label: 'Hip'},
+];
+
+const roof = ref({kind: '', pitch: 30, overhang: 40, ridge: RIDGE_X});
+
+const roofNote = computed(() => (roof.value.kind
+	? 'Over the plan\u2019s bounding rectangle plus the overhang, standing on the top storey\u2019s walls. A ceiling is still drawn inside each room \u2014 a ceiling and a roof are different things.'
+	: 'This design has no roof. Ceilings are drawn inside each room either way.'));
+
+function readRoof()
+{
+	const model = props.store.model.value;
+	const current = model && model.roof;
+	roof.value = current
+		? {kind: current.kind, pitch: current.pitch, overhang: current.overhang, ridge: current.ridge}
+		: {kind: '', pitch: 30, overhang: 40, ridge: RIDGE_X};
+}
+
+/**
+ * Read-after-write, as everywhere in this directory: `normaliseRoof` clamps a
+ * pitch past 60 and reads an unknown kind as the default.
+ *
+ * @param {?Object} changes Null removes the roof.
+ */
+function setRoof(changes)
+{
+	const model = props.store.model.value;
+	if (!model)
+	{
+		return;
+	}
+	model.setRoof((changes && changes.kind === '') ? null : changes);
+	readRoof();
+}
 let attachedPlan = null;
 
 function readNorth()
@@ -91,6 +147,8 @@ function setNorth(next)
 	}
 }
 
+var attachedModel = null;
+
 watch(() => props.store.model.value, function (model)
 {
 	if (attachedPlan)
@@ -98,6 +156,11 @@ watch(() => props.store.model.value, function (model)
 		attachedPlan.removeEventListener(EVENT_ANNOTATIONS_CHANGED, readNorth);
 		attachedPlan = null;
 	}
+	if (attachedModel)
+	{
+		attachedModel.removeEventListener(EVENT_LEVELS_CHANGED, readRoof);
+	}
+	attachedModel = model || null;
 	attachedPlan = model ? model.floorplan : null;
 	if (attachedPlan)
 	{
@@ -105,11 +168,24 @@ watch(() => props.store.model.value, function (model)
 		// through this panel.
 		attachedPlan.addEventListener(EVENT_ANNOTATIONS_CHANGED, readNorth);
 	}
+	if (attachedModel)
+	{
+		// The roof changes on a load and an undo too, and on the same event a level
+		// change uses - `Model.setRoof` dispatches it, because what a view has to
+		// do about either is the same thing.
+		attachedModel.addEventListener(EVENT_LEVELS_CHANGED, readRoof);
+	}
 	readNorth();
+	readRoof();
 }, {immediate: true});
 
 onScopeDispose(function ()
 {
+	if (attachedModel)
+	{
+		attachedModel.removeEventListener(EVENT_LEVELS_CHANGED, readRoof);
+		attachedModel = null;
+	}
 	if (attachedPlan)
 	{
 		attachedPlan.removeEventListener(EVENT_ANNOTATIONS_CHANGED, readNorth);
@@ -230,6 +306,49 @@ function resetClipping()
 			<p class="inspector-note">
 				Drawn in the top right of the plan, and saved with the design.
 			</p>
+		</CollapsibleGroup>
+
+		<CollapsibleGroup title="Roof">
+			<div class="field">
+				<span class="field-label">Kind</span>
+				<div class="segmented">
+					<button
+						v-for="entry in ROOF_KINDS_UI" :key="entry.value"
+						type="button" class="segment" :class="{'is-active': roof.kind === entry.value}"
+						:aria-pressed="roof.kind === entry.value" @click="setRoof({kind: entry.value})">
+						{{ entry.label }}
+					</button>
+				</div>
+			</div>
+
+			<template v-if="roof.kind">
+				<template v-if="roof.kind !== ROOF_FLAT">
+					<div class="field">
+						<span class="field-label">Ridge</span>
+						<div class="segmented">
+							<button
+								type="button" class="segment" :class="{'is-active': roof.ridge === RIDGE_X}"
+								:aria-pressed="roof.ridge === RIDGE_X" @click="setRoof({ridge: RIDGE_X})">
+								Across
+							</button>
+							<button
+								type="button" class="segment" :class="{'is-active': roof.ridge === RIDGE_Z}"
+								:aria-pressed="roof.ridge === RIDGE_Z" @click="setRoof({ridge: RIDGE_Z})">
+								Along
+							</button>
+						</div>
+					</div>
+					<RangeField
+						label="Pitch" :min="0" :max="MAX_PITCH" :step="5"
+						:model-value="roof.pitch" @update:model-value="setRoof({pitch: $event})" />
+				</template>
+				<NumberField
+					label="Overhang" :unit="unit" :min="0" :step="0.01"
+					:model-value="Dimensioning.cmToMeasureRaw(roof.overhang)"
+					@update:model-value="setRoof({overhang: Dimensioning.cmFromMeasureRaw($event)})" />
+			</template>
+
+			<p class="inspector-note">{{ roofNote }}</p>
 		</CollapsibleGroup>
 
 		<CollapsibleGroup title="Wall measurements">

@@ -223,6 +223,15 @@ up. Two questions the getters do not answer are asked explicitly instead —
 `scene.getItems()` for the storey being edited (the plan, the item count, what a
 click in 3D can hit).
 
+**A floor gets a hole where the stairs from below arrive** (RM-010 G2), derived
+rather than authored: the flight already computes the rectangle, and the storey
+above cuts it out of whichever room it lands in. It is clamped to that room
+first, because `ShapeGeometry` merges a hole that pokes outside its outline
+*into* the outline and the floor grows — the same failure RM-009 U-2 measured for
+walls. The clamp's polygon predicates live in `model/floor_opening.js` and are
+new: the four in `core/utils.js` are preserved bugs, and nothing is built on
+them.
+
 The base elevation is applied in exactly one place: a `Group` per storey inside
 `Scene`, positioned from the derived base. `Floor`, `Edge` and `Item` each build
 their geometry relative to a plan they are handed and know nothing about
@@ -477,6 +486,7 @@ The generator itself is four files with a deliberate seam:
 | `opening.js` | A door, window or archway: the description, the clamp, the geometry |
 | `stair.js` | A flight: the description, the shape of its runs and landings, the plan symbol, the stairwell hint, the geometry |
 | `structure.js` | A column or a beam: the description, which side of the plan's section it is on, the geometry |
+| `roof.js` | The building's roof: flat, gable and hip, which are one solid with the ridge inset by a different amount |
 
 `solid_builder.js` was written inside `opening.js` for F1 and moved out by F3,
 unchanged, when stairs became its second caller — which is the check RM-009's

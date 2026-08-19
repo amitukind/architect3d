@@ -124,6 +124,12 @@ export class DesignDocument
 		 * @type {?Array<Object>}
 		 */
 		this.levels = Array.isArray(data.levels) && data.levels.length ? data.levels : null;
+		/**
+		 * The building's roof, or null (RM-010 G2). Absent from every design
+		 * written before it, which is what keeps those files byte-identical.
+		 * @type {?Object}
+		 */
+		this.roof = isPlainObject(data.roof) ? data.roof : null;
 		/** The `version` stamp, or null on a pre-2.0.0 file. */
 		this.version = (typeof data.floorplan.version === 'string') ? data.floorplan.version : null;
 		/**
@@ -197,6 +203,7 @@ export class DesignDocument
 		validateFloorplan(data.floorplan, errors, warnings);
 		validateItems(data.items, errors);
 		validateLevels(data.levels, data.floorplan, errors, warnings);
+		validateRoof(data.roof, errors);
 
 		if (errors.length)
 		{
@@ -613,4 +620,40 @@ function validateLevels(levels, floorplan, errors, warnings)
 	{
 		errors.push({path: 'floorplan', message: 'missing - the ground floor is the design\'s own "floorplan"'});
 	}
+}
+
+/**
+ * The roof, additive since RM-010 G2 and absent from every older file.
+ *
+ * Only the two numbers whose absence cannot be defaulted: `normaliseRoof` fills
+ * in a missing kind and clamps a 90-degree pitch, but a pitch of "steep" or a
+ * negative overhang is a file saying something it cannot mean. Zero is a valid
+ * pitch - that is a flat roof described the long way round - and a valid
+ * overhang, so both floors are zero rather than one.
+ *
+ * @param {*} roof
+ * @param {Array<DocumentProblem>} errors
+ */
+function validateRoof(roof, errors)
+{
+	if (roof === undefined || roof === null)
+	{
+		return;
+	}
+	if (!isPlainObject(roof))
+	{
+		errors.push({path: 'roof', message: 'must be an object when present'});
+		return;
+	}
+	['pitch', 'overhang', 'thickness'].forEach(function (field)
+	{
+		var value = roof[field];
+		if (value !== undefined && value !== null && (!isFiniteNumber(value) || value < 0))
+		{
+			errors.push({
+				path: `roof.${field}`,
+				message: `must be zero or a positive number when present, not ${JSON.stringify(value)}`,
+			});
+		}
+	});
 }

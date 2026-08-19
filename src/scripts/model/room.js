@@ -1,7 +1,8 @@
 // @ts-check
 import {EVENT_CHANGED, EVENT_ROOM_ATTRIBUTES_CHANGED} from '../core/events.js';
 import {Region} from '../core/utils.js';
-import {EventDispatcher, Vector2, Vector3, Shape, ShapeGeometry, Mesh, MeshBasicMaterial, DoubleSide, Box3} from 'three';
+import {EventDispatcher, Vector2, Vector3, Shape, Path, ShapeGeometry, Mesh, MeshBasicMaterial, DoubleSide, Box3} from 'three';
+import {clampOpeningToRoom, polygonArea} from './floor_opening.js';
 import {triangleFanGeometry} from '../core/geometry_builders.js';
 import {disposeObject} from '../core/resource_registry.js';
 
@@ -85,6 +86,18 @@ export class Room extends EventDispatcher
 		this.edgePointer = null;
 		this.floorPlane = null;
 		this.roofPlane = null;
+		/**
+		 * Holes in this room's floor, in plan space (RM-010 G2).
+		 *
+		 * Where the stairs from the storey below arrive. Derived rather than
+		 * authored - F3's flight already computes the rectangle - and clamped to
+		 * this room before they are stored, because `ShapeGeometry` merges a hole
+		 * that pokes outside its outline INTO the outline and the floor grows
+		 * (RM-009 U-2, re-measured for floors as RM-010 V-3).
+		 *
+		 * @type {Array<Array<{x: number, y: number}>>}
+		 */
+		this.floorOpenings = [];
 		this.customTexture = false;
 		this.floorChangeCallbacks = null;
 		this.updateWalls();
@@ -359,12 +372,7 @@ export class Room extends EventDispatcher
 	generatePlane()
 	{
 		disposeObject(this.floorPlane);
-		var points = [];
-		this.interiorCorners.forEach((corner) => {
-			points.push(new Vector2(corner.x,corner.y));
-		});
-		var shape = new Shape(points);
-		var geometry = new ShapeGeometry(shape);
+		var geometry = new ShapeGeometry(this.floorShape());
 		this.floorPlane = /** @type {RoomPlane} */ (new Mesh(geometry, new MeshBasicMaterial({side: DoubleSide, visible:false})));
 		//The below line was originally setting the plane visibility to false
 		//Now its setting visibility to true. This is necessary to be detected
@@ -417,6 +425,18 @@ export class Room extends EventDispatcher
 		disposeObject(this.roofPlane);
 		this.floorPlane = null;
 		this.roofPlane = null;
+		/**
+		 * Holes in this room's floor, in plan space (RM-010 G2).
+		 *
+		 * Where the stairs from the storey below arrive. Derived rather than
+		 * authored - F3's flight already computes the rectangle - and clamped to
+		 * this room before they are stored, because `ShapeGeometry` merges a hole
+		 * that pokes outside its outline INTO the outline and the floor grows
+		 * (RM-009 U-2, re-measured for floors as RM-010 V-3).
+		 *
+		 * @type {Array<Array<{x: number, y: number}>>}
+		 */
+		this.floorOpenings = [];
 	}
 
 	cycleIndex(index)
@@ -467,7 +487,74 @@ export class Room extends EventDispatcher
 			var next = this.interiorCorners[(i + 1) % this.interiorCorners.length];
 			total += (here.x * next.y) - (next.x * here.y);
 		}
-		return Math.abs(total / 2);
+		// The holes come out, which is F2's own rule applied to the thing that now
+		// punches them: the number on the plan is the floor somebody can stand on
+		// (RM-010 V-9). A 600 x 600 room with a default flight's stairwell in it
+		// loses 27,000 cm2 of its 348,100 - 7.8 %, the same order as the 5.2 % F2
+		// existed to fix.
+		var net = Math.abs(total / 2);
+		this.floorOpenings.forEach(function (opening)
+		{
+			net -= polygonArea(opening);
+		});
+		return Math.max(0, net);
+	}
+
+	/**
+	 * Take the openings that belong to this room, clamped (RM-010 G2).
+	 *
+	 * Handed every opening on the storey and keeps the ones over this room -
+	 * which is what `clampOpeningToRoom` returning null for a hole whose centre
+	 * is elsewhere actually decides. Idempotent, and cheap enough to run on every
+	 * change: it is a handful of segment tests per stair.
+	 *
+	 * @param {Array<Array<{x: number, y: number}>>} openings Plan space.
+	 * @returns {boolean} Whether this room's holes actually moved.
+	 */
+	setFloorOpenings(openings)
+	{
+		var scope = this;
+		var kept = [];
+		(openings || []).forEach(function (polygon)
+		{
+			var clamped = clampOpeningToRoom(polygon, scope.interiorCorners);
+			if (clamped)
+			{
+				kept.push(clamped.polygon);
+			}
+		});
+		if (JSON.stringify(kept) === JSON.stringify(this.floorOpenings))
+		{
+			return false;
+		}
+		this.floorOpenings = kept;
+		this.generatePlane();
+		this.updateArea();
+		return true;
+	}
+
+	/**
+	 * This room's outline and its holes, as three's `Shape` wants them.
+	 *
+	 * One place, because the picking plane in this file and the visible floor in
+	 * `three/floor.js` have to be the same shape - a floor you can see through
+	 * and still click is worse than either.
+	 *
+	 * @param {number} [scale] Divides every coordinate; the visible floor uses it
+	 *        to fit its texture and this file does not.
+	 * @returns {Shape}
+	 */
+	floorShape(scale)
+	{
+		var divisor = scale || 1;
+		var shape = new Shape(this.interiorCorners.map(
+			(corner) => new Vector2(corner.x / divisor, corner.y / divisor)));
+		this.floorOpenings.forEach(function (opening)
+		{
+			shape.holes.push(new Path(opening.map(
+				(point) => new Vector2(point.x / divisor, point.y / divisor))));
+		});
+		return shape;
 	}
 
 	updateInteriorCorners()

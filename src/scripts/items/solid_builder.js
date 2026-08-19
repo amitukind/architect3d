@@ -171,6 +171,73 @@ export function rotateAboutX(positions, normals, angle)
 }
 
 /**
+ * Rotate positions and normals about the z axis, in place.
+ *
+ * The third of these, added by RM-010 G2 for a gable's slopes. F1 needed the
+ * vertical axis for a door's swing, F3 the horizontal for a handrail's pitch,
+ * and a roof slope falls about whichever horizontal axis its ridge does not run
+ * along - so the third was the one that made the set complete rather than
+ * arbitrary.
+ *
+ * Signs match the other two: a positive angle takes +x toward +y.
+ *
+ * @param {number[]} positions
+ * @param {number[]} normals
+ * @param {number} angle Radians.
+ */
+export function rotateAboutZ(positions, normals, angle)
+{
+	var cos = Math.cos(angle);
+	var sin = Math.sin(angle);
+	for (var i = 0; i < positions.length; i += 3)
+	{
+		var x = positions[i];
+		var y = positions[i + 1];
+		positions[i] = x * cos - y * sin;
+		positions[i + 1] = x * sin + y * cos;
+		var nx = normals[i];
+		var ny = normals[i + 1];
+		normals[i] = nx * cos - ny * sin;
+		normals[i + 1] = nx * sin + ny * cos;
+	}
+}
+
+/**
+ * Append one flat polygon as a triangle fan, with one normal.
+ *
+ * Boxes cover almost everything this application generates; a roof's slopes are
+ * the exception, because a hip's are trapezoids and triangles rather than
+ * cuboids. A fan rather than an ear-clip because every face a roof produces is
+ * convex by construction - four points at most, and never re-entrant.
+ *
+ * @param {BufferSink} sink
+ * @param {Array<{x: number, y: number, z: number}>} points Wound anticlockwise
+ *        seen from the side the normal points at.
+ * @param {{x: number, y: number, z: number}} normal
+ * @param {number} materialIndex
+ */
+export function face(sink, points, normal, materialIndex)
+{
+	if (points.length < 3)
+	{
+		return;
+	}
+	var start = sink.indices.length;
+	var base = sink.positions.length / 3;
+	points.forEach(function (point, index)
+	{
+		sink.positions.push(point.x, point.y, point.z);
+		sink.normals.push(normal.x, normal.y, normal.z);
+		sink.uvs.push(index / (points.length - 1), index % 2);
+	});
+	for (var i = 1; i < points.length - 1; i++)
+	{
+		sink.indices.push(base, base + i, base + i + 1);
+	}
+	sink.groups.push({start: start, count: sink.indices.length - start, material: materialIndex});
+}
+
+/**
  * Append one buffer sink into another, offset.
  *
  * @param {BufferSink} sink

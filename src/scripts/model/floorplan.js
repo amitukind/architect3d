@@ -226,6 +226,18 @@ export class Floorplan extends EventDispatcher
 		 */
 		this.ghostPlan = null;
 		/**
+		 * What the last `setFloorOpenings` was handed, so an unchanged list does
+		 * not cost a redraw. A string rather than a deep compare because the list
+		 * is small, plain and rebuilt from scratch every time.
+		 * @type {string}
+		 */
+		this._floorOpeningSignature = '';
+		/**
+		 * The openings themselves, kept so a room rebuild can be handed them again.
+		 * @type {Array<Array<{x: number, y: number}>>}
+		 */
+		this._floorOpenings = [];
+		/**
 		 * What this plan says about itself (RM-008 E3).
 		 *
 		 * The first entities here that are authored rather than derived - see
@@ -1378,6 +1390,45 @@ export class Floorplan extends EventDispatcher
 		this.ghostPlan = plan || null;
 	}
 
+	/**
+	 * Hand this storey the holes the storey below punches in it (RM-010 G2).
+	 *
+	 * Plain polygons in plan space, for the same reason the ghost is: this class
+	 * has no path to a `Model` and must not gain one, and a stairwell is a fact
+	 * about a flight of stairs one floor down. Each room takes the ones over it
+	 * and clamps them to itself.
+	 *
+	 * The dispatch is what makes the 3D floor re-cut: `Floorplan3D` reconciles on
+	 * a change set, and a room whose holes moved is a room whose floor is stale.
+	 *
+	 * @param {Array<Array<{x: number, y: number}>>} openings
+	 * @returns {void}
+	 */
+	setFloorOpenings(openings)
+	{
+		var list = openings || [];
+		var signature = JSON.stringify(list);
+		if (signature === this._floorOpeningSignature)
+		{
+			return;
+		}
+		this._floorOpeningSignature = signature;
+		this._floorOpenings = list;
+		// Only when a room's holes actually moved. Handing every room an empty list
+		// it already had would otherwise dispatch a change set on every load, and
+		// `tests/change-projection.test.js` pins that a document open is one 'load'
+		// and not a 'load' followed by an 'edit' - which is what it caught.
+		var moved = false;
+		this.rooms.forEach(function (room)
+		{
+			moved = room.setFloorOpenings(list) || moved;
+		});
+		if (moved)
+		{
+			this.update(false);
+		}
+	}
+
 	setItemProjection(projection)
 	{
 		this.itemProjection = projection || [];
@@ -1955,6 +2006,23 @@ export class Floorplan extends EventDispatcher
 		// before any name is read back, so the lookup below finds the entry under
 		// the key the successor now has.
 		this.carryRoomIdentity(previousRooms);
+
+		// The holes the storey below punches in this one (RM-010 G2).
+		//
+		// Re-applied here because `update(true)` constructs a NEW `Room` for every
+		// room - room identity is derived from its corners rather than assigned,
+		// which is finding H-5 - so the openings a room was carrying are on an
+		// object that no longer exists. Without this, drawing one wall anywhere on
+		// the plan silently filled in every stairwell. Found by placing a flight
+		// in a real page and calling `update()` afterwards, which is what a load
+		// does.
+		//
+		// Applied directly rather than through `setFloorOpenings`, which would
+		// call `update()` again from inside `update()`.
+		if (this._floorOpenings.length)
+		{
+			this.rooms.forEach((room) => {room.setFloorOpenings(scope._floorOpenings);});
+		}
 
 		this.rooms.forEach(function (room)
 		{

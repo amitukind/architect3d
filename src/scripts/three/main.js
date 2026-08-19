@@ -1,7 +1,9 @@
 // @ts-check
 import {EventDispatcher, Vector2, Vector3, WebGLRenderer, PerspectiveCamera, OrthographicCamera} from 'three';
 import {ColorManagement, SRGBColorSpace} from 'three';
-import {Plane} from 'three';
+import {Plane, Mesh} from 'three';
+import {buildRoofGeometry} from '../items/roof.js';
+import {disposeObject} from '../core/resource_registry.js';
 import {PCFSoftShadowMap, ACESFilmicToneMapping, NoToneMapping, PMREMGenerator} from 'three';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {PointerLockControls} from './pointerlockcontrols.js';
@@ -212,6 +214,8 @@ export class Main extends EventDispatcher
 		 * @type {Set<Object>}
 		 */
 		this._watchedPlans = new Set();
+		/** @type {?Mesh} The building's roof, or null when it has none (RM-010 G2). */
+		this._roofMesh = null;
 
 		/**
 		 * The plan extent the camera was last framed against, or null before the
@@ -408,6 +412,9 @@ export class Main extends EventDispatcher
 		}
 
 		this.levelViews.forEach((view) => {view.redraw();});
+		// The roof is sized from the plan's extent and stands on the top storey's
+		// walls, so a change to either is a change to it.
+		this.syncRoof();
 
 		this.needsUpdate = true;
 		this.render(true);
@@ -625,6 +632,12 @@ export class Main extends EventDispatcher
 		}
 		this.levelViews.forEach((view) => {view.dispose();});
 		this.levelViews.clear();
+		if (this._roofMesh)
+		{
+			this.scene.remove(this._roofMesh);
+			disposeObject(this._roofMesh);
+			this._roofMesh = null;
+		}
 		if (this.skybox)
 		{
 			this.skybox.dispose();
@@ -1171,6 +1184,40 @@ export class Main extends EventDispatcher
 			}
 		});
 		this.scene.syncLevels();
+		this.syncRoof();
+	}
+
+	/**
+	 * Build, replace or remove the building's roof (RM-010 G2).
+	 *
+	 * Not a `Floorplan3D` and not in a level's group: a roof is over the whole
+	 * building rather than on one storey, so it goes into the scene at the height
+	 * `Model.roofBase()` derives. Rebuilt rather than reconciled, because it is
+	 * one mesh from five numbers and reconciling it would cost more code than
+	 * regenerating it.
+	 *
+	 * @returns {void}
+	 */
+	syncRoof()
+	{
+		if (this._roofMesh)
+		{
+			this.scene.remove(this._roofMesh);
+			disposeObject(this._roofMesh);
+			this._roofMesh = null;
+		}
+		var roof = this.model.roof;
+		var footprint = this.model.roofFootprint();
+		if (!roof || !footprint)
+		{
+			return;
+		}
+		var built = buildRoofGeometry(roof, footprint);
+		this._roofMesh = new Mesh(built.geometry, built.materials[0]);
+		this._roofMesh.name = 'roof';
+		this._roofMesh.position.set(footprint.cx, this.model.roofBase(), footprint.cy);
+		this._roofMesh.castShadow = true;
+		this.scene.add(this._roofMesh);
 	}
 
 	switchWireframe(flag)

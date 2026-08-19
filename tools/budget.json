@@ -470,19 +470,19 @@
   "budgets": {
     "demo-js-gzip": {
       "limit": 388000,
-      "measured": 379782
+      "measured": 382697
     },
     "demo-css-gzip": {
       "limit": 10000,
-      "measured": 7356
+      "measured": 7368
     },
     "demo-total": {
       "limit": 15066600,
-      "measured": 14349170
+      "measured": 14415971
     },
     "lib-iife-gzip": {
       "limit": 288100,
-      "measured": 274421
+      "measured": 276941
     },
     "public-total": {
       "limit": 6200000,
@@ -490,7 +490,7 @@
     },
     "lib-esm-gzip": {
       "limit": 73700,
-      "measured": 70213
+      "measured": 72813
     },
     "public-largest": {
       "limit": 330000,
