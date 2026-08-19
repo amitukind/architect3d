@@ -11,6 +11,7 @@ import {Configuration, Dimensioning, wallInformation} from '../../scripts/bluepr
 import {snapTolerance, gridSpacing} from '../../scripts/blueprint.js';
 import {EVENT_ANNOTATIONS_CHANGED, EVENT_LEVELS_CHANGED} from '../../scripts/blueprint.js';
 import {ROOF_FLAT, ROOF_GABLE, ROOF_HIP, RIDGE_X, RIDGE_Z, MAX_PITCH} from '../../scripts/blueprint.js';
+import {SUN_DEFAULTS, solarPosition} from '../../scripts/blueprint.js';
 import {useDisplayUnit} from '../composables/useDisplayUnit.js';
 import {onConfigChange, useBooleanConfig} from '../composables/useConfiguration.js';
 
@@ -136,15 +137,100 @@ function readNorth()
 	north.value = attachedPlan ? attachedPlan.north : 0;
 }
 
+/**
+ * North for the whole building, not for the storey being edited (RM-011 W-10).
+ *
+ * `north` has lived on `Floorplan` since E3 and still does - it is what
+ * `drawNorthArrow` reads and what each sheet draws. What changed in H2 is that
+ * writing it goes through `Model`, which writes every storey: since G1 a design
+ * is a list of plans, so a per-plan setter let a three-storey house hold three
+ * different bearings, and H2's sun needs one answer.
+ */
 function setNorth(next)
 {
-	if (attachedPlan)
+	const model = props.store.model.value;
+	if (model)
 	{
-		attachedPlan.north = next;
+		model.north = next;
 		// Read-after-write: the setter normalises into [0, 360), so 450 comes back
 		// as 90 and the field has to show what the plan took.
 		readNorth();
+		readSun();
 	}
+}
+
+/* ---- the sun (RM-011 H2) ---------------------------------------------- */
+
+/**
+ * A sun, or none, mirrored out of `Model` for the same reason the roof is.
+ *
+ * `on` is not a field of the description - `Model.sun` being null is what "no
+ * sun" means, exactly as with the roof - so it is derived here for a checkbox to
+ * bind to and never written to a file.
+ */
+const sun = ref({on: false, ...SUN_DEFAULTS});
+
+/** Day 1 as a date, so a day number can be shown as something readable. */
+const DAY_ONE = Date.UTC(2001, 0, 1);
+
+/** `dayOfYear` as a date a person recognises. 2001 because it is not a leap year. */
+function dayLabel(dayOfYear)
+{
+	const date = new Date(DAY_ONE + (dayOfYear - 1) * 86400000);
+	return date.toLocaleDateString(undefined, {day: 'numeric', month: 'long', timeZone: 'UTC'});
+}
+
+/** `12.5` as `12:30`, because an hour with a decimal point in it is a number, not a time. */
+function hourLabel(hour)
+{
+	const minutes = Math.round(hour * 60);
+	return `${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+}
+
+/**
+ * Where the sun is, in words.
+ *
+ * The point of the whole feature: a number for the hour means nothing until the
+ * view shows what it does. Below the horizon is said plainly rather than shown
+ * as a negative elevation nobody reads as "it is dark".
+ */
+const sunNote = computed(() =>
+{
+	if (!sun.value.on)
+	{
+		return 'No sun. The key light sits where the render profile puts it, which is what every design did before this and what the classic profile keeps doing.';
+	}
+	const where = solarPosition(sun.value);
+	const compass = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
+	const heading = compass[Math.round(where.azimuth / 45) % 8];
+	if (!where.up)
+	{
+		return `${hourLabel(sun.value.hour)} on ${dayLabel(sun.value.dayOfYear)}: the sun is ${Math.abs(where.elevation).toFixed(0)}° below the horizon. The key light is off and the sky carries the room.`;
+	}
+	return `${hourLabel(sun.value.hour)} on ${dayLabel(sun.value.dayOfYear)}: ${where.elevation.toFixed(0)}° above the horizon, in the ${heading}. Only the studio profile is lit, so only studio shows it.`;
+});
+
+function readSun()
+{
+	const model = props.store.model.value;
+	const current = model && model.sun;
+	sun.value = current ? {on: true, ...current} : {on: false, ...SUN_DEFAULTS};
+}
+
+/**
+ * @param {?Object} changes Null removes the sun; `{}` gives it the defaults.
+ */
+function setSun(changes)
+{
+	const model = props.store.model.value;
+	if (!model)
+	{
+		return;
+	}
+	model.setSun(changes);
+	// Read-after-write: `normaliseSun` clamps a latitude past the pole and wraps
+	// an hour past midnight, so the fields have to show what the model took.
+	readSun();
 }
 
 var attachedModel = null;
@@ -159,6 +245,7 @@ watch(() => props.store.model.value, function (model)
 	if (attachedModel)
 	{
 		attachedModel.removeEventListener(EVENT_LEVELS_CHANGED, readRoof);
+		attachedModel.removeEventListener(EVENT_LEVELS_CHANGED, readSun);
 	}
 	attachedModel = model || null;
 	attachedPlan = model ? model.floorplan : null;
@@ -174,9 +261,11 @@ watch(() => props.store.model.value, function (model)
 		// change uses - `Model.setRoof` dispatches it, because what a view has to
 		// do about either is the same thing.
 		attachedModel.addEventListener(EVENT_LEVELS_CHANGED, readRoof);
+		attachedModel.addEventListener(EVENT_LEVELS_CHANGED, readSun);
 	}
 	readNorth();
 	readRoof();
+	readSun();
 }, {immediate: true});
 
 onScopeDispose(function ()
@@ -306,6 +395,24 @@ function resetClipping()
 			<p class="inspector-note">
 				Drawn in the top right of the plan, and saved with the design.
 			</p>
+		</CollapsibleGroup>
+
+		<CollapsibleGroup title="Sun">
+			<CheckField
+				label="Light the design by the sun" :model-value="sun.on"
+				@update:model-value="setSun($event ? {} : null)" />
+			<template v-if="sun.on">
+				<RangeField
+					label="Time" :min="0" :max="24" :step="0.25" :model-value="sun.hour"
+					@update:model-value="setSun({hour: $event})" />
+				<RangeField
+					label="Day of year" :min="1" :max="365" :step="1" :model-value="sun.dayOfYear"
+					@update:model-value="setSun({dayOfYear: $event})" />
+				<RangeField
+					label="Latitude" unit="°" :min="-90" :max="90" :step="1" :model-value="sun.latitude"
+					@update:model-value="setSun({latitude: $event})" />
+			</template>
+			<p class="inspector-note">{{ sunNote }}</p>
 		</CollapsibleGroup>
 
 		<CollapsibleGroup title="Roof">

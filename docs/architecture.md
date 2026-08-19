@@ -552,6 +552,26 @@ materials pick their class while being built, so the profile has to be set
 first. `Main.applyRenderProfile()` switches a live viewer, at the cost of
 rebuilding every `Edge` and `Floor`.
 
+::: tip The sun, and the one north a building has
+`model/sun.js` turns a latitude, a day and an hour into an elevation and a
+bearing, and `Main.syncSun()` hands the direction to `Lights`. **Presence is the
+switch**: `Model.sun` is null by default and the key light then sits exactly
+where the render profile puts it, which is what `classic` keeps doing — the
+sun's effect there would be a `#330000` wash moving, so it is off rather than
+worked around.
+
+It is not an ephemeris: solar time, no equation of time, no longitude. The model
+is Cooper's declination and an hour angle, which is the honest one for *"does the
+morning sun reach this room"*.
+
+RM-011 W-10 is the other half. `north` has lived on `Floorplan` since E3, which
+was right while a design was one plan; since G1 a design is a list of them, so a
+three-storey house had **three north bearings and nothing stopped them
+disagreeing**. `Model.north` reads the ground floor's and writes every storey, so
+there is one answer and no new save key — the per-plan value is still exactly
+what each 2D sheet draws.
+:::
+
 ::: tip The shadow filter, and a claim RM-011 got wrong
 `main.js` asked the renderer for `PCFSoftShadowMap` from the fork until H2.
 three deprecated that constant and `WebGLShadowMap.render` **assigns

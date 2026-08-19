@@ -53,6 +53,7 @@ export {AssetManifest, MANIFEST_VERSION} from './core/asset_manifest.js';
 export {AssetResolver, defaultAssetResolver} from './core/asset_resolver.js';
 export {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY, VIEW_EXTERIOR} from './core/constants.js';
 export {NO_TINT, SURFACE_DEFAULTS, normaliseSurface, isPlainSurface, surfaceToJSON, colorValue} from './model/surface.js';
+export {SUN_DEFAULTS, normaliseSun, sunToJSON, solarPosition, sunDirection} from './model/sun.js';
 export {WallTypes} from './core/constants.js';
 
 //Classes from model module

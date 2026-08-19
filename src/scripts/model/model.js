@@ -5,6 +5,7 @@ import {projectItems} from './plan_projection.js';
 import {projectPlanOutline} from './level_projection.js';
 import {placeRectangle} from './floor_opening.js';
 import {normaliseRoof, roofToJSON, roofFootprint, roofMetrics} from '../items/roof.js';
+import {normaliseSun, sunToJSON} from './sun.js';
 import {stairPlan} from '../items/stair.js';
 import {EventDispatcher, Vector3, Mesh} from 'three';
 import {Level, DEFAULT_LEVEL_HEIGHT} from './level.js';
@@ -151,6 +152,19 @@ export class Model extends EventDispatcher
 		 * @type {?import('../items/roof.js').Roof}
 		 */
 		this.roof = null;
+		/**
+		 * The sun over this building, or null when there is none (RM-011 H2).
+		 *
+		 * Null is the default and every design written before H2 has one, which is
+		 * what keeps those files byte-identical. **Presence is the switch**: with
+		 * no sun the key light sits exactly where the render profile puts it,
+		 * which is what `classic` keeps doing and what every design did until now.
+		 * Same shape `roof` uses one field up, and for the same reason - a
+		 * separate `enabled` flag is a second source of truth that can disagree.
+		 *
+		 * @type {?import('./sun.js').Sun}
+		 */
+		this.sun = null;
 		// Constructed after the levels, because a `Scene` reads its runtime off the
 		// model's floorplan - which is now the ground level's.
 		this.scene = new Scene(this, textureDir);
@@ -242,6 +256,57 @@ export class Model extends EventDispatcher
 		}
 		this.dispatchEvent({type: EVENT_LEVELS_CHANGED, model: this, active: this.activeLevelIndex});
 		return this.roof;
+	}
+
+	/**
+	 * Give the building a sun, or change the one it has (RM-011 H2).
+	 *
+	 * @param {?Partial<import('./sun.js').Sun>} changes Null removes it.
+	 * @returns {?import('./sun.js').Sun} What the building took.
+	 */
+	setSun(changes)
+	{
+		if (changes === null)
+		{
+			this.sun = null;
+		}
+		else
+		{
+			this.sun = normaliseSun(Object.assign({}, this.sun || {}, changes || {}));
+		}
+		this.dispatchEvent({type: EVENT_LEVELS_CHANGED, model: this, active: this.activeLevelIndex});
+		return this.sun;
+	}
+
+	/**
+	 * Which way the building faces, in degrees clockwise from up on the sheet.
+	 *
+	 * RM-011 W-10: `north` has lived on `Floorplan` since RM-008 E3, which was
+	 * exactly right while a design was one plan. Since RM-010 G1 a design is a
+	 * list of `Level`s each holding a whole `Floorplan`, so **a three-storey
+	 * house has three north bearings and nothing stopped them disagreeing** - and
+	 * a sun needs one answer.
+	 *
+	 * Derived rather than added, which is why there is no new field and no new
+	 * save key: the building's north *is* the ground floor's, and the setter
+	 * writes every storey so the question of disagreement cannot arise. The
+	 * per-plan value stays exactly what it was and exactly what the 2D sheet
+	 * draws - `drawNorthArrow` reads `floorplan.north` and is untouched.
+	 *
+	 * @returns {number}
+	 */
+	get north()
+	{
+		return this.levels[0] ? this.levels[0].floorplan.north : 0;
+	}
+
+	/** @param {number} degrees */
+	set north(degrees)
+	{
+		this.levels.forEach(function (level)
+		{
+			level.floorplan.north = degrees;
+		});
 	}
 
 	/**
@@ -753,6 +818,7 @@ export class Model extends EventDispatcher
 		this.scene.abortPendingLoads();
 
 		this.roof = result.document.roof ? normaliseRoof(result.document.roof) : null;
+		this.sun = result.document.sun ? normaliseSun(result.document.sun) : null;
 		this.newRoom(result.document.floorplan, result.document.items,
 			options && options.reason, result.document.levels || undefined);
 
@@ -854,6 +920,14 @@ export class Model extends EventDispatcher
 		if (this.roof)
 		{
 			room.roof = roofToJSON(this.roof);
+		}
+		// And once more for the sun. `sunToJSON` returns `{}` rather than null for
+		// a sun at its defaults, because "there is a sun and it is the default
+		// one" is a thing a file has to be able to say - the presence of the key
+		// is what turns it on.
+		if (this.sun)
+		{
+			room.sun = sunToJSON(this.sun);
 		}
 		return JSON.stringify(room);
 	}

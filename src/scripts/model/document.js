@@ -130,6 +130,14 @@ export class DesignDocument
 		 * @type {?Object}
 		 */
 		this.roof = isPlainObject(data.roof) ? data.roof : null;
+		/**
+		 * The sun over the building, or null (RM-011 H2). Absent from every design
+		 * written before it. `{}` is meaningful and not empty: it says the building
+		 * has a sun and takes the defaults, which is why presence is tested rather
+		 * than content.
+		 * @type {?Object}
+		 */
+		this.sun = isPlainObject(data.sun) ? data.sun : null;
 		/** The `version` stamp, or null on a pre-2.0.0 file. */
 		this.version = (typeof data.floorplan.version === 'string') ? data.floorplan.version : null;
 		/**
@@ -204,6 +212,7 @@ export class DesignDocument
 		validateItems(data.items, errors);
 		validateLevels(data.levels, data.floorplan, errors, warnings);
 		validateRoof(data.roof, errors);
+		validateSun(data.sun, errors);
 
 		if (errors.length)
 		{
@@ -620,6 +629,47 @@ function validateLevels(levels, floorplan, errors, warnings)
 	{
 		errors.push({path: 'floorplan', message: 'missing - the ground floor is the design\'s own "floorplan"'});
 	}
+}
+
+/**
+ * The sun, additive since RM-011 H2 and absent from every older file.
+ *
+ * @param {*} sun
+ * @param {Array<DocumentProblem>} errors
+ */
+function validateSun(sun, errors)
+{
+	if (sun === undefined || sun === null)
+	{
+		return;
+	}
+	if (!isPlainObject(sun))
+	{
+		errors.push({path: 'sun', message: 'must be an object when present'});
+		return;
+	}
+	// Ranges rather than mere finiteness, because all three of these are refused
+	// by physics and not only by taste: there is no latitude 200, no 400th day
+	// and no 30 o'clock. `normaliseSun` clamps and wraps so a live edit cannot
+	// produce one; a *file* that carries one is saying something it cannot mean,
+	// and that is the distinction this layer exists to draw.
+	var ranges = {latitude: [-90, 90], dayOfYear: [1, 365], hour: [0, 24]};
+	Object.keys(ranges).forEach(function (field)
+	{
+		var value = sun[field];
+		if (value === undefined || value === null)
+		{
+			return;
+		}
+		var range = ranges[field];
+		if (!isFiniteNumber(value) || value < range[0] || value > range[1])
+		{
+			errors.push({
+				path: `sun.${field}`,
+				message: `must be a number from ${range[0]} to ${range[1]} when present, not ${JSON.stringify(value)}`,
+			});
+		}
+	});
 }
 
 /**

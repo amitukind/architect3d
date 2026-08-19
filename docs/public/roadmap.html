@@ -5017,7 +5017,17 @@ this.roofPlane = this.buildRoofVaryingHeight();</pre></div>
 
         <li><strong>And a note on how the fractions must be taken.</strong> Re-measured with W-9's own method and its own fixture, the three-storey design renders in <strong>0.68 ms</strong> under classic and <strong>1.20 ms</strong> under studio, against the 1.07 and 1.31 in the table above &mdash; with <em>identical</em> geometry, 3,368 triangles and 293 calls, 3,532 and 332. The scene did not change; the session did. So an effect's cost is a fraction of a baseline measured <strong>in the same run</strong>, never of a number carried over from a document. Best-of-seven puts the same two frames at 0.58 and 0.92 ms, which is G3's finding about interference showing up again.</li>
 
-        <li style="opacity:.7"><strong>Still to land in H2:</strong> the sun by time of day with one north for the building (W-10), lamps that emit by a sixth catalog key (W-11), ambient occlusion behind the profile switch, and the photo capture through <code>Main.dataUrl()</code>.</li>
+        <li><strong>A sun, and it is a description rather than a light.</strong> <code>model/sun.js</code> is a latitude, a day and an hour plus the arithmetic that turns them into a bearing and an elevation; <code>Main.syncSun()</code> hands the direction to <code>Lights</code>. Deliberately <strong>not an ephemeris</strong> &mdash; Cooper's declination and an hour angle in local <em>solar</em> time, no equation of time and no longitude, which is the honest model for <em>&ldquo;does the morning sun reach this room&rdquo;</em>.</li>
+
+        <li><strong>Presence is the switch.</strong> No <code>enabled</code> field: <code>Model.sun</code> is null by default and the key light then sits exactly where the profile puts it, which is what every design did before H2. <code>&quot;sun&quot;: {}</code> is meaningful rather than empty. All four fixtures re-save with no <code>sun</code> key anywhere. The defaults describe themselves &mdash; latitude 45, day 81, hour 12 is <strong>exactly 45&deg;</strong> due south, and the first draft's day 80 landed at 44.60, which is close enough to look right.</li>
+
+        <li><strong>One north for the building, and no new save key</strong> (W-10). <code>Model.north</code> reads the ground floor's and writes every storey, so the three bearings a three-storey house could hold cannot disagree. Derived rather than added; the per-plan value is still what each 2D sheet draws.</li>
+
+        <li><strong>The acceptance is on pixels.</strong> A room with a wall down the middle at 12:00, 9:00 and 7:00: each step away from noon moves more of the frame than the last, monotonically, so a frame that merely flickered would not pass. Under <code>classic</code> the frame is <strong>identical</strong> with a sun and without one &mdash; the third clause, asserted rather than assumed.</li>
+
+        <li><strong>A sun below the horizon does not move the key underground.</strong> Held at the horizon, dimmed to nothing, and the intensity assigned on every pass rather than inside the branch &mdash; otherwise taking a night-time sun away would leave the lights off.</li>
+
+        <li style="opacity:.7"><strong>Still to land in H2:</strong> lamps that emit by a sixth catalog key (W-11), ambient occlusion behind the profile switch, and the photo capture through <code>Main.dataUrl()</code>.</li>
       </ul>
     </div>
   </div>

@@ -1215,6 +1215,50 @@ describe('the inspector inside the app', () =>
 		wrapper.unmount();
 	});
 
+	it('gives the design a sun, and takes it away again (RM-011 H2)', async () =>
+	{
+		const wrapper = await mountApp();
+		const model = wrapper.vm.$.setupState.store.model.value;
+		expect(model.sun).toBeNull();
+
+		const sunGroup = wrapper.findAll('.settings .group')
+			.find((node) => node.find('.group-title').text().includes('Sun'));
+		expect(sunGroup, 'no Sun group in the settings panel').toBeTruthy();
+
+		await sunGroup.find('input[type="checkbox"]').setValue(true);
+		// `{}` rather than a filled record: the presence of the key is the switch,
+		// and a sun at its defaults is a complete description.
+		expect(model.sun).toEqual({latitude: 45, dayOfYear: 81, hour: 12});
+		expect(sunGroup.text()).toContain('45° above the horizon');
+
+		await sunGroup.find('input[type="checkbox"]').setValue(false);
+		expect(model.sun).toBeNull();
+
+		wrapper.unmount();
+	});
+
+	it('writes north to every storey, so the sun has one answer (W-10)', async () =>
+	{
+		const wrapper = await mountApp();
+		const model = wrapper.vm.$.setupState.store.model.value;
+		model.addLevel();
+		await nextTick();
+
+		const planGroup = wrapper.findAll('.settings .group')
+			.find((node) => node.find('.group-title').text().includes('Plan'));
+		const field = planGroup.find('input[type="number"]');
+		field.element.value = '90';
+		await field.trigger('change');
+
+		expect(model.north).toBe(90);
+		model.levels.forEach((level, index) =>
+		{
+			expect(level.floorplan.north, `level ${index}`).toBe(90);
+		});
+
+		wrapper.unmount();
+	});
+
 	it('follows a configuration change made from outside the panel (RM-002 R-03)', async () =>
 	{
 		// Snap-to-grid and grid resolution are writable from the plan overlay as

@@ -441,6 +441,7 @@ export class Main extends EventDispatcher
 			this.lights.dispose();
 			this.lights = new Lights(this.scene, this.model.floorplan, this.renderProfile);
 			this.lights.updateShadowCamera();
+			this.syncSun();
 		}
 
 		this.levelViews.forEach((view) => {view.redraw();});
@@ -574,6 +575,7 @@ export class Main extends EventDispatcher
 		scope.model.addEventListener(EVENT_LEVELS_CHANGED, this.levelsevent);
 
 		scope.lights = new Lights(scope.scene, scope.model.floorplan, scope.renderProfile);
+		scope.syncSun();
 		scope.syncLevelViews();
 
 		function animate()
@@ -1224,6 +1226,25 @@ export class Main extends EventDispatcher
 		// showing one at a time has to move which one is shown (G3).
 		this.scene.syncLevels({activeOnly: !this._allStoreys});
 		this.syncRoof();
+		this.syncSun();
+	}
+
+	/**
+	 * Point the key light at wherever the building's sun is (RM-011 H2).
+	 *
+	 * Here rather than in `Lights` because a sun belongs to the building and
+	 * `Lights` is handed a `Floorplan` - one storey's plan. `Main` is the object
+	 * that has both, which makes it the seam, and it keeps the model free of any
+	 * knowledge that a renderer exists.
+	 *
+	 * @returns {void}
+	 */
+	syncSun()
+	{
+		if (this.lights)
+		{
+			this.lights.setSun(this.model.sun, this.model.north);
+		}
 	}
 
 	/**

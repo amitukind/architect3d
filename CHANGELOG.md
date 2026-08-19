@@ -1334,6 +1334,58 @@ carried over from a document. Best-of-seven puts the same two frames at 0.58 and
 
 **5 new browser tests, 2,016 headless and 139 browser.**
 
+**RM-011 H2: a sun that knows what time it is.** The sprint's second bullet, and
+the one that needed a schema decision first.
+
+**`model/sun.js` is a latitude, a day and an hour, and the arithmetic that turns
+them into a direction.** No three.js types, no renderer: `three/lights.js` reads
+it and it reads nothing above it. It is deliberately **not an ephemeris** —
+Cooper's declination and an hour angle in local *solar* time, so noon means the
+sun is on the meridian rather than that a clock says 12:00. No equation of time,
+no longitude, no timezone. For *"does the morning sun reach this room"* that is
+the honest model, and the error across a year is smaller than one step of the
+control that sets it.
+
+**Presence is the switch, so there is no `enabled` field.** `Model.sun` is null
+by default and the key light then sits exactly where the render profile puts it,
+which is what every design did before H2 and what `classic` keeps doing. `"sun":
+{}` is meaningful rather than empty: it says the building has a sun and takes
+the defaults. Same shape `roof` uses, and for the same reason — a flag beside
+the record is a second source of truth that can disagree with it. All four
+fixtures re-save with no `sun` key anywhere.
+
+**The defaults describe themselves.** Latitude 45, day 81, hour 12 puts the sun
+at **exactly 45°**, due south — solar noon elevation is `90 − |latitude −
+declination|`, day 81 is where the declination term crosses zero, and 45 is
+halfway from the equator to the pole. The first draft used day 80 and landed at
+44.60: close enough to look right and wrong enough to be worth catching, which is
+why the default a reader can verify in their head beat the plausible one.
+
+**One north for the building** (W-10). `north` has lived on `Floorplan` since E3,
+which was exactly right while a design was one plan; since G1 a design is a list
+of them, so a three-storey house held **three north bearings and nothing stopped
+them disagreeing**. `Model.north` reads the ground floor's and writes every
+storey. Derived rather than added, so there is **no new field and no new save
+key**, and the per-plan value is still exactly what each 2D sheet draws.
+
+**A sun below the horizon does not move the key underground.** It is held at the
+horizon and the light is dimmed to nothing instead — a key light beneath the
+floor lights the ceiling through it, which is not night, it is a bug that looks
+like one. The intensity is assigned on every pass rather than inside the branch,
+or removing a night-time sun would leave the lights off.
+
+**The acceptance is on pixels, as H2 asked.** *"A shadow's penumbra visibly
+changes with the sun's elevation, asserted on pixels rather than on the setting
+that was assigned"* — a room with a wall down the middle, rendered at 12:00, 9:00
+and 7:00, and each step away from noon moves more of the frame than the last.
+Monotonic, so a frame that merely flickered would not pass. And under `classic`
+the frame is **identical** with a sun and without one, which is the third clause:
+every light this sprint adds is off, or free, there.
+
+**27 new tests, 2,037 headless and 145 browser.** Coverage up on all four:
+statements 86.08 → 86.19, branches 77.08 → 77.35, functions 83.61 → 83.76, lines
+86.06 → 86.17. No budget moved.
+
 ## [3.0.1] - 2026-08-16
 
 No shipped code changed — `src/` is byte-identical to 3.0.0 and so is every

@@ -607,6 +607,46 @@ rectangular houses most plans are and a box over an L-shaped one.
 outline without touching the three generators.
 :::
 
+### `sun` — a sun over the building
+
+Added in RM-011 H2, top level beside `roof`, and absent from every file written
+before it. **There is no sun by default**, which is what keeps those files
+byte-identical: with no sun the key light sits where the render profile puts it,
+which is where it has always sat.
+
+```json
+"sun": {"hour": 8.5, "latitude": 55}
+```
+
+| Field | Default | Meaning |
+|---|---|---|
+| `latitude` | `45` | Degrees north, −90 to 90. Negative is south. |
+| `dayOfYear` | `81` | 1–365. No leap day. |
+| `hour` | `12` | Local **solar** hour. 12 is the sun due south. |
+
+**The presence of the key is the switch.** There is no `enabled` field, and
+`"sun": {}` is meaningful rather than empty — it says the building has a sun and
+takes the defaults. A flag beside the record would be a second source of truth
+that could disagree with it, which is the same argument `roof` settles by being
+nullable.
+
+Those three defaults describe themselves: at latitude 45 on day 81 at hour 12 the
+sun is at **exactly 45°**, due south. Solar noon elevation is
+`90 − |latitude − declination|`, day 81 is where the declination term crosses
+zero, and 45 is halfway from the equator to the pole.
+
+::: tip Solar time, not clock time
+`hour` is local solar time: noon means the sun is on the meridian, not that a
+clock says 12:00. There is no equation of time, no longitude and no timezone —
+for *"does the morning sun reach this room"* that is the honest model, and the
+error across a year is smaller than one step of the control that sets it.
+:::
+
+**North is not stored here.** It lives on each `floorplan`, where RM-008 E3 put
+it, and `Model.north` reads the ground floor's and writes all of them — so a
+three-storey house cannot hold three bearings that disagree (RM-011 W-10). The
+per-plan value is still what each 2D sheet draws.
+
 ### Stairwells are not in the file
 
 A hole in a floor is **derived**, not recorded. A flight of stairs on one storey
