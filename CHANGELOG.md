@@ -1284,6 +1284,56 @@ answered in full for the profile the application boots. H2 is next, and W-8 is
 waiting for it: `three/main.js:301` assigns a shadow filter three no longer
 implements, so "softer shadows" is a repair before it is a feature.
 
+**RM-011 H2 opens with the repair: the shadow filter, and a claim it refutes.**
+The sprint's first bullet is *"the shadow filter is repaired first (W-8), because
+softer shadows cannot be added on top of a setting that is silently ignored"*. It
+is repaired, and measuring it found that the second half of W-8 was wrong.
+
+**`main.js` names `PCFShadowMap` now, which is what the renderer has been running
+all along.** three deprecated `PCFSoftShadowMap`, and `WebGLShadowMap.render`
+does not ignore it politely — it warns on the first frame and **assigns
+`PCFShadowMap` over the top of the value it was given**. So the property read
+back as `1` while the source said `2`, on every boot, for as long as this project
+has been on a modern three. Naming what runs is a **zero-pixel change**, asserted
+rather than assumed: ask for the deprecated constant, let three substitute, and
+difference the two frames — **0 of 307,200 pixels**. That is what makes it safe
+against the frozen r98 goldens.
+
+**W-8's second sentence is wrong and is corrected in place.** It said the Studio
+profile's `shadowRadius: 2.4` is inert with that filter, so *"the one number in
+the profile table that exists to soften a shadow does nothing"*. It does
+something. three rewrote PCF into a **five-tap Vogel disk scaled by
+`shadow.radius`** — which is precisely why the soft variant was deprecated: the
+ordinary filter now does what the separate one existed for. Measured against the
+profile's own 2.4, radius 1 moves **256** pixels, radius 6 moves **2,394**, and
+radius 12 moves **11,993**, of 307,200. Monotonic, which is what separates "the
+number reaches the shader" from "the frame is noisy".
+
+**So H2's "softer shadows" is not blocked and never was** — the knob works, and
+what the drawing took for a missing feature is a number already in the table.
+That changes what the rest of the sprint has to build, which is the whole reason
+a repair goes first.
+
+**One dead property removed beside it.** `renderer.shadowMapSoft = true` —
+three has had no such property since around r73, and S5 removed its two siblings,
+`shadowDarkness` and `shadowCameraVisible`, while leaving this one. An assignment
+onto a renderer that nothing has ever read.
+
+**M-28's first entry: the repair costs 0% of the frame**, and it is zero by
+construction rather than by measurement error — the same filter, the same frame,
+byte for byte.
+
+**And a note on how the fractions must be taken.** Re-measured with W-9's own
+method and its own fixture, the three-storey design renders in **0.68 ms** under
+classic and **1.20 ms** under studio, against the 1.07 and 1.31 that table
+records — with *identical* geometry, 3,368 triangles and 293 calls, 3,532 and
+332, to the number. The scene did not change; the session did. So an effect's
+cost is a fraction of a baseline measured **in the same run**, never of a figure
+carried over from a document. Best-of-seven puts the same two frames at 0.58 and
+0.92 ms, which is G3's finding about interference showing up again.
+
+**5 new browser tests, 2,016 headless and 139 browser.**
+
 ## [3.0.1] - 2026-08-16
 
 No shipped code changed — `src/` is byte-identical to 3.0.0 and so is every

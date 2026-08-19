@@ -552,6 +552,23 @@ materials pick their class while being built, so the profile has to be set
 first. `Main.applyRenderProfile()` switches a live viewer, at the cost of
 rebuilding every `Edge` and `Floor`.
 
+::: tip The shadow filter, and a claim RM-011 got wrong
+`main.js` asked the renderer for `PCFSoftShadowMap` from the fork until H2.
+three deprecated that constant and `WebGLShadowMap.render` **assigns
+`PCFShadowMap` over the top of it** on the first frame, with a warning, so the
+property read back as `1` while the source said `2`. It names `PCFShadowMap`
+now, which is a **zero-pixel change** — asserted, not assumed, in
+`tests/browser/shadow-filter.test.js`.
+
+RM-011 W-8 also concluded that the profile's `shadowRadius` was therefore inert.
+It is not. three rewrote PCF into a five-tap Vogel disk **scaled by
+`shadow.radius`**, which is precisely why the soft variant was deprecated: the
+ordinary filter now does what the separate one existed to do. A radius sweep
+moves 256, 2,394 and 11,993 pixels of a 307,200-pixel frame at 1, 6 and 12
+against the profile's own 2.4 — monotonically, which is what tells "the number
+reaches the shader" apart from "the frame is noisy".
+:::
+
 ::: tip Why the key light was red
 `lights.js` called `setHSL(1, 1, 0.1)` on a light it had just constructed as
 white. Hue 1 wraps to 0, so the "white" key has always been `#330000` — a dim

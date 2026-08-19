@@ -4,7 +4,7 @@ import {ColorManagement, SRGBColorSpace} from 'three';
 import {Plane, Mesh} from 'three';
 import {buildRoofGeometry} from '../items/roof.js';
 import {disposeObject} from '../core/resource_registry.js';
-import {PCFSoftShadowMap, ACESFilmicToneMapping, NoToneMapping, PMREMGenerator} from 'three';
+import {PCFShadowMap, ACESFilmicToneMapping, NoToneMapping, PMREMGenerator} from 'three';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {PointerLockControls} from './pointerlockcontrols.js';
 import {describeFrom} from '../core/texture_formats.js';
@@ -297,8 +297,28 @@ export class Main extends EventDispatcher
 		renderer.outputColorSpace = SRGBColorSpace;
 
 		renderer.shadowMap.enabled = true;
-		renderer.shadowMapSoft = true;
-		renderer.shadowMap.type = PCFSoftShadowMap;
+		// The filter that actually runs, said out loud (RM-011 W-8, repaired by
+		// H2).
+		//
+		// This line asked for `PCFSoftShadowMap` from the fork until now. three
+		// deprecated that constant, and `WebGLShadowMap.render` does not merely
+		// ignore it - it warns on the first frame and **assigns PCFShadowMap over
+		// the top of it**, so `renderer.shadowMap.type` has read back as 1 for as
+		// long as this project has been on a modern three. A source line that
+		// names a filter the renderer refuses is worse than a wrong filter,
+		// because every reading of it is wrong in the same direction.
+		//
+		// Changing it to what already runs is therefore a zero-pixel commit by
+		// construction, which `tests/browser/shadow-filter.test.js` asserts rather
+		// than assumes. What it buys is a baseline H2's lighting can be compared
+		// against and one fewer deprecation warning on every boot.
+		//
+		// It also is not a downgrade in what it can do, which is the part W-8 got
+		// wrong: three rewrote PCF into a five-tap Vogel disk scaled by
+		// `shadow.radius`, and that rewrite is exactly *why* the soft variant was
+		// deprecated. The profile's `shadowRadius` reaches the shader and moves
+		// pixels - measured, not assumed, in the same file.
+		renderer.shadowMap.type = PCFShadowMap;
 		renderer.setClearColor( 0xFFFFFF, 1 );
 		renderer.clippingPlanes = this.clippingEmpty;
 		renderer.localClippingEnabled = false;

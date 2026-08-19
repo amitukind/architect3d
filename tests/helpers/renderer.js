@@ -24,7 +24,6 @@ export function createRendererStub(collector)
 	const renderer = {
 		domElement: document.createElement('canvas'),
 		shadowMap: {enabled: false, type: null},
-		shadowMapSoft: false,
 		clippingPlanes: [],
 		localClippingEnabled: false,
 		disposed: false,
