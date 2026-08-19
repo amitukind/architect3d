@@ -1375,6 +1375,119 @@ describe('RoofItem on a design with no ceiling (RM-005 C2, J-5)', () =>
 	});
 });
 
+/**
+ * Mirror, and the two things a negative scale must not break (RM-012 J4).
+ *
+ * RM-007 calls mirror one of the three cheap verbs and names its risk: *"a
+ * mirrored mesh renders inside out unless the material's side is handled"*.
+ * Measured against the three in this tree, that is already handled and not by
+ * us - `WebGLRenderer` computes `frontFaceCW` from
+ * `matrixWorld.determinantAffine() < 0` and flips the winding for exactly this
+ * case. So the material's `side` is deliberately not touched, and these assert
+ * that it is not: 139 of the 168 catalog models are `KHR_materials_unlit`, and
+ * forcing `DoubleSide` on all of them to fix a problem that does not exist
+ * would change how every one of them renders.
+ *
+ * What a negative scale *would* have broken is the item's size, which is the
+ * part worth a suite. `halfSize` feeds `getWidth`, the two dimension canvases,
+ * the plan's footprint projection and `Edge.createShape` - which pushes a
+ * rectangle of it into the wall's holes. A mirrored door with a negative half
+ * width cuts a hole of negative width and nothing says so.
+ */
+describe('Item.mirror, and the sign that must not reach the size', () =>
+{
+	/** The minimum of an Item that `mirror` and `applyScale` actually touch. */
+	function mirrorable(scale)
+	{
+		return {
+			scale: new three.Vector3(scale ? scale.x : 1, scale ? scale.y : 1, scale ? scale.z : 1),
+			halfSize: new three.Vector3(25, 50, 10),
+			bhelper: null,
+			scene: {needsUpdate: false},
+			objectHalfSize() { return new three.Vector3(25, 50, 10); },
+			resized() {},
+			updateCanvasTexture() {},
+			getWidth() { return this.halfSize.x * 2; },
+			getHeight() { return this.halfSize.y * 2; },
+			getDepth() { return this.halfSize.z * 2; },
+			applyScale: Item.prototype.applyScale,
+			mirror: Item.prototype.mirror,
+			mirrored: Item.prototype.mirrored,
+		};
+	}
+
+	it('negates one axis of the scale and nothing else', () =>
+	{
+		const item = mirrorable();
+		expect(item.mirror('x')).toBe(true);
+		expect([item.scale.x, item.scale.y, item.scale.z]).toEqual([-1, 1, 1]);
+
+		expect(item.mirror('z')).toBe(false);
+		// Two negated axes are a 180-degree rotation, not a reflection - which is
+		// what the sign of the product says and what the renderer tests.
+		expect([item.scale.x, item.scale.y, item.scale.z]).toEqual([-1, 1, -1]);
+		expect(item.mirrored()).toBe(false);
+	});
+
+	it('defaults to the left-to-right flip, which is the one people mean', () =>
+	{
+		const item = mirrorable();
+		item.mirror();
+		expect(item.scale.x).toBe(-1);
+		expect(item.scale.z).toBe(1);
+	});
+
+	it('leaves the size positive, which is what Edge.createShape reads', () =>
+	{
+		// The assertion this whole describe exists for. A negative half width
+		// would cut a wall hole of negative width and nothing would report it.
+		const item = mirrorable();
+		item.mirror('x');
+		expect(item.halfSize.x).toBe(25);
+		expect(item.getWidth()).toBe(50);
+		expect(item.getDepth()).toBe(20);
+	});
+
+	it('keeps it positive through a resize on top of a mirror', () =>
+	{
+		// The composition that would drift if the half size were accumulated
+		// rather than restated from the geometry each time.
+		const item = mirrorable();
+		item.mirror('x');
+		item.applyScale(-2, 1, 1);
+		expect(item.scale.x).toBe(-2);
+		expect(item.halfSize.x).toBe(50);
+		expect(item.getWidth()).toBe(100);
+	});
+
+	it('comes back unmirrored, exactly, rather than to a near miss', () =>
+	{
+		// `applyScale` is the absolute form for the reason its own note gives:
+		// expressing "back to 1" as a relative factor produces 0.9999999999999999,
+		// which serialises differently and makes an undo differ from what it
+		// restored. Mirroring twice must not do that either.
+		const item = mirrorable();
+		item.mirror('x');
+		item.mirror('x');
+		expect(item.scale.x).toBe(1);
+		expect(item.mirrored()).toBe(false);
+		expect(item.halfSize.x).toBe(25);
+	});
+
+	it('is what the renderer already keys off, so no material is touched', () =>
+	{
+		// The measurement behind not setting `side`. three flips the winding when
+		// the world matrix determinant is negative; a mirrored item's is.
+		const mesh = new three.Mesh(new three.BoxGeometry(1, 1, 1), new three.MeshBasicMaterial());
+		const before = mesh.material.side;
+		mesh.scale.set(-1, 1, 1);
+		mesh.updateMatrixWorld(true);
+		expect(mesh.matrixWorld.determinant()).toBeLessThan(0);
+		expect(mesh.material.side, 'mirroring must not change how 139 unlit models render')
+			.toBe(before);
+	});
+});
+
 describe('Item.resize, the inspector\'s path', () =>
 {
 	/**

@@ -239,6 +239,36 @@ export function useItemActions(store, selection, history)
 	}
 
 	/**
+	 * Flip every selected item on one horizontal axis (RM-012 J4).
+	 *
+	 * The verb RM-007 calls cheap, and it is: `Item.mirror` negates a scale
+	 * component, `scale_x` has been in the save format since the format existed,
+	 * and the winding reversal the drawing names as the risk turns out to be
+	 * three's job already. What this adds is the set and the commit.
+	 *
+	 * Each item flips about its own centre rather than about the set's, which is
+	 * what mirroring a *thing* means. Mirroring a *layout* - reflecting six chairs
+	 * across the room's axis - is a different verb, and it belongs with align and
+	 * distribute, which is where the set's own geometry is worked out.
+	 *
+	 * @param {string} [axis] `'x'` (default) or `'z'`.
+	 * @returns {number} how many were flipped.
+	 */
+	function mirrorSelected(axis)
+	{
+		var items = selectedItems.value;
+		if (!items.length)
+		{
+			return 0;
+		}
+		items.forEach((item) => {item.mirror(axis);});
+		// One commit for the gesture, like delete. Mirroring four chairs is one
+		// thing a person did.
+		history.commit();
+		return items.length;
+	}
+
+	/**
 	 * Copy and paste in one gesture, which is what duplicate is.
 	 *
 	 * Deliberately does not disturb the clipboard: somebody who copied a sofa,
@@ -264,6 +294,6 @@ export function useItemActions(store, selection, history)
 
 	return {
 		selectedItem, selectedItems, canActOnItem, deleteSelected, duplicateSelected,
-		copySelected, pasteClipboard, clipboard, canPaste,
+		copySelected, pasteClipboard, clipboard, canPaste, mirrorSelected,
 	};
 }

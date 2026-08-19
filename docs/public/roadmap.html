@@ -5581,6 +5581,19 @@ this.roofPlane = this.buildRoofVaryingHeight();</pre></div>
         <li><strong>The clipboard is this application's, not the system's.</strong> Putting a design fragment on the OS clipboard is a serialisation format and a security surface, and RM-007 puts sharing in K2 where a <code>.zip</code> bundle and a URL are already the subject. What a person means by copy and paste inside one plan is this. <code>mod+C</code>, <code>mod+V</code>, both over the set.</li>
       </ul>
     </div>
+
+    <div class="gate">
+      <div class="g-head">LANDING &mdash; J4, mirror, and the risk that was already handled</div>
+      <ul>
+        <li><strong>The named risk does not exist, measured rather than assumed.</strong> RM-007 puts mirror among the three cheap verbs <em>&ldquo;with the winding reversal named up front, since a mirrored mesh renders inside out unless the material's side is handled&rdquo;</em>. Against the three in this tree it is handled and not by us: <code>WebGLRenderer</code> computes <code>frontFaceCW</code> from <code>object.matrixWorld.determinantAffine() &lt; 0</code> and flips the face winding for exactly this case. <strong>So no material's <code>side</code> is touched</strong> &mdash; which matters, because 139 of the 168 catalog models are <code>KHR_materials_unlit</code> and forcing <code>DoubleSide</code> on all of them to fix a problem that does not exist would change how every one of them renders. A test asserts the material is left alone, not merely that mirroring works.</li>
+
+        <li><strong>The real risk was somewhere else, and it is the size.</strong> A negative scale is the whole mechanism &mdash; <code>scale_x</code> has been in the save format since the format existed, so a mirrored item round-trips with no new field and no version move. But <code>halfSize</code> was computed by multiplying in the scale, so a mirror made it negative, and <code>halfSize</code> is read by <code>getWidth</code>, by both dimension canvases, by the plan's footprint projection and by <strong><code>Edge.createShape</code>, which pushes a rectangle of it into the wall's holes</strong>. A mirrored door would have cut a hole of negative width and nothing would have said so. A half size is a magnitude; it is now restated from the geometry with the sign dropped, on both the relative and the absolute path.</li>
+
+        <li><strong>Mirrored is the sign of the product, not of one axis.</strong> Two negated axes are a 180-degree rotation rather than a reflection &mdash; which is what the renderer tests, so it is what this reports. And Y is deliberately not offered: mirroring vertically turns a chair upside down, which nobody laying out a room wants and which <code>boundMove</code> would immediately fight over for a wall-bound item. Rotation is the verb for the other orientations.</li>
+
+        <li><strong>Each item flips about its own centre, and that is the smaller of two verbs.</strong> Mirroring a <em>thing</em> is this. Mirroring a <em>layout</em> &mdash; reflecting six chairs across the room's axis &mdash; needs the set's own geometry, so it belongs with align and distribute rather than here. <code>m</code> and <code>shift+m</code>, over the set, one commit.</li>
+      </ul>
+    </div>
   </div>
 
   <p style="margin-top:16px">Seven and a half weeks, unchanged from RM-007, and the split moves by half a week: <strong>2 + 1.5 + 1.5 + 2.5</strong> against 1.5 + 2 + 1.5 + 2.5. J1 takes the half-week because the index split belongs in front of the metadata rather than behind it, and J2 gives it back because the pipeline it was costed to build is already installed and green. <strong>What moved is inside the sprints</strong>: J2's headline number becomes an output of a decision, and J4's two halves swap places in the estimate.</p>

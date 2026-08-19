@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+**RM-012 J4: mirror, and the risk that was already handled.** RM-007 names the
+winding reversal as mirror's risk. Measured against the three in this tree it is
+handled and not by us: `WebGLRenderer` computes `frontFaceCW` from
+`matrixWorld.determinantAffine() < 0`. **No material's `side` is touched** — 139
+of 168 catalog models are `KHR_materials_unlit`, and forcing `DoubleSide` on them
+to fix a problem that does not exist would change how every one renders. A test
+asserts the material is left alone, not merely that mirroring works.
+
+The real risk was the size. A negative scale is the whole mechanism — `scale_x`
+has been in the save format since the format existed — but `halfSize` was
+computed by multiplying the scale in, so a mirror made it negative. `halfSize`
+feeds `getWidth`, both dimension canvases, the plan's footprint projection and
+**`Edge.createShape`, which pushes a rectangle of it into the wall's holes**: a
+mirrored door would have cut a hole of negative width silently. A half size is a
+magnitude, and is now restated from the geometry with the sign dropped.
+
+Mirrored is the sign of the scale's product, not of one axis — two negated axes
+are a rotation, which is what the renderer tests. Y is not offered: it turns a
+chair upside down. `m` and `shift+m`, over the set, one commit.
+
 **RM-012 J4: copy, paste, and the duplicate that had never worked.**
 `useItemActions` read `meta.itemType` and `meta.modelUrl` off
 `Item.getMetaData()`, which returns `item_type` and `model_url`. Both were

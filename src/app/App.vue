@@ -555,6 +555,14 @@ const bindings = computed(() => /** @type {Array<import('./composables/useShortc
 		run: items.pasteClipboard, enabled: () => items.canPaste.value,
 	},
 	{
+		group: 'Tools', keys: 'm', label: 'Mirror left to right',
+		run: () => items.mirrorSelected('x'), enabled: () => items.canActOnItem.value,
+	},
+	{
+		group: 'Tools', keys: 'shift+m', label: 'Mirror front to back',
+		run: () => items.mirrorSelected('z'), enabled: () => items.canActOnItem.value,
+	},
+	{
 		group: 'Tools', keys: 'delete', label: 'Delete the selection',
 		run: deleteSelection, enabled: () => canDeleteSelection.value,
 	},

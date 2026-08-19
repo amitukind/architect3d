@@ -770,6 +770,30 @@ describe('useItemActions', () =>
 		expect(added.every(([, , meta]) => meta.designId === undefined)).toBe(true);
 	});
 
+	it('mirrors the whole set, once, about each item\'s own centre', () =>
+	{
+		mountStore();
+		const selection = run(() => useSelection(store));
+		const history = run(() => useHistory(store));
+		const actions = run(() => useItemActions(store, selection, history));
+
+		const scene = store.model.value.scene;
+		const flips = [];
+		const items = inScene(scene,
+			Object.assign(fakeItem(scene, {designId: 'a'}), {mirror(axis) {flips.push(['a', axis]);}}),
+			Object.assign(fakeItem(scene, {designId: 'b'}), {mirror(axis) {flips.push(['b', axis]);}}));
+		selection.selectMany(SELECTION_ITEM, items);
+
+		const commits = [];
+		history.commit = () => {commits.push(1);};
+
+		expect(actions.mirrorSelected('z')).toBe(2);
+		expect(flips).toEqual([['a', 'z'], ['b', 'z']]);
+		// One commit for the gesture. Mirroring four chairs is one thing a person
+		// did, and undo should treat it that way.
+		expect(commits).toHaveLength(1);
+	});
+
 	it('leaves the clipboard alone when something else is duplicated', () =>
 	{
 		// Somebody who copied a sofa, then duplicated a chair, then pasted, means

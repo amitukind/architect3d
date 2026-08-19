@@ -84,6 +84,35 @@ function singleMaterial(material)
 	return /** @type {ColorableMaterial} */ (Array.isArray(material) ? material[0] : material);
 }
 
+/**
+ * A half size is a magnitude, and a scale may be negative (RM-012 J4).
+ *
+ * Mirroring an item is a negative `scale.x`, which is the whole mechanism - it
+ * is already in the save format, it costs no new field, and three's renderer
+ * reverses the triangle winding for it by itself (`WebGLRenderer` computes
+ * `frontFaceCW` from `matrixWorld.determinantAffine() < 0`, so a mirrored mesh
+ * does not render inside out and no material's `side` has to be touched).
+ *
+ * What a negative scale must not do is make the item's *size* negative.
+ * `halfSize` is read by `getWidth`, by the two dimension canvases, by the plan's
+ * footprint projection and - the one that matters most - by
+ * `Edge.createShape`, which pushes a rectangle of it into the wall's holes. A
+ * mirrored door with a negative half width would cut a hole of negative width,
+ * and nothing would say so.
+ *
+ * @param {Vector3} half The geometry's own half size, all positive.
+ * @param {Vector3} scale Signed.
+ * @returns {Vector3}
+ */
+function absScale(half, scale)
+{
+	return new Vector3(
+		half.x * Math.abs(scale.x),
+		half.y * Math.abs(scale.y),
+		half.z * Math.abs(scale.z),
+	);
+}
+
 export class Item extends Mesh
 {
 	/**
@@ -593,7 +622,7 @@ export class Item extends Mesh
 	applyScale(x, y, z)
 	{
 		this.scale.set(x, y, z);
-		this.halfSize = this.objectHalfSize().multiply(this.scale);
+		this.halfSize = absScale(this.objectHalfSize(), this.scale);
 		this.resized();
 		if(this.bhelper)
 		{
@@ -611,9 +640,13 @@ export class Item extends Mesh
 	setScale(x, y, z)
 	{
 		var scaleVec = new Vector3(x, y, z);
-		this.halfSize.multiply(scaleVec);
 		scaleVec.multiply(this.scale);
 		this.scale.set(scaleVec.x, scaleVec.y, scaleVec.z);
+		// From the geometry rather than by multiplying the previous half size,
+		// which is what `applyScale` already does and for the same reason - and
+		// which is what keeps a mirrored item's size positive (RM-012 J4). See
+		// `absScale`.
+		this.halfSize = absScale(this.objectHalfSize(), this.scale);
 		this.resized();
 		if(this.bhelper)
 		{
@@ -720,6 +753,62 @@ export class Item extends Mesh
 	getWidth()
 	{
 		return this.halfSize.x * 2.0;
+	}
+
+	/**
+	 * Flip this item on one horizontal axis (RM-012 J4).
+	 *
+	 * A negative scale, which is the whole mechanism and is why RM-007 calls this
+	 * one of the three cheap verbs. It costs no new field - `scale_x` has been in
+	 * the save format since the format existed - so a mirrored item round-trips
+	 * without the file version moving.
+	 *
+	 * ## The winding reversal, named up front and then measured
+	 *
+	 * RM-007 names it as the risk: *"a mirrored mesh renders inside out unless
+	 * the material's side is handled"*. Measured against the three in this tree,
+	 * it is already handled and not by us. `WebGLRenderer` computes
+	 * `frontFaceCW` from `object.matrixWorld.determinantAffine() < 0` and flips
+	 * the face winding for exactly this case. So no material's `side` is touched
+	 * here - which matters, because 139 of the 168 catalog models are
+	 * `KHR_materials_unlit` and forcing `DoubleSide` on them would change how
+	 * every one of them renders in order to fix a problem that does not exist.
+	 *
+	 * ## Y is deliberately not offered
+	 *
+	 * Mirroring vertically turns a chair upside down, which is a thing nobody
+	 * doing interior layout wants and which `boundMove` would immediately fight
+	 * over for a wall-bound item. Rotation is the verb for the other orientations.
+	 *
+	 * @param {string} [axis] `'x'` (default) or `'z'`.
+	 * @returns {boolean} whether the item is mirrored *after* the flip.
+	 */
+	mirror(axis)
+	{
+		var x = this.scale.x;
+		var z = this.scale.z;
+		if (axis === 'z') { z = -z; }
+		else { x = -x; }
+		// The absolute form, so the half size is restated from the geometry rather
+		// than accumulated - see `applyScale`, and `absScale` for why the sign is
+		// dropped on the way.
+		this.applyScale(x, this.scale.y, z);
+		return this.mirrored();
+	}
+
+	/**
+	 * Is this item mirrored?
+	 *
+	 * By the sign of the scale's product, which is what "mirrored" means: an odd
+	 * number of negative axes reverses handedness, and two of them are a
+	 * 180-degree rotation rather than a reflection. It is also exactly the
+	 * quantity the renderer tests to decide the winding.
+	 *
+	 * @returns {boolean}
+	 */
+	mirrored()
+	{
+		return (this.scale.x * this.scale.y * this.scale.z) < 0;
 	}
 
 	/** */
