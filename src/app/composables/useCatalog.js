@@ -98,6 +98,9 @@ const WALL_BOUND_TYPES = [2, 3, 7, 9];
  *           of the building. What the drawer browses by (RM-012 J1, X-1).
  * @property {Array<string>} [tags] One or more of fourteen. What the search box
  *           matches besides the name, so "seating" finds the chairs.
+ * @property {number} [unitScale] Centimetres per authored unit, resolved from
+ *           the row's kit by the splitter. In the index rather than the detail
+ *           because the placement path reads it - 60 gzipped bytes for all 168.
  */
 
 /**
@@ -322,6 +325,11 @@ export function useCatalog(store, placementContext)
 			modelUrl: entry.model,
 			itemType: entry.type,
 			format: entry.format,
+			// Centimetres per authored unit, resolved by `tools/split-catalog.mjs`
+			// from the kit each row came from and written into the bundled index -
+			// which is why it is here and not fetched. `Item.applyUnitScale` uses it
+			// in place of the `x300` hack RM-009 U-3 measured wrong (RM-012 J1).
+			unitScale: entry.unitScale,
 		};
 
 		// A parametric opening carries its five numbers instead of a model URL

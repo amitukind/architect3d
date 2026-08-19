@@ -317,6 +317,19 @@ export class Item extends Mesh
 			this.rotation.y = rotation;
 		}
 
+		/**
+		 * Whether the scale came from a document rather than from the catalog.
+		 *
+		 * `initObject` applies the model's unit scale to a freshly placed item and
+		 * must not apply it to a restored one - a saved design already records the
+		 * scale it was placed at, and multiplying it again would grow the item by
+		 * that factor on every open. This is the one bit that tells the two apart,
+		 * and it is a flag rather than a test on `this.scale` because a document is
+		 * perfectly entitled to record a scale of exactly 1.
+		 *
+		 * @type {boolean}
+		 */
+		this._scaleFromDocument = (scale != null);
 		if (scale != null)
 		{
 			this.setScale(scale.x, scale.y, scale.z);
@@ -721,15 +734,61 @@ export class Item extends Mesh
 
 	}
 
+	/**
+	 * Bring the model into centimetres, using the number its kit declares
+	 * (RM-012 J1; RM-009 U-3 assigned the fix here).
+	 *
+	 * ## What this replaced
+	 *
+	 *     // An ugly hack to increase the size of gltf models
+	 *     if (this.halfSize.x < 1.0)
+	 *     {
+	 *         this.resize(this.getHeight()*300, this.getWidth()*300, this.getDepth()*300);
+	 *     }
+	 *
+	 * The comment was right about itself, and the number was wrong. Two guesses
+	 * were stacked in four lines. **Which models need scaling** was guessed from
+	 * one axis of one item - a wide, flat rug authored in centimetres has a
+	 * half-extent under 1.0 on no axis and a tall thin lamp authored in kit units
+	 * has one on two, so the test answers a question about units by measuring a
+	 * shape. And **how much** was guessed at 300, which RM-009 U-3 measured wrong
+	 * and J1 has now measured properly: the Kenney kit is on a 2 m grid, so the
+	 * factor is 200. At 300 that kit's dining chair is 141 cm tall.
+	 *
+	 * Both guesses are replaced by one declared number. `tools/split-catalog.mjs`
+	 * resolves each row's `unitScale` from the kit it came from and writes it into
+	 * the bundled index, so it is on the metadata by the time an item is placed
+	 * and no fetch stands between clicking a chair and having one.
+	 *
+	 * ## Why a saved design is left alone
+	 *
+	 * A document records `scale_x`, `scale_y` and `scale_z`, and those are
+	 * absolute. An item restored from one is already the size it was saved at, so
+	 * applying the unit scale again would multiply it by 200 on every open. The
+	 * constructor sets `_scaleFromDocument` when a scale is supplied, and this
+	 * returns.
+	 *
+	 * That is also why designs saved before this change do not move. A Kenney
+	 * chair placed under the old hack is recorded at scale 300 and stays at 300 -
+	 * a document is what its author saved, not what this build would have saved.
+	 * Anything placed from the catalog after this change is 200, which is the size
+	 * the model actually is.
+	 */
+	applyUnitScale()
+	{
+		var scale = this.metadata ? this.metadata.unitScale : null;
+		if (this._scaleFromDocument || !(scale > 0) || scale === 1)
+		{
+			return;
+		}
+		this.setScale(scale, scale, scale);
+	}
+
 	/** */
 	initObject()
 	{
 		this.placeInRoom();
-		// An ugly hack to increase the size of gltf models
-		if(this.halfSize.x < 1.0)
-		{
-			this.resize(this.getHeight()*300, this.getWidth()*300, this.getDepth()*300);
-		}
+		this.applyUnitScale();
 		this.bhelper = new BoxHelper(this);
 		this.scene.add(this.bhelper);
 		this.bhelper.visible = false;

@@ -56,7 +56,9 @@ import {resetAll, stubItemLoader} from './helpers/harness.js';
  * repaints the two dimension canvases. Here the scale is set directly, because
  * setScale() needs a 2D canvas context.
  *
- * initObject() and getMetaData() are the REAL implementations, called through.
+ * initObject() and getMetaData() are the REAL implementations, called through,
+ * and so is applyUnitScale() - the method that replaced the x300 hack (RM-012
+ * J1). setScale is the one stub in the chain, for the canvas reason above.
  */
 class FakeItem extends three.Mesh
 {
@@ -80,6 +82,9 @@ class FakeItem extends three.Mesh
 		{
 			this.rotation.y = rotation;
 		}
+		// The real Item records this before applying the scale, and initObject
+		// reads it to decide whether the model still needs its unit conversion.
+		this._scaleFromDocument = (scale != null);
 		if (scale != null)
 		{
 			this.scale.set(scale.x, scale.y, scale.z);
@@ -107,10 +112,21 @@ class FakeItem extends three.Mesh
 		}
 	}
 
+	// The real setScale multiplies halfSize and repaints two dimension canvases,
+	// and a canvas is what this environment does not have. Multiplying the two
+	// numbers `applyUnitScale` and its callers actually read is enough, and being
+	// a stub is why the assertions about it are about the scale and not the label.
+	setScale(x, y, z)
+	{
+		this.halfSize.multiply(new three.Vector3(x, y, z));
+		this.scale.set(this.scale.x * x, this.scale.y * y, this.scale.z * z);
+	}
+
 	placeInRoom() { this.calls.push('placeInRoom'); }
 	moveToPosition(position, edge) { this.calls.push(['moveToPosition', position, edge]); }
 	removed() { this.calls.push('removed'); }
 	initObject() { this.calls.push('initObject'); Item.prototype.initObject.call(this); }
+	applyUnitScale() { return Item.prototype.applyUnitScale.call(this); }
 	getMetaData() { return Item.prototype.getMetaData.call(this); }
 }
 
@@ -1356,5 +1372,150 @@ describe('RoofItem on a design with no ceiling (RM-005 C2, J-5)', () =>
 
 		const where = RoofItem.prototype.closestCeilingPoint.call(stub);
 		expect([where.x, where.y, where.z]).toEqual([1, 2, 3]);
+	});
+});
+
+describe('Item.resize, the inspector\'s path', () =>
+{
+	/**
+	 * Tested directly because it lost its incidental cover.
+	 *
+	 * `initObject` used to call this - it was how the x300 hack applied itself -
+	 * and every test that built an item exercised it on the way past. RM-012 J1
+	 * replaced that call with `applyUnitScale`, which does not go through here,
+	 * so the only caller left is `ItemInspector`'s width/height/depth fields and
+	 * the inspector's own tests stub the method out. A public method somebody
+	 * types into three times a minute is not a method to leave uncovered because
+	 * a different change happened to stop calling it.
+	 */
+	function resizable(proportional)
+	{
+		return {
+			resizeProportionally: proportional,
+			halfSize: new three.Vector3(25, 50, 10),
+			applied: null,
+			getWidth() { return this.halfSize.x * 2; },
+			getHeight() { return this.halfSize.y * 2; },
+			getDepth() { return this.halfSize.z * 2; },
+			setScale(x, y, z) { this.applied = [x, y, z]; },
+		};
+	}
+
+	it('scales each axis independently when proportion is off', () =>
+	{
+		const item = resizable(false);
+		Item.prototype.resize.call(item, 200, 100, 40);
+		expect(item.applied).toEqual([2, 2, 2]);
+
+		Item.prototype.resize.call(item, 50, 100, 10);
+		expect(item.applied).toEqual([2, 0.5, 0.5]);
+	});
+
+	it('follows whichever dimension the person actually changed when it is on', () =>
+	{
+		// Width first, then height, then depth - the order the real method checks,
+		// and the reason it checks in an order at all: the inspector sends all
+		// three fields on every edit and only one of them differs.
+		const item = resizable(true);
+		Item.prototype.resize.call(item, 100, 100, 20);
+		expect(item.applied, 'width changed, so width wins').toEqual([2, 2, 2]);
+
+		Item.prototype.resize.call(item, 200, 50, 20);
+		expect(item.applied, 'width unchanged, so height wins').toEqual([2, 2, 2]);
+
+		Item.prototype.resize.call(item, 100, 50, 40);
+		expect(item.applied, 'neither, so depth wins').toEqual([2, 2, 2]);
+	});
+
+	it('treats a change under a tenth of a centimetre as no change', () =>
+	{
+		// The tolerance is the demo's and is kept: a field that round-trips
+		// 49.99999 must not be read as a resize.
+		const item = resizable(true);
+		Item.prototype.resize.call(item, 100.05, 50.05, 20.05);
+		expect(item.applied, 'the depth branch, because neither of the first two moved')
+			.toEqual([1.0025, 1.0025, 1.0025]);
+	});
+});
+
+describe('the unit scale replaces the x300 hack (RM-012 J1, RM-009 U-3)', () =>
+{
+	/** A minimal stand-in with just what `applyUnitScale` reads and writes. */
+	function placed(metadata, fromDocument)
+	{
+		return {
+			metadata: metadata,
+			_scaleFromDocument: Boolean(fromDocument),
+			scale: new three.Vector3(1, 1, 1),
+			applied: null,
+			setScale(x, y, z) { this.applied = [x, y, z]; },
+		};
+	}
+
+	it('scales a kit model by the number its kit declares', () =>
+	{
+		// 200, because the Kenney kit is on a 2 m grid. Under the hack this was
+		// 300, which makes that kit's dining chair 141 cm tall.
+		const item = placed({unitScale: 200});
+		Item.prototype.applyUnitScale.call(item);
+		expect(item.applied).toEqual([200, 200, 200]);
+	});
+
+	it('leaves a model already in centimetres alone', () =>
+	{
+		// The 25 demo models and two Blender exports. The old test - one axis of
+		// the half-extent under 1.0 - answered a question about units by measuring
+		// a shape, so a wide flat rug in centimetres passed and a tall thin lamp in
+		// kit units failed. A declared 1 cannot be ambiguous.
+		const item = placed({unitScale: 1});
+		Item.prototype.applyUnitScale.call(item);
+		expect(item.applied).toBeNull();
+	});
+
+	it('leaves a restored item alone, whatever its kit says', () =>
+	{
+		// A document records an absolute scale, so an item built from one is
+		// already the size it was saved at. Applying the kit's factor again would
+		// multiply it by 200 on every open - which is the one way this change could
+		// have damaged a file somebody has.
+		const item = placed({unitScale: 200}, true);
+		Item.prototype.applyUnitScale.call(item);
+		expect(item.applied).toBeNull();
+	});
+
+	it('does nothing at all for metadata that has no scale', () =>
+	{
+		// A parametric opening, stair or column builds its mesh from its own
+		// numbers and is already in centimetres; so is anything an embedder adds
+		// through the library without a catalog behind it.
+		// `null` metadata included: `Item` always has some, but this method is also
+		// reachable through `initObject` on a subclass a test or an embedder built
+		// by hand, and a missing scale is not a reason to throw.
+		[{}, null, {unitScale: null}, {unitScale: 0}, {unitScale: -5}].forEach((metadata) =>
+		{
+			const item = placed(metadata);
+			Item.prototype.applyUnitScale.call(item);
+			expect(item.applied, JSON.stringify(metadata)).toBeNull();
+		});
+	});
+
+	it('runs inside initObject, on a fresh item and not on a restored one', () =>
+	{
+		// Through the real initObject and the real Scene.addItem, so the wiring is
+		// asserted and not only the arithmetic. `useCatalog.addItem` is what puts
+		// `unitScale` on the metadata; a restored item gets a scale instead.
+		const model = new Model('/textures/');
+		withFakeFactory(() =>
+		{
+			model.scene.setItemLoader(boxLoader());
+			model.scene.addItem(1, 'a.glb', {unitScale: 200}, null, 0, null, false);
+			model.scene.addItem(1, 'b.glb', {unitScale: 200}, null, 0,
+				new three.Vector3(300, 300, 300), false);
+
+			const [fresh, restored] = model.scene.getItems();
+			expect([fresh.scale.x, fresh.scale.y, fresh.scale.z]).toEqual([200, 200, 200]);
+			expect(fresh.halfSize.x).toBe(25 * 200);
+			expect([restored.scale.x, restored.scale.y, restored.scale.z]).toEqual([300, 300, 300]);
+		});
 	});
 });

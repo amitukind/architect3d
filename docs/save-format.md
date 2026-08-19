@@ -371,6 +371,23 @@ An array, one entry per placed object:
 | `rotation` | Y rotation in radians. X and Z are not stored. |
 | `fixed` | Locked in place. |
 | `material_colors` | Sparse: a `#rrggbb` for each material slot somebody recoloured, `null` for the rest. Absent when nothing was recoloured. |
+| `scale_x`/`scale_y`/`scale_z` | Absolute, not relative to anything. See below. |
+
+::: tip Why a chair placed last year is a different size from one placed today
+`scale_*` includes the conversion from the model's authored units into
+centimetres, because that conversion is applied as a scale and nothing separates
+the two afterwards. Until RM-012 J1 that conversion was a hack in
+`Item.initObject` — any model whose half-extent on one axis was under 1.0 was
+multiplied by **300** — and J1 measured what it should be: the Kenney kit is on a
+2 m grid, so the number is **200**.
+
+Designs saved before that change record 300 and **keep it**. A file is what its
+author saved, and rewriting a scale on load would silently resize somebody's
+design; nothing in a document is reinterpreted by a later build. Anything placed
+from the catalog afterwards is 200, which is the size the model actually is. Two
+copies of the same chair in one design, one placed before and one after, are
+genuinely different sizes — and both are exactly what their `scale_*` says.
+:::
 
 ::: tip `id`, and why items are the only thing that carries one
 Corners have always had one. Walls, rooms and half edges have one too since

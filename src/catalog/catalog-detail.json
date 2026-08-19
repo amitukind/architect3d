@@ -290,7 +290,6 @@
 		},
 		"models/gltf/SimpleCabinet.glb": {
 			"source": "unattributed",
-			"unitScale": 200,
 			"size": {
 				"w": 120,
 				"h": 154,
@@ -534,7 +533,6 @@
 		},
 		"models/gltf/ceilingFan.gltf": {
 			"source": "kenney-furniture-kit",
-			"unitScale": 1,
 			"size": {
 				"w": 136.421,
 				"h": 40.115,
@@ -598,7 +596,6 @@
 		},
 		"models/gltf/chandelier.gltf": {
 			"source": "unattributed",
-			"unitScale": 1,
 			"size": {
 				"w": 109.541,
 				"h": 137.427,

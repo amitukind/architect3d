@@ -68,6 +68,22 @@ const CHECK = process.argv.includes('--check');
 const INDEX_KEYS = ['name', 'image', 'model', 'type', 'format', 'room', 'tags', 'lamp'];
 
 /**
+ * And one key the index gets that no row authors: the **resolved** unit scale.
+ *
+ * A row states `unitScale` only when it disagrees with its kit, so the authored
+ * file has it on three rows out of 168 - but `Item.initObject` needs it on every
+ * one, at the moment an item is placed, and `addItem` is synchronous by
+ * construction (X-3). So the splitter writes the resolved number into every index
+ * row. Measured at **60 gzipped bytes across all 168**, because there are three
+ * distinct values and gzip charges for novelty.
+ *
+ * It is also in the detail, inside `size`, where it documents the conversion for
+ * a reader. Two copies of a derived number, both generated from the same source
+ * in the same pass, which is the one arrangement where duplication cannot drift.
+ */
+const INDEX_SCALE_KEY = 'unitScale';
+
+/**
  * A model's glTF JSON, whether it is packed in a `.glb` or is one.
  *
  * Three of this catalog's 168 rows are plain `.gltf` - the duck, the ceiling fan
@@ -439,7 +455,7 @@ export function split(catalog, sources)
 			{
 				row[key] = item[key];
 			}
-			else
+			else if (key !== INDEX_SCALE_KEY)
 			{
 				rest[key] = item[key];
 			}
@@ -465,6 +481,7 @@ export function split(catalog, sources)
 			if (measurement.size)
 			{
 				rest.size = measurement.size;
+				row[INDEX_SCALE_KEY] = scale;
 				units[scale] = (units[scale] || 0) + 1;
 				measured++;
 			}

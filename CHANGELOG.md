@@ -1626,6 +1626,42 @@ a library to pick from, H2 gave the room a sun, lamps, occlusion and a
 photograph, and H3 lets you stand anywhere in it and take the whole view away as
 a file.
 
+**RM-012 J1: the `×300` hack goes, and the measurement replaces it.** RM-009 U-3
+measured the number wrong and assigned the fix here. `Item.initObject` read
+`if (halfSize.x < 1.0) resize(×300)` under a comment calling itself an ugly hack,
+and there were two guesses stacked in those four lines. *Which* models needed
+scaling was decided from one axis of one item — so a wide flat rug authored in
+centimetres has no axis under 1.0 and a tall thin lamp on the kit grid has two,
+which means the test answered a question about units by measuring a shape. And
+*how much* was 300; the Kenney kit is on a 2 m grid, so it is 200. At ×300 that
+kit's dining chair is 141 cm tall.
+
+The number is declared and arrives before the model does. `split-catalog.mjs`
+resolves each row's `unitScale` from its kit and writes it into the **bundled
+index**, not the detail, because it is read at the moment an item is placed and
+`addItem` is synchronous by construction — **60 gzipped bytes across all 168
+rows**, there being three distinct values in it.
+
+**A saved design does not move.** `scale_*` is absolute and includes this
+conversion, so a chair placed under the hack is recorded at 300 and stays at 300;
+applying the kit factor again on load would multiply an item by 200 every time a
+file was opened. The constructor records whether the scale came from a document
+and `applyUnitScale` returns when it did. Two copies of the same chair in one
+design, one placed before this change and one after, are genuinely different
+sizes, and both are exactly what their record says. Written up in
+[the save-format reference](docs/save-format.md).
+
+`Item.resize` was only ever exercised because the hack called it, and the
+inspector's own tests stub it out — so this would have quietly left the width,
+height and depth fields untested. Three tests now cover it directly, including
+the tenth-of-a-centimetre tolerance that stops a field round-tripping 49.99999
+from reading as a resize.
+
+    branches   77.45 -> 77.48      lines      86.39 -> 86.41
+    statements 86.41 -> 86.43      functions  84.21 -> 84.22
+
+**8 new tests, 2,180 headless.** Still to come in J1: the thumbnail tool.
+
 **RM-012 J1: every row says what it is, where it belongs and who made it — and
 the sizes shipped eight days ago were wrong.** M-29 is met from a measured
 baseline of zero: all 168 rows carry a room from a closed list of eight, at least

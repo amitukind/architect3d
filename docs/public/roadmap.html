@@ -5348,6 +5348,19 @@ this.roofPlane = this.buildRoofVaryingHeight();</pre></div>
         <li><strong>axe caught the star.</strong> Drawn first as a control inside the tile &mdash; which is itself a button &mdash; it read fine and violated <code>nested-interactive</code> on <strong>all 193 tiles</strong>: a button inside a button is one element to a screen reader and the inner one cannot be reached. It is a sibling positioned over the tile now, and the accessibility suite is back to zero violations with the catalog open. Second time the browser tier has caught something the headless one structurally cannot; the first was H1's black walls.</li>
       </ul>
     </div>
+
+    <div class="gate">
+      <div class="g-head">LANDING &mdash; J1, the &times;300 hack</div>
+      <ul>
+        <li><strong>Two guesses were stacked in four lines, and both are gone.</strong> <code>Item.initObject</code> read <code>if (halfSize.x &lt; 1.0) resize(&times;300)</code> under a comment calling itself an ugly hack. <em>Which</em> models needed scaling was decided by one axis of one item &mdash; so a wide flat rug authored in centimetres has no axis under 1.0 and a tall thin lamp on the kit grid has two, which means the test answered a question about <em>units</em> by measuring a <em>shape</em>. And <em>how much</em> was 300, which RM-009 U-3 measured wrong and this sprint has now measured properly. At &times;300 the Kenney dining chair is 141&nbsp;cm tall; at the declared &times;200 it is 94.</li>
+
+        <li><strong>The number is declared, and it arrives before the model does.</strong> <code>split-catalog.mjs</code> resolves each row's <code>unitScale</code> from the kit it came from and writes it into the <em>bundled index</em>, not the detail &mdash; because it is read at the moment an item is placed and <code>addItem</code> is synchronous by construction (X-3). <strong>60 gzipped bytes across all 168 rows</strong>, there being three distinct values in it, which is the cheapest key in the file after <code>format</code>.</li>
+
+        <li><strong>A design somebody already saved does not move.</strong> <code>scale_x</code>, <code>scale_y</code> and <code>scale_z</code> are absolute and include this conversion, so a chair placed under the hack is recorded at 300 and stays at 300. Applying the kit factor again on load would multiply an item by 200 every time a file was opened, which is the one way this change could have damaged something a person owns; the constructor records whether the scale came from a document and <code>applyUnitScale</code> returns when it did. Two copies of the same chair in one design, one placed before this and one after, are genuinely different sizes &mdash; and both are exactly what their record says. Written up in <code>docs/save-format.md</code> rather than left for somebody to discover.</li>
+
+        <li><strong>A method lost its cover and got some.</strong> <code>Item.resize</code> was only ever exercised because the hack called it, and the inspector's own tests stub it out &mdash; so removing the hack would have quietly left the width, height and depth fields untested. Three tests were written for it directly, including the tenth-of-a-centimetre tolerance that stops a field round-tripping 49.99999 from reading as a resize. Coverage up on all four lines: <strong>86.43 / 77.48 / 84.22 / 86.41</strong>.</li>
+      </ul>
+    </div>
   </div>
 
   <div class="sprint">

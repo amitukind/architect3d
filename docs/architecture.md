@@ -208,6 +208,11 @@ the wrong scale the kit's floor tile is a metre square under a **1.29 m ceiling*
 Six standard heights then agree on ×200 to within 5 %, and at ×200 this kit's
 door frame is 97.2 cm wide against the demo kit's 97.1 — two catalogs, authored
 in different units, agreeing on the width of a door.
+
+The resolved scale is the one derived value the splitter writes into the *index*
+as well, because `Item.applyUnitScale` reads it at the moment an item is placed
+and `addItem` is synchronous by construction. It costs 60 gzipped bytes across
+all 168 rows, there being three distinct values in it.
 :::
 
 ### The material library

@@ -107,6 +107,20 @@ describe('the boundary between them', () =>
 		});
 		const lamps = INDEX.items.filter((row) => row.lamp);
 		expect(lamps, 'a lamp must light on the frame it is added').toHaveLength(8);
+
+		// And the resolved unit scale, which is the key `Item.applyUnitScale` reads
+		// at the moment an item is placed. A row authors it only when it disagrees
+		// with its kit - three of 168 - so the splitter resolves it onto every index
+		// row, and the whole key costs 60 gzipped bytes because there are three
+		// distinct values in it.
+		INDEX.items.forEach((row) =>
+		{
+			expect(row.unitScale, `${row.name} has no unitScale in the index`).toBeTypeOf('number');
+			expect(row.unitScale, row.name).toBe(DETAIL.items[row.model].size.scale);
+		});
+		expect(gzipped(INDEX) - gzipped(Object.assign({}, INDEX, {
+			items: INDEX.items.map((row) => Object.assign({}, row, {unitScale: undefined})),
+		}))).toBeLessThan(150);
 	});
 
 	it('keeps the per-row dimensions out of the index', () =>
