@@ -277,6 +277,12 @@ footer .credit a:hover{text-decoration:underline}
   <a href="#level-findings">46 · Decision log</a>
   <a href="#level-sprints">47 · Sprints G1&ndash;G3</a>
   <a href="#level-risks">48 · Risks &amp; compatibility</a>
+
+  <div class="toc-head mono" style="margin-top:22px">PROGRAMME H RM-011</div>
+  <a href="#surfprog">49 · Executive summary</a>
+  <a href="#surf-findings">50 · Decision log</a>
+  <a href="#surf-sprints">51 · Sprints H1&ndash;H3</a>
+  <a href="#surf-risks">52 · Risks &amp; compatibility</a>
 </nav>
 
 <main>
@@ -3547,6 +3553,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
         <li><strong>M-28 &mdash; frame budget.</strong> The furnished fixture holds 30 fps under Studio on the browser tier's software renderer, or the added effect is off by default</li>
       </ul>
     </div>
+    <p class="corr">Re-drawn by RM-011 (&sect;&nbsp;49&ndash;52, the programme's own drawing, 2026-08-19) at the same <strong>7 weeks</strong> and the same 3 + 2.5 + 1.5 split, with three corrections. H1's library of <em>&ldquo;about ninety materials&rdquo;</em> is <strong>withdrawn as a number</strong>: today's runtime-asset headroom buys two images and the encoder is not installed, so the count becomes an output of a trial (W-4, W-6). H3's <em>&ldquo;wall collision&rdquo;</em> is <strong>withdrawn</strong> and left to J4, which this same document already assigns it to (W-11). And <strong>M-28 is corrected</strong> rather than kept as written &mdash; the furnished fixture measures 388 fps against its 30, so it cannot fail; each effect states a fraction of a measured frame instead (W-9). M-42 and M-43 are added there.</p>
   </div>
 
   <div class="sprint">
@@ -4663,6 +4670,296 @@ this.roofPlane = this.buildRoofVaryingHeight();</pre></div>
   <p>The <strong>save format</strong> stays readable by any build that reads 2.0.0: <code>levels</code> is additive, written only when there is more than one, and a single-level design re-saves byte-identical &mdash; measured, in V-6, before the programme starts. The <strong>one-way arrow</strong> holds: a level is plain data on <code>Model</code>, and the base elevation is applied where geometry joins the scene rather than inside the model layer. <strong><code>Wall.height</code> stays as it is</strong>, pinned by E2 with the measurement beside it, and a level's height is a property of the level and not a second attempt at that field. The <strong>per-room ceiling stays</strong>: V-1 found it is not a roof, and the answer is that G2 adds a roof rather than that it replaces a ceiling with one. The <strong>preserved polygon predicates</strong> are untouched for the sixth programme running; collision is still RM-007 J4's re-baseline. And <strong>no metric moves down</strong>: the coverage floors and the eleven budgets are ratchets, and this programme lands on the three least-covered files in the tree, which is why G3 exists and why it carries a test budget rather than an intention.</p>
 </section>
 
+<header class="sheet">
+  <div class="sheet-body">
+    <div class="eyebrow">PROGRAMME H &middot; DRAWING N&ordm; RM-011</div>
+    <h1>The walls are unlit, and the library does not fit</h1>
+    <p class="lede">RM-007 calls programme H <em>&ldquo;any surface any colour or material, lit like a room, and a picture at the end of it&rdquo;</em> and prices it at seven weeks. Measuring it first found two things that change its shape. <strong>Under the profile this library ships as its default, every wall is unlit</strong> &mdash; a <code>MeshBasicMaterial</code>, which has no normal map, no roughness and nothing for a light to do &mdash; and there is <strong>not one PBR map anywhere in the tree</strong>. And the material library the programme is priced for does not fit the budgets by two orders of magnitude: today's runtime-asset headroom buys <strong>two images</strong>, and the programme is written for two hundred and seventy. Three sprints, 7 weeks, and the first task of the first one is a trial rather than a build.</p>
+  </div>
+  <div class="titleblock">
+    <div><div class="tb-k">PROJECT</div><div class="tb-v">architect3d</div></div>
+    <div><div class="tb-k">PARENT</div><div class="tb-v">RM-007 rev B &middot; programme H</div></div>
+    <div><div class="tb-k">BRANCH</div><div class="tb-v">amit @ 385aa88</div></div>
+    <div><div class="tb-k">SCOPE</div><div class="tb-v">3 sprints &middot; 7 wk</div></div>
+    <div><div class="tb-k">DATE</div><div class="tb-v">2026-08-19</div></div>
+    <div><div class="tb-k">REV</div><div class="tb-v">A &middot; proposed</div></div>
+  </div>
+</header>
+
+<section id="surfprog">
+  <div class="sec-eyebrow">&sect; 49 &middot; EXECUTIVE SUMMARY</div>
+  <h2>What measuring the surfaces changed about the surfaces</h2>
+  <p class="sec-sub">Eleven measurements against the tree at <code>385aa88</code>, five of them run in headless Chromium against the library as the dev server serves it. Two correct metrics this document set already carries, and one of them makes a budget line the wrong instrument for the sprint it would block.</p>
+
+  <div class="stats">
+    <div class="stat"><div class="v">0</div><div class="k">PBR maps in the tree. Not one <code>normalMap</code>, <code>roughnessMap</code>, <code>metalnessMap</code> or <code>aoMap</code> across every material in a loaded design</div></div>
+    <div class="stat"><div class="v">Basic</div><div class="k">the material a wall is under the default profile. Unlit &mdash; there is no light to tune and no map slot to fill</div></div>
+    <div class="stat"><div class="v">2</div><div class="k">images that fit today's <code>public-total</code> headroom at this tree's own ETC1S mean. The programme is priced for 270</div></div>
+    <div class="stat"><div class="v">7</div><div class="k">textures a three-storey house actually holds on the GPU. The budget that would refuse the library counts all 202 in the tree</div></div>
+    <div class="stat"><div class="v">9 of 18</div><div class="k">furniture textures the oracle refused at the 3.0 RMS gate &mdash; four of them wood grain, which is what a material library is made of</div></div>
+    <div class="stat"><div class="v">388 fps</div><div class="k">a furnished design under Studio on the browser tier's software renderer, against M-28's target of 30</div></div>
+  </div>
+
+  <p><strong>The programme survives its own measurement; two of its metrics and one of its budgets do not.</strong> RM-007 gap Q-4 reads <em>&ldquo;seven textures, no colour picker for walls, no ceiling material, no PBR&rdquo;</em>, and every clause of that is true. What the measurement adds is <em>why</em> the last one is true, and it is not that somebody forgot to set a map. The two render profiles are a deliberate split RM-002 made and this document set has defended twice: <strong>classic</strong> is what shipped through 1.0.0, down to the constants, and it is the library's default because an embedder who upgrades must get no surprise and because <code>npm run parity</code> renders eleven scenes against frozen r98 goldens through it. Classic's walls are <code>MeshBasicMaterial</code>. A normal map on an unlit material is not a subtle improvement; it is not a thing that exists.</p>
+
+  <p><strong>So H1 is a Studio programme, and saying so is the decision.</strong> The application already boots Studio (<code>src/app/main.js:38</code>), so a person using architect3d gets physically-based walls today and would get the maps. An embedder using the library gets classic and would get none of it. That is a defensible answer &mdash; it is the same answer RM-002 gave &mdash; but it has to be an answer rather than a discovery, because the alternative is a parity change against goldens that cannot be recaptured.</p>
+
+  <p><strong>The harder finding is arithmetic, and it is the one that moves a sprint.</strong> Ninety materials of three maps is 270 images. At the mean size of the ten KTX2 files this tree already ships, that is 9.32&nbsp;MB against <strong>78,894 bytes</strong> of <code>public-total</code> headroom, and 90&nbsp;MB of computed VRAM at 512&nbsp;px against a 45.1&nbsp;MB ceiling with 18.6&nbsp;MB left in it. Neither of those is a 5&nbsp;% raise with a recorded reason; the first is 2.6&times; and the second cannot be raised honestly at all, because <strong><code>texture-vram</code> measures the tree and a library is not a tree</strong>. A three-storey house holds seven textures on the GPU and a furnished twenty-item design holds fifteen. The line was right when every image in <code>public/</code> belonged to a model some design might load. It stops being right the moment there is a catalogue to pick four things out of, and H1 is the sprint that creates one.</p>
+</section>
+
+<section id="surf-findings">
+  <div class="sec-eyebrow">&sect; 50 &middot; DECISION LOG</div>
+  <h2>Eleven findings, five of them run in a browser</h2>
+  <p class="sec-sub">Each row was produced against <code>385aa88</code>. Where a material is quoted it was read off a loaded scene rather than off the source, and where a frame time is quoted it was rendered by SwiftShader on this machine rather than estimated.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>N&ordm;</th><th>Finding</th><th>Severity</th><th>Method</th><th>Sprint</th></tr></thead>
+    <tbody>
+      <tr><td style="white-space:nowrap">W-1</td><td>Under the default profile every wall is unlit <code>MeshBasicMaterial</code> and every floor is Phong. PBR is Studio-only</td><td><span class="chip crit">shapes H1</span></td><td>material census, both profiles</td><td>H1</td></tr>
+      <tr><td style="white-space:nowrap">W-2</td><td>There is not one PBR map in the tree &mdash; every textured surface carries exactly <code>map</code></td><td><span class="chip crit">high</span></td><td>same census, per map slot</td><td>H1</td></tr>
+      <tr><td style="white-space:nowrap">W-3</td><td>A surface is three fields and one of the two save keys for it is dead. No colour, no rotation, no offset</td><td><span class="chip ok">cheaper</span></td><td>model read, round trip, surface census</td><td>H1</td></tr>
+      <tr><td style="white-space:nowrap">W-4</td><td>The library does not fit by two orders of magnitude: today's headroom buys two images</td><td><span class="chip crit">shapes H1</span></td><td>budget headroom &times; this tree's own encoded means</td><td>H1</td></tr>
+      <tr><td style="white-space:nowrap">W-5</td><td><code>texture-vram</code> measures the tree; a design holds 7 textures and the tree holds 202</td><td><span class="chip crit">correction</span></td><td><code>renderer.info.memory</code> on a live scene</td><td>H1</td></tr>
+      <tr><td style="white-space:nowrap">W-6</td><td>Half this tree's textures were refused by the oracle and the failures are wood grain. The encoder is not installed</td><td><span class="chip crit">high</span></td><td>oracle ledger read; <code>which ktx toktx basisu</code></td><td>H1</td></tr>
+      <tr><td style="white-space:nowrap">W-7</td><td>First load is 407 KB of code, and the first thing fetched after it is a 515 KB transcoder for one 10 KB texture</td><td><span class="chip warn">med</span></td><td>build gzipped; boot's resource timings read</td><td>H1</td></tr>
+      <tr><td style="white-space:nowrap">W-8</td><td>The soft shadows are not soft. three deprecated <code>PCFSoftShadowMap</code> and silently uses <code>PCFShadowMap</code></td><td><span class="chip crit">defect</span></td><td><code>renderer.shadowMap.type</code> read after boot</td><td>H2</td></tr>
+      <tr><td style="white-space:nowrap">W-9</td><td>M-28 passes at 12.9&times; its target, so it cannot fail and cannot gate anything</td><td><span class="chip crit">correction</span></td><td>20 frames timed, both profiles, furnished</td><td>H2</td></tr>
+      <tr><td style="white-space:nowrap">W-10</td><td>North is a property of a <em>plan</em>, so a three-storey building has three of them and the sun would need one</td><td><span class="chip warn">med</span></td><td><code>Floorplan._north</code>, per level</td><td>H2</td></tr>
+      <tr><td style="white-space:nowrap">W-11</td><td>The catalog has no light metadata, there is no cube camera, and H3's collision is already J4's</td><td><span class="chip warn">med</span></td><td>catalog keys counted; tree grepped; RM-007 read</td><td>H2 &middot; H3</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>W-1 &middot; The walls are unlit, and that is the default <span class="chip crit">shapes H1</span> <span class="chip acc">measured</span></h3>
+  <p>The three-storey house was loaded into a viewer and every mesh in the scene traversed, its material's class and its filled map slots read, once per render profile. The two are not the same scene:</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Group</th><th>Material under <code>classic</code></th><th class="num">n</th><th>Material under <code>studio</code></th><th class="num">n</th></tr></thead>
+    <tbody>
+      <tr><td>wall faces</td><td><code>MeshBasicMaterial</code> &mdash; <code>map</code>, <code>lightMap</code></td><td class="num">18</td><td><code>MeshStandardMaterial</code> &mdash; <code>map</code>, <code>lightMap</code></td><td class="num">18</td></tr>
+      <tr><td>wall faces</td><td><code>MeshBasicMaterial</code> &mdash; <code>map</code></td><td class="num">14</td><td><code>MeshStandardMaterial</code> &mdash; <code>map</code></td><td class="num">14</td></tr>
+      <tr><td>floors</td><td><code>MeshPhongMaterial</code> &mdash; <code>map</code></td><td class="num">4</td><td><code>MeshStandardMaterial</code> &mdash; <code>map</code></td><td class="num">4</td></tr>
+      <tr><td>storey groups</td><td><code>MeshBasicMaterial</code>, no map</td><td class="num">80</td><td><code>MeshStandardMaterial</code>, no map</td><td class="num">82</td></tr>
+      <tr><td colspan="5" style="opacity:.7">Counts are meshes in one loaded three-storey design; the picking planes are the bulk of the last row.</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><code>render_profile.js</code> already says this, in a docblock written two programmes ago: <em>&ldquo;the walls are unlit MeshBasicMaterial and the floors are Phong &mdash; decisions from 2014 that no amount of light tuning can make look modern, because unlit geometry has no light to tune.&rdquo;</em> What is new is the consequence for programme H. <strong>Every feature in H1 and H2 is invisible under classic</strong>, and classic is the library's default, and it is the default deliberately: it is what the frozen r98 parity grid renders through and what <code>color-pipeline.test.js</code> was written for.</p>
+
+  <p>So the decision H1 has to record, rather than discover, is which of three things it means. <strong>(a)</strong> Materials and light are Studio-only, and the library default does not move &mdash; which is what RM-002 chose and what costs nothing. <strong>(b)</strong> The default moves to Studio &mdash; a parity change against goldens captured from a three r98 that no longer exists, so the eleven scenes cannot be recaptured and the grid stops meaning anything. <strong>(c)</strong> Classic's walls become Standard with the classic constants &mdash; which is (b) wearing a hat. <em>(a) is this drawing's recommendation, and the reason to write it down is that a reader six months from now will otherwise read &ldquo;no PBR&rdquo; as an oversight.</em></p>
+
+  <h3>W-2 &middot; There is not one PBR map in the tree <span class="chip crit">high</span> <span class="chip acc">measured</span></h3>
+  <p>The same census, asked a narrower question: for every material in the scene, which of <code>map</code>, <code>normalMap</code>, <code>roughnessMap</code>, <code>metalnessMap</code>, <code>aoMap</code>, <code>bumpMap</code>, <code>emissiveMap</code> and <code>lightMap</code> are set. The answer over both profiles is two: <code>map</code>, and <code>lightMap</code> on the eighteen wall faces that carry the hand-painted vignette S8 documented. <strong>Zero of every other slot.</strong></p>
+
+  <p>That makes Q-4's phrase exact, and smaller than it sounds. <code>MeshStandardMaterial</code> is a PBR material and Studio already uses it; <code>roughness</code> and <code>metalness</code> are already set per surface class, from 0.1 to 0.9. What is missing is not the material model, it is the <em>images</em> &mdash; and the images are the part W-4 says does not fit. The code half of H1 is therefore much smaller than the asset half, which is the opposite of how RM-007 priced it.</p>
+
+  <h3>W-3 &middot; A surface is three fields, and one save key for it is dead <span class="chip ok">cheaper</span> <span class="chip acc">measured</span></h3>
+  <p>A wall carries <code>frontTexture</code> and <code>backTexture</code>, each <code>{url, stretch, scale}</code>. A room's floor is <code>{url, scale}</code> under its corner-id key. That is the whole description: <strong>no colour, no rotation, no offset, no second map</strong>. The two dead keys are already documented &mdash; <code>wallTextures</code> and <code>floorTextures</code> are written on every save as <code>[]</code> and <code>{}</code> and never read &mdash; so a material record is additive beside <code>newFloorTextures</code>, which is the rule E2's thickness, E3's dimensions, F3's stair, G1's levels and G2's roof all already follow.</p>
+
+  <p>The colour picker has a precedent in the tree rather than being new: an item's per-slot colours are written as <code>material_colors</code>, painted by <code>Item.setMaterialColor</code>, and offered by <code>ColorField.vue</code> inside <code>ItemInspector.vue</code>. <strong>Only slots a person actually picked are written</strong>, which is why an untouched item's record is unchanged &mdash; the same conditional rule again, and the pattern H1 should copy rather than invent.</p>
+
+  <p>How many surfaces there are to pick on, measured rather than guessed: the three-storey house has <strong>32 wall sides, 4 floors and 4 ceilings &mdash; 40 pickable surfaces</strong>; <code>simple-room</code> has nine. And the catalog they choose from is <strong>five wall entries and two floor entries over six distinct images</strong>, two of the seven rows being the same file at a different scale.</p>
+
+  <h3>W-4 &middot; The library does not fit, by two orders of magnitude <span class="chip crit">shapes H1</span> <span class="chip acc">measured</span></h3>
+  <p>Headroom in the three budgets H1 would spend, from <code>tools/budget.json</code> against the last build:</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Budget</th><th class="num">Limit</th><th class="num">Measured</th><th class="num">Headroom</th><th>What that buys</th></tr></thead>
+    <tbody>
+      <tr><td><code>public-total</code></td><td class="num">6,200,000</td><td class="num">6,121,106</td><td class="num">78,894</td><td><strong>2 images</strong>, at this tree's ETC1S mean of 36,182 B</td></tr>
+      <tr><td><code>texture-vram</code></td><td class="num">47,340,000</td><td class="num">28,713,163</td><td class="num">18,626,837</td><td><strong>17 materials</strong> of three maps at 512 px; 4 at 1024</td></tr>
+      <tr><td><code>lib-esm-gzip</code></td><td class="num">73,700</td><td class="num">72,813</td><td class="num">887</td><td>nothing &mdash; the last five feature sprints cost 3.1&ndash;5.7 KB each</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>Against that, what the programme is priced for. Ninety materials of albedo, normal and roughness is <strong>270 images</strong>:</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Layout</th><th class="num">Images</th><th class="num">Disk, all encodable</th><th class="num">Disk at this tree's 50 % refusal rate</th><th class="num">Tree VRAM at 512 px</th></tr></thead>
+    <tbody>
+      <tr><td>albedo + normal + roughness</td><td class="num">270</td><td class="num">9.32 MB</td><td class="num">18.91 MB</td><td class="num">90.0 MB</td></tr>
+      <tr><td>albedo + packed ORM</td><td class="num">180</td><td class="num">6.21 MB</td><td class="num">12.61 MB</td><td class="num">60.0 MB</td></tr>
+      <tr><td colspan="5" style="opacity:.7">Disk figures are image count &times; the measured mean of this tree's own files: 36,182 B for the ten that encoded, 110,732 B for the nine the oracle refused. VRAM is the budget's own formula &mdash; compressed texels &times; 4/3 for mips.</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><strong>Even at 256 px, ninety materials of three maps put the tree at 49.9 MB against a 45.1 MB ceiling.</strong> This is not a budget raise with a recorded reason; it is the wrong shape of number. Two things follow, and they are H1's first two decisions rather than its outcome. The <strong>count is set by a trial, not promised in advance</strong> &mdash; W-6 says the encoder is not even installed, so the honest sequence is B1's: measure, then size the library to what the measurement allows. And <strong><code>texture-vram</code> has to be re-pointed before it can be raised</strong>, for the reason W-5 gives.</p>
+
+  <p>RM-007 &sect;36 already anticipated the first half of this: <em>&ldquo;a material library that goes from seven images to ninety will need <code>public-total</code> and <code>demo-total</code> raised, several times &hellip; and they will need a budget that does not exist yet, <strong>first-load payload</strong>, so that growing the tree never grows what a person downloads before their first wall.&rdquo;</em> That instinct was right and it now has a number &mdash; see W-7.</p>
+
+  <h3>W-5 &middot; The VRAM budget measures the tree, and a library is not a tree <span class="chip crit">correction</span> <span class="chip acc">measured</span></h3>
+  <p>What a design actually holds on the GPU, read from <code>renderer.info.memory</code> in Chromium after a settled render:</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Design</th><th class="num">Textures</th><th class="num">Geometries</th><th class="num">Triangles</th><th class="num">Draw calls</th></tr></thead>
+    <tbody>
+      <tr><td>three-storey house, unfurnished (studio)</td><td class="num">7</td><td class="num">126</td><td class="num">3,532</td><td class="num">332</td></tr>
+      <tr><td><code>legacy-items</code>, 20 pieces of furniture (studio)</td><td class="num">15</td><td class="num">269</td><td class="num">71,270</td><td class="num">494</td></tr>
+      <tr><td colspan="5" style="opacity:.7">The tree holds <strong>202</strong> images weighing 3.06 MB, which the budget costs at 28.7 MB of VRAM.</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>The line's own note says why it exists and, read today, says why it is about to be wrong: <em>&ldquo;202 images weigh 5.23 MB on disk and occupy 164 MB of GPU memory once uploaded &hellip; That is what a phone runs out of, not the download.&rdquo;</em> It is a <strong>worst case over the whole tree</strong>, and that was the right instrument while every image in <code>public/</code> belonged to a catalog model that some design might load. A material library is different in kind: ninety materials exist so that a person picks four. Costing all ninety as if they were resident over-counts by roughly thirty times, which is exactly the factor between 202 images and the seven a real design holds.</p>
+
+  <p>The correction is not to delete the line. It is to make it measure a <em>scene</em>: the furnished fixture loaded in the browser tier and <code>renderer.info.memory.textures</code> read, which is the driver's own count and is already how <code>gpu-memory.test.js</code> works. The tree-level figure stays useful as a download question and that is what <code>public-total</code> already asks. <strong>A budget that would refuse a feature for a cost nobody pays is not a ratchet, it is a mistake with a number on it</strong> &mdash; and the rule this document set follows is that a limit moves up with a recorded reason, never down to pass, which is a rule about limits and not about what they measure.</p>
+
+  <h3>W-6 &middot; Half this tree's textures were refused, and the failures are wood <span class="chip crit">high</span> <span class="chip acc">measured</span></h3>
+  <p><code>tools/encode-textures.mjs</code> carries the ledger RM-006 wrote, and it is a stronger prior than any published compression ratio: of eighteen furniture textures encoded to ETC1S and compared against the source in a rendered frame, <strong>nine were past the 3.0 RMS gate</strong>. Four of those nine are wood grain &mdash; 4.88, 4.88, 4.52 &mdash; and one photograph reached 7.00 with a worst pixel 174 of 255. Every encoder setting was swept before any of it was reverted; ETC1S at maximum quality rescued exactly one.</p>
+
+  <p><strong>Wood grain is what a material library is mostly made of.</strong> Nine of the ninety CC0 materials H1 would ship being oak, walnut, pine, parquet and plank is a conservative guess, and this tree's own measurement says those are the images ETC1S cannot carry. The mean of the ten that encoded is 36,182 B and the mean of the nine that did not is 110,732 B, which is the 3&times; difference the disk table above prices.</p>
+
+  <p>And the same blocker B1 hit is unchanged: <code>ktx</code>, <code>toktx</code> and <code>basisu</code> are <strong>all absent from this machine</strong>, so nothing in this section could be re-measured against a new image even to check it. This is why H1's first task is the trial and not its conclusion &mdash; the same sentence RM-004's method paragraph wrote about B1, still true two years of programmes later, and the reason no number in this drawing is quoted from a codec's documentation.</p>
+
+  <h3>W-7 &middot; First load is 407 KB, and the next thing is a 515 KB transcoder <span class="chip warn">med</span> <span class="chip acc">measured</span></h3>
+  <p>Gzipped at level 9, from the demo build:</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>What a browser fetches before the first wall</th><th class="num">Raw</th><th class="num">Gzip</th></tr></thead>
+    <tbody>
+      <tr><td><code>index.html</code></td><td class="num">1,951</td><td class="num">1,080</td></tr>
+      <tr><td><code>assets/index-*.js</code></td><td class="num">1,372,372</td><td class="num">380,846</td></tr>
+      <tr><td><code>assets/index-*.css</code></td><td class="num">33,752</td><td class="num">7,360</td></tr>
+      <tr><td><code>asset-manifest.json</code></td><td class="num">62,375</td><td class="num">18,038</td></tr>
+      <tr><td><strong>first-load payload</strong></td><td class="num"><strong>1,470,450</strong></td><td class="num"><strong>407,324</strong></td></tr>
+    </tbody>
+  </table></div>
+
+  <p>Then the viewer boots, and its resource timings say it fetches three things weighing <strong>595,263 bytes</strong>: <code>basis_transcoder.wasm</code> at 527,333, <code>basis_transcoder.js</code> at 57,529, and <code>rooms/textures/Ground_4K.ktx2</code> at 10,401. <strong>Ninety-eight per cent of what this application downloads after its own code is a transcoder for one ten-kilobyte texture</strong>, because the skybox ground is the only KTX2 asset the default scene touches.</p>
+
+  <p>That reframes H1's download cost in the useful direction. The transcoder is <em>already paid for</em>, on every boot, for a single image. Shipping the material library as KTX2 does not add it &mdash; it is the first thing in this project that makes having it defensible. What H1 must not do is make the <em>first-load</em> figure grow, which is precisely the budget RM-007 asked for and this is its opening measurement: <strong>407,324 bytes gzipped, and a material nobody has picked must not add a byte to it.</strong></p>
+
+  <h3>W-8 &middot; The soft shadows are not soft <span class="chip crit">defect</span> <span class="chip acc">measured</span></h3>
+  <p><code>three/main.js:301</code> sets <code>renderer.shadowMap.type = PCFSoftShadowMap</code>. Booting the viewer in Chromium prints <em>&ldquo;THREE.WebGLShadowMap: PCFSoftShadowMap has been deprecated. Using PCFShadowMap instead&rdquo;</em>, and reading the property back afterwards gives <strong>1</strong>, which is <code>PCFShadowMap</code>, not the 2 that was assigned. The Studio profile's <code>shadowRadius: 2.4</code> is inert with that filter, so the one number in the profile table that exists to soften a shadow does nothing.</p>
+
+  <p>Recorded rather than fixed, because this is a planning pass. It matters to H2 twice over: <em>&ldquo;softer shadows behind the profile switch&rdquo;</em> is a <strong>defect to repair before it is a feature to add</strong>, and any comparison H2 makes between its new lighting and the old will be against a baseline that is not the one the source claims.</p>
+
+  <h3>W-9 &middot; M-28 cannot fail, so it cannot gate anything <span class="chip crit">correction</span> <span class="chip acc">measured</span></h3>
+  <p>Twenty frames rendered and timed after five warm ones, at 1024&nbsp;&times;&nbsp;768, composited by SwiftShader on the CPU &mdash; which is the browser tier's renderer and therefore the one M-28 names:</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Design</th><th>Profile</th><th class="num">Frame</th><th class="num">fps</th><th class="num">Triangles</th><th class="num">Calls</th></tr></thead>
+    <tbody>
+      <tr><td>three-storey, unfurnished</td><td>classic</td><td class="num">1.07 ms</td><td class="num">935</td><td class="num">3,368</td><td class="num">293</td></tr>
+      <tr><td>three-storey, unfurnished</td><td>studio</td><td class="num">1.31 ms</td><td class="num">763</td><td class="num">3,532</td><td class="num">332</td></tr>
+      <tr><td><code>legacy-items</code>, furnished</td><td>classic</td><td class="num">1.65 ms</td><td class="num">604</td><td class="num">70,986</td><td class="num">436</td></tr>
+      <tr><td><code>legacy-items</code>, furnished</td><td><strong>studio</strong></td><td class="num"><strong>2.58 ms</strong></td><td class="num"><strong>388</strong></td><td class="num">71,270</td><td class="num">494</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>M-28 as RM-007 wrote it: <em>&ldquo;the furnished fixture holds 30 fps under Studio on the browser tier's software renderer, or the added effect is off by default.&rdquo;</em> The furnished fixture holds <strong>388</strong>. There is 12.9&times; of margin, so the metric passes today, passes after any plausible H2, and would go on passing after an implementation that made the view four hundred times slower. <strong>A gate with that much slack is not a gate.</strong></p>
+
+  <p>Corrected rather than dropped, and the correction keeps the number: <strong>M-28 becomes relative.</strong> Each effect H2 adds states its own cost as a fraction of the frame it was measured in, against the baselines in the table above, and the programme states a total. That is a figure that can move, can be argued about, and can refuse something &mdash; which is what a metric is for. The absolute floor stays underneath it as a backstop and will simply never be the binding constraint.</p>
+
+  <h3>W-10 &middot; North belongs to a plan, and the sun belongs to a building <span class="chip warn">med</span> <span class="chip acc">measured</span></h3>
+  <p>RM-008 E3 added a north bearing, and it lives on <code>Floorplan</code> &mdash; <code>_north</code>, written to the file only when it is not zero, which is the conditional rule. That was exactly right when a design was one plan. Since RM-010 G1 a design is a list of <code>Level</code>s each holding a whole <code>Floorplan</code>, so <strong>a three-storey house has three north bearings and nothing stops them disagreeing</strong>.</p>
+
+  <p>H2's sun needs one. The shape of the answer is the one G1 already used for the roof: a building-wide property on <code>Model</code>, derived-or-owned there rather than added to each plan, with the per-plan value kept as what the 2D sheet draws. Naming it now costs nothing; discovering it while wiring a sun costs a schema decision made in a hurry.</p>
+
+  <h3>W-11 &middot; No light metadata, no cube camera, and H3's collision is J4's <span class="chip warn">med</span> <span class="chip acc">measured</span></h3>
+  <p>Three smaller readings, grouped because each is a one-line answer that changes a bullet.</p>
+  <p><strong>The catalog has five keys.</strong> All 168 entries carry exactly <code>format</code>, <code>image</code>, <code>model</code>, <code>name</code>, <code>type</code> &mdash; there is no light metadata of any kind, and eight entries are named like lamps. So H2's <em>&ldquo;light-emitting lamps by catalog metadata&rdquo;</em> is a sixth key on a file that six suites assert over, which is the same cost F1 paid for keeping openings out of <code>catalog.json</code> and is worth pricing as schema work rather than as lighting work.</p>
+  <p><strong>The photo capture has a seam and no caller.</strong> <code>Main.dataUrl()</code> exists, renders once and returns a PNG data URL; nothing in <code>src/</code> calls it. Measured on a boot, it produces the canvas at 1024&nbsp;&times;&nbsp;768 at device pixel ratio 1 &mdash; 391,170 characters, about 287&nbsp;KiB. Supersampling it is a render-target change behind a method that already exists. There is <strong>no <code>CubeCamera</code> and no equirectangular path anywhere in the tree</strong>, so H3's panorama is new construction rather than a setting.</p>
+  <p><strong>H3 and J4 both claim collision.</strong> RM-007 &sect;36 assigns it to J4 explicitly, as the deliberate re-baseline of the two preserved predicates in <code>core/utils.js</code> &mdash; <em>&ldquo;new predicate, feature flag, characterization tests updated in the same commit &mdash; not as a fix&rdquo;</em> &mdash; and RM-007's own H3 line also reads <em>&ldquo;walkthrough with wall collision&rdquo;</em>. Two programmes owning one feature means it is either done twice or done by neither. <strong>This drawing withdraws it from H3</strong>: the predicates have been left alone for seven programmes running, and the sprint that turns them on should be the one whose whole subject is that decision.</p>
+</section>
+
+<section id="surf-sprints">
+  <div class="sec-eyebrow">&sect; 51 &middot; SPRINTS H1&ndash;H3</div>
+  <h2>Seven weeks, re-drawn around what the budgets allow</h2>
+  <p class="sec-sub">RM-007 priced this programme at 7 weeks in three sprints and the total does not move. What moves is the order inside H1 &mdash; the trial comes first &mdash; and what H3 is for, since one of its two bullets belongs to another programme.</p>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">H1</span>
+      <h3>A surface is a material</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip crit">W-1</span><span class="chip crit">W-4</span><span class="chip crit">W-5</span><span class="chip crit">W-6</span><span class="chip warn">W-7</span><span class="chip">3 wk</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Any surface any colour, any material, described by numbers the file keeps &mdash; and a library sized by what the encoder actually delivers rather than by a number written before it was run.</p>
+    <ul>
+      <li><strong>The trial is task one</strong> (W-6). Install the KTX-Software binaries, put a representative material set &mdash; wood, tile, plaster, brick, fabric, stone &mdash; through <code>resize</code>, <code>encode</code> and <code>oracle</code>, and record the pass rate and the bytes. <strong>The library's size is a result of this task, not an input to it.</strong> Nine of eighteen refused and four of those wood grain is the prior; if it holds, an albedo-only library is what fits and the normal maps are the thing that gets cut.</li>
+      <li><strong>A material is a description, beside the texture rather than replacing it.</strong> <code>{url, stretch, scale}</code> gains a colour, a rotation, an offset and the map set, written <strong>only where somebody changed something</strong> &mdash; the rule E2, E3, F1, F3, G1 and G2 all follow, and the rule that makes an untouched design re-save byte-identical. The precedent for the colour half is in the tree: an item writes <code>material_colors</code> for picked slots only (W-3).</li>
+      <li><strong>A colour picker on every surface</strong>, through the field that already exists (<code>ColorField.vue</code>) and the panel that already knows what was clicked (<code>SurfaceInspector.vue</code>). Forty pickable surfaces in the three-storey house; ceilings included, which Q-4 names and nothing offers today.</li>
+      <li><strong>Studio-only, stated</strong> (W-1). Maps and colour apply under the profile the application boots; classic keeps the 2014 look, keeps the parity grid meaningful, and gains nothing. Recommendation (a) of the three in W-1, recorded in the code beside the branch that implements it.</li>
+      <li><strong>Two budget lines move and one is re-pointed</strong> (W-4, W-5). <code>public-total</code> is raised by the trial's measured bytes with the reason in the commit. <code>texture-vram</code> is <strong>re-pointed at a scene</strong> before it is touched &mdash; the furnished fixture in the browser tier, <code>renderer.info.memory.textures</code>, which is what a GPU is actually asked for. And <strong><code>first-load payload</code> is added</strong> as the eleventh budget, opening at the measured 407,324 bytes gzipped (W-7), so that growing the library can never grow what a person downloads before their first wall.</li>
+    </ul>
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE</div>
+      <ul>
+        <li><strong>M-42 = a surface is its material.</strong> Every surface's saved record round-trips byte-identically; a design where nobody touched a material writes no material key at all; and for every combination the picker offers, the mesh's maps, colour and repeat equal the description that produced them</li>
+        <li><strong>M-43 = nothing unpicked is downloaded.</strong> The first-load payload does not grow by one byte for a material nobody has chosen, measured as the resource timings of a boot, and the new budget line holds it</li>
+        <li><strong>M-27 stands, extended</strong>: every shipped material image passes the 3.0 RMS oracle gate or ships uncompressed, and the count of measured images equals the count of shipped ones</li>
+        <li>The library's size is reported as what the trial allowed, beside the number this drawing could not produce</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">H2</span>
+      <h3>Light that can be seen</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip crit">W-8</span><span class="chip crit">W-9</span><span class="chip warn">W-10</span><span class="chip warn">W-11</span><span class="chip">2.5 wk</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> A room lit by a sun that knows what time it is and by lamps that emit, with every effect's cost stated as a fraction of the frame.</p>
+    <ul>
+      <li><strong>The shadow filter is repaired first</strong> (W-8), because <em>softer shadows</em> cannot be added on top of a setting that is silently ignored. <code>PCFSoftShadowMap</code> is deprecated and downgraded; the profile's <code>shadowRadius</code> is inert with what actually runs. A defect, and the first commit.</li>
+      <li><strong>A sun by time of day and orientation</strong>, with <strong>one north for the building</strong> (W-10). The per-plan bearing E3 added stays as what the 2D sheet draws; the sun reads a building-wide value on <code>Model</code>, which is the shape G1 used for the roof.</li>
+      <li><strong>Lamps that emit, by a sixth catalog key</strong> (W-11). Eight of the 168 entries are named like lamps and none of them carries anything a renderer could read. Priced as schema work over a file six suites assert about, not as lighting work.</li>
+      <li><strong>Ambient occlusion behind the profile switch</strong>, and Studio-only for the same reason H1 is: there is no <code>aoMap</code> anywhere and an unlit wall has nowhere to put one.</li>
+      <li><strong>A photo capture through the seam that exists.</strong> <code>Main.dataUrl()</code> is called by nothing and renders the canvas at its own size &mdash; 1024&nbsp;&times;&nbsp;768, 287&nbsp;KiB, at device pixel ratio 1. Supersampled and saved is a render target behind a method already written.</li>
+    </ul>
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE</div>
+      <ul>
+        <li><strong>M-28, corrected</strong> (W-9): each effect states its cost as a fraction of the frame it was measured in, against this drawing's baselines &mdash; 2.58 ms furnished under Studio &mdash; and the programme states a total. The 30 fps floor stays underneath as a backstop it will never bind</li>
+        <li>A shadow's penumbra visibly changes with the sun's elevation, asserted on pixels rather than on the setting that was assigned</li>
+        <li>Every light this sprint adds is off, or free, under <code>classic</code></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">H3</span>
+      <h3>Out of the window</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip warn">W-11</span><span class="chip">1.5 wk</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Stand anywhere in the design and look all the way round, and take that view away as a file.</p>
+    <ul>
+      <li><strong>A 360&deg; panorama from any point</strong> &mdash; a cube camera, an equirectangular projection and a PNG. New construction: there is no <code>CubeCamera</code> in the tree (W-11), which is honest pricing rather than a warning.</li>
+      <li><strong>The walkthrough gets eye height and a teleport click.</strong> The first-person rig already carries friction, gravity, a jump and a 160 cm eye height preserved from the fork; what it has no way to do is <em>go somewhere</em>, which is the thing a person walking a plan actually wants.</li>
+      <li><strong>Wall collision is withdrawn from this sprint</strong> (W-11). RM-007 assigns it to J4 as the deliberate re-baseline of two preserved predicates, and the same document also put it here. It belongs to the sprint whose subject is that decision, and the week it frees is why this one is still 1.5 rather than 2.</li>
+    </ul>
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE</div>
+      <ul>
+        <li>A panorama captured from a point inside a room contains every wall of that room, asserted by sampling the six faces rather than by looking at it</li>
+        <li>The walkthrough is still exactly the fork's physics: friction 10/s, gravity 980/s&sup2;, walk 3000, jump 350, eye 160 &mdash; a teleport moves the walker and changes nothing else</li>
+      </ul>
+    </div>
+  </div>
+
+  <p style="margin-top:16px">Seven weeks, unchanged from RM-007, and unusually the split is unchanged too: 3 + 2.5 + 1.5. <strong>What moved is inside the sprints.</strong> H1 starts with a trial because the number it was priced against cannot be produced without one, and it spends a third of itself on budgets rather than on features &mdash; which looks like overhead until you notice that under today's ceilings this programme ships two images. H2 opens with a repair. H3 gives a bullet back to J4 rather than doing it twice.</p>
+</section>
+
+<section id="surf-risks">
+  <div class="sec-eyebrow">&sect; 52 &middot; RISKS &amp; COMPATIBILITY</div>
+  <h2>What could go wrong, and what must not change</h2>
+
+  <div class="tw"><table>
+    <thead><tr><th>Risk</th><th>Where</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td>The encode trial comes back badly and the library is a fraction of ninety</td><td>H1</td><td>That is the trial working, not failing. The prior is already measured &mdash; nine of eighteen refused, four of them wood &mdash; and the sprint is written so the count is an output. An albedo-only library of thirty good materials is a better product than ninety that band, and B5 already learned this the expensive way: shipping the source was both smaller and better looking for all eight it tried</td></tr>
+      <tr><td><code>texture-vram</code> is re-pointed and something real slips past it</td><td>H1</td><td>The tree-level question does not disappear, it moves to <code>public-total</code>, which already asks it and already has a ceiling. What the scene-level line adds is the number a GPU is actually asked for, read from the driver by a suite that exists. Both lines, not one instead of the other</td></tr>
+      <tr><td>Materials are Studio-only and an embedder's plan looks unchanged</td><td>H1</td><td>Deliberate, recorded, and the alternative is worse: moving the default is a parity change against goldens captured from a three r98 that no longer exists. The switch is one line for an embedder who wants the new look, and <code>SceneOverlay.vue</code> already exposes it</td></tr>
+      <tr><td>The first-load payload grows quietly as the library does</td><td>H1</td><td>The reason it becomes a budget line at 407,324 bytes rather than a paragraph. RM-007 asked for it before there was a number; there is one now, and a line in <code>budget.json</code> is the only form of intention this project accepts</td></tr>
+      <tr><td>Fixing the shadow filter changes every rendered frame</td><td>H2</td><td>It does, under Studio, and that is the point &mdash; the profile asks for a soft filter and gets a hard one. Classic is untouched, so the eleven-scene parity grid and <code>color-pipeline.test.js</code> are unaffected. A Studio frame has no frozen golden to break</td></tr>
+      <tr><td>The sun's north disagrees with the plan's north</td><td>H2</td><td>Named before it is built (W-10). One building-wide bearing on <code>Model</code>, the per-plan value kept as what the 2D sheet draws, and the two related by construction rather than by being copied</td></tr>
+      <tr><td>An effect makes the view slow on a machine nobody tested</td><td>H2</td><td>M-28 corrected: each effect states a fraction of a measured frame rather than clearing a floor with 12.9&times; of slack. The SwiftShader baseline is the pessimistic end already &mdash; a CPU rasteriser at 1024&nbsp;&times;&nbsp;768</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>What must not change</h3>
+  <p>The <strong>save format</strong> stays readable by any build that reads 2.0.0: a material is additive and written only where somebody changed something, so an untouched design re-saves byte-identical &mdash; M-26's rule, now on its sixth programme. The <strong>classic profile</strong> is untouched, in constants and in output: it is what <code>npm run parity</code> renders through and what <code>color-pipeline.test.js</code> was written for, and the r98 goldens behind both cannot be recaptured. The <strong>preserved polygon predicates</strong> stay pinned for the eighth programme running, which is why H3 gives collision back to J4. <strong>The oracle gate does not move</strong>: 3.0 RMS is the number B4 chose and RM-006 enforced by reverting eight files, and a material library is the worst possible occasion to discover a reason it should have been 4. And <strong>no budget moves down</strong> &mdash; two move up in H1 with their reasons in the commit, one is re-pointed at what it should have been measuring, and one is added.</p>
+</section>
+
 <footer>
   <p><strong>Method &mdash; RM-004.</strong> Three measurements against the working tree at <code>3cf1c24</code> on branch <code>amit</code>, all of them produced by running something rather than by reading code. <em>The payload</em> &mdash; every one of the 370 manifest entries read and gzipped at level 9, and every <code>.glb</code> walked chunk by chunk, splitting the BIN into buffer views an accessor points at, views an image points at, and the remainder, then a census of accessor <code>componentType</code> per attribute semantic and of index width against each primitive's <code>POSITION</code> count. <em>Wall identity</em> &mdash; three fixtures loaded, censused, round-tripped through <code>saveFloorplan()</code> and <code>loadFloorplan()</code> and intersected, plus a constructed two-walls-one-pair case run through the same round trip. <em>The type ledger</em> &mdash; <code>npx vue-tsc --noEmit --checkJs</code>, bucketed by area, by error code and by file. <strong>What was not run:</strong> no codec. Draco, meshopt and KTX2 are named throughout and none has been executed against this catalog, which is why M-12 carries no target and why B1's first task is the trial rather than its conclusion. Two repository inaccuracies were found and are recorded in §21 G-3 rather than fixed, since this is a planning pass: <code>tsconfig.json</code>'s SFC subtotal disagrees with the tree <em>and</em> with its own itemisation.</p>
   <p><strong>Sources &mdash; RM-004.</strong> <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_mesh_quantization/README.md">KHR_mesh_quantization</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_draco_mesh_compression/README.md">KHR_draco_mesh_compression</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_meshopt_compression/README.md">EXT_meshopt_compression</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_texture_basisu/README.md">KHR_texture_basisu</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/specification/2.0/README.md#binary-gltf-layout">glTF 2.0 &mdash; Binary glTF layout</a> &middot; <a href="https://threejs.org/docs/#examples/en/loaders/DRACOLoader">three.js &mdash; DRACOLoader</a> &middot; <a href="https://threejs.org/docs/#examples/en/loaders/KTX2Loader">three.js &mdash; KTX2Loader</a> &middot; <a href="https://www.typescriptlang.org/tsconfig/#checkJs">TypeScript &mdash; checkJs</a></p>
@@ -4680,7 +4977,8 @@ this.roofPlane = this.buildRoofVaryingHeight();</pre></div>
   <p><strong>Sources &mdash; RM-009.</strong> <a href="https://kenney.nl/assets/furniture-kit">Kenney &mdash; Furniture Kit (CC0)</a> &middot; <a href="https://threejs.org/docs/#api/en/extras/core/Shape">three.js &mdash; Shape</a> &middot; <a href="https://threejs.org/docs/#api/en/geometries/ShapeGeometry">three.js &mdash; ShapeGeometry</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/specification/2.0/README.md">glTF 2.0 specification</a></p>
   <p><strong>Sources &mdash; RM-008.</strong> <a href="https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D">MDN &mdash; CanvasRenderingContext2D</a> &middot; <a href="https://www.w3.org/TR/SVG2/">W3C &mdash; SVG 2</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame">MDN &mdash; requestAnimationFrame</a></p>
   <p><strong>Sources &mdash; RM-007.</strong> <a href="https://www.coohom.com/case/floor-planner">Coohom &mdash; Floor Planner</a> &middot; <a href="https://www.sweethome3d.com/features.jsp">Sweet Home 3D &mdash; Features</a> &middot; <a href="https://kenney.nl/assets/furniture-kit">Kenney &mdash; Furniture Kit (CC0)</a> &middot; <a href="https://polyhaven.com/">Poly Haven (CC0)</a> &middot; <a href="https://ambientcg.com/">ambientCG (CC0)</a> &middot; <a href="https://quaternius.com/">Quaternius (CC0)</a> &middot; <a href="https://threejs.org/docs/">three.js documentation</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API">MDN &mdash; Service Worker API</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API">MDN &mdash; IndexedDB</a></p>
-  <p>architect3d &middot; Delivery &amp; precision program RM-004 rev A &middot; <strong>delivered</strong>, all five sprints &middot; residual program RM-005 rev A &middot; <strong>delivered</strong>, both sprints &middot; correction program RM-006 rev A &middot; <strong>delivered</strong> &middot; product roadmap RM-007 rev B &middot; <strong>proposed</strong>, eight programmes, 42 weeks &middot; programme E RM-008 rev A &middot; <strong>delivered</strong>, all four sprints &middot; programme F RM-009 rev A &middot; <strong>delivered</strong>, three sprints, complete &middot; programme G RM-010 rev A &middot; <strong>delivered</strong>, three sprints, complete &middot; successor to hardening program RM-003</p>
+  <p><strong>Method &mdash; RM-011.</strong> Eleven measurements against the working tree at <code>385aa88</code> on branch <code>amit</code>, five of them run in headless Chromium against the library as the dev server serves it, and none of them quoted from a specification. <em>The materials</em> &mdash; the three-storey fixture loaded into a viewer and every mesh in the scene traversed for its material's class and for which of eight map slots is set, run once per render profile, which is how &ldquo;the walls are unlit&rdquo; became a table rather than a reading of a docblock. <em>The surface record</em> &mdash; <code>Wall</code>, <code>Room</code> and <code>Floorplan</code> read for what a texture is, the fixture round-tripped, and the pickable surfaces counted per storey. <em>The budgets</em> &mdash; limits and last measurements taken from <code>tools/budget.json</code>, headroom subtracted, and every projection computed as image count times the measured mean of this tree's <em>own</em> encoded files: 36,182 B over the ten <code>.ktx2</code> and 110,732 B over the nine the oracle refused, with VRAM through <code>check-budget.mjs</code>'s own texels&nbsp;&times;&nbsp;4/3 formula. <em>The scene's real cost</em> &mdash; <code>renderer.info.memory</code> read in Chromium after a settled render, for the unfurnished house and for a twenty-item design. <em>The frame</em> &mdash; twenty frames timed after five warm ones at 1024&nbsp;&times;&nbsp;768 under SwiftShader, both profiles, both designs. <em>The first load</em> &mdash; the demo build's four entry files gzipped at level 9, then a boot's <code>performance.getEntriesByType('resource')</code> read to find what is fetched after them. <em>The shadow filter</em> &mdash; <code>renderer.shadowMap.type</code> read back after boot and compared with what <code>main.js</code> assigns. <em>The rest</em> &mdash; catalog keys counted over all 168 entries, <code>which ktx toktx basisu</code>, and the tree grepped for a cube camera. <strong>What was not run:</strong> no encoder, again, and this time it is the finding rather than the caveat &mdash; <code>ktx</code>, <code>toktx</code> and <code>basisu</code> are all absent from this machine, exactly as they were when RM-004 B1 said so, which is why W-6 reasons from the refusal ledger RM-006 measured rather than from a new encode, and why H1's first task is the trial. No material was authored and no light was moved, so every figure about H1's and H2's own output is a projection from this tree's numbers. <strong>Two repository inaccuracies were found and are recorded rather than fixed</strong>, since this is a planning pass: <code>three/main.js:301</code> assigns a shadow filter three no longer implements and silently downgrades (W-8), and RM-007 assigns wall collision to both H3 and J4 (W-11). Both are H2's and H3's to clear. <strong>Two of this document set's own metrics are corrected here:</strong> M-28, which passes at 12.9&times; its target, and the instrument behind <code>texture-vram</code>, which measures a tree the programme is about to stop resembling.</p>
+  <p>architect3d &middot; Delivery &amp; precision program RM-004 rev A &middot; <strong>delivered</strong>, all five sprints &middot; residual program RM-005 rev A &middot; <strong>delivered</strong>, both sprints &middot; correction program RM-006 rev A &middot; <strong>delivered</strong> &middot; product roadmap RM-007 rev B &middot; <strong>proposed</strong>, eight programmes, 42 weeks &middot; programme E RM-008 rev A &middot; <strong>delivered</strong>, all four sprints &middot; programme F RM-009 rev A &middot; <strong>delivered</strong>, three sprints, complete &middot; programme G RM-010 rev A &middot; <strong>delivered</strong>, three sprints, complete &middot; programme H RM-011 rev A &middot; <strong>proposed</strong>, three sprints, 7 weeks &middot; successor to hardening program RM-003</p>
   <p class="credit">Created by <a href="https://amitukind.com" target="_blank" rel="noopener noreferrer">Amit Verma</a></p>
 </footer>
 

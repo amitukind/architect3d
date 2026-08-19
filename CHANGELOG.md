@@ -957,6 +957,69 @@ next sprint should look at.
 it is the line an embedder hosting a single-storey plan turns off, and the branch
 it guards is one `v-if`.
 
+**RM-011, the drawing for programme H, added to `docs/public/roadmap.html`
+(§49–§52).** Eleven findings `W-1..W-11`, five of them run in headless Chromium.
+Programme H is *"any surface any colour or material, lit like a room, and a
+picture at the end of it"*, and measuring it first found two things that change
+its shape.
+
+**Under the profile this library ships as its default, every wall is unlit.** A
+material census of a loaded three-storey design, run once per render profile,
+finds `MeshBasicMaterial` walls and `MeshPhongMaterial` floors under `classic`
+and `MeshStandardMaterial` under `studio`. And across both, **not one PBR map
+exists in the tree** — every textured surface carries exactly `map`, plus a
+hand-painted `lightMap` on eighteen wall faces. So "no PBR" is precise and
+smaller than it sounds: the material class is already there in Studio, the
+images are what is missing, and every feature in H1 and H2 is invisible under
+the library's default. That is a decision H1 has to record rather than
+discover, because the alternative is a parity change against r98 goldens that
+cannot be recaptured.
+
+**The library the programme is priced for does not fit, by two orders of
+magnitude.** Ninety materials of albedo, normal and roughness is 270 images. At
+the measured mean of this tree's own ten `.ktx2` files — 36,182 bytes — that is
+9.32 MB against **78,894 bytes** of `public-total` headroom, and 90 MB of
+computed VRAM at 512 px against a 45.1 MB ceiling with 18.6 MB left in it. Under
+today's ceilings the library is **two images**. Even at 256 px it does not fit.
+
+**And one of those two budgets is measuring the wrong thing.** `texture-vram`
+costs every image in the tree as if it were resident, which was right while
+every image belonged to a model some design might load. Read from the driver,
+a three-storey house holds **7 textures** and a furnished twenty-item design
+holds **15**, against 202 in the tree — so a library of ninety that a person
+picks four from is over-counted about thirtyfold. The correction is to point the
+line at a scene, which `gpu-memory.test.js` already knows how to measure, and
+to leave the download question with `public-total`, which already asks it.
+
+Two more numbers that move a sprint. Half this tree's furniture textures — nine
+of eighteen — were refused by the 3.0 RMS oracle gate, **four of them wood
+grain**, which is what a material library is mostly made of; and `ktx`, `toktx`
+and `basisu` are still all absent from this machine, exactly as when RM-004 B1
+said so. So H1's first task is the trial and the library's size is its output.
+Meanwhile the **first-load payload is 407,324 bytes gzipped**, and the first
+thing fetched after it is a 515 KB Basis transcoder — 98% of the boot's network
+traffic — to decode one 10,401-byte ground texture. RM-007 asked for a
+first-load budget before there was a number; there is one now.
+
+**Three corrections to documents this set already carries.** M-28 asks the
+furnished fixture to hold 30 fps under Studio on the browser tier's software
+renderer; measured, it holds **388** — 12.9× the target, so the metric cannot
+fail and cannot gate anything. It becomes relative: each effect states its cost
+as a fraction of a measured frame. H3's "wall collision" is **withdrawn** and
+left to J4, which RM-007 already assigns it to. And H1's "about ninety
+materials" is withdrawn as a number.
+
+**Two repository inaccuracies recorded rather than fixed**, since this is a
+planning pass. `three/main.js:301` assigns `PCFSoftShadowMap`, which three has
+deprecated and silently downgrades — `shadowMap.type` reads back as
+`PCFShadowMap`, and the Studio profile's `shadowRadius: 2.4` is inert with it,
+so H2's "softer shadows" is a repair before it is a feature. And north is a
+property of a `Floorplan`, so since G1 a three-storey building has three of them
+and nothing stops them disagreeing; H2's sun needs one.
+
+M-42 and M-43 are added. Seven weeks and the 3 + 2.5 + 1.5 split are unchanged;
+what moved is inside the sprints. No code, asset or test changed.
+
 ## [3.0.1] - 2026-08-16
 
 No shipped code changed — `src/` is byte-identical to 3.0.0 and so is every
