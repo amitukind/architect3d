@@ -1394,6 +1394,89 @@ describe('RoofItem on a design with no ceiling (RM-005 C2, J-5)', () =>
  * rectangle of it into the wall's holes. A mirrored door with a negative half
  * width cuts a hole of negative width and nothing says so.
  */
+describe('Item.applySnap, and the two rules it will not break (RM-012 J4)', () =>
+{
+	/** The minimum of an Item that `applySnap` reads. */
+	function mover(scene, halfSize, wallEdge)
+	{
+		return Object.assign(Object.create(Item.prototype), {
+			scene: scene,
+			halfSize: halfSize || new three.Vector3(10, 10, 10),
+			currentWallEdge: wallEdge || null,
+			position: new three.Vector3(0, 10, 0),
+		});
+	}
+
+	function neighbour(x, z, halfX, halfY, halfZ)
+	{
+		return {
+			position: new three.Vector3(x, halfY, z),
+			halfSize: new three.Vector3(halfX, halfY, halfZ),
+		};
+	}
+
+	it('does nothing at all unless the scene asks for it', () =>
+	{
+		// Off by default, so nothing about a drag changes for an embedder who has
+		// not opted in and no parity capture moves.
+		const scene = {snapItems: false, getItems: () => [neighbour(0, 0, 20, 10, 10)]};
+		const item = mover(scene);
+		const vec = new three.Vector3(46, 10, 0);
+		item.applySnap(vec);
+		expect(vec.x).toBe(46);
+	});
+
+	it('snaps flush to a neighbour when it does', () =>
+	{
+		const scene = {snapItems: true, getItems: () => [neighbour(0, 0, 20, 10, 10)]};
+		const item = mover(scene);
+		const vec = new three.Vector3(46, 10, 0);
+		item.applySnap(vec);
+		// The moving item is 20 cm wide, so flush against a neighbour whose right
+		// edge is at 20 puts its centre at 30.
+		expect(vec.x).toBe(30);
+		expect(vec.x - item.halfSize.x).toBe(20);
+	});
+
+	it('never touches a wall-bound item, because that is a fight between two rules', () =>
+	{
+		// `WallItem.moveToPosition` derives the position along the wall from the
+		// pointer and then calls up to here. Snapping after that would pull the
+		// item off the wall it is bound to. An item on a wall snaps to the wall -
+		// that is what being bound to it already means.
+		const scene = {snapItems: true, getItems: () => [neighbour(0, 0, 20, 10, 10)]};
+		const item = mover(scene, null, {id: 'edge-1'});
+		const vec = new three.Vector3(46, 10, 0);
+		item.applySnap(vec);
+		expect(vec.x).toBe(46);
+	});
+
+	it('rests on the top of what it is over, in the centre convention position uses', () =>
+	{
+		// `stackOn` answers with a base and a position is a centre, so the item's
+		// own half height is added back. A bowl 8 cm tall on a 75 cm table sits
+		// with its centre at 79.
+		const table = neighbour(0, 0, 60, 37.5, 40);
+		const scene = {snapItems: true, getItems: () => [table]};
+		const item = mover(scene, new three.Vector3(8, 4, 8));
+		item.position.set(0, 4, 0);
+		const vec = new three.Vector3(0, 4, 0);
+		item.applySnap(vec);
+		expect(vec.y).toBe(79);
+	});
+
+	it('drops back to the floor when it moves off the surface', () =>
+	{
+		const table = neighbour(0, 0, 60, 37.5, 40);
+		const scene = {snapItems: true, getItems: () => [table]};
+		const item = mover(scene, new three.Vector3(8, 4, 8));
+		item.position.set(0, 79, 0);
+		const vec = new three.Vector3(400, 79, 400);
+		item.applySnap(vec);
+		expect(vec.y).toBe(4);
+	});
+});
+
 describe('a group and an elevation are additive keys (RM-012 J4)', () =>
 {
 	/** The real `getMetaData`, over the minimum state it reads. */

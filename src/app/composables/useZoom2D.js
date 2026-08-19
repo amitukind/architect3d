@@ -205,6 +205,16 @@ export function useZoom2D(store)
 		// getNumericValue, which coerces with Number() - so true becomes 1 and the
 		// truthiness test at the call site works either way.
 		Configuration.setValue(snapToGrid, snap.value);
+		// And the furniture, which snaps to what is already in the room rather
+		// than to the paper (RM-012 J4). Two mechanisms, because they answer
+		// different questions - but one control, because "snap" is one idea to
+		// the person using it, and a second switch beside the first would be a
+		// setting nobody could describe the difference between.
+		var model = store.model.value;
+		if (model && model.scene)
+		{
+			model.scene.snapItems = snap.value;
+		}
 	}
 
 	function setSpacing(cm)

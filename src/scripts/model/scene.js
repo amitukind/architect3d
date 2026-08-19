@@ -57,6 +57,17 @@ export class Scene extends EventDispatcher
 		this.needsUpdate = false;
 
 		/**
+		 * Whether a dragged item snaps to the furniture around it (RM-012 J4).
+		 *
+		 * Off by default, so nothing about a drag changes for an embedder who has
+		 * not asked for it and no parity capture moves. `Item.applySnap` reads it;
+		 * the application turns it on beside the grid snap it already offers.
+		 *
+		 * @type {boolean}
+		 */
+		this.snapItems = false;
+
+		/**
 		 * This design's services (RM-003 A4). Read off the model's floorplan,
 		 * which resolved it - a `Scene` is always constructed by a `Model` that
 		 * has already built its `Floorplan`.

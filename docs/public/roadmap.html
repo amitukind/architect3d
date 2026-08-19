@@ -5611,6 +5611,21 @@ this.roofPlane = this.buildRoofVaryingHeight();</pre></div>
         <li><strong>And it sticks, for a reason already in the code.</strong> <code>FloorItem.moveToPosition</code> preserves <code>this.position.y</code> rather than snapping to the floor on every move, so an item lifted here stays lifted while it is dragged around. Clamped at zero: a floor plan has no basement, and furniture under the floor cannot be clicked.</li>
       </ul>
     </div>
+
+    <div class="gate">
+      <div class="g-head">LANDING &mdash; J4, snapping and stacking</div>
+      <ul>
+        <li><strong>Not to the grid, to what is already there.</strong> <code>Configuration.snapToGrid</code> has done the grid since the fork, and a grid is a property of the paper rather than of the furniture. This snaps to a sofa's edge against the bookcase beside it and a rug's centre with a table's &mdash; the alignments somebody furnishing a room is trying to hit by eye. Nine pairings per axis per neighbour: each of the moving item's two edges and its centre, against each of the neighbour's. Nearest wins, so it does what you were aiming at rather than what it would rather you had aimed at, and a tie keeps the first candidate so it does not flicker as the pointer jitters.</li>
+
+        <li><strong>Pure arithmetic over rectangles, in its own module.</strong> No scene, no mesh, no renderer &mdash; which is the only way <em>&ldquo;did it snap to the right line&rdquo;</em> is a question with an exact answer. The tolerance is <code>Configuration.snapTolerance</code>, 25&nbsp;cm, which has existed since the fork and was read by nothing but the 2D corner snapping: one number for <em>how close counts as meant</em> rather than a second one that disagrees with it.</li>
+
+        <li><strong>A snap is horizontal and a stack is not, so they are asked separately.</strong> Mixed, an item nudged sideways onto a table would suddenly jump up onto it. <code>stackOn</code> is asked only about the vertical, only when half the moving item's footprint is genuinely over another's &mdash; a bowl on the corner of a table is on the table, a bowl beside it with a centimetre of overhang is not &mdash; and it returns a height rather than applying one.</li>
+
+        <li><strong>The reach limit is measured, not chosen.</strong> Without one, dragging a lamp across a furnished room teleports it to the top of the tallest thing in it; with only <em>&ldquo;already up there&rdquo;</em>, dragging a bowl across a table leaves it on the floor, which is the feature not working. So a surface is stackable if its top is at or below <strong>120&nbsp;cm</strong> &mdash; and that number is J1's, from the six standard heights it measured while establishing the Kenney kit's unit scale: <strong>above the kitchen unit at 90, the bar stool at 87 and the table and desk at 75; below the fridge at 180 and the door frame at 203</strong>. A bowl dragged across a counter lands on it; a bowl dragged past a fridge does not. The line is where this catalog's own measurements put it.</li>
+
+        <li><strong>Off unless the scene asks, and never for a wall-bound item.</strong> <code>scene.snapItems</code> is false by default, so no drag changes for an embedder who has not opted in and no parity capture moves; the application turns it on beside the grid snap it already has, because <em>snap</em> is one idea to a person even though the two snap to different things. And <code>WallItem.moveToPosition</code> derives its position along the wall and then calls up to the base class &mdash; snapping after that would pull the item off the wall it is bound to, which is a fight between two rules rather than a feature.</li>
+      </ul>
+    </div>
   </div>
 
   <p style="margin-top:16px">Seven and a half weeks, unchanged from RM-007, and the split moves by half a week: <strong>2 + 1.5 + 1.5 + 2.5</strong> against 1.5 + 2 + 1.5 + 2.5. J1 takes the half-week because the index split belongs in front of the metadata rather than behind it, and J2 gives it back because the pipeline it was costed to build is already installed and green. <strong>What moved is inside the sprints</strong>: J2's headline number becomes an output of a decision, and J4's two halves swap places in the estimate.</p>

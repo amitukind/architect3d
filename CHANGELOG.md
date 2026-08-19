@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+**RM-012 J4: snapping and stacking.** Not to the grid — `snapToGrid` has done
+that since the fork, and a grid is a property of the paper rather than of the
+furniture. This snaps to **what is already there**: nine pairings per axis per
+neighbour (each of the moving item's two edges and its centre against each of the
+neighbour's), nearest wins, ties keep the first so it does not flicker. Pure
+arithmetic over rectangles in its own module — no scene, no mesh, no renderer.
+The tolerance is `Configuration.snapTolerance`, 25 cm, which has existed since
+the fork and was read by nothing but 2D corner snapping.
+
+A snap is horizontal and a stack is not, so they are asked separately: mixed, an
+item nudged sideways onto a table would jump up onto it. `stackOn` needs half the
+footprint over the surface and returns a height rather than applying one.
+
+**The reach limit is measured, not chosen.** Without one, dragging a lamp across
+a furnished room teleports it to the tallest thing in it; with only "already up
+there", dragging a bowl across a table leaves it on the floor. A surface is
+stackable at or below **120 cm** — J1's own six measured heights put that above
+the kitchen unit at 90, the bar stool at 87 and the table and desk at 75, and
+below the fridge at 180 and the door frame at 203.
+
+Off unless `scene.snapItems` is set, so no drag changes for an embedder who has
+not opted in. Never for a wall-bound item: `WallItem.moveToPosition` derives its
+position along the wall and then calls up, and snapping after that would pull it
+off the wall.
+
 **RM-012 J4: align, distribute, group, elevation.** Align works on **edges, not
 centres** — "left" means every item's left edge on the leftmost left edge, so a
 wide item does not overhang. Six edges, named for the plan rather than the axis.

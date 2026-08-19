@@ -5,6 +5,7 @@ import {Color, PointLight} from 'three';
 import {isStudio, renderProfile} from '../core/render_profile.js';
 import {normaliseLamp, lampToJSON} from './lamp.js';
 import {Utils} from '../core/utils.js';
+import {boxOf, snapToNeighbours, stackOn} from './snapping.js';
 import {disposeObject, disposeMaterial} from '../core/resource_registry.js';
 import {Dimensioning} from '../core/dimensioning.js';
 
@@ -1123,11 +1124,68 @@ export class Item extends Mesh
 	// eslint-disable-next-line no-unused-vars -- see the docblock: subclasses use it
 	moveToPosition(vec3, intersection)
 	{
+		this.applySnap(vec3);
 		this.position.copy(vec3);
 		if(this.bhelper)
 		{
 			this.bhelper.update();
 		}
+	}
+
+	/**
+	 * Nudge a position onto whatever is already near it (RM-012 J4).
+	 *
+	 * Mutates the vector in place, because that is the shape every mover on this
+	 * path already has - `boundMove` and `FloorItem.moveToPosition` both do it,
+	 * and returning a new one here would leave two conventions on one call chain.
+	 *
+	 * ## Off unless the scene asks for it
+	 *
+	 * `scene.snapItems` is false by default, so nothing about a drag changes for
+	 * an embedder who has not opted in and no parity capture moves. The
+	 * application turns it on beside the grid snap it already has, because "snap"
+	 * is one idea to a person even though the two snap to different things.
+	 *
+	 * ## Never for a wall-bound item
+	 *
+	 * `WallItem.moveToPosition` derives the position along the wall from the
+	 * pointer and then calls up to here. Snapping after that would pull the item
+	 * off the wall it is bound to, which is a fight between two rules rather than
+	 * a feature. An item on a wall snaps to the wall - that is what being bound to
+	 * it already means.
+	 *
+	 * @param {Object} vec3 The position the pointer produced.
+	 */
+	applySnap(vec3)
+	{
+		// `currentWallEdge` is `WallItem`'s, and this is the base class - asked
+		// through a cast rather than declared here, because giving every item a
+		// wall edge to satisfy a type checker would be a worse lie than the cast.
+		if (!this.scene || !this.scene.snapItems || /** @type {*} */ (this).currentWallEdge)
+		{
+			return;
+		}
+		var others = (typeof this.scene.getItems === 'function' ? this.scene.getItems() : [])
+			.filter((one) => one !== this && one.halfSize && one.position);
+		if (!others.length)
+		{
+			return;
+		}
+		var boxes = others.map(boxOf);
+		var moving = boxOf({position: vec3, halfSize: this.halfSize});
+
+		var flat = snapToNeighbours(moving, boxes);
+		vec3.x = flat.x;
+		vec3.z = flat.z;
+
+		// The vertical, asked separately and after, because a snap is horizontal
+		// and a stack is not: mixing them would make an item nudged sideways onto
+		// a table suddenly jump up onto it. `stackOn` answers with a base; a
+		// position is a centre.
+		moving.x = flat.x;
+		moving.z = flat.z;
+		var rest = stackOn(moving, boxes);
+		vec3.y = rest.y + Math.abs(this.halfSize.y);
 	}
 
 	/**
