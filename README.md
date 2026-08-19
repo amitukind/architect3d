@@ -2,8 +2,8 @@
 
 WebGL 3D interior design tool with a 2D floorplanner.
 
-Draw walls by clicking, close a loop to make a room, put doors, windows and
-stairs in it as numbers rather than as models, furnish it from a catalog of 168
+Draw walls by clicking, close a loop to make a room, put doors, windows, stairs,
+columns and beams in it as numbers rather than as models, furnish it from a catalog of 168
 models, change wall and floor textures, dimension and label the plan, and walk
 through the result in first person. Plan and 3D view side by side — the furniture is drawn on both,
 and selecting anything in one view selects it in the other — with undo on
@@ -114,7 +114,7 @@ remaining area would cost, is at the top of
 | **Exporting** | The share menu writes the plan as SVG at 1:20, 1:50, 1:100 or 1:200, as a 2400&nbsp;px PNG, or straight to the printer &mdash; each sheet with a scale bar, a title block and the north arrow. |
 | **Zoom** | Wheel over the plan, or <kbd>+</kbd> / <kbd>-</kbd>. <kbd>Shift</kbd><kbd>F</kbd> frames the whole plan. |
 | **Furniture** | <kbd>A</kbd> opens the catalog. It stays open while you pick, and searches all 168 models. |
-| **Doors, windows, stairs** | The first two sections of the catalog are generated rather than downloaded. A door is a width, a height, a sill, a hinge side and a swing angle; a flight of stairs is a tread count, a rise, a going, a width and a handrail. Edit any of them in the panel and the 3D mesh, the hole in the wall and the plan symbol all follow. |
+| **Doors, windows, stairs, structure** | The first three sections of the catalog are generated rather than downloaded. A door is a width, a height, a sill, a hinge side and a swing angle; a flight of stairs is a tread count, a rise, a going, a width and a handrail; a column or a beam is a cross-section, a length and a soffit height. Edit any of them in the panel and the 3D mesh, the hole in the wall and the plan symbol all follow. |
 | **Editing** | <kbd>⌘Z</kbd> / <kbd>⌘⇧Z</kbd> undo and redo · <kbd>⌘D</kbd> duplicate · <kbd>Del</kbd> delete. |
 | **3D** | <kbd>F</kbd> walk through · <kbd>O</kbd> orthographic · <kbd>G</kbd> wireframe. |
 

@@ -8,6 +8,7 @@ import Wall2DInspector from './Wall2DInspector.vue';
 import ItemInspector from './ItemInspector.vue';
 import OpeningInspector from './OpeningInspector.vue';
 import StairInspector from './StairInspector.vue';
+import StructureInspector from './StructureInspector.vue';
 import DimensionInspector from './DimensionInspector.vue';
 import AnnotationInspector from './AnnotationInspector.vue';
 import SurfaceInspector from './SurfaceInspector.vue';
@@ -95,13 +96,13 @@ const INSPECTORS = {
 /**
  * Which panel a selection gets.
  *
- * Two special cases, and both are a selection *kind* rather than a type: a
- * parametric opening (RM-008 F1) and a parametric flight of stairs (F3) are
- * items like any other - they select, undo and project like one - but there is
- * nothing useful to say about either in the item panel, whose controls are a
- * mesh's scale and colour. They have numbers instead, so each gets a panel
- * about those. Asked of the object rather than of `item_type`, so an embedder's
- * own parametric item lands here too.
+ * Three special cases, and each is a selection *kind* rather than a type: a
+ * parametric opening (RM-008 F1), a flight of stairs (F3) and a column or beam
+ * (F2) are items like any other - they select, undo and project like one - but
+ * there is nothing useful to say about any of them in the item panel, whose
+ * controls are a mesh's scale and colour. They have numbers instead, so each
+ * gets a panel about those. Asked of the object rather than of `item_type`, so
+ * an embedder's own parametric item lands here too.
  */
 const component = computed(() =>
 {
@@ -118,6 +119,11 @@ const component = computed(() =>
 		&& typeof props.selection.object.setStair === 'function')
 	{
 		return StairInspector;
+	}
+	if (props.selection.type === SELECTION_ITEM && props.selection.object
+		&& typeof props.selection.object.setStructure === 'function')
+	{
+		return StructureInspector;
 	}
 	return INSPECTORS[props.selection.type] || null;
 });

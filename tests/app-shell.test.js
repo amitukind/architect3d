@@ -35,6 +35,7 @@ import {floorplannerModes} from '../src/scripts/floorplanner/floorplanner_view.j
 import catalog from '../src/catalog/catalog.json';
 import openings from '../src/catalog/openings.json';
 import stairs from '../src/catalog/stairs.json';
+import structures from '../src/catalog/structures.json';
 import {LAYOUT_PLAN, LAYOUT_SPLIT, LAYOUT_VIEW} from '../src/app/composables/useLayout.js';
 
 import {resetAll} from './helpers/harness.js';
@@ -349,13 +350,13 @@ describe('the catalog drawer', () =>
 		expect(panel).not.toBeNull();
 
 		// One flat list rather than eight accordions, so the count is the catalog.
-		// Now the 168 shipped models plus the nine generated openings RM-008 F1
-		// added and the eight generated flights F3 added, which come from
-		// `openings.json` and `stairs.json` rather than `catalog.json` because they
-		// name no file. Asserted as the sum rather than as 185, so it keeps saying
-		// what it means when any of the three lists grows.
+		// Now the 168 shipped models plus the three generated lists: nine openings
+		// (RM-008 F1), eight flights (F3) and eight columns and beams (F2). Those
+		// come from their own files rather than `catalog.json` because they name no
+		// file. Asserted as the sum rather than as 193, so it keeps saying what it
+		// means when any of the four lists grows.
 		expect(panel.querySelectorAll('li').length)
-			.toBe(catalog.items.length + openings.items.length + stairs.items.length);
+			.toBe(catalog.items.length + openings.items.length + stairs.items.length + structures.items.length);
 
 		const chips = [...panel.querySelectorAll('button')]
 			.map((button) => button.textContent.trim());

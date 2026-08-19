@@ -396,6 +396,50 @@ authored at roughly one unit per metre. RM-009 U-3 has the measurement. They are
 superseded rather than scaled — a generated flight has no mesh to scale.
 :::
 
+### `structure` — a column or a beam that is numbers
+
+Present only on a **parametric structure**, item type 12, added by RM-008 F2
+(delivered after F3) and absent from every file written before it. Like an
+opening or a stair, an item that carries one names no `model_url`.
+
+```json
+{
+  "kind": "beam",
+  "width": 20,
+  "depth": 40,
+  "length": 300,
+  "soffit": 210,
+  "section": "rectangular",
+  "style": "plain"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `kind` | `"column"` or `"beam"`. Anything else is read as a column. |
+| `width`, `depth` | The cross-section, in centimetres, always measured perpendicular to the member's axis. |
+| `length` | Along the axis: a column's height, a beam's span. |
+| `soffit` | Height of the **underside** above the floor. A column's is normally 0. |
+| `section` | `"rectangular"` or `"round"`. A column's choice — a round beam is a pipe, so a beam's is forced back to rectangular. |
+| `style` | A name the generator understands. `"plain"` today. |
+
+**`depth` means different axes for the two kinds, and that is not a trick.** A
+column's axis is vertical, so its cross-section lies in plan and `depth` is a
+plan dimension; a beam's axis is horizontal, so `depth` is the vertical one.
+That is exactly what those words mean on a structural drawing — a beam's depth
+*is* its vertical dimension — so one field carries one meaning and lands on the
+right convention for both.
+
+A round column's `depth` is forced to its `width` on read: a circle has one
+dimension, and storing two would let a file say something a circle cannot be.
+
+::: tip Why this exists
+RM-007 listed columns and beams as *"boxes with numbers"* in one line. F2
+shipped without them and said so, because a new **persisted** item type needs a
+class, a type number, catalog rows, an inspector and round-trip tests. This is
+that slice, landed before programme G started.
+:::
+
 ### Item types
 
 | `item_type` | Class | Behaviour |
@@ -410,6 +454,7 @@ superseded rather than scaled — a generated flight has no mesh to scale.
 | 9 | `WallFloorItem` | Wall-bound and floor-bound |
 | 10 | `ParametricOpening` | A door, window or archway generated from its numbers (RM-008 F1). Names no model; carries `opening` |
 | 11 | `ParametricStair` | A flight of stairs generated from its numbers (RM-008 F3). Names no model; carries `stair` |
+| 12 | `ParametricStructure` | A column or a beam generated from its numbers (RM-008 F2). Names no model; carries `structure` |
 
 The numbering is not contiguous — there is no type 5 or 6, and 7/8/9 are not
 the order you would guess. It is the registry in

@@ -417,10 +417,10 @@ function validateItems(items, errors)
 		// documented default in Model.newRoom, and inventing requirements here
 		// would refuse files that open perfectly well today.
 		// A parametric item names no model, because it has none to name: an
-		// opening's mesh is built from `opening` (RM-008 F1) and a flight's from
-		// `stair` (F3). Every other item must still say what to load, which is the
-		// check this has always been.
-		if (!isPlainObject(item.opening) && !isPlainObject(item.stair)
+		// opening's mesh is built from `opening` (RM-008 F1), a flight's from
+		// `stair` (F3) and a column or beam's from `structure` (F2). Every other
+		// item must still say what to load, which is the check this has always been.
+		if (!isPlainObject(item.opening) && !isPlainObject(item.stair) && !isPlainObject(item.structure)
 			&& (typeof item.model_url !== 'string' || item.model_url === ''))
 		{
 			errors.push({path: `items[${index}].model_url`, message: 'missing - an item must name the model to load'});
@@ -484,6 +484,41 @@ function validateItems(items, errors)
 						});
 					}
 				});
+			}
+		}
+
+		// The column or beam description, additive since RM-008 F2. Same rule
+		// again: `normaliseStructure` fills in a missing soffit and clamps a width
+		// of 900 cm, but a depth of "deep" or a length of -3 is a file saying
+		// something it cannot mean. `soffit` is checked separately because zero is
+		// the correct and usual value for a column.
+		if (item.structure !== undefined && item.structure !== null)
+		{
+			if (!isPlainObject(item.structure))
+			{
+				errors.push({path: `items[${index}].structure`, message: 'must be an object when present'});
+			}
+			else
+			{
+				['width', 'depth', 'length'].forEach(function (field)
+				{
+					var value = item.structure[field];
+					if (value !== undefined && value !== null && (!isFiniteNumber(value) || value <= 0))
+					{
+						errors.push({
+							path: `items[${index}].structure.${field}`,
+							message: `must be a positive number of centimetres when present, not ${JSON.stringify(value)}`,
+						});
+					}
+				});
+				var soffit = item.structure.soffit;
+				if (soffit !== undefined && soffit !== null && (!isFiniteNumber(soffit) || soffit < 0))
+				{
+					errors.push({
+						path: `items[${index}].structure.soffit`,
+						message: `must be zero or a positive number of centimetres when present, not ${JSON.stringify(soffit)}`,
+					});
+				}
 			}
 		}
 	});

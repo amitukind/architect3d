@@ -9,6 +9,7 @@ import {resolveCanvas, measureViewport, pixelRatio} from '../core/dom.js';
 import {footprintCorners} from '../model/plan_projection.js';
 import {dimensionLine} from '../model/annotation.js';
 import {stairPlan, normaliseStair} from '../items/stair.js';
+import {isOverhead, normaliseStructure, SECTION_ROUND} from '../items/structure.js';
 import {OPENING_DOOR as OPENING_KIND_DOOR, OPENING_WINDOW as OPENING_KIND_WINDOW} from '../items/opening.js';
 import {CanvasBackend} from './backends.js';
 
@@ -262,6 +263,17 @@ export const floorplannerPalette = {
 	stairFill: 'rgba(43,93,168,0.07)',
 	stairTread: 'rgba(43,93,168,0.55)',
 	stairWell: '#8A6D3B',
+	/**
+	 * A column or a beam (RM-008 F2).
+	 *
+	 * A column is drawn nearly solid because a plan is a section about a metre
+	 * up and the column is cut by it - that heavy fill is what "cut" means on a
+	 * building drawing. A beam is above the section, so it is dashed and hollow.
+	 * One palette entry, two weights, because they are one thing seen from two
+	 * sides of the cut.
+	 */
+	structure: '#3F4A5A',
+	structureFill: 'rgba(63,74,90,0.55)',
 
 	/**
 	 * What the plan says about itself (RM-008 E3).
@@ -1186,6 +1198,11 @@ export class FloorplannerView2D
 			this.drawStair(footprint);
 			return;
 		}
+		if (footprint.structure)
+		{
+			this.drawStructure(footprint);
+			return;
+		}
 
 		var corners = footprintCorners(footprint).map((corner) => ({
 			x: this.project.convertX(corner.x),
@@ -1315,6 +1332,75 @@ export class FloorplannerView2D
 			size: 10,
 			style: 'bold',
 		});
+	}
+
+	/**
+	 * A column or a beam (RM-008 F2).
+	 *
+	 * The whole symbol is the difference between being cut and being overhead. A
+	 * plan is a horizontal section about a metre above the floor: a column passes
+	 * through it and is drawn **solid**, a beam is above it and is drawn
+	 * **dashed**. That is the convention on every building drawing, and it is the
+	 * only thing on this canvas that tells the two apart - their plan rectangles
+	 * are otherwise just rectangles.
+	 *
+	 * A round column is drawn round, from the same `section` the mesh is built
+	 * from, so the plan and the solid are two drawings of one description.
+	 *
+	 * @param {import('../model/plan_projection.js').ItemFootprint} footprint
+	 */
+	drawStructure(footprint)
+	{
+		var structure = normaliseStructure(footprint.structure);
+		var overhead = isOverhead(structure);
+		var state = this.itemState(footprint);
+		var stroke = (state === 'selected') ? floorplannerPalette.itemSelected
+			: (state === 'hover') ? floorplannerPalette.itemHover
+				: (footprint.fixed ? floorplannerPalette.itemFixed : floorplannerPalette.structure);
+		var weight = (state === 'plain') ? 1.5 : 2.5;
+
+		if (overhead)
+		{
+			this.backend.dash([6, 4]);
+		}
+
+		if (structure.section === SECTION_ROUND && !overhead)
+		{
+			// Two of E4's primitives rather than a widened one: `circle` fills and
+			// `arc` strokes, and a full-turn arc is a circle's outline - which the
+			// SVG backend already special-cases back into a `<circle>`. Adding a
+			// stroke to `circle` would change an interface both backends implement
+			// and that M-34 enumerates, for a shape that can already be drawn.
+			var cx = this.project.convertX(footprint.x);
+			var cy = this.project.convertY(footprint.y);
+			// Through the projection, not through `cmToPixel`. The two agree on
+			// screen and disagree on a sheet: `renderTo` swaps the projection and
+			// leaves `dimensioning` alone, so a radius from `cmToPixel` would be the
+			// column's size at the screen's zoom on a drawing at 1:100. Found by
+			// exporting a sheet with a 45 cm round column beside a 40 cm square one
+			// and seeing the round one come out smaller. Every other length on this
+			// canvas already goes through the projection - `drawDoorSwing` takes its
+			// radius from two projected corners for the same reason.
+			var radius = Math.abs(this.project.convertX(footprint.x + (structure.width / 2)) - cx);
+			this.backend.circle(cx, cy, radius, floorplannerPalette.structureFill);
+			this.backend.arc(cx, cy, radius, 0, Math.PI * 2, weight, stroke);
+		}
+		else
+		{
+			var corners = footprintCorners(footprint).map((corner) => ({
+				x: this.project.convertX(corner.x),
+				y: this.project.convertY(corner.y),
+			}));
+			this.drawPolygon(
+				corners.map((corner) => corner.x), corners.map((corner) => corner.y),
+				!overhead, floorplannerPalette.structureFill, true, stroke, weight);
+		}
+
+		if (overhead)
+		{
+			this.backend.dash([]);
+		}
+		this.drawItemLabel(footprint);
 	}
 
 	/**

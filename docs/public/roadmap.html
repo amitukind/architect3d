@@ -3499,7 +3499,7 @@ tests/document-loading.test.js   <span class="c"># new</span></div>
         <li><strong>M-25 &mdash; openings are numbers.</strong> Every door and window in a fixture design round-trips width, height, sill, hinge and swing through the file, and its wall hole matches them to the centimetre</li>
       </ul>
     </div>
-    <p class="corr">Re-drawn by RM-009 (the programme's own drawing, 2026-08-19) at the same <strong>6 weeks</strong>, with two corrections. F2's &ldquo;half walls via per-wall height&rdquo; is <strong>withdrawn</strong>: RM-008 E2 measured that <code>Wall.height</code> does not set a wall's height and declined the parity change that would make it, so half walls are built on the corners instead (U-5). And the audit F2 was given turned up two things rather than one &mdash; interior faces that do not meet at a corner where thickness changes, and a room area that is the centreline area and reads 5.2 % high at the default wall thickness (U-7). M-35, M-36 and M-37 are added there.</p>
+    <p class="corr">Re-drawn by RM-009 (the programme's own drawing, 2026-08-19) at the same <strong>6 weeks</strong>, with two corrections. F2's &ldquo;half walls via per-wall height&rdquo; is <strong>withdrawn</strong>: RM-008 E2 measured that <code>Wall.height</code> does not set a wall's height and declined the parity change that would make it, so half walls are built on the corners instead (U-5). And the audit F2 was given turned up two things rather than one &mdash; interior faces that do not meet at a corner where thickness changes, and a room area that is the centreline area and reads 5.2 % high at the default wall thickness (U-7). M-35, M-36 and M-37 are added there, and <strong>M-41</strong> joined them on delivery &mdash; numbered after programme G's M-38 to M-40 because metrics are numbered when they are written, not by programme, and F2's columns and beams were written after RM-010 was drawn.</p>
   </div>
 
   <div class="sprint">
@@ -4187,7 +4187,7 @@ if(this.halfSize.x &lt; 1.0)
     <div class="sprint-head">
       <span class="sprint-no">F2</span>
       <h3>Openings, half walls and the join audit</h3>
-      <div class="meta"><span class="chip warn">part done</span><span class="chip">Q-3</span><span class="chip crit">U-5</span><span class="chip">U-7</span><span class="chip">1.5 wk</span></div>
+      <div class="meta"><span class="chip ok">done</span><span class="chip">Q-3</span><span class="chip crit">U-5</span><span class="chip">U-7</span><span class="chip">1.5 wk</span></div>
     </div>
     <p class="goal"><strong>Objective.</strong> A hole with nothing in it, a wall that stops at waist height, and the two things per-wall thickness broke.</p>
     <ul>
@@ -4206,7 +4206,7 @@ if(this.halfSize.x &lt; 1.0)
     </div>
 
     <div class="gate">
-      <div class="g-head">LANDED &mdash; F2, WITH ONE PART OUTSTANDING</div>
+      <div class="g-head">LANDED &mdash; F2</div>
       <ul>
         <li><strong>M-36 is met: a room's area is its floor.</strong> The centreline figure was over by 5.2&nbsp;% at the default 10&nbsp;cm walls and by <strong>23.5&nbsp;%</strong> at 40 &mdash; a 400&nbsp;&times;&nbsp;400 room reporting 16.00&nbsp;m&sup2; where the floor is 15.21. It is the interior polygon now, and the centreline figure is kept as <code>Room.centrelineArea</code> and shown beneath it, because it is a real number that a builder measures. Eleven characterization tests pinned the old figure; every one was re-checked and <em>re-pointed</em> rather than re-numbered, because those tests are about room detection and the centreline polygon is what answers that question.</li>
 
@@ -4216,9 +4216,28 @@ if(this.halfSize.x &lt; 1.0)
 
         <li><strong>Openings with nothing in them were already there.</strong> F1's description makes an archway the same five numbers with no leaf and no pane, which is what this drawing predicted when it said F2's first bullet would be nearly free.</li>
 
-        <li><strong>One part is outstanding: columns and beams as parametric items.</strong> They need a new item class, a new type number, catalog rows, an inspector and their own round-trip tests &mdash; an F1-sized slice rather than the line RM-007 makes them look like &mdash; and shipping a new <em>persisted</em> item type without tests would be worse than not shipping it. Recorded here rather than quietly dropped.</li>
+        <li><strong>One part was outstanding at the time and is now delivered: columns and beams as parametric items.</strong> They needed a new item class, a new type number, catalog rows, an inspector and their own round-trip tests &mdash; an F1-sized slice rather than the line RM-007 makes them look like &mdash; and shipping a new <em>persisted</em> item type without tests would have been worse than not shipping it. It was recorded here rather than quietly dropped, and cleared after F3 and before programme G started. See the block below.</li>
 
         <li><strong>15 new tests, 1,647 and 88.</strong> Branches 73.21 &rarr; 73.32; statements, lines and functions flat to within a tenth. No budget moved.</li>
+      </ul>
+    </div>
+
+    <div class="gate">
+      <div class="g-head">LANDED &mdash; COLUMNS AND BEAMS, AFTER F3</div>
+      <ul>
+        <li><strong>M-41 = a member is its numbers.</strong> Item type <strong>12</strong>, and one description for two things: a cross-section of <code>width</code> by <code>depth</code>, a <code>length</code> along the axis, and a <code>soffit</code> &mdash; the height of the underside above the floor. The mesh is measured against those four for both kinds across eight sets of numbers. Nothing derivable is stored: the top, the centre and the extent all fall out, and a round column's depth is forced to its width because a circle has one dimension.</li>
+
+        <li><strong><code>depth</code> means a different axis for each kind, and that is the right answer rather than a trick.</strong> A column's axis is vertical, so its cross-section lies in plan; a beam's is horizontal, so its <code>depth</code> is the vertical dimension. That is exactly what the two words mean on a structural drawing &mdash; a beam's depth <em>is</em> its vertical dimension &mdash; so one field carries one meaning and lands on the convention for both. The inspector's labels follow the member instead: a column has a <em>height</em>, a beam has a <em>span</em>, and they are the same field.</li>
+
+        <li><strong>The third caller tested F1's generator seam again, and it held.</strong> A rectangular column and a beam are one <code>box</code> each out of <code>items/solid_builder.js</code>. A round column is not, and the 24-sided prism that draws it <em>stays</em> in <code>structure.js</code> with one caller rather than moving to the shared file pre-emptively &mdash; the rule that file states is that a piece moves out when a <em>second</em> caller wants it, which is the rule F3 learned by finding <code>box</code> private.</li>
+
+        <li><strong>The height bug was expected this time, which is the whole point of having found it twice.</strong> F1 measured a 210&nbsp;cm door hanging 20&nbsp;cm above the floor; F3 measured a railed flight that would have floated 45. <code>FloorItem.resized</code> puts the origin at half the mesh, which stands everything on the floor, and a beam's purpose is not being on the floor. So the elevation is derived in the constructor, in <code>resized()</code> and in <code>placeInRoom()</code>, and the browser tier asserts a beam's soffit rather than trusting that somebody thought of it. A first draft also overrode <code>boundMove</code>; <code>FloorItem</code> does not have one, so that would have been a method nothing ever called.</li>
+
+        <li><strong>A column is drawn solid and a beam dashed</strong>, because a plan is a horizontal section about a metre up: the column passes through it and the beam is above it. Their plan rectangles are otherwise identical, so the dash is the only thing that tells a reader which is which. A round column is drawn round from the same <code>section</code> the mesh is built from, using two of E4's existing primitives &mdash; <code>circle</code> to fill, a full-turn <code>arc</code> to stroke &mdash; rather than widening one that both backends implement and M-34 enumerates.</li>
+
+        <li><strong>One bug, found by exporting a sheet and looking at it.</strong> A 45&nbsp;cm round column beside a 40&nbsp;cm square one came out <em>smaller</em>: the circle's radius came from <code>Dimensioning.cmToPixel</code>, which reads the screen's zoom, while everything around it was drawn through the export projection. <code>renderTo</code> swaps the projection and leaves <code>dimensioning</code> alone, so the column was drawn at its on-screen size on a sheet at 1:100. The radius comes from the projection now, the way <code>drawDoorSwing</code> already took its own, and the regression test halves the scale and asserts the radius doubles.</li>
+
+        <li><strong>52 new tests, 1,773 and 100.</strong> Coverage up on all four: statements 83.12 &rarr; 83.35, branches 73.73 &rarr; 74.16, functions 80.82 &rarr; 80.98, lines 83.16 &rarr; 83.38. No budget moved &mdash; but three are thin now (the deployed tree at 0.4&nbsp;%, the IIFE at 0.7&nbsp;%, the ESM at 1.5&nbsp;%) and the next change that trips one should raise it to the ~5&nbsp;% the limits were set with.</li>
       </ul>
     </div>
   </div>
@@ -4266,7 +4285,7 @@ if(this.halfSize.x &lt; 1.0)
 
   <p style="margin-top:16px">Six weeks, unchanged from RM-007, and the shape inside them has moved: <strong>F1 is the only sprint here that decides anything</strong>. The opening description in U-4 is what F2's archways and F3's stairs both build on, and it is the reason this drawing exists before the code rather than after it &mdash; the same argument RM-008 made for E1's projection, and it held.</p>
 
-  <p><strong>Delivered, and the sentence above is worth marking against what happened.</strong> F1 <em>was</em> the sprint that decided things, twice over: F2's archways cost nothing because the description already covered them, and F3's stairs are a second caller of a generator rather than a second generator. But the boundary F1 drew was only half of one &mdash; right at the call and absent underneath it &mdash; and that is not something a drawing could have found. It took a second caller, which is exactly what &sect;&nbsp;44's risk row said and exactly why it named 1.5 weeks as a cheap place to find out. <strong>One part of the programme is outstanding</strong>: columns and beams as parametric items, recorded in F2 above.</p>
+  <p><strong>Delivered, and the sentence above is worth marking against what happened.</strong> F1 <em>was</em> the sprint that decided things, three times over: F2's archways cost nothing because the description already covered them, F3's stairs are a second caller of a generator rather than a second generator, and F2's columns and beams are a third that needed no change to it at all. But the boundary F1 drew was only half of one &mdash; right at the call and absent underneath it &mdash; and that is not something a drawing could have found. It took a second caller, which is exactly what &sect;&nbsp;44's risk row said and exactly why it named 1.5 weeks as a cheap place to find out. <strong>The programme is now complete</strong>: F2's outstanding part landed after F3 and before programme G started.</p>
 </section>
 
 <section id="open-risks">
@@ -4569,7 +4588,7 @@ this.roofPlane = this.buildRoofVaryingHeight();</pre></div>
   <p><strong>Sources &mdash; RM-009.</strong> <a href="https://kenney.nl/assets/furniture-kit">Kenney &mdash; Furniture Kit (CC0)</a> &middot; <a href="https://threejs.org/docs/#api/en/extras/core/Shape">three.js &mdash; Shape</a> &middot; <a href="https://threejs.org/docs/#api/en/geometries/ShapeGeometry">three.js &mdash; ShapeGeometry</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/specification/2.0/README.md">glTF 2.0 specification</a></p>
   <p><strong>Sources &mdash; RM-008.</strong> <a href="https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D">MDN &mdash; CanvasRenderingContext2D</a> &middot; <a href="https://www.w3.org/TR/SVG2/">W3C &mdash; SVG 2</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame">MDN &mdash; requestAnimationFrame</a></p>
   <p><strong>Sources &mdash; RM-007.</strong> <a href="https://www.coohom.com/case/floor-planner">Coohom &mdash; Floor Planner</a> &middot; <a href="https://www.sweethome3d.com/features.jsp">Sweet Home 3D &mdash; Features</a> &middot; <a href="https://kenney.nl/assets/furniture-kit">Kenney &mdash; Furniture Kit (CC0)</a> &middot; <a href="https://polyhaven.com/">Poly Haven (CC0)</a> &middot; <a href="https://ambientcg.com/">ambientCG (CC0)</a> &middot; <a href="https://quaternius.com/">Quaternius (CC0)</a> &middot; <a href="https://threejs.org/docs/">three.js documentation</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API">MDN &mdash; Service Worker API</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API">MDN &mdash; IndexedDB</a></p>
-  <p>architect3d &middot; Delivery &amp; precision program RM-004 rev A &middot; <strong>delivered</strong>, all five sprints &middot; residual program RM-005 rev A &middot; <strong>delivered</strong>, both sprints &middot; correction program RM-006 rev A &middot; <strong>delivered</strong> &middot; product roadmap RM-007 rev B &middot; <strong>proposed</strong>, eight programmes, 42 weeks &middot; programme E RM-008 rev A &middot; <strong>delivered</strong>, all four sprints &middot; programme F RM-009 rev A &middot; <strong>delivered</strong>, three sprints, one part outstanding &middot; programme G RM-010 rev A &middot; <strong>proposed</strong>, three sprints, 6 weeks &middot; successor to hardening program RM-003</p>
+  <p>architect3d &middot; Delivery &amp; precision program RM-004 rev A &middot; <strong>delivered</strong>, all five sprints &middot; residual program RM-005 rev A &middot; <strong>delivered</strong>, both sprints &middot; correction program RM-006 rev A &middot; <strong>delivered</strong> &middot; product roadmap RM-007 rev B &middot; <strong>proposed</strong>, eight programmes, 42 weeks &middot; programme E RM-008 rev A &middot; <strong>delivered</strong>, all four sprints &middot; programme F RM-009 rev A &middot; <strong>delivered</strong>, three sprints, complete &middot; programme G RM-010 rev A &middot; <strong>proposed</strong>, three sprints, 6 weeks &middot; successor to hardening program RM-003</p>
   <p class="credit">Created by <a href="https://amitukind.com" target="_blank" rel="noopener noreferrer">Amit Verma</a></p>
 </footer>
 

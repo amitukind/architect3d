@@ -63,10 +63,12 @@ export {defaultFloorPlanTolerance, Floorplan, SAVE_UNITS} from './model/floorpla
 // item - which is what lets the 2D view show furniture without a Floorplan
 // gaining a reference to a Scene.
 export {projectItem, projectItems, footprintContains, footprintCorners} from './model/plan_projection.js';
-export {ITEM_TYPE_PARAMETRIC_OPENING, ITEM_TYPE_PARAMETRIC_STAIR} from './items/factory.js';
+export {ITEM_TYPE_PARAMETRIC_OPENING, ITEM_TYPE_PARAMETRIC_STAIR, ITEM_TYPE_PARAMETRIC_STRUCTURE} from './items/factory.js';
 export {ParametricOpening} from './items/parametric_opening.js';
 export {OPENING_DOOR, OPENING_WINDOW, OPENING_ARCH, OPENING_KINDS, OPENING_DEFAULTS, HINGE_LEFT, HINGE_RIGHT, newOpening, normaliseOpening, openingRectangle, clampOpening, buildOpeningGeometry, openingToJSON} from './items/opening.js';
 export {ParametricStair} from './items/parametric_stair.js';
+export {ParametricStructure} from './items/parametric_structure.js';
+export {STRUCTURE_COLUMN, STRUCTURE_BEAM, STRUCTURE_KINDS, STRUCTURE_DEFAULTS, SECTION_RECTANGULAR, SECTION_ROUND, STRUCTURE_SECTIONS, newStructure, normaliseStructure, structureExtent, isOverhead, buildStructureGeometry, structureToJSON} from './items/structure.js';
 export {STAIR_STRAIGHT, STAIR_L, STAIR_U, STAIR_SHAPES, STAIR_DEFAULTS, STAIR_MATERIALS, TURN_LEFT, TURN_RIGHT, HANDRAIL_NONE, HANDRAIL_LEFT, HANDRAIL_RIGHT, HANDRAIL_BOTH, HANDRAIL_SIDES, HEADROOM, newStair, normaliseStair, stairMetrics, stairParts, stairPlan, stairwellHint, buildStairGeometry, stairToJSON} from './items/stair.js';
 export {Dimension, TextAnnotation, dimensionLine, DEFAULT_DIMENSION_OFFSET, DEFAULT_ANNOTATION_TEXT, DEFAULT_ANNOTATION_SIZE, ANNOTATION_SIZES} from './model/annotation.js';
 export {Model} from './model/model.js';

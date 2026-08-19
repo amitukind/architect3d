@@ -433,27 +433,28 @@ three's own addons — the previously vendored copies are gone as of S5.
 
 ### `items` — the furniture
 
-Ten classes over one `Item` base, and the class decides how a thing behaves:
+Eleven classes over one `Item` base, and the class decides how a thing behaves:
 whether it snaps to a wall, cuts a hole in one, sits on the floor, hangs from
 the roof, or floats free. `factory.js` maps the numeric `item_type` in a save
 file to the class. Adding another type means a class and a factory entry —
 appended, never filling one of the gaps at 5 and 6, because a type number is
 written into every save file and one that used to mean something else is a trap.
 
-**Two of the ten are generated rather than downloaded**: `ParametricOpening`
-(type 10, RM-008 F1) and `ParametricStair` (type 11, F3). They carry a
-description — seven numbers for a door, seven for a flight — and their mesh, the
-hole they cut, the symbol the plan draws and the record they save are all
-derived from it. Everything else about them is an ordinary item: they select,
-undo, project and persist through the same paths.
+**Three of the eleven are generated rather than downloaded**: `ParametricOpening`
+(type 10, RM-008 F1), `ParametricStair` (type 11, F3) and `ParametricStructure`
+(type 12, F2). Each carries a description of seven numbers, and its mesh, the
+hole it cuts, the symbol the plan draws and the record it saves are all derived
+from it. Everything else about them is an ordinary item: they select, undo,
+project and persist through the same paths.
 
-The generator itself is three files with a deliberate seam:
+The generator itself is four files with a deliberate seam:
 
 | File | What it is |
 |---|---|
-| `solid_builder.js` | Boxes into a buffer, with material groups, and two rotations. Knows nothing about doors or stairs |
+| `solid_builder.js` | Boxes into a buffer, with material groups, and two rotations. Knows nothing about doors, stairs or columns |
 | `opening.js` | A door, window or archway: the description, the clamp, the geometry |
 | `stair.js` | A flight: the description, the shape of its runs and landings, the plan symbol, the stairwell hint, the geometry |
+| `structure.js` | A column or a beam: the description, which side of the plan's section it is on, the geometry |
 
 `solid_builder.js` was written inside `opening.js` for F1 and moved out by F3,
 unchanged, when stairs became its second caller — which is the check RM-009's
@@ -461,6 +462,12 @@ risk table asked F3 to make. What it found is that F1 had drawn the boundary at
 the *call* (numbers in, a `BufferGeometry` and a material list out) but not
 underneath it: the four builder pieces were module-private, so a second caller's
 only options were to copy them or to import from a module named after doors.
+
+The third caller tested it again and it held: a column and a beam are one `box`
+each. A *round* column is not, and the prism that draws it stays in
+`structure.js` with one caller rather than moving to the shared file
+pre-emptively — the rule that file states is that a piece moves when a second
+caller wants it, which is the rule F3 learned by finding `box` private.
 
 ## The application layer
 

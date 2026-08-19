@@ -89,6 +89,10 @@
  *           for every other item. What lets the plan draw this flight's treads,
  *           its landing and the stairwell a floor above would need, rather than
  *           a rectangle with a chair's outline.
+ * @property {?{kind: string, width: number, depth: number, length: number, soffit: number, section: string}} structure
+ *           A column's or a beam's numbers (RM-008 F2); null for every other
+ *           item. What lets the plan draw a column solid and a beam dashed -
+ *           the one is cut by the plan's section and the other is above it.
  * @property {boolean} fixed Locked in place.
  * @property {?string} edgeId The half edge a wall-bound item is attached to, or
  *           null. Lets the plan draw an opening in the right wall without
@@ -183,6 +187,17 @@ export function projectItem(item)
 			width: item.stair.width,
 			handrail: item.stair.handrail,
 			turn: item.stair.turn,
+		} : null,
+		/**
+		 * A column's or a beam's numbers (RM-008 F2). Copied, for the reason above.
+		 */
+		structure: (item && item.structure) ? {
+			kind: item.structure.kind,
+			width: item.structure.width,
+			depth: item.structure.depth,
+			length: item.structure.length,
+			soffit: item.structure.soffit,
+			section: item.structure.section,
 		} : null,
 	};
 }

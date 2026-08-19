@@ -476,23 +476,25 @@ describe('useCatalog', () =>
 	});
 
 	/**
-	 * The eight mesh sections, in the demo's order, with the two generated
+	 * The eight mesh sections, in the demo's order, with the three generated
 	 * sections ahead of them.
 	 *
-	 * The list used to be the eight alone. RM-008 F1 put "Doors & Windows" first
-	 * and F3 put "Stairs" second, and re-checking says that is right rather than
-	 * incidental: both are separate sources because `catalog.json` is the list of
-	 * model FILES this build ships and a generated item has none, and both belong
-	 * ahead of the furniture because a door and a flight of stairs are parts of a
-	 * building rather than things put in one. The eight are still asserted in
-	 * their order, which is what the pin was for.
+	 * The list used to be the eight alone. RM-008 F1 put "Doors & Windows" first,
+	 * F3 put "Stairs" second and F2's late slice put "Columns & Beams" third, and
+	 * re-checking says that is right rather than incidental each time: all three
+	 * are separate sources because `catalog.json` is the list of model FILES this
+	 * build ships and a generated item has none, and all three belong ahead of
+	 * the furniture because a door, a staircase and a column are parts of a
+	 * building rather than things put in one. Their order is the order somebody
+	 * builds in. The eight are still asserted in their order, which is what the
+	 * pin was for.
 	 */
 	it('offers every catalog item, grouped and ordered as the demo grouped them', () =>
 	{
 		const headings = catalog.sections.value.map((section) => section.heading);
 
 		expect(headings).toEqual([
-			'Doors & Windows', 'Stairs',
+			'Doors & Windows', 'Stairs', 'Columns & Beams',
 			'Floor Items', 'Ceiling Items', 'Wall Items', 'In Wall Items',
 			'In Wall Floor Items', 'On Floor Items', 'Wall-Floor Items', 'Anywhere Items',
 		]);

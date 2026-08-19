@@ -618,6 +618,63 @@ gzipped, with the reason in `tools/budget.json`; the three F1 raised did not nee
 to move again, which is what raising them to 5% headroom rather than to
 just-enough was for.
 
+**RM-008 F2's outstanding part delivered: a column and a beam are numbers.**
+F2 shipped without them and recorded why — a new *persisted* item type needs a
+class, a type number, catalog rows, an inspector and round-trip tests, and
+shipping one without them would be worse than not shipping it. This is that
+slice, landed before programme G starts, as **item type 12** and metric **M-41**.
+
+**One description, two things.** A column is a beam stood on end, and rather
+than be clever about that the record says which it is and derives the rest: a
+cross-section of `width` by `depth`, a `length` along the axis, and a `soffit` —
+the height of the underside above the floor. `depth` means a plan dimension for
+a column and a vertical one for a beam, which is not a trick being played on one
+field: it is exactly what those two words mean on a structural drawing, and a
+beam's depth *is* its vertical dimension. Nothing derivable is stored — the top,
+the centre and the extent all come out of the four numbers, and a round column's
+depth is forced to its width because a circle has one dimension.
+
+**The third caller tested F1's generator seam again, and it held.** A rectangular
+column and a beam are one `box` each from `items/solid_builder.js`. A round
+column is not, and the 24-sided prism that draws it stays in `structure.js` with
+one caller rather than moving to the shared file pre-emptively — the rule that
+file states is that a piece moves out when a *second* caller wants it, which is
+the rule F3 learned by finding `box` private.
+
+**The height bug was expected this time, which is the point.** F1 measured a
+210 cm door hanging 20 cm above the floor and F3 a railed flight that would have
+floated 45 cm; both were found by placing one in a live page. `FloorItem.resized`
+sets the origin to half the mesh, which stands everything on the floor, and a
+beam's whole purpose is not being on the floor. So the derivation is written
+against `structureExtent().centre` in the constructor, in `resized()` and in
+`placeInRoom()`, and the browser tier asserts a beam's soffit rather than
+trusting that it was thought of. A first draft overrode `boundMove` as well;
+`FloorItem` does not have one, so that would have been a method nothing called.
+
+**A column is drawn solid on the plan and a beam dashed**, because a plan is a
+horizontal section about a metre above the floor: the column passes through it
+and the beam is above it. Their plan rectangles are otherwise identical, so the
+dash is the only thing that tells a reader which is which. A round column is
+drawn round, from the same `section` field the mesh is built from, using two of
+E4's existing primitives — `circle` to fill and a full-turn `arc` to stroke —
+rather than widening one that both backends implement and M-34 enumerates.
+
+**One bug found by exporting a sheet and looking at it.** A 45 cm round column
+beside a 40 cm square one came out *smaller*: the circle's radius was taken from
+`Dimensioning.cmToPixel`, which reads the screen's zoom, while everything around
+it was drawn through the export projection. `renderTo` swaps the projection and
+leaves `dimensioning` alone, so the column was drawn at its on-screen size on a
+sheet at 1:100. The radius now comes from the projection, the way `drawDoorSwing`
+already took its own, and the regression test halves the scale and asserts the
+radius doubles.
+
+**46 new headless tests and 6 new browser tests, 1,773 and 100.** Coverage up on
+all four again: statements 83.12 → 83.35, branches 73.73 → 74.16, functions
+80.82 → 80.98, lines 83.16 → 83.38. No budget moved, but three are now thin —
+the deployed tree at 0.4 %, the IIFE at 0.7 % and the ESM at 1.5 % — and the next
+change that trips one should raise it to the ~5 % the limits were set with rather
+than to just-enough.
+
 ## [3.0.1] - 2026-08-16
 
 No shipped code changed — `src/` is byte-identical to 3.0.0 and so is every

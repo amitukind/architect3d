@@ -15,9 +15,10 @@ import {disposeMaterial} from '../core/resource_registry.js';
 import {Utils} from '../core/utils.js';
 import {mergeMeshes} from '../core/geometry_merge.js';
 import {resolveModelUrl} from '../core/legacy_models.js';
-import {ITEM_TYPE_PARAMETRIC_OPENING, ITEM_TYPE_PARAMETRIC_STAIR} from '../items/factory.js';
+import {ITEM_TYPE_PARAMETRIC_OPENING, ITEM_TYPE_PARAMETRIC_STAIR, ITEM_TYPE_PARAMETRIC_STRUCTURE} from '../items/factory.js';
 import {buildOpeningGeometry, normaliseOpening} from '../items/opening.js';
 import {buildStairGeometry, normaliseStair} from '../items/stair.js';
+import {buildStructureGeometry, normaliseStructure} from '../items/structure.js';
 import {Factory} from '../items/factory.js';
 import {EVENT_ITEM_LOADING, EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED} from '../core/events.js';
 
@@ -361,10 +362,12 @@ export class Scene extends EventDispatcher
 		
 		var scope = this;
 
-		// A parametric item has no file to name - an opening (RM-008 F1) or a
-		// flight of stairs (F3) - so the legacy URL shim below is skipped for it;
-		// `resolveModelUrl` on an absent filename would invent one.
-		var parametric = (itemType === ITEM_TYPE_PARAMETRIC_OPENING || itemType === ITEM_TYPE_PARAMETRIC_STAIR);
+		// A parametric item has no file to name - an opening (RM-008 F1), a flight
+		// of stairs (F3) or a column or beam (F2) - so the legacy URL shim below is
+		// skipped for it; `resolveModelUrl` on an absent filename would invent one.
+		var parametric = (itemType === ITEM_TYPE_PARAMETRIC_OPENING
+			|| itemType === ITEM_TYPE_PARAMETRIC_STAIR
+			|| itemType === ITEM_TYPE_PARAMETRIC_STRUCTURE);
 
 		// Designs saved before S3 name models in the retired three.js JSON
 		// format. Rewriting here rather than in Model.newRoom covers every way an
@@ -435,6 +438,10 @@ export class Scene extends EventDispatcher
 			if (itemType === ITEM_TYPE_PARAMETRIC_STAIR)
 			{
 				built = buildStairGeometry(normaliseStair(metadata.stair));
+			}
+			else if (itemType === ITEM_TYPE_PARAMETRIC_STRUCTURE)
+			{
+				built = buildStructureGeometry(normaliseStructure(metadata.structure));
 			}
 			else
 			{

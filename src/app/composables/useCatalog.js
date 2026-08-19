@@ -3,7 +3,10 @@ import {computed} from 'vue';
 import catalog from '../../catalog/catalog.json';
 import openings from '../../catalog/openings.json';
 import stairs from '../../catalog/stairs.json';
-import {ITEM_TYPE_PARAMETRIC_OPENING, ITEM_TYPE_PARAMETRIC_STAIR} from '../../scripts/blueprint.js';
+import structures from '../../catalog/structures.json';
+import {
+	ITEM_TYPE_PARAMETRIC_OPENING, ITEM_TYPE_PARAMETRIC_STAIR, ITEM_TYPE_PARAMETRIC_STRUCTURE,
+} from '../../scripts/blueprint.js';
 
 /**
  * The furniture palette, read straight from the catalog.
@@ -107,10 +110,34 @@ function stairSection()
 	};
 }
 
+/**
+ * The generated columns and beams (RM-008 F2).
+ *
+ * Third and last of the generated sections, and after the stairs for the same
+ * reason the stairs come after the doors: this is the order somebody builds in.
+ *
+ * @returns {CatalogSection}
+ */
+function structureSection()
+{
+	return {
+		id: ITEM_TYPE_PARAMETRIC_STRUCTURE,
+		heading: structures.heading,
+		items: structures.items.map((entry) => ({
+			name: entry.name,
+			image: '',
+			model: '',
+			type: ITEM_TYPE_PARAMETRIC_STRUCTURE,
+			format: 'parametric',
+			structure: entry.structure,
+		})),
+	};
+}
+
 /** @returns {Array<CatalogSection>} */
 function buildSections()
 {
-	return [openingSection(), stairSection()].concat(Object.keys(catalog.itemTypes)
+	return [openingSection(), stairSection(), structureSection()].concat(Object.keys(catalog.itemTypes)
 		.map((key) => Object.assign({id: Number(key)}, catalog.itemTypes[key]))
 		.sort((a, b) => a.order - b.order)
 		.map((type) => ({
@@ -128,7 +155,8 @@ function buildSections()
 export function useCatalog(store, placementContext)
 {
 	var sections = computed(buildSections);
-	var count = computed(() => catalog.items.length + openings.items.length + stairs.items.length);
+	var count = computed(() => catalog.items.length + openings.items.length
+		+ stairs.items.length + structures.items.length);
 
 	/**
 	 * Add one catalog entry to the scene.
@@ -177,6 +205,12 @@ export function useCatalog(store, placementContext)
 		if (entry.stair)
 		{
 			metadata.stair = entry.stair;
+		}
+
+		// And the same again for a column or a beam (RM-008 F2).
+		if (entry.structure)
+		{
+			metadata.structure = entry.structure;
 		}
 
 		if (WALL_BOUND_TYPES.indexOf(entry.type) !== -1 && context.wall)

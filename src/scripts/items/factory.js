@@ -9,23 +9,27 @@ import {WallFloorItem} from './wall_floor_item.js';
 import {RoofItem} from './roof_item.js';
 import {ParametricOpening} from './parametric_opening.js';
 import {ParametricStair} from './parametric_stair.js';
+import {ParametricStructure} from './parametric_structure.js';
 
 /**
  * Which class each item type number builds.
  *
- * 10 is RM-008 F1's parametric opening and 11 is F3's parametric stair, both
- * appended rather than filling one of the gaps at 5 and 6: the numbers are
- * compared across the library/application boundary and are written into every
- * save file, so a number that once meant something else is a trap, and a gap is
- * only untidy.
+ * 10 is RM-008 F1's parametric opening, 11 is F3's parametric stair and 12 is
+ * F2's column and beam, all appended rather than filling one of the gaps at 5
+ * and 6: the numbers are compared across the library/application boundary and
+ * are written into every save file, so a number that once meant something else
+ * is a trap, and a gap is only untidy.
  */
-export const item_types = {1: FloorItem, 2: WallItem, 3: InWallItem, 7: InWallFloorItem, 8: OnFloorItem, 9: WallFloorItem, 0: Item, 4: RoofItem, 10: ParametricOpening, 11: ParametricStair};
+export const item_types = {1: FloorItem, 2: WallItem, 3: InWallItem, 7: InWallFloorItem, 8: OnFloorItem, 9: WallFloorItem, 0: Item, 4: RoofItem, 10: ParametricOpening, 11: ParametricStair, 12: ParametricStructure};
 
 /** The item type a generated door, window or archway carries (RM-008 F1). */
 export const ITEM_TYPE_PARAMETRIC_OPENING = 10;
 
 /** The item type a generated flight of stairs carries (RM-008 F3). */
 export const ITEM_TYPE_PARAMETRIC_STAIR = 11;
+
+/** The item type a generated column or beam carries (RM-008 F2). */
+export const ITEM_TYPE_PARAMETRIC_STRUCTURE = 12;
 
 /** Factory class to create items. */
 export class Factory

@@ -28,6 +28,7 @@ import DimensionInspector from '../src/app/inspector/DimensionInspector.vue';
 import AnnotationInspector from '../src/app/inspector/AnnotationInspector.vue';
 import OpeningInspector from '../src/app/inspector/OpeningInspector.vue';
 import StairInspector from '../src/app/inspector/StairInspector.vue';
+import StructureInspector from '../src/app/inspector/StructureInspector.vue';
 import App from '../src/app/App.vue';
 
 import textures from '../src/catalog/textures.json';
@@ -40,6 +41,7 @@ import {SELECTION_WALL, SELECTION_FLOOR} from '../src/app/composables/useSelecti
 import {EVENT_CORNER_2D_CLICKED, EVENT_ROOM_2D_CLICKED, EVENT_DIMENSION_2D_CLICKED, EVENT_ANNOTATION_2D_CLICKED} from '../src/scripts/core/events.js';
 import {syncDisplayUnit} from '../src/app/composables/useDisplayUnit.js';
 import {normaliseStair, stairMetrics, stairwellHint} from '../src/scripts/items/stair.js';
+import {normaliseStructure} from '../src/scripts/items/structure.js';
 
 import {buildSquareRoom, resetAll} from './helpers/harness.js';
 import {installCanvas2D, installPointerApis, installResizeObserver} from './helpers/dom.js';
@@ -624,6 +626,113 @@ describe('StairInspector (RM-008 F3)', () =>
 		await nextTick();
 
 		expect(fieldNamed(wrapper, 'Going').element.value).toBe('0.25');
+
+		wrapper.unmount();
+	});
+});
+
+describe('StructureInspector (RM-008 F2)', () =>
+{
+	/**
+	 * A stand-in carrying the two things the panel touches, running the real
+	 * `normaliseStructure` so what the panel reads back is what the item took.
+	 */
+	function aMember(overrides)
+	{
+		return {
+			structure: normaliseStructure(overrides || {}),
+			setStructure(changes)
+			{
+				this.structure = normaliseStructure(Object.assign({}, this.structure, changes));
+				return this.structure;
+			},
+		};
+	}
+
+	/**
+	 * The label follows the member rather than the axis. `length` is one field,
+	 * and calling it that in both panels would be honest about the data model and
+	 * useless to somebody placing a beam.
+	 */
+	it('calls the same field a height on a column and a span on a beam', async () =>
+	{
+		const item = aMember();
+		const wrapper = mount(StructureInspector, {props: {item}});
+
+		expect(wrapper.find('.inspector-heading').text()).toBe('Column');
+		expect(fieldNamed(wrapper, 'Height')).not.toBeNull();
+
+		const beam = wrapper.findAll('.segment').find((button) => button.text() === 'Beam');
+		await beam.trigger('click');
+
+		expect(wrapper.find('.inspector-heading').text()).toBe('Beam');
+		expect(fieldNamed(wrapper, 'Span')).not.toBeNull();
+		expect(fieldNamed(wrapper, 'Soffit')).not.toBeNull();
+
+		wrapper.unmount();
+	});
+
+	it('hides the second cross-section field for a round column', async () =>
+	{
+		const item = aMember();
+		const wrapper = mount(StructureInspector, {props: {item}});
+
+		expect(fieldNamed(wrapper, 'Depth')).not.toBeNull();
+
+		const round = wrapper.findAll('.segment').find((button) => button.text() === 'Round');
+		await round.trigger('click');
+
+		// A round section has one dimension, so a field that cannot disagree with
+		// another field is not shown next to it.
+		expect(fieldNamed(wrapper, 'Depth')).toBeNull();
+		expect(fieldNamed(wrapper, 'Diameter')).not.toBeNull();
+
+		wrapper.unmount();
+	});
+
+	it('offers a section for a column and none for a beam', async () =>
+	{
+		const item = aMember({kind: 'beam'});
+		const wrapper = mount(StructureInspector, {props: {item}});
+
+		expect(wrapper.findAll('.field-label').map((label) => label.text())).not.toContain('Section');
+
+		wrapper.unmount();
+	});
+
+	it('shows the top as the derived number it is', async () =>
+	{
+		const item = aMember({kind: 'beam'});
+		const wrapper = mount(StructureInspector, {props: {item}});
+
+		// Soffit 210 plus depth 40: the top lands on a 250 wall's head.
+		expect(wrapper.find('.inspector-readout').text()).toContain(Dimensioning.cmToMeasure(250));
+
+		await setField(wrapper, 'Depth', 60);
+
+		expect(wrapper.find('.inspector-readout').text()).toContain(Dimensioning.cmToMeasure(270));
+
+		wrapper.unmount();
+	});
+
+	it('shows what the item took, not what it was handed', async () =>
+	{
+		const item = aMember();
+		const wrapper = mount(StructureInspector, {props: {item}});
+
+		await setField(wrapper, 'Width', 900);
+
+		expect(item.structure.width).toBe(500);
+		expect(fieldNamed(wrapper, 'Width').element.value).toBe('500');
+
+		wrapper.unmount();
+	});
+
+	it('says which side of the plan\'s section the member is on', async () =>
+	{
+		const wrapper = mount(StructureInspector, {props: {item: aMember({kind: 'beam'})}});
+
+		expect(wrapper.find('.inspector-note').text()).toContain('dashed');
 
 		wrapper.unmount();
 	});

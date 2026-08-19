@@ -1,0 +1,25 @@
+{
+	"note": [
+		"Columns and beams that are generated rather than downloaded (RM-008 F2).",
+		"Kept out of catalog.json for the same reason openings.json and stairs.json",
+		"are: that file is the list of model FILES this build ships, six suites",
+		"assert exactly that over it, and a generated member has no file.",
+		"",
+		"Each row states only what differs from the defaults in",
+		"items/structure.js - a column is 300 x 300 mm and 2500 tall, a beam is",
+		"200 x 400 mm spanning 3000 with its soffit at 2100 so its top lands on a",
+		"2500 wall's head."
+	],
+	"heading": "Columns & Beams",
+	"order": 0,
+	"items": [
+		{"name": "Column", "structure": {"kind": "column"}},
+		{"name": "Column, round", "structure": {"kind": "column", "section": "round"}},
+		{"name": "Column, slender", "structure": {"kind": "column", "width": 20, "depth": 20}},
+		{"name": "Pier", "structure": {"kind": "column", "width": 45, "depth": 30}},
+		{"name": "Beam", "structure": {"kind": "beam"}},
+		{"name": "Beam, deep", "structure": {"kind": "beam", "depth": 60, "soffit": 190, "length": 450}},
+		{"name": "Lintel", "structure": {"kind": "beam", "width": 25, "depth": 22, "length": 150, "soffit": 210}},
+		{"name": "Downstand", "structure": {"kind": "beam", "width": 30, "depth": 30, "length": 600, "soffit": 220}}
+	]
+}
