@@ -595,6 +595,7 @@ useShortcuts(() => bindings.value);
 				@save-mesh="io.saveMesh"
 				@save-gltf="io.saveGLTF"
 				@save-plan-svg="io.savePlanSVG"
+				@save-photo="io.savePhoto"
 				@save-plan-png="io.savePlanPNG"
 				@print-plan="io.printPlan"
 				@undo="undo"

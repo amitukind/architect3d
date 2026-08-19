@@ -231,3 +231,29 @@ describe('what an item does with one', () =>
 		expect(reopened.scene.getItems()[0].lamp.brightness).toBe(2400);
 	});
 });
+
+describe('the AO chain is not built unless the profile asks (H2)', () =>
+{
+	it('returns nothing at all for a profile with ambientOcclusion off', async () =>
+	{
+		// The whole early return, and the reason a build that never enables AO
+		// fetches none of its four modules: this resolves to null before the
+		// dynamic import is reached. What the chain does when it IS asked for
+		// needs a GPU and is in tests/browser/ambient-occlusion.test.js.
+		const {createPostProcessing} = await import('../src/scripts/three/post.js');
+		expect(await createPostProcessing(null, null, null, {ambientOcclusion: false}, {width: 1, height: 1}))
+			.toBeNull();
+		expect(await createPostProcessing(null, null, null, null, {width: 1, height: 1})).toBeNull();
+	});
+
+	it('is off in both profiles, which is a measurement rather than caution', async () =>
+	{
+		// +68% of the frame, measured in the same session on the same scene - the
+		// largest single cost in this programme, which is why the profile says no.
+		const {CLASSIC_PROFILE, STUDIO_PROFILE} = await import('../src/scripts/core/render_profile.js');
+		expect(CLASSIC_PROFILE.ambientOcclusion).toBe(false);
+		expect(STUDIO_PROFILE.ambientOcclusion).toBe(false);
+		// And the radius is in centimetres, like everything else in this model.
+		expect(STUDIO_PROFILE.ambientOcclusionRadius).toBe(60);
+	});
+});

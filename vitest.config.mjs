@@ -66,6 +66,22 @@ export default defineConfig({
 				// The bootstrap. It reads the DOM for #app and mounts; tests mount
 				// App.vue directly, which is the right seam. Nothing here is logic.
 				'src/app/main.js',
+				// The ambient-occlusion chain (RM-011 H2). Excluded explicitly and
+				// with a reason, which is what the paragraph above asks for rather
+				// than letting a number drift down.
+				//
+				// Past its early return - which IS covered here, and is the branch
+				// that decides whether anything is built at all - every line of this
+				// file constructs an EffectComposer, a GTAOPass and three render
+				// targets. All three need a WebGL context; under jsdom there is
+				// none, and a stub permissive enough to let them construct would be
+				// asserting that a mock returns what the mock was told to return.
+				//
+				// It is covered where it can be: `tests/browser/ambient-occlusion.test.js`
+				// builds the chain in Chromium, renders through it, differences the
+				// frame and disposes it, and `tests/viewer-lifecycle.test.js` covers
+				// Main's whole side of the seam headless.
+				'src/scripts/three/post.js',
 			],
 			reporter: ['text-summary', 'json-summary', 'html'],
 			thresholds: {

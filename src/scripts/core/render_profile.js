@@ -131,6 +131,33 @@ export const renderProfile = {
 	/** Blur radius in texels, for the soft shadow filter. */
 	shadowRadius: 2.4,
 
+	// --- ambient occlusion (RM-011 H2) ------------------------------------
+	//
+	// Off here and off in studio, and the second of those is a measurement
+	// rather than caution.
+	//
+	// RM-011 W-2 found no `aoMap` anywhere in this tree, so the only occlusion
+	// available is screen-space - a full-screen pass over depth and normals,
+	// which is the most expensive thing this renderer can be asked to do.
+	// M-28's correction says an effect states its cost as a fraction of the
+	// frame it was measured in, and this one's is the largest in the programme.
+	//
+	// Under `classic` it would be worse than expensive, it would be wrong:
+	// every wall is an unlit MeshBasicMaterial, and multiplying an unlit
+	// surface by an occlusion term is not lighting, it is a grey stain.
+	//
+	// So it is **available and off** - `three/post.js` builds nothing at all
+	// unless this is true, and `Main.render` calls `renderer.render` exactly as
+	// it always did. An embedder who wants it turns it on per document through
+	// the same profile override every other key here takes.
+
+	/** Whether to build a post-processing chain with screen-space AO in it. */
+	ambientOcclusion: false,
+	/** Sample radius, in centimetres. The model's own unit, not metres. */
+	ambientOcclusionRadius: 60,
+	/** How dark the occlusion term is allowed to make a surface. */
+	ambientOcclusionStrength: 1.0,
+
 	// --- image-based lighting ---------------------------------------------
 
 	/** Whether to build a PMREM environment and hang it on the scene.
@@ -231,6 +258,9 @@ export const CLASSIC_PROFILE = Object.freeze({
 	keyHeight: 1,
 	shadowMapSize: 1024,
 	shadowRadius: 1,
+	ambientOcclusion: false,
+	ambientOcclusionRadius: 60,
+	ambientOcclusionStrength: 1.0,
 	environment: false,
 	environmentIntensity: 1.0,
 	wallRoughness: 1.0,
@@ -263,6 +293,9 @@ export const STUDIO_PROFILE = Object.freeze({
 	keyHeight: 1.7,
 	shadowMapSize: 2048,
 	shadowRadius: 2.4,
+	ambientOcclusion: false,
+	ambientOcclusionRadius: 60,
+	ambientOcclusionStrength: 1.0,
 	environment: true,
 	environmentIntensity: 0.32,
 	wallRoughness: 0.94,

@@ -552,6 +552,28 @@ materials pick their class while being built, so the profile has to be set
 first. `Main.applyRenderProfile()` switches a live viewer, at the cost of
 rebuilding every `Edge` and `Floor`.
 
+::: tip Ambient occlusion, and the photo capture
+`three/post.js` is an `EffectComposer` with a `GTAOPass` in it — new
+construction, because RM-011 W-2 found **no `aoMap` anywhere in the tree** and
+screen-space is the only occlusion available. It is **available and off in both
+profiles**, and that is a measurement: a six-metre room renders in 0.22 ms
+without it and 0.37 ms with, **+68 %**, the largest single cost in programme H.
+Under `classic` it would also be wrong rather than merely expensive — multiplying
+an unlit `MeshBasicMaterial` by an occlusion term is a grey stain, not lighting.
+
+Its four modules are **dynamic imports**, and the first-load budget H1 added
+caught that: they were static in the first draft and cost 10.6 KB gzipped on
+every boot for an effect no default turns on. A build that never enables AO now
+fetches none of them.
+
+`Main.dataUrl(n)` supersamples by raising the pixel ratio and leaving the CSS
+size alone — which is what a device pixel ratio *is*, so the camera, the picking
+and the controls all stay correct. W-11 measured the old behaviour: 1024 × 768 at
+ratio 1, and **nothing in `src/` called it**. The restore is in a `finally`,
+because a `toDataURL` that throws on a tainted canvas would otherwise leave the
+viewer rendering at four times its size for the rest of the session.
+:::
+
 ::: tip Lamps, and the catalog's sixth key
 `items/lamp.js` is a colour, a brightness in **lumens**, a range and a fraction
 of the item's height where the bulb sits. RM-011 W-11 counted the catalog — all

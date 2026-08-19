@@ -9,6 +9,7 @@ import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {PointerLockControls} from './pointerlockcontrols.js';
 import {describeFrom} from '../core/texture_formats.js';
 
+import {createPostProcessing} from './post.js';
 import {EVENT_LEVELS_CHANGED, EVENT_CHANGESET, EVENT_WALL_CLICKED, EVENT_NOTHING_CLICKED, EVENT_FLOOR_CLICKED, EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED, EVENT_GLTF_READY} from '../core/events.js';
 import {EVENT_ITEMS_PROJECTED} from '../core/events.js';
 import {CHANGE_TOPOLOGY} from '../core/change_set.js';
@@ -177,6 +178,13 @@ export class Main extends EventDispatcher
 		this.hud = null;
 		/** @type {?Lights} */
 		this.lights = null;
+		/**
+		 * The AO chain, or null when this profile does not want one (RM-011 H2).
+		 * @type {?import('./post.js').PostProcessing}
+		 */
+		this.post = null;
+		/** Bumped per build, so a chain in flight knows it has been superseded. */
+		this._postGeneration = 0;
 		/** @type {?Skybox} */
 		this.skybox = null;
 		this.environmentTexture = null;
@@ -442,6 +450,7 @@ export class Main extends EventDispatcher
 			this.lights = new Lights(this.scene, this.model.floorplan, this.renderProfile);
 			this.lights.updateShadowCamera();
 			this.syncSun();
+			this.buildPostProcessing();
 		}
 
 		this.levelViews.forEach((view) => {view.redraw();});
@@ -576,6 +585,7 @@ export class Main extends EventDispatcher
 
 		scope.lights = new Lights(scope.scene, scope.model.floorplan, scope.renderProfile);
 		scope.syncSun();
+		scope.buildPostProcessing();
 		scope.syncLevelViews();
 
 		function animate()
@@ -679,6 +689,15 @@ export class Main extends EventDispatcher
 		if (this.lights)
 		{
 			this.lights.dispose();
+		}
+		// Five render targets nothing in the scene graph knows about, so nothing
+		// else would ever free them (RM-011 H2). The generation bump is what stops
+		// a chain still in flight from attaching itself to a disposed viewer.
+		this._postGeneration = (this._postGeneration || 0) + 1;
+		if (this.post)
+		{
+			this.post.dispose();
+			this.post = null;
 		}
 		if (this.environmentTexture)
 		{
@@ -794,10 +813,112 @@ export class Main extends EventDispatcher
 	 *
 	 * @returns {string} `data:image/png;base64,...`
 	 */
-	dataUrl()
+	/**
+	 * A picture of the 3D view, at more than the resolution it is displayed at.
+	 *
+	 * ## What this was
+	 *
+	 * RM-011 W-11 measured it: the method existed, rendered once, returned a PNG
+	 * data URL, and **nothing in `src/` called it**. On a boot it produced the
+	 * canvas at 1024 x 768 at device pixel ratio 1 - 391,170 characters, about
+	 * 287 KiB - which is a screenshot of a viewport rather than a photograph of a
+	 * design. H2's bullet is *"a photo capture through the seam that exists"*, and
+	 * this is that seam with the render target it always needed.
+	 *
+	 * ## Supersampling, rather than a bigger canvas
+	 *
+	 * The drawing buffer is enlarged by raising the pixel ratio and the CSS size
+	 * is left alone, which is exactly what a device pixel ratio *is* - so the
+	 * camera's aspect, the picking, the layout and the controls all stay correct
+	 * and nothing has to be told the picture is being taken. Downsampling happens
+	 * in the browser when the PNG is displayed at any smaller size, which is where
+	 * the antialiasing comes from.
+	 *
+	 * The multiplier is applied **on top of** whatever ratio the display already
+	 * asked for, and the product is clamped: WebGL implementations refuse a
+	 * drawing buffer past `MAX_RENDERBUFFER_SIZE`, and a silent refusal is a black
+	 * image. 4x of a 1024 x 768 viewport on a 2x display is 8192 x 6144, which is
+	 * the edge of what a modest GPU allows, so the cap is real rather than
+	 * defensive.
+	 *
+	 * @param {number} [supersample] How many times the displayed resolution. 1 is
+	 *   the old behaviour exactly.
+	 * @returns {string} A PNG data URL, or an empty string with no renderer.
+	 */
+	dataUrl(supersample)
 	{
-		this.render(true);
-		return this.renderer ? this.renderer.domElement.toDataURL('image/png') : '';
+		if (!this.renderer)
+		{
+			return '';
+		}
+		var times = Math.max(1, Math.min(4, Number(supersample) || 1));
+		if (times === 1)
+		{
+			this.render(true);
+			return this.renderer.domElement.toDataURL('image/png');
+		}
+
+		var restore = this.renderer.getPixelRatio();
+		// Read once into locals. `elementWidth` and `elementHeight` are null until
+		// `updateWindowSize` has run, and a `setSize(null, null)` is a canvas of
+		// nothing rather than an error.
+		var width = Number(this.elementWidth) || 0;
+		var height = Number(this.elementHeight) || 0;
+		if (!width || !height)
+		{
+			this.render(true);
+			return this.renderer.domElement.toDataURL('image/png');
+		}
+		// The GPU's own ceiling, asked for rather than assumed. Exceeding it does
+		// not throw: it produces a buffer the driver silently declines to allocate.
+		var limit = this.renderer.capabilities.maxTextureSize || 4096;
+		var longest = Math.max(width, height) * restore;
+		times = Math.max(1, Math.min(times, limit / Math.max(1, longest)));
+
+		try
+		{
+			this.renderer.setPixelRatio(restore * times);
+			this.renderer.setSize(width, height);
+			this.render(true);
+			return this.renderer.domElement.toDataURL('image/png');
+		}
+		finally
+		{
+			// In a finally, because a `toDataURL` that throws on a tainted canvas
+			// would otherwise leave the viewer rendering at four times its size for
+			// the rest of the session.
+			this.renderer.setPixelRatio(restore);
+			this.renderer.setSize(width, height);
+			this.render(true);
+		}
+	}
+
+	/**
+	 * One frame, through the AO chain when there is one (RM-011 H2).
+	 *
+	 * The single place the choice is made, so `render` reads the same either way
+	 * and a future pass has one seam to add itself to rather than three call
+	 * sites to find. The camera is passed in because three of them exist and the
+	 * walkthrough swaps to its own.
+	 *
+	 * @param {import('three').Camera} camera
+	 * @returns {void}
+	 */
+	drawWith(camera)
+	{
+		if (this.post)
+		{
+			this.post.setCamera(camera);
+			this.post.composer.render();
+			return;
+		}
+		// `render` has already returned on a null renderer; the guard states that
+		// rather than assuming it, which is the C2 discipline for a field that is
+		// null before init and again after dispose.
+		if (this.renderer)
+		{
+			this.renderer.render(this.scene.getScene(), camera);
+		}
 	}
 
 	stopSpin()
@@ -1023,6 +1144,13 @@ export class Main extends EventDispatcher
 		// applies the ratio to the drawing buffer.
 		scope.renderer.setPixelRatio(pixelRatio());
 		scope.renderer.setSize(scope.elementWidth, scope.elementHeight);
+		// The composer's render targets are sized in pixels of their own and know
+		// nothing about the canvas, so a viewer resized with AO on would keep
+		// rendering the old rectangle and stretching it (H2).
+		if (scope.post)
+		{
+			scope.post.setSize(Number(scope.elementWidth) || 1, Number(scope.elementHeight) || 1);
+		}
 		scope.needsUpdate = true;
 	}
 
@@ -1245,6 +1373,54 @@ export class Main extends EventDispatcher
 		{
 			this.lights.setSun(this.model.sun, this.model.north);
 		}
+	}
+
+	/**
+	 * Build or drop the post-processing chain for the current profile (H2).
+	 *
+	 * Called wherever the profile can change, which is construction and
+	 * `applyRenderProfile`. There is no chain unless the profile asks for one,
+	 * so a build that wants none pays nothing at all - not an if per frame, not
+	 * a full-screen copy, not the render targets.
+	 *
+	 * @returns {void}
+	 */
+	buildPostProcessing()
+	{
+		if (this.post)
+		{
+			this.post.dispose();
+			this.post = null;
+		}
+		if (!this.renderer || !this.camera)
+		{
+			return;
+		}
+		// Asynchronous because the chain's four modules are fetched on demand -
+		// see `post.js` for the 10.6 KB that bought. A viewer disposed or
+		// re-profiled while the chunk is in flight must not take delivery of it,
+		// which is what the generation counter below is for; without it, switching
+		// profiles twice quickly leaves two composers and frees neither.
+		var scope = this;
+		var generation = (this._postGeneration || 0) + 1;
+		this._postGeneration = generation;
+		createPostProcessing(this.renderer, this.scene.getScene(), this.camera,
+			this.renderProfile, {width: Number(this.elementWidth) || 1, height: Number(this.elementHeight) || 1})
+			.then(function (built)
+			{
+				if (!built)
+				{
+					return;
+				}
+				if (scope._postGeneration !== generation || !scope.renderer)
+				{
+					built.dispose();
+					return;
+				}
+				scope.post = built;
+				scope.needsUpdate = true;
+				scope.render(true);
+			});
 	}
 
 	/**
@@ -1593,7 +1769,7 @@ export class Main extends EventDispatcher
 			if (scope.fpscontrols && scope.fpscamera)
 			{
 				scope.fpscontrols.update();
-				scope.renderer.render(scope.scene.getScene(), scope.fpscamera);
+				scope.drawWith(scope.fpscamera);
 			}
 
 		}
@@ -1601,7 +1777,7 @@ export class Main extends EventDispatcher
 		{
 			if(this.shouldRender() || forced)
 			{
-				scope.renderer.render(scope.scene.getScene(), scope.camera);
+				scope.drawWith(scope.camera);
 			}
 		}
 		scope.lastRender = Date.now();

@@ -21,8 +21,14 @@
  */
 export function createRendererStub(collector)
 {
+	const canvas = document.createElement('canvas');
+	// jsdom's canvas has no 2D or WebGL backend, so `toDataURL` returns the
+	// one-pixel placeholder rather than a picture. That is enough for the photo
+	// capture's own logic - the guards, the clamp and the restore - and what the
+	// picture looks like is `tests/browser/photo.test.js`.
+	canvas.toDataURL = function () {return 'data:image/png;base64,' + 'A'.repeat(64 * this.width);};
 	const renderer = {
-		domElement: document.createElement('canvas'),
+		domElement: canvas,
 		shadowMap: {enabled: false, type: null},
 		clippingPlanes: [],
 		localClippingEnabled: false,
@@ -35,6 +41,11 @@ export function createRendererStub(collector)
 		setClearColor() {},
 		setSize(width, height) {this.size = {width, height};},
 		setPixelRatio(ratio) {this.pixelRatio = ratio;},
+		getPixelRatio() {return this.pixelRatio;},
+		// RM-011 H2's photo capture asks the GPU for its own ceiling before
+		// enlarging the drawing buffer, because exceeding it does not throw - it
+		// produces a buffer the driver silently declines to allocate.
+		capabilities: {maxTextureSize: 4096},
 		setAnimationLoop(fn) {this.animationLoop = fn;},
 		render() {this.renderCount++;},
 		dispose() {this.disposed = true;},

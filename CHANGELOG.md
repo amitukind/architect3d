@@ -1431,6 +1431,69 @@ of the test expected the local number to move. Both are asserted now.
 statements 86.19 → 86.25, branches 77.35 → 77.48, functions 83.76 → 83.81, lines
 86.17 → 86.24. No budget moved.
 
+**RM-011 H2 closed: ambient occlusion, and a photograph.** The sprint's last two
+bullets, and the first-load budget H1 added earned its keep on its second sprint.
+
+**`three/post.js` is new construction, not a setting.** RM-011 W-2 traversed the
+whole tree and found **no `aoMap` on any material in either profile**, so the
+only occlusion available is screen-space — a full-screen pass over depth and
+normals, which needs a post-processing chain, and `Main` has never had one. It is
+three's own `GTAOPass` behind an `EffectComposer`, and the wiring is the whole
+file.
+
+**It is available and off, in both profiles, and that is a measurement.** M-28's
+correction says an effect states its cost as a fraction of the frame it was
+measured in; measured in the same session on the same scene, a six-metre room
+renders in **0.22 ms without it and 0.37 ms with — +68%**, the largest single
+cost in this programme. Under `classic` it would also be *wrong* rather than
+merely expensive: every wall there is an unlit `MeshBasicMaterial`, and
+multiplying an unlit surface by an occlusion term is a grey stain, not lighting.
+
+**And the whole frame moves, not only the corners.** A composer ends in an
+`OutputPass` that applies tone mapping and the sRGB conversion where
+`renderer.render` applies them itself, and the two are not bit-identical:
+781,416 of 786,432 pixels differ by *something*, at a mean of 4.4/255. The
+occlusion is the **51,153** that differ by more than 8 — the threshold this
+project's transcode oracle treats as visible. Both are asserted, so a future pass
+that quietly changed the tone response would show up as the first number moving.
+
+**The first-load budget caught the first draft.** `EffectComposer`, `RenderPass`,
+`GTAOPass` and `OutputPass` were static imports: **10.6 KB gzipped shipped by
+every build for an effect no default turns on**, which is precisely what M-43
+says must not happen. They are dynamic imports now, and the two budget lines
+disagreed in a way that proves the split worked — `first-load` fell while
+`demo-js-gzip` rose, because one asks what the bundle weighs and the other asks
+what a person waits for.
+
+**`Main.dataUrl()` had existed since the fork with no caller.** W-11 measured it
+producing the canvas at 1024 × 768 at device pixel ratio 1 — a screenshot of a
+viewport rather than a picture of a design. It supersamples now, by raising the
+pixel ratio and leaving the CSS size alone, which is what a device pixel ratio
+*is*: the camera's aspect, the picking, the layout and the controls all stay
+correct and nothing has to be told a photograph is being taken. The restore sits
+in a `finally`, because a `toDataURL` that throws on a tainted canvas would
+otherwise leave the viewer rendering at four times its size for the rest of the
+session. Export → **Photo, 2× resolution** is the caller.
+
+**Two budgets raised and one exemption recorded.** `lib-iife-gzip` 288,100 →
+307,000 and `demo-js-gzip` 406,800 → 423,200; an IIFE has no chunks, so rollup
+inlines the dynamic imports and adds the async machinery on top — an embedder
+who wants the smallest bundle should take the ESM entry, which does split and did
+not need raising. And `src/scripts/three/post.js` is excluded from coverage
+**explicitly and with a reason**, which is what `vitest.config.mjs` asks for
+rather than letting a number drift: past its early return every line constructs a
+composer and three render targets, all of which need a WebGL context.
+
+**26 new tests, 2,067 headless and 168 browser.** Coverage: statements 86.25 →
+86.13, branches 77.48 → 77.28, functions 83.81 → 83.80, lines 86.24 → 86.11 —
+down a tenth of a point, all of it `Main`'s GPU paths, which the browser tier
+covers and the headless tier cannot reach.
+
+**Programme H is complete.** H1 gave a surface a material and a library to pick
+from; H2 gave the room a sun, lamps that emit, occlusion behind the switch and a
+photograph. H3 is next: a 360° panorama, and eye height and a teleport in the
+walkthrough.
+
 ## [3.0.1] - 2026-08-16
 
 No shipped code changed — `src/` is byte-identical to 3.0.0 and so is every

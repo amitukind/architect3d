@@ -301,6 +301,46 @@ export function useDesignIO(store)
 	 *
 	 * @param {number} pixelWidth
 	 */
+	/**
+	 * A photograph of the 3D view (RM-011 H2, W-11).
+	 *
+	 * `Main.dataUrl()` has existed since the fork and **nothing called it** - W-11
+	 * measured it producing the canvas at 1024 x 768 at device pixel ratio 1, a
+	 * screenshot of a viewport rather than a picture of a design. It supersamples
+	 * now, and this is the caller.
+	 *
+	 * A data URL rather than a blob, unlike `savePlanPNG` beside it, and the
+	 * difference is not an inconsistency: that one *draws* into a canvas it owns
+	 * and can therefore hand the blob straight out, while this one reads back a
+	 * live WebGL drawing buffer, which `toDataURL` is the only synchronous way to
+	 * do. Between the render and the read the buffer must not be cleared, so
+	 * there is no callback to wait in.
+	 *
+	 * @param {number} [supersample] Multiples of the displayed resolution, 1 to 4.
+	 */
+	function savePhoto(supersample)
+	{
+		var viewer = store.instance.value && store.instance.value.three;
+		if (!viewer)
+		{
+			fail('There is no 3D view to photograph.');
+			return;
+		}
+		var url = viewer.dataUrl(supersample || 2);
+		if (!url || url.length < 100)
+		{
+			fail('The browser could not encode the image.');
+			return;
+		}
+		var anchor = document.createElement('a');
+		anchor.href = url;
+		anchor.download = 'view.png';
+		document.body.appendChild(anchor);
+		anchor.click();
+		anchor.remove();
+		toasts.success('Exported view.png');
+	}
+
 	function savePlanPNG(pixelWidth)
 	{
 		var planner = store.floorplanner.value;
@@ -456,5 +496,5 @@ export function useDesignIO(store)
 		});
 	}
 
-	return {busy, lastError, newDesign, loadDesign, openDesign, saveDesign, saveMesh, saveGLTF, savePlanSVG, savePlanPNG, printPlan};
+	return {busy, lastError, newDesign, loadDesign, openDesign, saveDesign, saveMesh, saveGLTF, savePhoto, savePlanSVG, savePlanPNG, printPlan};
 }

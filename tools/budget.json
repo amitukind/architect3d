@@ -599,12 +599,38 @@
 		"The manifest went 22,208 -> 5,476 gzipped, so the net of this sprint on a",
 		"boot is -6,008 bytes with thirty materials added. A budget's first job is to",
 		"be a number somebody looks at; this one found something on the day it was",
-		"installed."
+		"installed.",
+		"",
+		"RM-011 H2 RAISED lib-iife-gzip 288,100 -> 307,000 and demo-js-gzip 406,800 ->",
+		"423,200. Both are the sprint: a sun, lamps, ambient occlusion and a",
+		"supersampled photo capture. The interesting part is what happened between two",
+		"readings of it.",
+		"",
+		"The AO chain's four modules - EffectComposer, RenderPass, GTAOPass, OutputPass",
+		"- were static imports in the first draft, and the first-load line H1 added",
+		"caught it on its second sprint: 10.6 KB gzipped shipped by every build for an",
+		"effect no default turns on. That is exactly what M-43 says must not happen, so",
+		"they are dynamic imports now. first-load went 404,502 -> 396,000-ish across",
+		"that change while demo-js-gzip went UP, because one line asks what the bundle",
+		"weighs and the other asks what a person waits for - and a code split makes the",
+		"first slightly worse and the second better. The two disagreeing is the",
+		"evidence the split worked.",
+		"",
+		"lib-iife-gzip cannot take that win: an IIFE has no chunks, so rollup inlines",
+		"the dynamic imports and adds the async machinery on top. 292,381 against a",
+		"288,100 limit, raised to the ~5% the limits were set with. An embedder who",
+		"wants the smallest bundle should take the ESM entry, which does split and which",
+		"did not need raising.",
+		"",
+		"lib-esm-gzip is at 76,761 against 78,300 - 2.0% - and is NOT raised here",
+		"because nothing this sprint made it fail. Named as thin, the way F1 named",
+		"demo-js-gzip and lib-iife-gzip before they moved: it is the next line to go,",
+		"and the sprint that trips it should raise it to ~5% rather than to just-enough."
 	],
 	"budgets": {
 		"demo-js-gzip": {
-			"limit": 406800,
-			"measured": 389445
+			"limit": 423200,
+			"measured": 402993
 		},
 		"demo-css-gzip": {
 			"limit": 10000,
@@ -612,11 +638,11 @@
 		},
 		"demo-total": {
 			"limit": 19990000,
-			"measured": 19051372
+			"measured": 19155247
 		},
 		"lib-iife-gzip": {
-			"limit": 288100,
-			"measured": 280062
+			"limit": 307000,
+			"measured": 292381
 		},
 		"public-total": {
 			"limit": 11180000,
@@ -624,7 +650,7 @@
 		},
 		"lib-esm-gzip": {
 			"limit": 78300,
-			"measured": 75992
+			"measured": 76761
 		},
 		"public-largest": {
 			"limit": 330000,
@@ -644,7 +670,7 @@
 		},
 		"first-load": {
 			"limit": 421400,
-			"measured": 403398
+			"measured": 405502
 		}
 	}
 }

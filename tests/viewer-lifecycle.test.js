@@ -1011,3 +1011,223 @@ describe('PointerLockControls walk physics', () =>
 		listeners.restore();
 	});
 });
+
+describe('the photo capture (RM-011 H2, W-11)', () =>
+{
+	/** A mounted viewer, torn down by the caller. */
+	function viewer()
+	{
+		buildViewerDom();
+		const blueprint = new BlueprintJS({
+			floorplannerElement: 'floorplanner-canvas',
+			threeElement: '#viewer',
+			threeCanvasElement: 'three-canvas',
+			textureDir: 'models/textures/',
+			widget: false,
+		});
+		return blueprint;
+	}
+
+	it('renders once and hands back a PNG data URL', () =>
+	{
+		const blueprint = viewer();
+		const before = blueprint.three.renderer.renderCount;
+
+		const url = blueprint.three.dataUrl();
+
+		expect(url.startsWith('data:image/png;base64,')).toBe(true);
+		expect(blueprint.three.renderer.renderCount).toBeGreaterThan(before);
+		blueprint.dispose();
+	});
+
+	it('leaves the pixel ratio exactly where it found it', () =>
+	{
+		// The property the `finally` exists for. A capture that raised the ratio
+		// and did not put it back would leave the viewer rendering at four times
+		// its size for the rest of the session - a bug that looks like a
+		// performance problem and is a screenshot.
+		const blueprint = viewer();
+		const before = blueprint.three.renderer.getPixelRatio();
+
+		blueprint.three.dataUrl(3);
+
+		expect(blueprint.three.renderer.getPixelRatio()).toBe(before);
+		blueprint.dispose();
+	});
+
+	it('puts it back when the read throws', () =>
+	{
+		const blueprint = viewer();
+		const before = blueprint.three.renderer.getPixelRatio();
+		const canvas = blueprint.three.renderer.domElement;
+		const original = canvas.toDataURL;
+		canvas.toDataURL = () => {throw new Error('tainted');};
+
+		expect(() => blueprint.three.dataUrl(2)).toThrow('tainted');
+		expect(blueprint.three.renderer.getPixelRatio()).toBe(before);
+
+		canvas.toDataURL = original;
+		blueprint.dispose();
+	});
+
+	it('clamps the multiplier against the GPU\'s own ceiling', () =>
+	{
+		// Exceeding MAX_TEXTURE_SIZE does not throw; it produces a buffer the
+		// driver silently declines to allocate, which is a black image. The stub
+		// reports 4096, and a 4x capture of this viewport would ask for more.
+		const blueprint = viewer();
+		const limit = blueprint.three.renderer.capabilities.maxTextureSize;
+		let asked = 0;
+		const setSize = blueprint.three.renderer.setSize.bind(blueprint.three.renderer);
+		blueprint.three.renderer.setSize = function (width, height)
+		{
+			asked = Math.max(asked, Math.max(width, height) * this.getPixelRatio());
+			setSize(width, height);
+		};
+
+		blueprint.three.dataUrl(4);
+
+		expect(asked).toBeGreaterThan(0);
+		expect(asked).toBeLessThanOrEqual(limit);
+		blueprint.dispose();
+	});
+
+	it('takes the old path exactly when nobody asked for more', () =>
+	{
+		// 1 is the behaviour the method had since the fork, which is what makes
+		// the parameter safe to add to a published method.
+		const blueprint = viewer();
+		const before = blueprint.three.renderer.getPixelRatio();
+		let resized = 0;
+		const setSize = blueprint.three.renderer.setSize.bind(blueprint.three.renderer);
+		blueprint.three.renderer.setSize = function (width, height) {resized++; setSize(width, height);};
+
+		blueprint.three.dataUrl(1);
+
+		expect(resized).toBe(0);
+		expect(blueprint.three.renderer.getPixelRatio()).toBe(before);
+		blueprint.dispose();
+	});
+
+	it('takes the plain path before the viewer has been sized', () =>
+	{
+		// `elementWidth` and `elementHeight` are null until `updateWindowSize` has
+		// run, and `setSize(null, null)` is a canvas of nothing rather than an
+		// error - so the supersampled path has to notice. Put in the state the
+		// guard describes, for the same reason as the test below.
+		const blueprint = viewer();
+		blueprint.three.elementWidth = null;
+		blueprint.three.elementHeight = null;
+		let resized = 0;
+		const setSize = blueprint.three.renderer.setSize.bind(blueprint.three.renderer);
+		blueprint.three.renderer.setSize = function (width, height) {resized++; setSize(width, height);};
+
+		expect(blueprint.three.dataUrl(4).startsWith('data:image/png')).toBe(true);
+		expect(resized).toBe(0);
+		blueprint.dispose();
+	});
+
+	it('returns an empty string with no renderer at all', () =>
+	{
+		// `renderer` is null between construction and `init()`, which is the
+		// window this guard is for. Set directly rather than reached through
+		// `dispose()`, because dispose releases the context without nulling the
+		// field - so the honest way to test the guard is to put the field in the
+		// state the guard describes.
+		const blueprint = viewer();
+		const three = blueprint.three;
+		three.renderer = null;
+		expect(three.dataUrl(2)).toBe('');
+		blueprint.dispose();
+	});
+});
+
+describe('the AO chain, from Main\'s side (RM-011 H2)', () =>
+{
+	function viewer()
+	{
+		buildViewerDom();
+		return new BlueprintJS({
+			floorplannerElement: 'floorplanner-canvas',
+			threeElement: '#viewer',
+			threeCanvasElement: 'three-canvas',
+			textureDir: 'models/textures/',
+			widget: false,
+		});
+	}
+
+	it('renders straight through the renderer when there is no chain', () =>
+	{
+		// The default, and the reason a build that never enables AO pays nothing:
+		// not an if per frame, not a full-screen copy, not the render targets.
+		const blueprint = viewer();
+		expect(blueprint.three.post).toBeNull();
+
+		const before = blueprint.three.renderer.renderCount;
+		blueprint.three.render(true);
+		expect(blueprint.three.renderer.renderCount).toBeGreaterThan(before);
+		blueprint.dispose();
+	});
+
+	it('renders through the chain when there is one, and not through the renderer', () =>
+	{
+		// `drawWith` is the single place the choice is made, so this is the whole
+		// of it. A stub rather than a real composer: what a GTAOPass does to a
+		// picture needs a GPU and is in tests/browser/ambient-occlusion.test.js.
+		const blueprint = viewer();
+		const cameras = [];
+		let composed = 0;
+		blueprint.three.post = {
+			composer: {render() {composed++;}},
+			ao: {},
+			setCamera(camera) {cameras.push(camera);},
+			setSize() {},
+			dispose() {},
+		};
+
+		const before = blueprint.three.renderer.renderCount;
+		blueprint.three.render(true);
+
+		expect(composed).toBe(1);
+		expect(blueprint.three.renderer.renderCount).toBe(before);
+		// Told which camera every frame, because three of them exist and the
+		// walkthrough swaps to its own.
+		expect(cameras[0]).toBe(blueprint.three.camera);
+		blueprint.dispose();
+	});
+
+	it('resizes the chain with the canvas', () =>
+	{
+		// The composer's render targets are sized in pixels of their own and know
+		// nothing about the canvas, so a viewer resized with AO on would keep
+		// rendering the old rectangle and stretching it.
+		const blueprint = viewer();
+		const sizes = [];
+		blueprint.three.post = {
+			composer: {render() {}}, ao: {},
+			setCamera() {}, setSize(width, height) {sizes.push([width, height]);}, dispose() {},
+		};
+
+		blueprint.three.updateWindowSize();
+
+		expect(sizes.length).toBeGreaterThan(0);
+		expect(sizes[sizes.length - 1][0]).toBeGreaterThan(0);
+		blueprint.dispose();
+	});
+
+	it('disposes the chain, and only once', () =>
+	{
+		const blueprint = viewer();
+		let disposed = 0;
+		blueprint.three.post = {
+			composer: {render() {}}, ao: {},
+			setCamera() {}, setSize() {}, dispose() {disposed++;},
+		};
+		const three = blueprint.three;
+
+		blueprint.dispose();
+
+		expect(disposed).toBe(1);
+		expect(three.post).toBeNull();
+	});
+});
