@@ -7,6 +7,12 @@
  * `first-load` in `tools/budget.json` and it holds the payload; this is the
  * other half, and it is the half a byte count cannot answer.
  *
+ * RM-012 J2 gives it a second subject on the same instrument: *a pack nobody has
+ * opened costs a boot nothing.* The catalog's 168 rows left the bundle for four
+ * files in `public/catalog/`, and the claim that they are fetched rather than
+ * bundled is exactly the claim this file is built to check - a boot asks for
+ * none of them, and the drawer's first open asks for all four.
+ *
  * A tree can grow by ninety files without a boot fetching one of them, or it can
  * grow by one file that every boot fetches eagerly, and the two look identical
  * from disk. `performance.getEntriesByType('resource')` is the browser's own
@@ -31,6 +37,7 @@ import {mount} from '@vue/test-utils';
 
 import App from '../../src/app/App.vue';
 import materials from '../../src/catalog/materials.json';
+import {PACKS, loadCatalogPacks, resetCatalogPacks} from '../../src/app/composables/useCatalog.js';
 
 let wrapper;
 
@@ -46,6 +53,10 @@ function fetched()
 
 beforeEach(async () =>
 {
+	// A previous case's fetches are cached in the module, so the pack assertions
+	// below would measure whether this file's cases ran in order rather than what
+	// a boot does.
+	resetCatalogPacks();
 	performance.clearResourceTimings();
 	wrapper = mount(App, {attachTo: document.body});
 	await nextTick();
@@ -93,5 +104,62 @@ describe('M-43 - a boot fetches no material', () =>
 		// and cost the network nothing until somebody opens the inspector.
 		expect(materials.wall.length + materials.floor.length).toBeGreaterThan(30);
 		expect(wrapper.find('#app-shell').exists()).toBe(true);
+	});
+});
+
+/**
+ * The second half of M-43, added by RM-012 J2.
+ *
+ * J1 split the catalog by tier and left the index in the bundle, which fits
+ * today and stops fitting at the row count J2 is written for - X-3 measured
+ * 17,264 gzipped bytes of growth against 13,292 of headroom. J2 took every row
+ * out: the bundle imports a manifest of kits, and the rows are fetched when the
+ * drawer opens.
+ *
+ * Whether that is true is not a question a file listing can answer. A build that
+ * fetched all four packs at boot and one that fetched none look identical on
+ * disk, and both leave `first-load` unmoved, because `first-load` counts the
+ * document and what it references and a pack is referenced by neither.
+ */
+describe('M-43 - a boot fetches no pack', () =>
+{
+	it('asks for no catalog file at all', () =>
+	{
+		const packs = fetched().filter((path) => path.includes('/catalog/'));
+		expect(packs, `a boot fetched ${packs.length} pack files:\n  ${packs.join('\n  ')}`)
+			.toEqual([]);
+	});
+
+	it('and for none of the four by name, wherever they are served from', () =>
+	{
+		// The path test above would miss a pack moved out of that directory. These
+		// are the URLs the manifest itself names, which is what the application
+		// would actually ask for.
+		const asked = new Set(fetched());
+		const wanted = PACKS.flatMap((pack) => [pack.index, pack.detail]);
+		expect(wanted.filter((url) => asked.has(`/${url}`) || asked.has(url))).toEqual([]);
+	});
+
+	it('knows what it is not fetching, because the manifest is bundled', () =>
+	{
+		// The other half of the trade. A boot that fetched nothing and also knew
+		// nothing would be a drawer that could not tell you what it was waiting
+		// for; the manifest costs one line per kit and is a function of how many
+		// kits exist rather than how many items.
+		expect(PACKS.length).toBe(4);
+		expect(PACKS.reduce((sum, pack) => sum + pack.rows, 0)).toBe(168);
+		expect(PACKS.every((pack) => typeof pack.licence === 'string' && pack.licence)).toBe(true);
+	});
+
+	it('fetches all four the moment somebody opens the drawer', async () =>
+	{
+		// Which is what makes the three assertions above a measurement rather than
+		// a tautology: a pack URL that 404s would also never appear in a boot's
+		// timings, and this is the case that tells the two apart.
+		const rows = await loadCatalogPacks();
+		expect(rows.length).toBe(168);
+
+		const packs = fetched().filter((path) => path.includes('/catalog/'));
+		expect(packs.length).toBe(4);
 	});
 });

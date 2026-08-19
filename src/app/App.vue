@@ -724,6 +724,7 @@ useShortcuts(() => bindings.value);
 		<CatalogDrawer
 			v-model:open="catalogOpen"
 			:sections="catalog.sections.value"
+			:promised="catalog.promised.value"
 			:placement="selection.placementContext.value"
 			@add-item="onAddItem"
 			@prefetch-item="assets.prefetchItem" />

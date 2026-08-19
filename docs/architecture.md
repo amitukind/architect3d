@@ -163,27 +163,47 @@ half of that — every shipped `.ktx2` has a measurement and the measurement
 passed — is asserted in `tests/asset-integrity.test.js` and runs with the normal
 suite.
 
-::: tip The catalog is two files, and only one of them ships
+::: tip The catalog is nine files, and the bundle imports one of them
 `src/catalog/catalog.json` is still the only place a row is authored, and it is
-no longer what the application imports. `tools/split-catalog.mjs` divides it into
-`catalog-index.json`, which vite inlines into the bundle, and
-`catalog-detail.json`, which is a dynamic `import()` and so becomes a chunk
-nobody fetches until the drawer is opened. `npm run catalog:check` regenerates
-both and compares, and a test runs that check.
+no longer what the application imports. `tools/split-catalog.mjs` divides it
+twice. `npm run catalog:check` regenerates every output and compares, and a test
+runs that check.
 
-RM-012 X-3 is why. Every row is in the payload every visitor downloads, and J1's
-metadata on the 600 rows programme J is written for measured **17,264 gzipped
-bytes of growth against 13,292 bytes of `first-load` headroom**. Split, the same
-rows cost 9,857.
-
-Where the line goes was decided by gzipping each candidate key across all 168
+**By tier** (RM-012 J1, X-3): an *index* of what the grid draws and filters on
+plus what `addItem` reads, and a *detail* of what a person reads about one item.
+Where that line goes was decided by gzipping each candidate key across all 168
 rows rather than by taste — `format` costs **40 bytes**, `room` **131**, `tags`
-**178**, `size` **907**. So the index carries what the grid filters on *and* what
-`addItem` reads, which keeps adding an item synchronous; the detail carries what
-a person reads about one item — its measured size, and which kit it came from.
-The filterable keys turn out to be the cheap ones because their vocabularies
-repeat. `catalog-index` is a budget line of its own (M-44) so a key crossing back
-into the payload is a decision somebody records.
+**178**, `size` **907**. The filterable keys turn out to be the cheap ones
+because their vocabularies repeat, so the index stays small and adding an item
+stays synchronous.
+
+**By pack** (RM-012 J2): both tiers are then divided by *source*, one pair of
+files per kit, and written to `public/catalog/`. Nothing is bundled but
+`catalog-manifest.json` — one line per pack naming it, its licence, its row count
+and its two URLs. `useCatalog` fetches the packs the first time somebody opens
+the drawer, rows first and sizes after, through the same `AssetResolver` every
+model goes through, so `?assetBase=` moves the catalog to a CDN along with the
+models it describes.
+
+The tier split alone runs out, which is why there are two. J1's metadata on the
+600 rows programme J is written for measured **17,264 gzipped bytes of growth
+against 13,292 bytes of `first-load` headroom**; split by tier the index half is
+9,857, which fits — and that is the trap, because it fits until the sprint that
+adds rows. A manifest is a function of how many *kits* exist rather than how many
+*items*, so acquiring two hundred chairs moves the payload by one line.
+
+A pack is a source because a licence is a property of a kit: the unit somebody
+admits or refuses, the unit a licence is recorded against and the unit the fetch
+is grouped by are the same unit. Each pack carries its own provenance rather than
+pointing at a shared table, so acquiring one is a file dropped in and a manifest
+line — not an edit to a file the pack does not own.
+
+Two budget lines hold it. `catalog-bundled` (M-44, re-pointed in J2) is the
+manifest plus the three generated sections, so catalog content entering the
+payload is a decision somebody records. `catalog-packs` is what opening the
+drawer costs, which is where J2 moved the bytes rather than removing them. And
+`tests/browser/first-load.test.js` asserts the claim a byte count cannot: a boot
+fetches none of the four, and the drawer's first open fetches all of them.
 
 Every row names a **room** from a closed list of eight, at least one **tag** from
 a closed list of fourteen, and a **source** that resolves in

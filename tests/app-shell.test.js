@@ -27,13 +27,14 @@
  */
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 import {nextTick} from 'vue';
-import {mount} from '@vue/test-utils';
+import {flushPromises, mount} from '@vue/test-utils';
 
 import App from '../src/app/App.vue';
 import {Main} from '../src/scripts/three/main.js';
 import {floorplannerModes} from '../src/scripts/floorplanner/floorplanner_view.js';
 import {Dimensioning} from '../src/scripts/blueprint.js';
 import {loadCatalogDetail} from '../src/app/composables/useCatalog.js';
+import {installCatalogFetch, resetCatalogPacks} from './helpers/catalog.js';
 import catalog from '../src/catalog/catalog.json';
 import openings from '../src/catalog/openings.json';
 import stairs from '../src/catalog/stairs.json';
@@ -334,11 +335,44 @@ describe('the catalog drawer', () =>
 		return document.querySelector('[role="dialog"]');
 	}
 
+	/**
+	 * Open the drawer with a catalog in it.
+	 *
+	 * The rows are four fetches now rather than a bundled import (RM-012 J2), so
+	 * they are pulled off the disk before the click. The drawer's own
+	 * `loadCatalogPacks()` then resolves against the cache on the same tick,
+	 * which is what makes these cases deterministic - awaiting a real network
+	 * shape inside a click handler would not be.
+	 */
+	/** @type {?{urls: Array<string>, restore: function(): void}} */
+	let served;
+
+	beforeEach(() =>
+	{
+		// The rows are four fetches now rather than a bundled import (RM-012 J2),
+		// so there has to be something for the drawer to fetch from. Installed on
+		// the global rather than injected, because the subject of these cases is
+		// the component, and the component calls `loadCatalogPacks()` with no
+		// arguments exactly as it does in a browser.
+		resetCatalogPacks();
+		served = installCatalogFetch();
+	});
+
+	afterEach(() =>
+	{
+		served.restore();
+		served = null;
+	});
+
 	async function openCatalog(wrapper)
 	{
 		await layoutButton(wrapper, '3D').trigger('click');
 		await railButton(wrapper, 'Furniture catalog').trigger('click');
-		await nextTick();
+		// One tick per stage: the click, the four pack fetches, then the render
+		// that draws them. `flushPromises` rather than a count of ticks, because
+		// the number of microtasks four `fetch().json()` chains take is an
+		// implementation detail and pinning it here would be a flaky test.
+		await flushPromises();
 		await nextTick();
 	}
 
@@ -433,13 +467,13 @@ describe('the catalog drawer', () =>
 		wrapper.unmount();
 	});
 
-	it('shows a measured size once the detail chunk lands (RM-012 J1, X-3)', async () =>
+	it('shows a measured size once the detail lands (RM-012 J1 X-3, J2)', async () =>
 	{
 		const wrapper = await mountApp();
 		await openCatalog(wrapper);
 
-		// The grid renders from the bundled index, which carries no dimension - so
-		// the first frame after opening has names and no sizes, and that is the
+		// The grid renders from the index tier, which carries no dimension - so the
+		// first frame after the rows land has names and no sizes, and that is the
 		// whole point of the split rather than a defect.
 		const cell = () => [...drawer().querySelectorAll('li')]
 			.find((li) => li.textContent.includes('Full Bed'));
@@ -451,13 +485,14 @@ describe('the catalog drawer', () =>
 		const wide = Dimensioning.cmToMeasure(140);
 		const deep = Dimensioning.cmToMeasure(200);
 
-		// The chunk is a dynamic import, so it lands a module load later - not a
-		// tick later. Awaited on the same shared promise the drawer awaited, which
-		// is deterministic where a fixed timer would not be.
-		// That the index carries no size at all is asserted directly in
-		// `tests/catalog-split.test.js`; repeating it here by racing the chunk
+		// The detail is a second fetch, one file per pack, issued after the rows
+		// land. Awaited on the same shared promise the drawer awaited, which is
+		// deterministic where a fixed timer would not be.
+		// That the index tier carries no size at all is asserted directly in
+		// `tests/catalog-split.test.js`; repeating it here by racing the fetch
 		// would be a test whose result depends on what ran before it.
 		await loadCatalogDetail();
+		await flushPromises();
 		await nextTick();
 
 		const text = cell().textContent;

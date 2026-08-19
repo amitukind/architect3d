@@ -763,12 +763,55 @@
 		"catalog's mean, and print the movement against the previous run. The",
 		"arithmetic above is only honest while its divisor is: X-2 measured the mean",
 		"at 26,105 and J1's rendered thumbnails moved it to 27,997 with nobody",
-		"deciding to, which is exactly the drift this catches."
+		"deciding to, which is exactly the drift this catches.",
+		"",
+		"=== J2: PACKS ARE FETCHED, NOT BUNDLED ===",
+		"",
+		"catalog-index is RE-POINTED and RENAMED catalog-bundled, 3,940 -> 2,600 with",
+		"3,553 -> 2,451 measured. This is not a lowering and the distinction is the",
+		"same one RM-011 H1 drew when it re-pointed texture-vram: the number under",
+		"the line is a different number. catalog-index measured",
+		"src/catalog/catalog-index.json, and that file no longer exists - J2 took",
+		"every catalog row out of the bundle. What is bundled now is a manifest of",
+		"four packs plus the three generated sections, which name no model file and",
+		"so cannot be in a pack. The line still answers the question J1 gave it:",
+		"what catalog content does a visitor download before asking for any of it.",
+		"",
+		"The comparison worth recording is not 3,553 against 2,451, because the old",
+		"number never counted the generated sections. Like for like, the catalog in",
+		"the payload went 5,429 -> 2,451 gzipped: the index (3,553) plus openings,",
+		"stairs and structures (1,876), against a 575-byte manifest plus the same",
+		"1,876. A 2,978-byte saving, which is real but is not the point.",
+		"",
+		"The point is what the number is a function of. The old line grew by ~34",
+		"gzipped bytes for every row added, so X-3 could project it to 20,611 at 600",
+		"rows and 17,264 bytes of first-load growth against 13,292 of headroom. The",
+		"new one grows by ~90 bytes when a KIT is acquired and by nothing at all when",
+		"an item is. Acquiring 200 chairs moves it by one line. That is why the",
+		"limit is set at 2,600 rather than left where it was: a ceiling with the old",
+		"line's growth pre-authorised inside it would notice nothing, and this line",
+		"exists to make catalog content entering the payload a decision somebody",
+		"records.",
+		"",
+		"catalog-packs is ADDED as the thirteenth line, at 10,450 with 9,935",
+		"measured. J2 moved a cost rather than removing one. Every row is fetched",
+		"now, which is what keeps first-load flat while the catalog grows - but the",
+		"bytes went somewhere, and where they went is the first click on the",
+		"furniture button. public-total counts them at rest on a disk and first-load",
+		"correctly ignores them; nothing was asking what a person waits for the",
+		"first time they go looking for a chair. Now something is.",
+		"",
+		"Set at the usual ~5 % deliberately, and it WILL be raised when a pack is",
+		"acquired - that is the ratchet working rather than failing. The number to",
+		"watch is not the total but what it buys: 9,935 gzipped bytes for 168 rows",
+		"across two tiers is 59 bytes a row, so RM-007's 600 rows is about 35 KB of",
+		"drawer-open. Worth a wait; worth knowing about; not worth discovering.",
+		""
 	],
 	"budgets": {
 		"demo-js-gzip": {
 			"limit": 423200,
-			"measured": 412815
+			"measured": 404074
 		},
 		"demo-css-gzip": {
 			"limit": 10000,
@@ -776,7 +819,7 @@
 		},
 		"demo-total": {
 			"limit": 29985000,
-			"measured": 19629535
+			"measured": 19621477
 		},
 		"lib-iife-gzip": {
 			"limit": 307000,
@@ -784,7 +827,7 @@
 		},
 		"public-total": {
 			"limit": 16770000,
-			"measured": 10926439
+			"measured": 11001779
 		},
 		"lib-esm-gzip": {
 			"limit": 83000,
@@ -808,11 +851,15 @@
 		},
 		"first-load": {
 			"limit": 421400,
-			"measured": 409941
+			"measured": 406563
 		},
-		"catalog-index": {
-			"limit": 3940,
-			"measured": 3553
+		"catalog-bundled": {
+			"limit": 2600,
+			"measured": 2451
+		},
+		"catalog-packs": {
+			"limit": 10450,
+			"measured": 9935
 		}
 	}
 }

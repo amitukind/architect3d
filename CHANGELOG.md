@@ -2,6 +2,44 @@
 
 ## [Unreleased]
 
+**RM-012 J2: packs are fetched, not bundled.** No catalog row is in the
+application bundle any more. `tools/split-catalog.mjs` divides the catalog a
+second time — J1 split it by *tier*, this splits both tiers by *pack* — and
+writes eight files to `public/catalog/`. What the bundle imports is
+`catalog-manifest.json`: one line per kit naming it, its licence, its row count
+and its two URLs, **575 gzipped bytes for four packs**. `useCatalog` fetches the
+rows the first time somebody opens the drawer, index first and detail after,
+which is the staging J1 had between the bundle and a chunk moved to two fetches.
+
+The tier split alone would have run out, and X-3 recorded when. J1's metadata on
+600 rows is **17,264 gzipped bytes of growth against 13,292 of `first-load`
+headroom**, and split by tier the index half is 9,857 — which fits, and that is
+the trap rather than the answer. The old line grew by ~34 gzipped bytes per row;
+the manifest grows by ~90 per *kit* and by nothing per item.
+
+A pack is a source, because a licence is a property of a kit: the unit somebody
+admits or refuses, the unit a licence is recorded against and the unit the fetch
+is grouped by are the same unit. Four packs — kenney-furniture-kit 140,
+blueprint3d 25, unattributed 2, khronos 1 — each carrying its own provenance
+rather than pointing at a shared table, so acquiring one is a file dropped in and
+a manifest line. The two rows J1 could establish no licence for are now one pack
+and one manifest line, which is what deciding whether to ship them amounts to.
+
+`tests/browser/first-load.test.js` asserts M-43 on the instrument it was built
+for: a boot fetches none of the four packs, by name and by path, and the drawer's
+first open fetches all four — the case that stops the other two being a
+tautology, since a URL that 404s also never appears in a boot's timings.
+
+One budget line re-pointed, one added, neither a lowering. `catalog-index`
+becomes `catalog-bundled`, 3,940 → 2,600 with 3,553 → **2,451** measured, the
+same distinction RM-011 H1 drew re-pointing `texture-vram`: the number under the
+line is a different number. Like for like the catalog in the payload went
+**5,429 → 2,451** gzipped. `catalog-packs` is the thirteenth line, 9,935 against
+10,450 — what opening the drawer costs, which is where the bytes went rather than
+away. `first-load` fell 409,941 → **406,565**, and is now independent of the row
+count. Packs resolve through `AssetResolver`, so `?assetBase=` moves the catalog
+to a CDN with the models it describes.
+
 **RM-008 E1 delivered: the plan shows the design.** Furniture, doors and
 windows are drawn on the 2D plan, picked and dragged there, and selection now
 crosses between the plan and the 3D view in both directions. Before this the 2D

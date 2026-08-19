@@ -34,7 +34,8 @@ import {useCameraViews, MODE_FLOORPLAN, MODE_DESIGN, MODE_WALKTHROUGH} from '../
 import {useFloorplannerMode} from '../src/app/composables/useFloorplannerMode.js';
 import {useDesignIO} from '../src/app/composables/useDesignIO.js';
 import {useWalkthrough} from '../src/app/composables/useWalkthrough.js';
-import {useCatalog, loadCatalogDetail} from '../src/app/composables/useCatalog.js';
+import {useCatalog, loadCatalogDetail, loadCatalogPacks} from '../src/app/composables/useCatalog.js';
+import {diskFetch, loadCatalogFromDisk, resetCatalogPacks} from './helpers/catalog.js';
 import {useCatalogBrowse} from '../src/app/composables/useCatalogBrowse.js';
 import {ROOMS} from '../src/app/composables/useCatalog.js';
 import {ROOMS as SPLIT_ROOMS} from '../tools/split-catalog.mjs';
@@ -467,8 +468,12 @@ describe('useCatalog', () =>
 	const A_WALL_ITEM = {name: 'NYC Poster', model: 'models/js-glb/nyc-poster2.glb', type: 2, format: 'gltf'};
 	const A_FLOOR_ITEM = {name: 'Chair', model: 'models/js-glb/chair.glb', type: 1, format: 'gltf'};
 
-	beforeEach(() =>
+	beforeEach(async () =>
 	{
+		// The rows are fetched now, not bundled (RM-012 J2), so a test that wants
+		// a catalog has to ask for one - off the disk, from the files the
+		// deployment actually serves.
+		await loadCatalogFromDisk();
 		selection = run(() => useSelection(store));
 		catalog = run(() => useCatalog(store, selection.placementContext));
 		blueprint = mountStore();
@@ -559,43 +564,130 @@ describe('useCatalog', () =>
 	});
 });
 
-describe('the catalog detail is a chunk, not a payload (RM-012 J1, X-3)', () =>
+describe('the catalog is fetched, not bundled (RM-012 J1 X-3, J2)', () =>
 {
 	let catalog;
 
 	beforeEach(() =>
 	{
+		resetCatalogPacks();
 		const selection = run(() => useSelection(store));
 		catalog = run(() => useCatalog(store, selection.placementContext));
 	});
 
-	it('knows nothing about a row\'s size until somebody asks', () =>
+	/**
+	 * The claim M-43's gate is written against, stated where it can be read
+	 * rather than only measured in a browser.
+	 *
+	 * Before anybody opens the drawer the composable holds the three generated
+	 * sections and nothing else - twelve rows that have no model files and are
+	 * bundled because of it. The other 168 are four files in `public/catalog/`
+	 * that no boot has any reason to ask for.
+	 */
+	it('has no catalog row at all until somebody opens the drawer', () =>
 	{
-		// The index is what the bundle carries and it has no dimension in it, so a
-		// visitor who never opens the drawer never downloads one. That is the
-		// whole trade X-3 made: 17,264 gzipped bytes at J2's row count against
-		// 13,292 of first-load headroom.
+		const headings = catalog.sections.value.map((section) => section.heading);
+		expect(headings).toEqual(['Doors & Windows', 'Stairs', 'Columns & Beams']);
+		// The nine openings, eight flights and eight columns and beams. Generated,
+		// so they have no model file, so they are not in a pack.
+		expect(catalog.count.value).toBe(25);
+
+		// And it can still say what is coming, because the manifest is bundled and
+		// the manifest is a list of kits rather than a list of items.
+		expect(catalog.packs).toHaveLength(4);
+		expect(catalog.promised.value).toBe(193);
+		expect(catalog.ready.value).toBe(false);
+	});
+
+	it('fetches one file per pack, and a second open costs nothing', async () =>
+	{
+		const disk = diskFetch();
+		await loadCatalogPacks({fetch: disk.fetch});
+
+		expect(disk.urls.sort()).toEqual([
+			'catalog/blueprint3d.json',
+			'catalog/kenney-furniture-kit.json',
+			'catalog/khronos.json',
+			'catalog/unattributed.json',
+		]);
+		expect(catalog.count.value).toBe(193);
+		expect(catalog.ready.value).toBe(true);
+
+		// The second open is the common case - the drawer is opened once per chair
+		// - and it must not be a second round trip.
+		await loadCatalogPacks({fetch: disk.fetch});
+		expect(disk.urls).toHaveLength(4);
+	});
+
+	it('keeps every row it was given, and the packs add up to the manifest', async () =>
+	{
+		await loadCatalogPacks({fetch: diskFetch().fetch});
+
+		const models = catalog.sections.value
+			.flatMap((section) => section.items)
+			.filter((item) => item.model)
+			.map((item) => item.model);
+		expect(new Set(models).size, 'a model in two packs is a model fetched twice').toBe(models.length);
+		expect(models).toHaveLength(catalog.packs.reduce((sum, pack) => sum + pack.rows, 0));
+	});
+
+	it('draws a grid from a pack that arrived when another did not', async () =>
+	{
+		// Three kits that land are three kits somebody can browse. `useAssets`
+		// makes the same call about the asset manifest: a metadata file missing is
+		// a degradation, and refusing to open the catalog over it is an outage.
+		const only = (url) => (url.includes('kenney')
+			? Promise.resolve({ok: false, status: 500, json: () => Promise.reject(new Error('500'))})
+			: diskFetch().fetch(url));
+
+		await loadCatalogPacks({fetch: only});
+		expect(catalog.count.value).toBe(25 + 25 + 1 + 2);
+
+		// And the failure is not cached, so the next open tries the missing one
+		// again rather than showing a permanently short catalog.
+		await loadCatalogPacks({fetch: diskFetch().fetch});
+		expect(catalog.count.value).toBe(193);
+	});
+
+	it('knows nothing about a row\'s size until somebody asks', async () =>
+	{
+		await loadCatalogPacks({fetch: diskFetch().fetch});
+
+		// The index tier has no dimension in it, so the fetch that draws the grid
+		// does not carry one. That is the trade X-3 made and J2 kept: 17,264
+		// gzipped bytes at J2's row count against 13,292 of first-load headroom.
 		const bed = catalog.sections.value
 			.flatMap((section) => section.items)
 			.find((item) => item.name === 'Full Bed');
 		expect(bed).toBeTruthy();
 		expect(bed.size, 'a size in the index defeats the split').toBeUndefined();
+		expect(catalog.detailFor(bed)).toBeNull();
 	});
 
-	it('has the measured size once the chunk lands, and fetches it once', async () =>
+	it('has the measured size once the detail lands, and fetches it once', async () =>
 	{
+		const disk = diskFetch();
+		await loadCatalogPacks({fetch: disk.fetch});
 		const bed = catalog.sections.value
 			.flatMap((section) => section.items)
 			.find((item) => item.name === 'Full Bed');
 
-		const first = await loadCatalogDetail();
+		const first = await loadCatalogDetail({fetch: disk.fetch});
 		expect(first).toBeTruthy();
 		expect(catalog.detailFor(bed).size.w).toBeCloseTo(140, 3);
 		expect(catalog.detailFor(bed).size.scale, 'the demo kit is authored in centimetres').toBe(1);
 		expect(catalog.detailFor(bed).source).toBe('blueprint3d');
 
-		// A second caller gets the same object rather than a second chunk.
-		expect(await loadCatalogDetail()).toBe(first);
+		// Each pack carries its own provenance, so a pack is readable on its own
+		// rather than depending on a shared table having been fetched.
+		expect(first.sources.blueprint3d.licence.name).toBe('MIT');
+		expect(Object.keys(first.sources).sort()).toEqual([
+			'blueprint3d', 'kenney-furniture-kit', 'khronos', 'unattributed',
+		]);
+
+		// A second caller gets the same object rather than four more round trips.
+		expect(await loadCatalogDetail({fetch: disk.fetch})).toBe(first);
+		expect(disk.urls.filter((url) => url.includes('detail'))).toHaveLength(4);
 	});
 
 	it('returns null for a row it has never heard of', () =>

@@ -1,6 +1,7 @@
 // @ts-check
 import {computed, ref} from 'vue';
-import catalog from '../../catalog/catalog-index.json';
+import manifest from '../../catalog/catalog-manifest.json';
+import {assetResolver} from './useAssets.js';
 import {noteUsed} from './useCatalogBrowse.js';
 import openings from '../../catalog/openings.json';
 import stairs from '../../catalog/stairs.json';
@@ -17,28 +18,41 @@ import {
  * The Vue app reads the JSON itself, so adding a model is a data change with no
  * generator step.
  *
- * ## Two files now, and only one of them ships (RM-012 J1, X-3)
+ * ## Two tiers, four packs, and nothing bundled (RM-012 J1 X-3, J2)
  *
  * `catalog.json` is still the single place a row is authored. What changed is
- * that it is no longer what the application imports: `tools/split-catalog.mjs`
- * divides it into an **index**, which vite inlines into the bundle, and a
- * **detail**, which is a dynamic import and so becomes a chunk nobody fetches
- * until the drawer is opened.
+ * that it is no longer what the application imports.
  *
- * The line is where the *use* is, and X-3 is why it had to move. Every row is in
- * the payload every visitor downloads, and J1's metadata on 600 rows measured
- * **17,264 gzipped bytes of growth against 13,292 bytes of `first-load`
- * headroom** - M-43 broken before one model is fetched. Split, the same 600 rows
- * cost 9,857, which fits.
+ * J1 split it by **tier**: an *index* of what the grid draws and filters on,
+ * plus what `addItem` needs to place a thing - which keeps `addItem` synchronous
+ * - and a *detail* of what a person reads about one item, its measured
+ * dimensions, its source and its licence. Those are the expensive keys precisely
+ * because each is unique to one row and gzip has nothing to share.
  *
- * So the index carries what the grid draws and filters on, plus what `addItem`
- * needs to place a thing - which keeps `addItem` synchronous, and that is worth
- * more than the 40 bytes `format` costs across all 168 rows. The detail carries
- * what a person reads about one item: its measured dimensions, its source and
- * its licence. Those are the expensive keys precisely because each is unique to
- * one row and gzip has nothing to share - except the licences, which are shared
- * by construction and so live once per kit in a `sources` table beside the rows
- * rather than 168 times.
+ * J2 split it again, by **pack**, and this time nothing stays behind. What the
+ * bundle imports is a manifest: one line per kit, naming it, its licence, its
+ * row count and the two URLs its rows are served from. Every row of every tier
+ * is fetched from `public/catalog/` the first time somebody opens the drawer.
+ *
+ * The reason is that the tier split alone runs out. X-3 measured J1's metadata
+ * on 600 rows at **17,264 gzipped bytes of growth against 13,292 of `first-load`
+ * headroom**, and split by tier the index half is 9,857 - which fits, and that is
+ * the trap. It fits until the sprint that adds rows, and the sprint that adds
+ * rows is the next one. A manifest is a function of how many *kits* exist rather
+ * than how many *items*, so acquiring two hundred chairs moves the payload by one
+ * line. That is what makes "packs loaded lazily by manifest" a property of the
+ * arrangement instead of a promise about future restraint - and it is what makes
+ * M-43's gate checkable: a boot fetches no pack, so a pack nobody opened cost it
+ * nothing.
+ *
+ * ## What that costs, and where it is paid
+ *
+ * The grid cannot draw before a fetch lands, where before it drew from the
+ * bundle. So the index is fetched first and awaited, and the detail after it and
+ * not awaited - which is the same staging as before, moved from
+ * bundle-then-chunk to fetch-then-fetch: rows appear, then sizes appear under
+ * them. A person opening the drawer sees the three generated sections
+ * immediately, because those have no model files and are still bundled.
  */
 
 /**
@@ -118,52 +132,195 @@ const WALL_BOUND_TYPES = [2, 3, 7, 9];
  */
 
 /**
- * The detail, once somebody has opened the drawer. Module-level for the reason
- * `useDisplayUnit` gives: there is one catalog, and two callers holding
- * different halves of it would be a bug rather than a feature.
+ * The packs this build knows about, in the order the manifest lists them.
+ *
+ * Read straight off the bundled manifest, so it is available before any fetch -
+ * a caller that wants to say "four kits, 168 items, three licences" can, without
+ * downloading a row.
+ *
+ * @type {Array<{id: string, name: string, licence: string, rows: number,
+ *   index: string, detail: string}>}
+ */
+export const PACKS = manifest.packs;
+
+/**
+ * Every index row from every pack that has arrived, in manifest order.
+ *
+ * Empty until `loadCatalogPacks()` resolves, and every reader is written for
+ * that: the drawer draws its generated sections, says it is loading, and fills
+ * in. Module-level for the reason `useDisplayUnit` gives - there is one catalog,
+ * and two callers holding different halves of it would be a bug.
+ *
+ * @type {import('vue').Ref<Array<CatalogItem>>}
+ */
+const rows = ref([]);
+
+/**
+ * The detail, once somebody has opened the drawer. Module-level for the same
+ * reason as `rows` above.
  *
  * @type {import('vue').Ref<?{items: Object<string, CatalogDetail>, sources: Object}>}
  */
 const detail = ref(null);
 
-/** The fetch in flight, so two callers on the same tick share one chunk. */
-let pending = null;
+/** The fetches in flight, so two callers on the same tick share one round trip. */
+let packsPending = null;
+let detailPending = null;
 
 /**
- * Fetch the detail chunk, once.
+ * Fetch one JSON file, and never throw.
  *
- * A dynamic `import()` rather than a `fetch`, because this file is in
- * `src/app`: the application is code-split, so vite emits the JSON as its own
- * chunk and a visitor who never opens the drawer never asks for it. J2's
- * external packs will need the fetch form - they are not in the build - and
- * this is the seam they will use.
+ * A pack that does not arrive leaves the drawer smaller rather than broken -
+ * the same call `useAssets.loadManifest` makes about the asset manifest, and for
+ * the same reason: a metadata file missing is a degradation, and refusing to
+ * open the catalog over it would turn that into an outage.
  *
- * @returns {Promise<?Object>} Null if the chunk could not be loaded, in which
- *   case the drawer keeps working from the index and shows no dimensions.
+ * @param {string} url
+ * @param {?function(string): Promise<*>} fetcher
+ * @returns {Promise<{ok: boolean, json: ?Object}>}
  */
-export function loadCatalogDetail()
+function fetchJson(url, fetcher)
+{
+	// `const` rather than `var` so the null check below narrows inside the closure
+	// that uses it. A `var` is reassignable, so TypeScript widens it back and the
+	// call reads as possibly-null three lines later (RM-004 B3).
+	const call = fetcher || (typeof fetch === 'function' ? fetch : null);
+	if (!call)
+	{
+		return Promise.resolve({ok: false, json: null});
+	}
+	// Through the resolver, like every other file this deployment serves out of
+	// `public/`. With no manifest and no base that is the identity A5 promises,
+	// so the URL is the one in the manifest; with `?assetBase=` the packs move to
+	// the CDN along with the models they describe. A pack acquired later is a
+	// file in that tree and there is no reason for it to be the one thing pinned
+	// to the document's origin.
+	const at = assetResolver().resolve(url);
+	return Promise.resolve()
+		.then(function () {return call(at.url || url);})
+		.then(function (response)
+		{
+			if (!response || !response.ok)
+			{
+				return {ok: false, json: null};
+			}
+			return Promise.resolve(response.json()).then(function (json) {return {ok: true, json: json};});
+		})
+		.catch(function () {return {ok: false, json: null};});
+}
+
+/**
+ * Fetch every pack's index rows, once.
+ *
+ * `fetch` rather than a dynamic `import()`, and that is the whole change J2
+ * makes here. An import is resolved at build time, which is what made the detail
+ * a chunk in J1 - and a chunk is still something the build knows the size of and
+ * a name for. A pack acquired later is a file dropped into `public/catalog/` and
+ * a line added to the manifest; nothing about it can be known at build time, and
+ * a mechanism that only works for content the build already has is not the
+ * mechanism J2 needs.
+ *
+ * Failures are per-pack: three kits that arrive are three kits a person can
+ * browse. If any pack failed, the promise is not cached, so the next open tries
+ * again - a pack that failed once on a flaky connection is not a pack that is
+ * missing.
+ *
+ * @param {Object} [options]
+ * @param {function(string): Promise<*>} [options.fetch] Injected by the suite.
+ * @returns {Promise<Array<CatalogItem>>}
+ */
+export function loadCatalogPacks(options)
+{
+	if (packsPending)
+	{
+		return packsPending;
+	}
+	var fetcher = (options && options.fetch) || null;
+	packsPending = Promise.all(PACKS.map(function (pack)
+	{
+		return fetchJson(pack.index, fetcher);
+	})).then(function (results)
+	{
+		rows.value = results.reduce(function (all, result)
+		{
+			return all.concat((result.json && result.json.items) || []);
+		}, []);
+		if (results.some(function (result) {return !result.ok;}))
+		{
+			packsPending = null;
+		}
+		return rows.value;
+	});
+	return packsPending;
+}
+
+/**
+ * Fetch every pack's detail, once, and merge them.
+ *
+ * Merged rather than kept per-pack because the consumer's question is about one
+ * row - "what size is this?" - and it has a model URL, not a pack. The `sources`
+ * table is rebuilt from each pack's own single entry, which is why a pack file
+ * carries its provenance rather than pointing at a shared table: a pack has to be
+ * readable on its own, or acquiring one means editing a file it does not own.
+ *
+ * @param {Object} [options]
+ * @param {function(string): Promise<*>} [options.fetch] Injected by the suite.
+ * @returns {Promise<?{items: Object, sources: Object}>} Null if nothing arrived,
+ *   in which case the drawer keeps working from the index and shows no
+ *   dimensions.
+ */
+export function loadCatalogDetail(options)
 {
 	if (detail.value)
 	{
 		return Promise.resolve(detail.value);
 	}
-	if (!pending)
+	if (detailPending)
 	{
-		pending = import('../../catalog/catalog-detail.json')
-			.then(function (module)
-			{
-				detail.value = module.default || module;
-				return detail.value;
-			})
-			.catch(function ()
-			{
-				// Cleared so a later open tries again: a chunk that failed once on
-				// a flaky connection is not a chunk that is missing.
-				pending = null;
-				return null;
-			});
+		return detailPending;
 	}
-	return pending;
+	var fetcher = (options && options.fetch) || null;
+	detailPending = Promise.all(PACKS.map(function (pack)
+	{
+		return fetchJson(pack.detail, fetcher);
+	})).then(function (results)
+	{
+		var merged = {items: {}, sources: {}};
+		var landed = 0;
+		results.forEach(function (result, at)
+		{
+			if (!result.ok || !result.json)
+			{
+				return;
+			}
+			landed++;
+			Object.assign(merged.items, result.json.items || {});
+			merged.sources[PACKS[at].id] = result.json.source || {};
+		});
+		if (results.some(function (result) {return !result.ok;}))
+		{
+			detailPending = null;
+		}
+		if (!landed)
+		{
+			return null;
+		}
+		detail.value = merged;
+		return detail.value;
+	});
+	return detailPending;
+}
+
+/**
+ * Forget everything fetched. For the suite, which needs each case to start where
+ * a fresh page starts rather than where the previous case left off.
+ */
+export function resetCatalogPacks()
+{
+	rows.value = [];
+	detail.value = null;
+	packsPending = null;
+	detailPending = null;
 }
 
 /**
@@ -269,13 +426,18 @@ function structureSection()
 /** @returns {Array<CatalogSection>} */
 function buildSections()
 {
-	return [openingSection(), stairSection(), structureSection()].concat(Object.keys(catalog.itemTypes)
-		.map((key) => Object.assign({id: Number(key)}, catalog.itemTypes[key]))
+	// The three generated sections first and always: they have no model files, so
+	// they are bundled and they are there before any pack lands. The mesh sections
+	// are built from whatever packs have arrived, and `filter` drops the empty
+	// ones - which before a fetch is all of them, and is why the drawer has a
+	// loading state rather than an empty grid.
+	return [openingSection(), stairSection(), structureSection()].concat(Object.keys(manifest.itemTypes)
+		.map((key) => Object.assign({id: Number(key)}, manifest.itemTypes[key]))
 		.sort((a, b) => a.order - b.order)
 		.map((type) => ({
 			id: type.id,
 			heading: type.heading,
-			items: catalog.items.filter((item) => item.type === type.id),
+			items: rows.value.filter((item) => item.type === type.id),
 		}))
 		.filter((section) => section.items.length > 0));
 }
@@ -287,8 +449,23 @@ function buildSections()
 export function useCatalog(store, placementContext)
 {
 	var sections = computed(buildSections);
-	var count = computed(() => catalog.items.length + openings.items.length
+	// What is showable now, not what the manifest promises. Before the packs land
+	// this is the twelve generated rows, and the drawer says so - a count that
+	// quoted the manifest would read 180 beside a grid holding 12.
+	var count = computed(() => rows.value.length + openings.items.length
 		+ stairs.items.length + structures.items.length);
+
+	/**
+	 * How many rows every pack in the manifest would add up to, fetched or not.
+	 *
+	 * The manifest's own arithmetic, available before a byte of it is downloaded,
+	 * which is what lets the drawer say what it is waiting for.
+	 */
+	var promised = computed(() => PACKS.reduce((sum, pack) => sum + pack.rows, 0)
+		+ openings.items.length + stairs.items.length + structures.items.length);
+
+	/** Whether the packs have been asked for and have all arrived. */
+	var ready = computed(() => rows.value.length > 0);
 
 	/**
 	 * Add one catalog entry to the scene.
@@ -396,5 +573,6 @@ export function useCatalog(store, placementContext)
 		return (detail.value && entry && detail.value.items[entry.model]) || null;
 	}
 
-	return {sections, count, addItem, detail, detailFor, loadDetail: loadCatalogDetail};
+	return {sections, count, promised, ready, packs: PACKS, addItem, detail, detailFor,
+		loadPacks: loadCatalogPacks, loadDetail: loadCatalogDetail};
 }

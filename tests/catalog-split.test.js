@@ -42,9 +42,36 @@ import {split, validate, modelBounds, unitScale, sizeOf} from '../tools/split-ca
 
 const ROOT = process.cwd();
 const SOURCE = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog.json'), 'utf8'));
-const INDEX = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog-index.json'), 'utf8'));
-const DETAIL = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog-detail.json'), 'utf8'));
 const SOURCES = JSON.parse(readFileSync(join(ROOT, 'src/catalog/sources.json'), 'utf8'));
+
+/** The one catalog file the bundle still imports (RM-012 J2). */
+const MANIFEST = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog-manifest.json'), 'utf8'));
+
+/** @param {string} name A file under `public/catalog/`. */
+function pack(name)
+{
+	return JSON.parse(readFileSync(join(ROOT, 'public/catalog', name), 'utf8'));
+}
+
+/**
+ * The two tiers, reassembled from the packs the deployment serves.
+ *
+ * J1's assertions below are about the tier boundary - what is in the index
+ * against what is in the detail - and that boundary is unchanged by J2's second
+ * split. What changed is that neither tier is one file any more, so the tier is
+ * rebuilt here from the four packs rather than read. Rebuilt from the *generated*
+ * files rather than from `split()`, so these stay assertions about what is served.
+ */
+const INDEX = {
+	_comment: MANIFEST.packs.length ? pack(MANIFEST.packs[0].id + '.json')._comment : '',
+	items: MANIFEST.packs.flatMap((entry) => pack(entry.id + '.json').items),
+};
+const DETAIL = {
+	_comment: MANIFEST.packs.length ? pack(MANIFEST.packs[0].id + '.detail.json')._comment : '',
+	items: Object.assign({}, ...MANIFEST.packs.map((entry) => pack(entry.id + '.detail.json').items)),
+	sources: Object.assign({}, ...MANIFEST.packs.map((entry) =>
+		({[entry.id]: pack(entry.id + '.detail.json').source}))),
+};
 
 /** What a key costs, gzipped, across the whole index - the unit X-3 measured in. */
 function gzipped(value)
@@ -71,9 +98,14 @@ describe('the two files are generated, and they are current', () =>
 	it('keeps every row, and loses no key', () =>
 	{
 		expect(INDEX.items).toHaveLength(SOURCE.items.length);
-		SOURCE.items.forEach((item, at) =>
+		// By model rather than by position: packs group by source, so the merged
+		// order is grouped where `catalog.json`'s is authored. For this catalog
+		// that moves exactly one row - the two `unattributed` rows are not
+		// adjacent in the source file and are adjacent here.
+		const indexed_ = new Map(INDEX.items.map((row) => [row.model, row]));
+		SOURCE.items.forEach((item) =>
 		{
-			const indexed = INDEX.items[at];
+			const indexed = indexed_.get(item.model);
 			const detailed = DETAIL.items[item.model] || {};
 			Object.keys(item).forEach((key) =>
 			{
@@ -83,7 +115,7 @@ describe('the two files are generated, and they are current', () =>
 		});
 	});
 
-	it('says it is generated, in both files', () =>
+	it('says it is generated, in every file', () =>
 	{
 		expect(INDEX._comment).toMatch(/GENERATED/);
 		expect(DETAIL._comment).toMatch(/GENERATED/);
@@ -140,9 +172,96 @@ describe('the boundary between them', () =>
 		// is nothing in the detail but the sizes it just measured - and those
 		// sizes are 907 of the bytes that would otherwise be in the payload.
 		const unsplit = gzipped(Object.assign({}, SOURCE, {
-			items: SOURCE.items.map((item, at) => Object.assign({}, item, {size: Object.values(DETAIL.items)[at].size})),
+			items: SOURCE.items.map((item) => Object.assign({}, item, {size: DETAIL.items[item.model].size})),
 		}));
 		expect(gzipped(INDEX)).toBeLessThan(unsplit);
+	});
+});
+
+/**
+ * The second boundary, and the one that decides what a boot costs (RM-012 J2).
+ *
+ * The tier split above is about *when* a key is downloaded. This is about
+ * *whether* a row is in the payload at all - and the answer is that none is. The
+ * bundle imports a manifest of kits, and a manifest of kits does not grow when a
+ * kit grows, which is what makes M-43's gate a property rather than a promise.
+ */
+describe('the packs are fetched, not bundled', () =>
+{
+	it('bundles a manifest of kits, and not one catalog row', () =>
+	{
+		expect(MANIFEST.packs).toHaveLength(4);
+		expect(MANIFEST.items, 'a row in the manifest is a row in the payload').toBeUndefined();
+		MANIFEST.packs.forEach((entry) =>
+		{
+			expect(entry.items, `${entry.id} carries rows in the manifest`).toBeUndefined();
+		});
+
+		// The one piece of catalog vocabulary that stays: the section headings,
+		// which describe placement classes rather than items and so do not grow
+		// when a pack is acquired.
+		expect(Object.keys(MANIFEST.itemTypes).length).toBe(Object.keys(SOURCE.itemTypes).length);
+	});
+
+	it('costs the payload one line per kit, not one per item', () =>
+	{
+		// The whole claim, in bytes. A manifest whose size tracked the row count
+		// would be the index under another name, and the next sprint would break
+		// first-load with it.
+		const perPack = gzipped(MANIFEST) / MANIFEST.packs.length;
+		expect(gzipped(MANIFEST)).toBeLessThan(gzipped(INDEX) / 4);
+		expect(perPack, 'a pack line should cost tens of bytes, not hundreds').toBeLessThan(200);
+	});
+
+	it('puts every row in exactly one pack, and every pack under one licence', () =>
+	{
+		const seen = new Map();
+		MANIFEST.packs.forEach((entry) =>
+		{
+			const rows = pack(entry.id + '.json').items;
+			expect(rows, entry.id).toHaveLength(entry.rows);
+			rows.forEach((row) =>
+			{
+				expect(seen.has(row.model), `${row.model} is in two packs`).toBe(false);
+				seen.set(row.model, entry.id);
+			});
+			// A pack is a source because a licence is a property of a kit, and the
+			// unit somebody admits or refuses should be the unit the licence is
+			// recorded against (RM-012 J2).
+			expect(entry.licence).toBeTypeOf('string');
+			expect(entry.licence.length).toBeGreaterThan(0);
+		});
+		expect(seen.size).toBe(SOURCE.items.length);
+		SOURCE.items.forEach((item) =>
+		{
+			expect(seen.get(item.model), `${item.name} is in the wrong pack`).toBe(item.source);
+		});
+	});
+
+	it('makes each pack readable on its own', () =>
+	{
+		// A pack carries its own provenance rather than pointing at a shared
+		// table. Acquiring one is then a file dropped in and a manifest line -
+		// not an edit to a file the pack does not own.
+		MANIFEST.packs.forEach((entry) =>
+		{
+			const detail = pack(entry.id + '.detail.json');
+			expect(detail.source, entry.id).toBeTruthy();
+			expect(detail.source.licence.name, entry.id).toBe(entry.licence);
+			expect(detail.id).toBe(entry.id);
+			expect(Object.keys(detail.items)).toHaveLength(entry.rows);
+		});
+	});
+
+	it('names the two rows nobody could establish a licence for, in their own pack', () =>
+	{
+		// J1 recorded them as `unknown` rather than assuming CC0 by resemblance,
+		// and J2's pack split makes that decision a thing you can act on: whether
+		// this deployment ships them is one manifest line and one file.
+		const unknown = MANIFEST.packs.find((entry) => entry.licence === 'unknown');
+		expect(unknown.id).toBe('unattributed');
+		expect(pack(unknown.id + '.json').items.map((row) => row.model).sort())
+			.toEqual(['models/gltf/SimpleCabinet.glb', 'models/gltf/chandelier.gltf']);
 	});
 });
 

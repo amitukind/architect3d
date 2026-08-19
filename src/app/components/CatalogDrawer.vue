@@ -3,7 +3,7 @@
 import {computed, nextTick, ref, watch} from 'vue';
 import {DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose} from 'reka-ui';
 import {Search, X, Plus, Star} from '@lucide/vue';
-import {loadCatalogDetail, ROOMS} from '../composables/useCatalog.js';
+import {loadCatalogDetail, loadCatalogPacks, ROOMS} from '../composables/useCatalog.js';
 import {useCatalogBrowse} from '../composables/useCatalogBrowse.js';
 import {Dimensioning} from '../../scripts/blueprint.js';
 
@@ -63,6 +63,16 @@ const props = defineProps({
 	},
 	/** Where a wall-bound item would land, so the drawer can say. */
 	placement: {type: Object, default: null},
+	/**
+	 * How many rows every pack in the manifest adds up to, fetched or not
+	 * (RM-012 J2).
+	 *
+	 * The header says "12 of 180" while the packs are in flight rather than
+	 * "12 of 12", because the second is true of what has arrived and misleading
+	 * about what is coming. The manifest knows this number without downloading a
+	 * row, which is the point of having one.
+	 */
+	promised: {type: Number, default: 0},
 });
 
 const emit = defineEmits(['update:open', 'add-item', 'prefetch-item']);
@@ -235,18 +245,34 @@ function sizeLabel(item)
 	return [size.w, size.d, size.h].map((cm) => Dimensioning.cmToMeasure(cm)).join(' × ');
 }
 
-// Focus the search box on open, and fetch the detail chunk. The drawer's whole
+/**
+ * Whether the packs are in flight (RM-012 J2).
+ *
+ * True between the first open and the last pack landing, and never again -
+ * `loadCatalogPacks` caches, so a second open resolves on the same tick and this
+ * flickers to false before a frame is drawn.
+ */
+const loading = ref(false);
+
+// Focus the search box on open, and fetch the catalog. The drawer's whole
 // purpose is finding something, and the keyboard should already be in the right
-// place.
+// place, so neither fetch is awaited before the focus - a slow pack must not
+// delay the cursor landing in the search box.
 watch(() => props.open, async function (open)
 {
 	if (!open)
 	{
 		return;
 	}
-	// Not awaited before the focus: the grid does not need it, and a slow chunk
-	// must not delay the cursor landing in the search box.
-	loadCatalogDetail().then(function (loaded) {detail.value = loaded;});
+	// The rows first, because the grid cannot draw without them. Then the sizes,
+	// which appear under tiles that are already on screen. Same staging J1 had
+	// between the bundle and a chunk, now between two fetches (RM-012 J2).
+	loading.value = true;
+	loadCatalogPacks().then(function ()
+	{
+		loading.value = false;
+		return loadCatalogDetail();
+	}).then(function (loaded) {detail.value = loaded;});
 	await nextTick();
 	if (searchField.value)
 	{
@@ -269,7 +295,7 @@ watch(() => props.open, async function (open)
 					<div>
 						<DialogTitle class="text-[13px] font-semibold">Furniture</DialogTitle>
 						<DialogDescription class="num text-ink-faint">
-							{{ results.length }} of {{ total }} models
+							{{ results.length }} of {{ Math.max(total, props.promised) }} models
 						</DialogDescription>
 					</div>
 					<DialogClose as-child>
@@ -329,7 +355,10 @@ watch(() => props.open, async function (open)
 				</div>
 
 				<div class="flex-1 overflow-y-auto p-3">
-					<p v-if="!results.length" class="py-8 text-center text-ink-faint">
+					<p v-if="loading && !results.length" class="py-8 text-center text-ink-faint">
+						Fetching the catalog…
+					</p>
+					<p v-else-if="!results.length" class="py-8 text-center text-ink-faint">
 						Nothing matches “{{ query }}”.
 					</p>
 

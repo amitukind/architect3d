@@ -61,7 +61,13 @@ const FIXTURES = join(ROOT, 'tests/fixtures');
 const CATALOG = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog.json'), 'utf8'));
 const TEXTURES = JSON.parse(readFileSync(join(ROOT, 'src/catalog/textures.json'), 'utf8'));
 const SOURCES = JSON.parse(readFileSync(join(ROOT, 'src/catalog/sources.json'), 'utf8'));
-const DETAIL = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog-detail.json'), 'utf8'));
+const PACK_MANIFEST = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog-manifest.json'), 'utf8'));
+/** @param {string} name A generated file under `public/catalog/` (RM-012 J2). */
+const packFile = (name) => JSON.parse(readFileSync(join(ROOT, 'public/catalog', name), 'utf8'));
+/** The detail tier, reassembled from the packs the deployment serves. */
+const DETAIL = {
+	items: Object.assign({}, ...PACK_MANIFEST.packs.map((entry) => packFile(entry.id + '.detail.json').items)),
+};
 const THUMBNAILS = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/thumbnails.json'), 'utf8'));
 const COMPRESSION = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/texture-compression.json'), 'utf8'));
 const MANIFEST_FILE = join(PUBLIC, 'asset-manifest.json');
@@ -306,10 +312,12 @@ describe('every catalog row carries its metadata (RM-012 J1, M-29)', () =>
 		expect(missing.map((item) => item.name)).toEqual([]);
 
 		// And the expensive half is on the far side of the split: nothing a person
-		// reads about one item is in the file every visitor downloads.
-		const index = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog-index.json'), 'utf8'));
-		expect(index.items.every((row) => row.size === undefined && row.source === undefined)).toBe(true);
-		expect(index.sources).toBeUndefined();
+		// reads about one item is in the tier the grid draws from. Nor, since J2,
+		// is any of it in the payload - the bundle carries a manifest of kits and
+		// every row of both tiers is fetched.
+		const rows = PACK_MANIFEST.packs.flatMap((entry) => packFile(entry.id + '.json').items);
+		expect(rows.every((row) => row.size === undefined && row.source === undefined)).toBe(true);
+		expect(PACK_MANIFEST.items, 'a row in the manifest is a row in the payload').toBeUndefined();
 	});
 
 	it('gives every row a name no other row has', () =>

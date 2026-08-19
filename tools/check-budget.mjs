@@ -465,19 +465,68 @@ function busiestDesign()
  * the model is wrong. That cross-check is the reason this can stay a tier-1 gate
  * instead of moving to the browser tier entirely.
  */
-/**
- * The catalog index as the bundle will carry it (RM-012 J1, M-44).
- *
- * @returns {?number} Gzipped bytes, or null with no index to read.
- */
-function catalogIndexBytes()
+/** Compacted the way a bundler emits it, then gzipped. */
+function jsonGzip(path)
 {
-	const path = 'src/catalog/catalog-index.json';
-	if (!existsSync(path))
+	return existsSync(path)
+		? gzipSync(Buffer.from(JSON.stringify(JSON.parse(readFileSync(path, 'utf8')))), {level: 9}).length
+		: null;
+}
+
+/**
+ * Every catalog file the bundle carries (RM-012 J1 M-44, J2).
+ *
+ * J1 added this line pointed at `catalog-index.json`, to notice a key or a row
+ * count crossing back into the payload. J2 moved what it was watching: no
+ * catalog row is bundled at all now, so the file it named no longer exists and
+ * the line is re-pointed at what took its place.
+ *
+ * Four files, and the reason it is four rather than one. The **manifest** is the
+ * list of packs, and it grows by a line when a kit is acquired rather than by a
+ * line when an item is. The three **generated sections** - openings, flights,
+ * columns and beams - are bundled because they name no model file and so cannot
+ * be in a pack; they are the one part of the catalog that is still content in
+ * the payload, and this is the only line that would notice them growing.
+ *
+ * Summed rather than given four lines, because the question is one question:
+ * what does a visitor download of the catalog before they ask for any of it.
+ *
+ * @returns {?number} Gzipped bytes.
+ */
+function catalogBundledBytes()
+{
+	const files = ['catalog-manifest', 'openings', 'stairs', 'structures']
+		.map((name) => jsonGzip(`src/catalog/${name}.json`));
+	return files.some((bytes) => bytes === null) ? null : files.reduce((sum, bytes) => sum + bytes, 0);
+}
+
+/**
+ * What opening the drawer costs (RM-012 J2).
+ *
+ * The thirteenth line, and it exists because J2 moved a cost rather than
+ * removing one. Every catalog row is now fetched, which is what keeps
+ * `first-load` flat while the catalog grows - but the bytes did not evaporate,
+ * they moved to the first click on the furniture button, and nothing here was
+ * measuring that. `public-total` counts them at rest on a disk and `first-load`
+ * correctly ignores them; this is the one line that asks what a person waits for
+ * the first time they go looking for a chair.
+ *
+ * Gzipped, because these are served as text and it is what the browser
+ * downloads. Summed across every pack, because opening the drawer fetches all of
+ * them - a per-pack ceiling would say nothing about the wait.
+ *
+ * @returns {?number} Gzipped bytes.
+ */
+function catalogPackBytes()
+{
+	const dir = 'public/catalog';
+	if (!existsSync(dir))
 	{
 		return null;
 	}
-	return gzipSync(Buffer.from(JSON.stringify(JSON.parse(readFileSync(path, 'utf8')))), {level: 9}).length;
+	return readdirSync(dir)
+		.filter((name) => extname(name) === '.json')
+		.reduce((sum, name) => sum + jsonGzip(join(dir, name)), 0);
 }
 
 export function sceneVram()
@@ -701,19 +750,24 @@ const MEASUREMENTS = [
 	// measurement W-5 made and why a tree walk stopped being the right question.
 	{key: 'texture-vram', label: 'Scene texture VRAM', needs: null,
 		measure: () => sceneVram()},
-	// The twelfth line, added by RM-012 J1 (M-44). It guards a boundary rather
-	// than a total: `catalog-index.json` is inlined into the application bundle
-	// and the detail beside it is not, so this is the line that notices when a
-	// key or a row count crosses back over. X-3 measured what it prevents - J1's
-	// metadata on 600 rows is 17,264 gzipped bytes of growth against 13,292 of
-	// `first-load` headroom, and split it is 9,857.
+	// The twelfth line, added by RM-012 J1 (M-44) and re-pointed by J2. It guards
+	// a boundary rather than a total: it is what notices catalog content crossing
+	// into the payload. J1 pointed it at the bundled index; J2 took every row out
+	// of the bundle, so it now measures the manifest that replaced the index plus
+	// the three generated sections, which are the only catalog content left in
+	// there. See catalogBundledBytes.
 	//
-	// Compacted before gzipping because that is what a bundler emits: the file on
-	// disk is tab-indented for a reader, and charging the payload for whitespace
+	// Compacted before gzipping because that is what a bundler emits: the files on
+	// disk are tab-indented for a reader, and charging the payload for whitespace
 	// nobody downloads would make the number wrong in the safe direction, which
 	// is still wrong.
-	{key: 'catalog-index', label: 'Catalog index (gzip)', needs: null,
-		measure: () => catalogIndexBytes()},
+	{key: 'catalog-bundled', label: 'Catalog in the bundle (gzip)', needs: null,
+		measure: () => catalogBundledBytes()},
+	// And the thirteenth, added by RM-012 J2 beside it, because the bytes the line
+	// above stopped counting did not stop existing - they moved to the drawer's
+	// first open. See catalogPackBytes.
+	{key: 'catalog-packs', label: 'Catalog packs (gzip)', needs: null,
+		measure: () => catalogPackBytes()},
 	// The eleventh line, added by RM-011 H1 (M-43). Every other entry here asks
 	// what something weighs; this one asks what a person waits for.
 	{key: 'first-load', label: 'First load (gzip)', needs: 'build:demo',
