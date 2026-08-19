@@ -294,6 +294,17 @@ export const floorplannerPalette = {
 	north: '#5D6F83',
 	/** Room type and ceiling height, under the room name. */
 	roomType: '#5D6F83',
+	/**
+	 * The storey below, traced under this one (RM-010 G1).
+	 *
+	 * Faint enough to read through and no fainter. It is deliberately the same
+	 * hue as a wall rather than a new colour: a ghost is a wall somewhere else,
+	 * not a different kind of thing, and giving it its own hue would make it
+	 * compete with the marks that ARE different kinds of thing - the dimensions
+	 * and the stairwell hint.
+	 */
+	ghost: 'rgba(93,111,131,0.22)',
+	ghostFill: 'rgba(93,111,131,0.05)',
 };
 
 /**
@@ -888,6 +899,12 @@ export class FloorplannerView2D
 			this._carbonsheet.draw();
 			this.drawGrid();
 			this.drawOriginCrossHair();
+			// The storey below, to trace over (RM-010 G1). With the drawing aids
+			// rather than with the building, and for the same reason: it is not this
+			// plan. A sheet of the first floor carries the first floor, so the
+			// export never draws it - somebody reading a drawing cannot be expected
+			// to know which of two overlaid plans is the one they are looking at.
+			this.drawGhostPlan();
 		}
 
 		this.floorplan.getRooms().forEach((room) => {this.drawRoom(room);});
@@ -1221,6 +1238,46 @@ export class FloorplannerView2D
 
 		this.drawItemFacing(corners, floorplannerPalette.itemFacing);
 		this.drawItemLabel(footprint);
+	}
+
+	/**
+	 * The storey below, faint (RM-010 G1).
+	 *
+	 * Walls as centrelines at their real thickness, and room outlines, and
+	 * nothing else - no labels, no dimensions, no furniture. A ghost is there to
+	 * say *where the walls downstairs are* so a wall upstairs can be put over
+	 * one; a second set of words on a drawing that already has its own would
+	 * make both harder to read.
+	 *
+	 * Drawn with the grid rather than with the building, and under it, because it
+	 * is an aid for the person drawing rather than part of the drawing. Which is
+	 * also why `draw()` skips it while exporting.
+	 *
+	 * @returns {void}
+	 */
+	drawGhostPlan()
+	{
+		var ghost = this.floorplan.ghostPlan;
+		if (!ghost)
+		{
+			return;
+		}
+		var scope = this;
+		ghost.rooms.forEach(function (outline)
+		{
+			scope.drawPolygon(
+				outline.map((corner) => scope.project.convertX(corner.x)),
+				outline.map((corner) => scope.project.convertY(corner.y)),
+				true, floorplannerPalette.ghostFill, false, '', 0);
+		});
+		ghost.walls.forEach(function (wall)
+		{
+			scope.drawLine(
+				scope.project.convertX(wall.ax), scope.project.convertY(wall.ay),
+				scope.project.convertX(wall.bx), scope.project.convertY(wall.by),
+				Math.max(1, scope.dimensioning.cmToPixel(wall.thickness)),
+				floorplannerPalette.ghost);
+		});
 	}
 
 	/**

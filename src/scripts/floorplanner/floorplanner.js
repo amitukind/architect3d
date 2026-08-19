@@ -378,18 +378,7 @@ export class Floorplanner2D extends EventDispatcher
 
 		document.addEventListener('keyup', this._keyUpEvent);
 		document.addEventListener('keydown', this._keyDownEvent);
-		floorplan.addEventListener(EVENT_LOADED, this._floorplanLoadedEvent);
-		floorplan.addEventListener(EVENT_CORNER_ATTRIBUTES_CHANGED, this._updateViewEvent);
-		floorplan.addEventListener(EVENT_WALL_ATTRIBUTES_CHANGED, this._updateViewEvent);
-		floorplan.addEventListener(EVENT_ROOM_ATTRIBUTES_CHANGED, this._updateViewEvent);
-		// A new projection is a new picture (RM-008 E1). Same coalesced redraw as
-		// every other attribute change - one draw per animation frame, not one per
-		// event, which is what P6 established and what makes a drag affordable.
-		floorplan.addEventListener(EVENT_ITEMS_PROJECTED, this._updateViewEvent);
-		// A dimension moved, a note was typed, north turned (RM-008 E3). Same
-		// coalesced redraw, and the same argument: the plan is the only view that
-		// draws any of it.
-		floorplan.addEventListener(EVENT_ANNOTATIONS_CHANGED, this._updateViewEvent);
+		this._subscribePlan(floorplan);
 	}
 
 	/**
@@ -422,12 +411,7 @@ export class Floorplanner2D extends EventDispatcher
 		document.removeEventListener('keyup', this._keyUpEvent);
 		document.removeEventListener('keydown', this._keyDownEvent);
 
-		this.floorplan.removeEventListener(EVENT_LOADED, this._floorplanLoadedEvent);
-		this.floorplan.removeEventListener(EVENT_ITEMS_PROJECTED, this._updateViewEvent);
-		this.floorplan.removeEventListener(EVENT_ANNOTATIONS_CHANGED, this._updateViewEvent);
-		this.floorplan.removeEventListener(EVENT_CORNER_ATTRIBUTES_CHANGED, this._updateViewEvent);
-		this.floorplan.removeEventListener(EVENT_WALL_ATTRIBUTES_CHANGED, this._updateViewEvent);
-		this.floorplan.removeEventListener(EVENT_ROOM_ATTRIBUTES_CHANGED, this._updateViewEvent);
+		this._unsubscribePlan(this.floorplan);
 
 		this.view.dispose();
 
@@ -1733,6 +1717,79 @@ export class Floorplanner2D extends EventDispatcher
 	}
 
 	/** */
+	/**
+	 * Listen to one plan, having stopped listening to the last (RM-010 G1).
+	 *
+	 * Extracted from the constructor when levels arrived, because a level switch
+	 * changes *which* floorplan this view is showing and there was previously no
+	 * such thing - the plan a `Floorplanner2D` was constructed with was the plan
+	 * it drew forever. Every subscription below was already here; what is new is
+	 * that they can be moved.
+	 *
+	 * @param {Object} floorplan
+	 * @returns {void}
+	 */
+	_subscribePlan(floorplan)
+	{
+		floorplan.addEventListener(EVENT_LOADED, this._floorplanLoadedEvent);
+		floorplan.addEventListener(EVENT_CORNER_ATTRIBUTES_CHANGED, this._updateViewEvent);
+		floorplan.addEventListener(EVENT_WALL_ATTRIBUTES_CHANGED, this._updateViewEvent);
+		floorplan.addEventListener(EVENT_ROOM_ATTRIBUTES_CHANGED, this._updateViewEvent);
+		// A new projection is a new picture (RM-008 E1). Same coalesced redraw as
+		// every other attribute change - one draw per animation frame, not one per
+		// event, which is what P6 established and what makes a drag affordable.
+		floorplan.addEventListener(EVENT_ITEMS_PROJECTED, this._updateViewEvent);
+		// A dimension moved, a note was typed, north turned (RM-008 E3). Same
+		// coalesced redraw, and the same argument: the plan is the only view that
+		// draws any of it.
+		floorplan.addEventListener(EVENT_ANNOTATIONS_CHANGED, this._updateViewEvent);
+	}
+
+	/** The inverse, so a plan this view has left stops keeping it alive. */
+	_unsubscribePlan(floorplan)
+	{
+		floorplan.removeEventListener(EVENT_LOADED, this._floorplanLoadedEvent);
+		floorplan.removeEventListener(EVENT_ITEMS_PROJECTED, this._updateViewEvent);
+		floorplan.removeEventListener(EVENT_ANNOTATIONS_CHANGED, this._updateViewEvent);
+		floorplan.removeEventListener(EVENT_CORNER_ATTRIBUTES_CHANGED, this._updateViewEvent);
+		floorplan.removeEventListener(EVENT_WALL_ATTRIBUTES_CHANGED, this._updateViewEvent);
+		floorplan.removeEventListener(EVENT_ROOM_ATTRIBUTES_CHANGED, this._updateViewEvent);
+	}
+
+	/**
+	 * Draw a different storey's plan (RM-010 G1).
+	 *
+	 * The gap the live drive found. `Floorplanner2D` holds the `Floorplan` it was
+	 * constructed with, in two places - here and on its view - and switching
+	 * levels changes which plan is the one being edited. Without this the
+	 * switcher moved the model and the 3D view and left the canvas drawing the
+	 * ground floor, which looks exactly like a switch that did nothing.
+	 *
+	 * Idempotent, because the level composable calls it on every
+	 * EVENT_LEVELS_CHANGED and most of those are a height edit rather than a
+	 * switch.
+	 *
+	 * @param {Object} floorplan
+	 * @returns {void}
+	 */
+	showFloorplan(floorplan)
+	{
+		if (!floorplan || floorplan === this.floorplan)
+		{
+			return;
+		}
+		this._unsubscribePlan(this.floorplan);
+		this.floorplan = floorplan;
+		this.view.floorplan = floorplan;
+		// The tracing underlay belongs to the plan being drawn, and each plan holds
+		// its own; re-pointing it here is what stops the ground floor's sketch
+		// following somebody upstairs.
+		this.floorplan.carbonSheet = this.view._carbonsheet;
+		this._subscribePlan(floorplan);
+		this.setMode(floorplannerModes.MOVE);
+		this.view.invalidate();
+	}
+
 	reset()
 	{
 		this.view.carbonSheet.clear();

@@ -216,6 +216,16 @@ export class Floorplan extends EventDispatcher
 		 */
 		this.itemProjection = [];
 		/**
+		 * The storey below, to trace over, or null (RM-010 G1).
+		 *
+		 * Plain data set by `Model`, for the reason `itemProjection` is: this class
+		 * has no path to a `Model` and must not gain one, so a second plan on the
+		 * same canvas arrives as a description. See `model/level_projection.js`.
+		 *
+		 * @type {?import('./level_projection.js').GhostPlan}
+		 */
+		this.ghostPlan = null;
+		/**
 		 * What this plan says about itself (RM-008 E3).
 		 *
 		 * The first entities here that are authored rather than derived - see
@@ -1353,6 +1363,21 @@ export class Floorplan extends EventDispatcher
 	 * @param {Array<import('./plan_projection.js').ItemFootprint>} projection
 	 * @emits {EVENT_ITEMS_PROJECTED}
 	 */
+	/**
+	 * Hand the plan the storey below it, to draw faintly (RM-010 G1).
+	 *
+	 * No event: this only ever changes alongside something that already redraws -
+	 * a level switch, a level's plan being edited, a document load - and a
+	 * dispatch here would be a second redraw for the same cause.
+	 *
+	 * @param {?import('./level_projection.js').GhostPlan} plan
+	 * @returns {void}
+	 */
+	setGhostPlan(plan)
+	{
+		this.ghostPlan = plan || null;
+	}
+
 	setItemProjection(projection)
 	{
 		this.itemProjection = projection || [];

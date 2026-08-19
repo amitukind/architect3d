@@ -48,6 +48,27 @@
     "same as E1's, and it buys a second output format for the whole 2D view rather",
     "than a feature.",
     "",
+    "RM-010 G1 RAISED three, and it is the change the last commit said was coming:",
+    "demo-total 14,330,000 -> 15,066,600, lib-iife-gzip 274,000 -> 288,100 and",
+    "lib-esm-gzip 68,900 -> 73,700. All three were named as thin after F2's columns",
+    "and beams - 0.4 %, 0.7 % and 1.5 % of headroom - with the note that the next",
+    "change to trip one should raise it to the ~5 % the limits were set with rather",
+    "than to just-enough. This is that change, and all three are set that way.",
+    "",
+    "What is in them is storeys: model/level.js, model/level_projection.js, the",
+    "level list and the file's `levels` record on Model, per-level groups and item",
+    "lists on Scene, one 3D projection per storey in Main, the ghosted underlay in",
+    "the 2D view, and the switcher and its composable in the application. The",
+    "library entries move by 1.4 KB and 2.3 KB gzipped for that, which is the",
+    "cheapest of the five features this programme set has added - because a level",
+    "is a floorplan rather than a filter on one, so almost nothing existing grew.",
+    "",
+    "demo-total's 79 KB is mostly the sourcemap again, for the reason RM-008 E3",
+    "recorded when it last moved: 6.2 MB of that tree is one map, and a map is four",
+    "to five times the size of the source it describes. The gzipped JS a browser",
+    "downloads went 367.9 -> 370.9 KB against a 378.9 ceiling and did not need",
+    "raising.",
+    "",
     "RM-008 F3 RAISED lib-esm-gzip, 65,600 -> 68,900, and nothing else moved. The",
     "ESM entry went 62,493 -> 66,336 gzipped for parametric stairs: items/stair.js",
     "(the description, the shape of a straight, quarter- and half-turn flight, the",
@@ -449,27 +470,27 @@
   "budgets": {
     "demo-js-gzip": {
       "limit": 388000,
-      "measured": 376756
+      "measured": 379782
     },
     "demo-css-gzip": {
       "limit": 10000,
-      "measured": 7330
+      "measured": 7356
     },
     "demo-total": {
-      "limit": 14330000,
-      "measured": 14270428
+      "limit": 15066600,
+      "measured": 14349170
     },
     "lib-iife-gzip": {
-      "limit": 274000,
-      "measured": 272107
+      "limit": 288100,
+      "measured": 274421
     },
     "public-total": {
       "limit": 6200000,
       "measured": 6121106
     },
     "lib-esm-gzip": {
-      "limit": 68900,
-      "measured": 67852
+      "limit": 73700,
+      "measured": 70213
     },
     "public-largest": {
       "limit": 330000,

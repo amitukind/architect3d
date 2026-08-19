@@ -209,6 +209,28 @@ the loaded `Item`s. Between them they are the entire state of a design, and
 they hold no DOM node and no canvas — which is what lets `exportSerialized()`
 be a pure function of them, and what lets `dispose()` leave the model standing.
 
+**A storey is a whole `Floorplan`, not a field on one** (RM-010 G1). `Model`
+holds a list of `Level`s, each with its own plan, its own furniture and one
+stored number — its floor-to-floor height. Where a storey sits is the running
+sum of the heights below it, derived and never stored.
+
+`model.floorplan` is a **getter onto the active storey**, and that one getter is
+why nothing else in the tree gained a level argument: the 2D view, the 3D view,
+the inspectors, the composables and the file all read it exactly as they did
+before there were any storeys. `Main.floorplan` does the same thing one layer
+up. Two questions the getters do not answer are asked explicitly instead —
+`scene.allItems()` for the whole building (the save file, resolving an id) and
+`scene.getItems()` for the storey being edited (the plan, the item count, what a
+click in 3D can hit).
+
+The base elevation is applied in exactly one place: a `Group` per storey inside
+`Scene`, positioned from the derived base. `Floor`, `Edge` and `Item` each build
+their geometry relative to a plan they are handed and know nothing about
+storeys — measured before the sprint, they ask a scene for `add`, `remove` and
+`needsUpdate` and nothing else, which is why `Scene.levelScene(level)` can hand
+each storey's `Floorplan3D` a three-method façade and none of those files
+changed.
+
 ::: warning The model does hold GPU resources
 This section used to say it held none, and that was wrong. `Room` builds two
 `Mesh`es — `floorPlane` and `roofPlane` — and every `HalfEdge` builds a third.

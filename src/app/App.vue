@@ -10,6 +10,7 @@ import AppWorkspace from './components/AppWorkspace.vue';
 import FloorplannerView from './components/FloorplannerView.vue';
 import ThreeViewport from './components/ThreeViewport.vue';
 import PlanOverlay from './components/PlanOverlay.vue';
+import LevelSwitcher from './components/LevelSwitcher.vue';
 import SceneOverlay from './components/SceneOverlay.vue';
 import CatalogDrawer from './components/CatalogDrawer.vue';
 import ShortcutsDialog from './components/ShortcutsDialog.vue';
@@ -27,6 +28,7 @@ import {useTheme, applyTheme} from './composables/useTheme.js';
 import {useLayout, LAYOUT_PLAN, LAYOUT_SPLIT, LAYOUT_VIEW} from './composables/useLayout.js';
 import {useHistory} from './composables/useHistory.js';
 import {useZoom2D} from './composables/useZoom2D.js';
+import {useLevels} from './composables/useLevels.js';
 import {usePlanStats} from './composables/usePlanStats.js';
 import {useItemActions} from './composables/useItemActions.js';
 import {useAutosave, readDraft, clearDraft, RECOVERY_LOST_TAIL} from './composables/useAutosave.js';
@@ -75,6 +77,7 @@ const theme = useTheme(store);
 const workspace = useLayout();
 const history = useHistory(store);
 const zoom = useZoom2D(store);
+const levels = useLevels(store);
 const stats = usePlanStats(store);
 const items = useItemActions(store, selection, history);
 const autosave = useAutosave(store);
@@ -593,6 +596,16 @@ useShortcuts(() => bindings.value);
 							@wheel-zoom="zoom.nudge"
 							@pointer-move="onPlanPointerMove"
 							@pointer-leave="stats.setCursor(null)">
+							<div
+								v-if="levels.enabled.value"
+								class="pointer-events-none absolute right-3 top-3 z-20 w-44">
+								<LevelSwitcher
+									:levels="levels.levels.value"
+									:unit="display.unit.value"
+									@set-active="levels.setActive"
+									@add="levels.addAbove"
+									@remove="levels.remove(levels.active.value)" />
+							</div>
 							<PlanOverlay
 								:zoom-percent="zoom.percent.value"
 								:can-zoom-in="zoom.canZoomIn.value"

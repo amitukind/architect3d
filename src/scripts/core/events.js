@@ -110,6 +110,23 @@ export const EVENT_ITEMS_PROJECTED = 'ITEMS_PROJECTED_EVENT';
 export const EVENT_ITEM_2D_CLICKED = 'ITEM_CLICKED_2D_EVENT';
 
 /**
+ * The storeys changed (RM-010 G1).
+ *
+ * Dispatched by `Model` when a level is added, removed, re-sized or switched to.
+ * Carries `model` and `active`.
+ *
+ * One event for four things because they have one consequence: what the views
+ * are looking at is no longer what they drew. Splitting it would mean four
+ * subscriptions in each of two views, all of which redraw, which is four ways to
+ * subscribe to three of them.
+ *
+ * Not EVENT_CHANGESET: that means "this floorplan's wall graph changed" and is
+ * dispatched by a `Floorplan`. A level switch changes *which* floorplan, and a
+ * floorplan cannot say that about itself.
+ */
+export const EVENT_LEVELS_CHANGED = 'LEVELS_CHANGED_EVENT';
+
+/**
  * The plan's dimensions, text labels or north bearing changed (RM-008 E3).
  *
  * Its own event rather than EVENT_UPDATED for the reason

@@ -19,7 +19,7 @@ export class FloorItem extends Item
 	{
 		if (!this.position_set)
 		{
-			var center = this.model.floorplan.getCenter();
+			var center = this.floorplan.getCenter();
 			this.position.x = center.x;
 			this.position.z = center.z;
 			// `bounds()` rather than `geometry.boundingBox`, which is null until
@@ -57,7 +57,7 @@ export class FloorItem extends Item
 	{
 		var corners = this.getCorners('x', 'z', vec3);
 		// check if we are in a room
-		var rooms = this.model.floorplan.getRooms();
+		var rooms = this.floorplan.getRooms();
 		var isInARoom = false;
 		for (var i = 0; i < rooms.length; i++)
 		{

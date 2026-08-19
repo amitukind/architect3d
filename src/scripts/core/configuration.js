@@ -15,6 +15,21 @@ export const configWallThickness = 'wallThickness';
 
 export const configSystemUI = 'systemUI';
 
+/**
+ * Whether the storey controls appear (RM-010 G1).
+ *
+ * Off by default, which is what RM-010 asked for: *"behind a flag until the
+ * fixture suite covers it."* What the flag gates is the **affordance**, not the
+ * feature - the model, the file, the 3D stacking and the ghosted underlay all
+ * work with it off, and a two-storey file opens and renders correctly either
+ * way. What it withholds is the control that lets somebody make a second storey
+ * by accident before G3 has driven a three-storey house through every tier.
+ *
+ * That distinction is the point of a flag rather than a branch: turning it on
+ * changes nothing about how anything behaves, so what G3 removes is one default.
+ */
+export const configLevels = 'levelsEnabled';
+
 export const scale = 'scale';
 
 export const gridSpacing = 'gridSpacing';
@@ -24,7 +39,7 @@ export const snapTolerance = 'snapTolerance';//In CMS
 /** The values a Configuration starts with when it is given none. */
 function defaultValues()
 {
-	return {dimUnit: dimCentiMeter, wallHeight: 250, wallThickness: 10, systemUI: false, scale: 1, snapToGrid: false, snapTolerance: 25, gridSpacing: 25};
+	return {dimUnit: dimCentiMeter, wallHeight: 250, wallThickness: 10, systemUI: false, scale: 1, snapToGrid: false, snapTolerance: 25, gridSpacing: 25, levelsEnabled: false};
 }
 
 /**
@@ -60,7 +75,7 @@ export const cornerTolerance = 20;
 const STRING_KEYS = [configDimUnit];
 
 /** Keys `getNumericValue` will answer for. */
-const NUMERIC_KEYS = [configSystemUI, configWallHeight, configWallThickness, scale, snapToGrid, snapTolerance, gridSpacing];
+const NUMERIC_KEYS = [configSystemUI, configWallHeight, configWallThickness, scale, snapToGrid, snapTolerance, gridSpacing, configLevels];
 
 /**
  * Configuration for one design, or for the whole page (RM-002 R-02, P7).

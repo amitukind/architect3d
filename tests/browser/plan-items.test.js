@@ -140,7 +140,7 @@ describe('M-23 · the plan draws what the scene holds', () =>
 		planner.view.draw();
 		const empty = raster();
 
-		model.scene.items = [fakeItem('bed', 300, 300)];
+		model.level.items = [fakeItem('bed', 300, 300)];
 		model.projectItemsToPlan();
 		planner.view.draw();
 
@@ -149,12 +149,12 @@ describe('M-23 · the plan draws what the scene holds', () =>
 
 	it('has one footprint per item, whatever the scene holds', () =>
 	{
-		model.scene.items = [fakeItem('a', 200, 200), fakeItem('b', 400, 200), fakeItem('c', 300, 420)];
+		model.level.items = [fakeItem('a', 200, 200), fakeItem('b', 400, 200), fakeItem('c', 300, 420)];
 		model.projectItemsToPlan();
 
 		expect(model.floorplan.itemProjection).toHaveLength(model.scene.itemCount());
 
-		model.scene.items = [fakeItem('a', 200, 200)];
+		model.level.items = [fakeItem('a', 200, 200)];
 		model.projectItemsToPlan();
 
 		expect(model.floorplan.itemProjection).toHaveLength(model.scene.itemCount());
@@ -162,12 +162,12 @@ describe('M-23 · the plan draws what the scene holds', () =>
 
 	it('draws more ink for three items than for one', () =>
 	{
-		model.scene.items = [fakeItem('a', 200, 200)];
+		model.level.items = [fakeItem('a', 200, 200)];
 		model.projectItemsToPlan();
 		planner.view.draw();
 		const one = raster();
 
-		model.scene.items = [fakeItem('a', 200, 200), fakeItem('b', 400, 200), fakeItem('c', 300, 430)];
+		model.level.items = [fakeItem('a', 200, 200), fakeItem('b', 400, 200), fakeItem('c', 300, 430)];
 		model.projectItemsToPlan();
 		planner.view.draw();
 
@@ -184,12 +184,12 @@ describe('M-23 · the plan draws what the scene holds', () =>
 		planner.view.draw();
 		const empty = raster();
 
-		model.scene.items = [fakeItem('bed', 300, 300)];
+		model.level.items = [fakeItem('bed', 300, 300)];
 		model.projectItemsToPlan();
 		planner.view.draw();
 		expect(changedPixels(empty, raster())).toBeGreaterThan(0);
 
-		model.scene.items = [];
+		model.level.items = [];
 		model.projectItemsToPlan();
 		planner.view.draw();
 
@@ -201,7 +201,7 @@ describe('M-23 · the plan draws what the scene holds', () =>
 		planner.view.draw();
 		const empty = raster();
 
-		model.scene.items = [fakeItem('bed', 300, 300, {halfSize: new Vector3(0, 0, 0)})];
+		model.level.items = [fakeItem('bed', 300, 300, {halfSize: new Vector3(0, 0, 0)})];
 		model.projectItemsToPlan();
 		planner.view.draw();
 
@@ -214,7 +214,7 @@ describe('M-32 · selecting in one view changes the other', () =>
 {
 	beforeEach(() =>
 	{
-		model.scene.items = [fakeItem('bed', 300, 300)];
+		model.level.items = [fakeItem('bed', 300, 300)];
 		model.projectItemsToPlan();
 	});
 
@@ -308,7 +308,7 @@ describe('the frame budget (RM-008 T-4)', () =>
 		{
 			items.push(fakeItem(`item-${String(i).padStart(3, '0')}`, 60 + (i % 15) * 120, 60 + Math.floor(i / 15) * 120));
 		}
-		model.scene.items = items;
+		model.level.items = items;
 		model.projectItemsToPlan();
 
 		expect(model.floorplan.itemProjection).toHaveLength(150);

@@ -9,7 +9,7 @@ import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';
 import {DRACOLoader} from 'three/addons/loaders/DRACOLoader.js';
 import {KTX2Loader} from 'three/addons/loaders/KTX2Loader.js';
 import {formatSupport} from '../core/texture_formats.js';
-import {Scene as ThreeScene, LoadingManager} from 'three';
+import {Scene as ThreeScene, LoadingManager, Group} from 'three';
 import {runtimeOf} from '../core/design_runtime.js';
 import {disposeMaterial} from '../core/resource_registry.js';
 import {Utils} from '../core/utils.js';
@@ -41,7 +41,19 @@ export class Scene extends EventDispatcher
 
 		this.scene = new ThreeScene();
 		this.scene.background = new Color(0xffffff);
-		this.items = [];
+		/**
+		 * One three.js `Group` per storey, keyed by level id (RM-010 G1).
+		 *
+		 * This is where a level's base elevation is applied and the only place it
+		 * is: `Floor`, `Edge` and `Item` each build their geometry relative to a
+		 * plan they are handed and know nothing about storeys, which is what makes
+		 * a level a translation rather than a change to how anything is computed
+		 * (V-4). The GPU stops here too - a `Level` is plain data and does not hold
+		 * one of these.
+		 *
+		 * @type {Map<string, import('three').Group>}
+		 */
+		this.levelGroups = new Map();
 		this.needsUpdate = false;
 
 		/**
@@ -187,7 +199,127 @@ export class Scene extends EventDispatcher
 	remove(mesh)
 	{
 		this.scene.remove(mesh);
-		Utils.removeValue(this.items, mesh);
+		this.model.levels.forEach((level) => {Utils.removeValue(level.items, mesh);});
+	}
+
+	/**
+	 * The container a level's geometry goes into, made on demand (RM-010 G1).
+	 *
+	 * Positioned at the level's base elevation, which `Model` derives from the
+	 * heights below it. Every caller goes through here rather than holding a
+	 * group, so a level whose height changed is re-placed by `syncLevels()` and
+	 * nothing else has to know.
+	 *
+	 * @param {import('./level.js').Level} level
+	 * @returns {import('three').Group}
+	 */
+	levelGroup(level)
+	{
+		var existing = this.levelGroups.get(level.id);
+		if (existing)
+		{
+			return existing;
+		}
+		var group = new Group();
+		group.name = `level:${level.id}`;
+		group.position.y = this.model.levelBase(this.model.levels.indexOf(level));
+		this.levelGroups.set(level.id, group);
+		this.scene.add(group);
+		return group;
+	}
+
+	/**
+	 * A scene-shaped façade onto one level's group (RM-010 G1).
+	 *
+	 * `Floorplan3D`, `Floor` and `Edge` ask a scene for exactly three things -
+	 * `add`, `remove` and `needsUpdate` - measured before this was written. So a
+	 * level's 3D projection is built by handing it one of these instead of the
+	 * scene, and not one line of those three files changes. That is the whole of
+	 * why the base elevation lands here.
+	 *
+	 * @param {import('./level.js').Level} level
+	 * @returns {{add: Function, remove: Function, needsUpdate: boolean}}
+	 */
+	levelScene(level)
+	{
+		var scope = this;
+		var group = this.levelGroup(level);
+		return {
+			add: function (mesh) {group.add(mesh);},
+			remove: function (mesh) {group.remove(mesh);},
+			get needsUpdate() {return scope.needsUpdate;},
+			set needsUpdate(value) {scope.needsUpdate = value;},
+		};
+	}
+
+	/**
+	 * Put every level's group where its level now is, and show or hide it.
+	 *
+	 * Called when a level is added, removed, re-sized or switched to - editing
+	 * the ground floor's height moves every storey above it, and nothing stores
+	 * the old base to go stale.
+	 *
+	 * @param {Object} [options] `activeOnly` hides every level but the active one.
+	 * @returns {void}
+	 */
+	syncLevels(options)
+	{
+		var settings = options || {};
+		var scope = this;
+		this.model.levels.forEach(function (level, index)
+		{
+			var group = scope.levelGroup(level);
+			group.position.y = scope.model.levelBase(index);
+			group.visible = settings.activeOnly
+				? (index === scope.model.activeLevelIndex) : true;
+		});
+		this.needsUpdate = true;
+	}
+
+	/**
+	 * Move an item that is already here onto another storey (RM-010 G1).
+	 *
+	 * Only the reconciliation in `Model.newRoom` needs it, and only in one case:
+	 * an item that survived a document load because its id and model matched, but
+	 * whose record is now on a different floor. Rare, and silent if it were left
+	 * out - the item would keep its mesh at the old storey's elevation while the
+	 * file said otherwise.
+	 *
+	 * @param {Object} item
+	 * @param {import('./level.js').Level} level
+	 * @returns {void}
+	 */
+	moveItemToLevel(item, level)
+	{
+		if (item.level === level)
+		{
+			return;
+		}
+		this.model.levels.forEach((other) => {Utils.removeValue(other.items, item);});
+		item.level = level;
+		level.items.push(item);
+		this.levelGroup(level).add(item);
+	}
+
+	/**
+	 * Drop a level's container, with whatever is still in it.
+	 *
+	 * `Model.removeLevel` takes the items out first, so what is left here is the
+	 * walls and floors the 3D projection built - and those belong to a
+	 * `Floorplan3D` that is about to be disposed. Removing the group rather than
+	 * emptying it means the projection's own dispose still finds its meshes.
+	 *
+	 * @param {import('./level.js').Level} level
+	 * @returns {void}
+	 */
+	forgetLevel(level)
+	{
+		var group = this.levelGroups.get(level.id);
+		if (group)
+		{
+			this.scene.remove(group);
+			this.levelGroups.delete(level.id);
+		}
 	}
 
 	/** Gets the scene.
@@ -198,30 +330,51 @@ export class Scene extends EventDispatcher
 		return this.scene;
 	}
 
-	/** Gets the items.
-	 * @returns The items.
+	/**
+	 * The furniture on the storey being edited (RM-010 G1).
+	 *
+	 * Scoped to the active level, which is what every one of this method's
+	 * callers wants and each of them was checked: the plan's item count, the
+	 * projection the 2D view draws, and the raycast that decides what a click in
+	 * the 3D view hits. All three are about the storey somebody is working on.
+	 *
+	 * The two that are not - the save file and resolving an id - call
+	 * {@link Scene#allItems} instead, because a file holds the whole building and
+	 * an id names one item in it.
+	 *
+	 * @returns {Array<Object>}
 	 */
 	getItems()
 	{
-		return this.items;
+		return this.model.level.items;
 	}
 
-	/** Gets the count of items.
+	/**
+	 * The furniture on every storey.
+	 * @returns {Array<Object>}
+	 */
+	allItems()
+	{
+		return this.model.levels.reduce(
+			(all, level) => all.concat(level.items), /** @type {Array<Object>} */ ([]));
+	}
+
+	/** Gets the count of items on the active storey.
 	 * @returns The count.
 	 */
 	itemCount()
 	{
-		return this.items.length;
+		return this.getItems().length;
 	}
 
-	/** Removes all items. */
+	/** Removes all items, on every storey. */
 	clearItems()
 	{
 		var scope = this;
-		this.items.forEach((item) => {
+		this.allItems().forEach((item) => {
 			scope.removeItem(item, true);
 		});
-		this.items = [];
+		this.model.levels.forEach((level) => {level.items = [];});
 	}
 
 	/**
@@ -239,10 +392,17 @@ export class Scene extends EventDispatcher
 		// use this for item meshes
 		this.dispatchEvent({type: EVENT_ITEM_REMOVED, item:item});
 		item.removed();
+		// From whichever level's group it is in. `Object3D.remove` on the wrong
+		// parent is a no-op, so this is a search rather than a guess, and an item
+		// added before levels existed may still be a child of the scene itself.
+		if (item.parent)
+		{
+			item.parent.remove(item);
+		}
 		this.scene.remove(item);
 		if (!keepInList)
 		{
-			Utils.removeValue(this.items, item);
+			this.model.levels.forEach((level) => {Utils.removeValue(level.items, item);});
 		}
 	}
 
@@ -294,7 +454,7 @@ export class Scene extends EventDispatcher
 
 	switchWireframe(flag)
 	{
-		this.items.forEach((item)=>{
+		this.allItems().forEach((item)=>{
 			item.switchWireframe(flag);
 		});
 	}
@@ -388,6 +548,12 @@ export class Scene extends EventDispatcher
 			}
 		}
 
+		// Which storey asked, captured before the load starts and used when it
+		// comes back (RM-010 G1). The same argument as the generation below: an
+		// item placed on the ground floor whose model was still downloading when
+		// somebody switched to the first floor belongs to the ground floor.
+		var level = this.model.level;
+
 		// Which document asked (RM-003 A1). Stamped before the load starts, checked
 		// when it comes back. Every exit below - success, failure, and the stale
 		// path - goes through the session exactly once.
@@ -415,8 +581,14 @@ export class Scene extends EventDispatcher
 
 			var item = new (Factory.getClass(itemType))(scope.model, metadata, geometry, materials, position, rotation, scale);
 			item.fixed = fixed || false;
-			scope.items.push(item);
-			scope.add(item);
+			// Onto the storey being edited, and into that storey's group - which is
+			// what puts it at the right height without `Item` knowing there are
+			// storeys (RM-010 G1). `level` is captured before the load starts, so an
+			// item whose model was still downloading when somebody switched floors
+			// lands where it was placed rather than where they are now.
+			item.level = level;
+			level.items.push(item);
+			scope.levelGroup(level).add(item);
 			item.initObject();
 			scope.dispatchEvent({type:EVENT_ITEM_LOADED, item: item});
 			if(newItemDefinitions)

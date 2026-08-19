@@ -7,7 +7,7 @@ import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {PointerLockControls} from './pointerlockcontrols.js';
 import {describeFrom} from '../core/texture_formats.js';
 
-import {EVENT_CHANGESET, EVENT_WALL_CLICKED, EVENT_NOTHING_CLICKED, EVENT_FLOOR_CLICKED, EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED, EVENT_GLTF_READY} from '../core/events.js';
+import {EVENT_LEVELS_CHANGED, EVENT_CHANGESET, EVENT_WALL_CLICKED, EVENT_NOTHING_CLICKED, EVENT_FLOOR_CLICKED, EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED, EVENT_GLTF_READY} from '../core/events.js';
 import {EVENT_ITEMS_PROJECTED} from '../core/events.js';
 import {CHANGE_TOPOLOGY} from '../core/change_set.js';
 import {EVENT_FPS_EXIT, EVENT_CAMERA_VIEW_CHANGE} from '../core/events.js';
@@ -194,8 +194,24 @@ export class Main extends EventDispatcher
 		// dispatched by itemIsSelected() and friends replaced them - so they were
 		// jQuery's last foothold in this file and nothing but dead weight.
 
-		/** @type {?Floorplan3D} The 3D projection of the plan, built by init(). */
-		this.floorplan = null;
+		/**
+		 * One 3D projection per storey, keyed by level id (RM-010 G1).
+		 *
+		 * Was a single `Floorplan3D`. It is a map now because a building has more
+		 * than one plan in it, and each projection draws into its own level's
+		 * `Group` - which is where the base elevation is applied, so none of
+		 * `Floorplan3D`, `Floor` or `Edge` changed at all. Those three ask a scene
+		 * for `add`, `remove` and `needsUpdate` and nothing else, measured before
+		 * this was written, and `Scene.levelScene` is exactly that much of a scene.
+		 *
+		 * @type {Map<string, Floorplan3D>}
+		 */
+		this.levelViews = new Map();
+		/**
+		 * Which floorplans this view is subscribed to, so it can unsubscribe.
+		 * @type {Set<Object>}
+		 */
+		this._watchedPlans = new Set();
 
 		/**
 		 * The plan extent the camera was last framed against, or null before the
@@ -391,10 +407,7 @@ export class Main extends EventDispatcher
 			this.lights.updateShadowCamera();
 		}
 
-		if (this.floorplan)
-		{
-			this.floorplan.redraw();
-		}
+		this.levelViews.forEach((view) => {view.redraw();});
 
 		this.needsUpdate = true;
 		this.render(true);
@@ -505,7 +518,9 @@ export class Main extends EventDispatcher
 		// setup camera nicely
 		scope.centerCamera();
 
-		scope.model.floorplan.addEventListener(EVENT_CHANGESET, this.updatedevent);
+		// Subscribed per storey by `syncLevelViews()` below, not to the active plan
+		// here: a wall drawn on the first floor has to redraw the first floor even
+		// while the ground floor is the one being edited (RM-010 G1).
 		// An item moved on the plan (RM-008 E1). This viewer renders on demand -
 		// there is no continuous loop - so a position written by the 2D drag would
 		// otherwise sit in the scene graph until something unrelated asked for a
@@ -515,11 +530,12 @@ export class Main extends EventDispatcher
 		// recomputed exactly when an item's placement changes, which is exactly
 		// when this view is stale. It asks for a frame and nothing more; the
 		// scene graph is already correct by the time it arrives.
-		scope.model.floorplan.addEventListener(EVENT_ITEMS_PROJECTED, this.itemsprojectedevent);
 		scope.model.addEventListener(EVENT_GLTF_READY, this.gltfreadyevent);
+		this.levelsevent = () => {scope.syncLevelViews(); scope.render(true);};
+		scope.model.addEventListener(EVENT_LEVELS_CHANGED, this.levelsevent);
 
 		scope.lights = new Lights(scope.scene, scope.model.floorplan, scope.renderProfile);
-		scope.floorplan = new Floorplan3D(scope.scene, scope.model.floorplan, scope.controls, scope.renderProfile);
+		scope.syncLevelViews();
 
 		function animate()
 		{
@@ -577,9 +593,17 @@ export class Main extends EventDispatcher
 		if (this._mouseLeaveEvent) { this.element.removeEventListener('mouseleave', this._mouseLeaveEvent); }
 		if (this._clickEvent) { this.element.removeEventListener('click', this._clickEvent); }
 
-		this.model.floorplan.removeEventListener(EVENT_CHANGESET, this.updatedevent);
-		this.model.floorplan.removeEventListener(EVENT_ITEMS_PROJECTED, this.itemsprojectedevent);
+		this._watchedPlans.forEach((plan) =>
+		{
+			plan.removeEventListener(EVENT_CHANGESET, this.updatedevent);
+			plan.removeEventListener(EVENT_ITEMS_PROJECTED, this.itemsprojectedevent);
+		});
+		this._watchedPlans.clear();
 		this.model.removeEventListener(EVENT_GLTF_READY, this.gltfreadyevent);
+		if (this.levelsevent)
+		{
+			this.model.removeEventListener(EVENT_LEVELS_CHANGED, this.levelsevent);
+		}
 
 		if (this.controller)
 		{
@@ -599,11 +623,8 @@ export class Main extends EventDispatcher
 		{
 			this.controls.dispose();
 		}
-		if (this.floorplan)
-		{
-			this.floorplan.dispose();
-			this.floorplan = null;
-		}
+		this.levelViews.forEach((view) => {view.dispose();});
+		this.levelViews.clear();
 		if (this.skybox)
 		{
 			this.skybox.dispose();
@@ -1070,14 +1091,98 @@ export class Main extends EventDispatcher
 		console.groupEnd();
 	}
 
+	/**
+	 * Build, drop and re-place the storeys' 3D projections (RM-010 G1).
+	 *
+	 * Reconciliation rather than a rebuild, for the same reason `Floorplan3D`
+	 * reconciles rather than redrawing: switching to the first floor must not
+	 * tear down and re-upload the ground floor's walls. A level that is already
+	 * projected keeps its projection; only additions are built and only removals
+	 * are disposed.
+	 *
+	 * Each subscription is per storey too. A wall drawn on the first floor has to
+	 * redraw the first floor even while the ground floor is the one being edited,
+	 * and a `Floorplan` can only tell you that *it* changed.
+	 *
+	 * @returns {void}
+	 */
+	/**
+	 * The 3D projection of the storey being edited (RM-010 G1).
+	 *
+	 * The same move `Model.floorplan` makes one layer down, and for the same
+	 * reason: this used to be a field, every caller reads it, and none of them
+	 * has an opinion about storeys. Null before `init()` builds anything, which
+	 * is what the field was.
+	 *
+	 * @returns {?Floorplan3D}
+	 */
+	get floorplan()
+	{
+		var level = this.model && this.model.level;
+		return (level && this.levelViews.get(level.id)) || null;
+	}
+
+	syncLevelViews()
+	{
+		var scope = this;
+		var wanted = new Set();
+		this.model.levels.forEach(function (level)
+		{
+			wanted.add(level.id);
+			if (!scope.levelViews.has(level.id))
+			{
+				var view = new Floorplan3D(
+					scope.scene.levelScene(level), level.floorplan, scope.controls, scope.renderProfile);
+				// Caught up once, on construction. `Floorplan3D` only subscribes -
+				// it builds when a change arrives - which was right when there was
+				// one of them built before anything was loaded. A storey's view is
+				// created when its storey appears, which is after its plan already
+				// has walls in it, and without this the upper floors were empty.
+				// Measured: three storeys loaded, levels 1 and 2 had no meshes at all.
+				view.redraw();
+				scope.levelViews.set(level.id, view);
+			}
+			if (!scope._watchedPlans.has(level.floorplan))
+			{
+				level.floorplan.addEventListener(EVENT_CHANGESET, scope.updatedevent);
+				level.floorplan.addEventListener(EVENT_ITEMS_PROJECTED, scope.itemsprojectedevent);
+				scope._watchedPlans.add(level.floorplan);
+			}
+		});
+		this.levelViews.forEach(function (view, id)
+		{
+			if (!wanted.has(id))
+			{
+				view.dispose();
+				scope.levelViews.delete(id);
+			}
+		});
+		// A plan whose level is gone must stop being listened to, or a disposed
+		// document keeps this view alive - the class of leak RM-003 A0 and A1 both
+		// spent sprints on.
+		var livePlans = new Set(this.model.levels.map(function (level) {return level.floorplan;}));
+		this._watchedPlans.forEach(function (plan)
+		{
+			if (!livePlans.has(plan))
+			{
+				plan.removeEventListener(EVENT_CHANGESET, scope.updatedevent);
+				plan.removeEventListener(EVENT_ITEMS_PROJECTED, scope.itemsprojectedevent);
+				scope._watchedPlans.delete(plan);
+			}
+		});
+		this.scene.syncLevels();
+	}
+
 	switchWireframe(flag)
 	{
 		this.model.switchWireframe(flag);
-		if (!this.floorplan)
+		if (!this.levelViews.size)
 		{
 			return;
 		}
-		this.floorplan.switchWireframe(flag);
+		// Every storey, not just the one being edited: wireframe is a way of
+		// looking at the whole model.
+		this.levelViews.forEach((view) => {view.switchWireframe(flag);});
 		this.render(true);
 	}
 
@@ -1208,7 +1313,7 @@ export class Main extends EventDispatcher
 
 	switchFPSMode(flag)
 	{
-		if (!this.fpscontrols || !this.controls || !this.controller || !this.skybox || !this.floorplan)
+		if (!this.fpscontrols || !this.controls || !this.controller || !this.skybox || !this.levelViews.size)
 		{
 			return;
 		}
@@ -1230,7 +1335,7 @@ export class Main extends EventDispatcher
 		}
 
 		this.model.switchWireframe(false);
-		this.floorplan.switchWireframe(false);
+		this.levelViews.forEach((view) => {view.switchWireframe(false);});
 		this.render(true);
 	}
 

@@ -675,6 +675,96 @@ the deployed tree at 0.4 %, the IIFE at 0.7 % and the ESM at 1.5 % — and the n
 change that trips one should raise it to the ~5 % the limits were set with rather
 than to just-enough.
 
+**RM-010 G1 delivered: a storey is a whole plan.** Levels in the model with a
+floor-to-floor height, `levels[]` in the file, the storeys stacked in 3D at
+their own elevations, the level below ghosted under the one being drawn, and a
+switcher behind a flag. **M-26 and M-38 both met.**
+
+**A level is its own `Floorplan`, and that was a correction rather than a
+choice.** RM-007 priced this sprint as "levels in the model with elevation and
+height", which reads as a field on the things that already exist. RM-010 V-5
+counted what that costs: `Floorplan` has 55 methods and **36 of them read one of
+its seven collections**, so a level field is 36 filters and 36 places where
+forgetting one shows up as furniture from the floor below appearing on this one.
+Against that, N independent floorplans in one page was already a proven property
+with a browser suite over it, because RM-003 A1's document-ownership work made
+two `Model`s coexist.
+
+**One getter is why nothing else gained a level argument.** `model.floorplan`
+resolves to the active storey, so the 2D view, the 3D view, the inspectors, the
+composables and the file all read it unchanged — which is G1's third acceptance
+line, and it is asserted rather than asserted-in-prose. `Main.floorplan` does
+the same thing one layer up. The two questions those getters cannot answer are
+asked explicitly instead: `scene.allItems()` for the whole building (the save
+file, resolving an id) and `scene.getItems()` for the storey being edited (the
+plan, the item count, what a click in 3D can hit). Each of the twelve call sites
+was checked against that distinction rather than swept into one of them.
+
+**The base elevation is applied in exactly one place**, which is the whole of
+RM-010 V-4's answer. Nothing in this tree was drawn at a base elevation before —
+every floor sat at y = 0 and a corner's `elevation` is the wall *top* — so a
+second storey is a translation that did not exist. It lands on a `Group` per
+storey inside `Scene`. `Floor`, `Edge` and `Item` each build relative to a plan
+they are handed and were measured, before the sprint, to ask a scene for exactly
+three things: `add`, `remove` and `needsUpdate`. So `Scene.levelScene(level)` is
+a three-method façade and **not one line of those three files changed.**
+
+**M-26 is met on the fixtures rather than on a design written for the purpose.**
+All five `.blueprint3d` fixtures load, re-save and re-save again byte-identically
+and still write only `{floorplan, items}`. A design with one storey at the
+default height writes no `levels` key at all; one that has been named or
+re-sized writes one, because otherwise renaming the ground floor would be an
+edit that does not survive a save. And **the ground floor's plan is not repeated
+inside `levels[0]`** — which is not a special case being tolerated but the thing
+that keeps RM-009 §44's promise: a build that has never heard of storeys opens a
+three-storey house and gets the ground floor, correctly drawn.
+
+**M-38 is measured off the scene graph, not off the model.** Three storeys at
+280, 280 and 300 are asserted to have every mesh they own — floor, ceiling, wall
+faces, fillers, furniture — between their base and their base plus their height,
+and editing the ground floor's height to 400 moves the two above it and leaves
+it where it is. A base is the running sum of the heights below and is never
+stored, so there is nothing to go stale.
+
+**An item now asks its own storey for a plan.** `placeInRoom`,
+`isValidPosition`, `closestWallEdge` and `closestCeilingPoint` all ask a
+floorplan a question about *this* item, and reading `model.floorplan` would ask
+it of whichever storey the user happens to be looking at. Six call sites, one
+`Item.floorplan` getter, and a fallback to the active plan for an item that has
+not joined a level yet — which is every item mid-construction and every item a
+test builds by hand, and is exactly the old behaviour.
+
+**Two bugs found by driving it rather than reading it.** A newly created
+storey's 3D projection was **empty**: `Floorplan3D` only subscribes and builds
+when a change arrives, which was right when there was one of them built before
+anything loaded, and wrong for a view created after its plan already has walls.
+Measured as three storeys loaded with levels 1 and 2 holding no meshes at all.
+And the 2D canvas **did not follow a level switch** — `Floorplanner2D` holds the
+`Floorplan` it was constructed with, in two places, so the switcher moved the
+model and the 3D view and left the plan drawing the ground floor, which looks
+exactly like a switch that did nothing.
+
+**The ghosted storey below arrives as data, not as a reference.** A
+`Floorplanner2D` is constructed with a `Floorplan` and nothing else — RM-008
+T-1, deliberately — so it structurally cannot reach the level underneath. E1 hit
+the same wall for furniture and answered it with a projection; this is the same
+answer. `model/level_projection.js` describes wall centrelines and room outlines
+and nothing else: no labels, no dimensions, no furniture, because a ghost exists
+to say where the walls downstairs are. It is drawn with the grid rather than
+with the building, so an exported sheet of the first floor carries the first
+floor.
+
+**36 new headless tests and 5 new browser tests, 1,810 and 105.** Coverage flat
+to within a tenth on all four: statements 83.35 → 83.36, branches 74.16 → 74.13,
+functions 80.98 → 81.01, lines 83.38 → 83.40. Three budgets raised —
+`demo-total`, `lib-iife-gzip` and `lib-esm-gzip` — which is the change the last
+commit predicted: all three were named as sitting at 0.4 %, 0.7 % and 1.5 % of
+headroom, with the note that the next change to trip one should raise it to the
+~5 % the limits were set with. All three are set that way. The library entries
+moved 1.4 KB and 2.3 KB gzipped, the cheapest of the five features this
+programme set has added — because a level is a floorplan rather than a filter on
+one, so almost nothing existing grew.
+
 ## [3.0.1] - 2026-08-16
 
 No shipped code changed — `src/` is byte-identical to 3.0.0 and so is every

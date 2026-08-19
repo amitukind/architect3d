@@ -440,6 +440,54 @@ class, a type number, catalog rows, an inspector and round-trip tests. This is
 that slice, landed before programme G started.
 :::
 
+### `levels` — the storeys
+
+Present only on a design with something to say about storeys, added by RM-010 G1
+and absent from every file written before it. A design with one storey at the
+default height writes no `levels` key at all, which is what makes an older file
+**byte-identical on re-save** (metric M-26).
+
+```json
+{
+  "floorplan": { "…the ground floor's plan…" },
+  "items": [ "…the ground floor's furniture…" ],
+  "levels": [
+    {"name": "Ground floor", "height": 280},
+    {"name": "First floor", "height": 280, "floorplan": {}, "items": []}
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `name` | What to call the storey. Defaults to `"Ground floor"`, `"Floor 1"`, … from its position. |
+| `height` | **Floor to floor**, in centimetres. Not the wall height — a wall's top still comes from its corners' elevations. |
+| `floorplan` | That storey's plan, in exactly the format the design's own `floorplan` uses. |
+| `items` | That storey's furniture, in exactly the format the design's own `items` uses. |
+
+**The ground floor's plan and furniture are not repeated inside `levels[0]`.**
+They stay where they have always been, at `floorplan` and `items` on the design,
+and `levels[0]` carries only a name and a height. That is not a special case
+being tolerated — it is what keeps the compatibility promise: **a build that has
+never heard of storeys opens a three-storey house and gets the ground floor**,
+correctly drawn, rather than an error or an empty plan.
+
+**Where a storey sits is not stored.** A level's base elevation is the running
+sum of the floor-to-floor heights below it, so editing the ground floor's height
+moves everything above it and there is no second number to go stale. Neither is
+**which storey you were looking at** — that is not a property of a building. A
+freshly opened file starts on the ground floor; an undo, which is a document
+load, keeps you where you were.
+
+::: tip Why a level is a whole plan
+`Floorplan` has 55 methods and **36 of them read one of its seven collections**,
+so a level *field* would be 36 filters and 36 places where forgetting one shows
+up as furniture from the floor below appearing on this one. Two independent
+designs already coexist in one page — RM-003 A1's work, with a browser suite
+over it — so N floorplans is a proven property rather than a proposal.
+RM-010 V-5 has the count.
+:::
+
 ### Item types
 
 | `item_type` | Class | Behaviour |

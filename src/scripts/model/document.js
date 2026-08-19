@@ -108,6 +108,22 @@ export class DesignDocument
 		this.floorplan = data.floorplan;
 		/** The item records, as the file carried them. */
 		this.items = data.items;
+		/**
+		 * The storeys, ground floor first, or null on a design that has one
+		 * (RM-010 G1).
+		 *
+		 * Null rather than a one-entry array, because "this file says nothing about
+		 * levels" and "this file says it has one level" are different statements
+		 * and only the first is true of every design written before G1.
+		 *
+		 * `levels[0]` carries a name and a height only - the ground floor's plan
+		 * and furniture stay at `floorplan` and `items`, which is what lets a build
+		 * that has never heard of storeys open a three-storey house and get the
+		 * ground floor rather than an error.
+		 *
+		 * @type {?Array<Object>}
+		 */
+		this.levels = Array.isArray(data.levels) && data.levels.length ? data.levels : null;
 		/** The `version` stamp, or null on a pre-2.0.0 file. */
 		this.version = (typeof data.floorplan.version === 'string') ? data.floorplan.version : null;
 		/**
@@ -126,6 +142,7 @@ export class DesignDocument
 			corners: Object.keys(this.floorplan.corners).length,
 			walls: this.floorplan.walls.length,
 			items: this.items.length,
+			levels: this.levels ? this.levels.length : 1,
 			version: this.version,
 			units: this.units,
 		};
@@ -179,6 +196,7 @@ export class DesignDocument
 
 		validateFloorplan(data.floorplan, errors, warnings);
 		validateItems(data.items, errors);
+		validateLevels(data.levels, data.floorplan, errors, warnings);
 
 		if (errors.length)
 		{
@@ -522,4 +540,77 @@ function validateItems(items, errors)
 			}
 		}
 	});
+}
+
+/**
+ * The storeys, additive since RM-010 G1 and absent from every older file.
+ *
+ * Every storey above the ground floor is a whole design in miniature - it has a
+ * plan and furniture of its own - so each is checked by exactly the two
+ * functions that check the ground floor's, and the paths they report are
+ * prefixed so a person reading an error knows which floor it is on.
+ *
+ * `levels[0]` is deliberately NOT checked for a plan or items: the ground
+ * floor's are at `floorplan` and `items`, and `levels[0]` carries only its name
+ * and height. A file that repeats them there is saying something this format
+ * does not mean, which is a warning rather than a refusal - it opens fine and
+ * the duplicate is ignored.
+ *
+ * @param {*} levels
+ * @param {*} floorplan The ground floor's plan, for the shape comparison.
+ * @param {Array<DocumentProblem>} errors
+ * @param {Array<DocumentProblem>} warnings
+ */
+function validateLevels(levels, floorplan, errors, warnings)
+{
+	if (levels === undefined || levels === null)
+	{
+		return;
+	}
+	if (!Array.isArray(levels))
+	{
+		errors.push({path: 'levels', message: 'must be an array when present'});
+		return;
+	}
+	levels.forEach(function (level, index)
+	{
+		if (!isPlainObject(level))
+		{
+			errors.push({path: `levels[${index}]`, message: 'is not an object'});
+			return;
+		}
+		if (level.height !== undefined && level.height !== null
+			&& (!isFiniteNumber(level.height) || level.height <= 0))
+		{
+			errors.push({
+				path: `levels[${index}].height`,
+				message: `must be a positive number of centimetres when present, not ${JSON.stringify(level.height)}`,
+			});
+		}
+		if (index === 0)
+		{
+			if (level.floorplan !== undefined || level.items !== undefined)
+			{
+				warnings.push({
+					path: 'levels[0]',
+					message: 'carries a plan or items; the ground floor\'s are read from the design\'s own "floorplan" and "items", and these are ignored',
+				});
+			}
+			return;
+		}
+		// Above the ground floor: a whole design, checked the same way.
+		var problems = [];
+		validateFloorplan(level.floorplan, problems, warnings);
+		validateItems(level.items, problems);
+		problems.forEach(function (problem)
+		{
+			errors.push({path: `levels[${index}].${problem.path}`, message: problem.message});
+		});
+	});
+	// The ground floor's own record is not optional once there is a list, because
+	// its position is what "the floor above" means.
+	if (levels.length && !isPlainObject(levels[0]) === false && floorplan === undefined)
+	{
+		errors.push({path: 'floorplan', message: 'missing - the ground floor is the design\'s own "floorplan"'});
+	}
 }

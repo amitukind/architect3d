@@ -190,6 +190,23 @@ export class Item extends Mesh
 		// wrong by then: it left `this.material` as the invisible box's material,
 		// which is what setMaterialColor would have painted and getMetaData
 		// serialized.
+		/**
+		 * The storey this item stands on (RM-010 G1).
+		 *
+		 * Set by `Scene.addItem` when the item joins a level, and null for an item
+		 * built by hand in a test. It exists because an item genuinely has to know
+		 * *which* plan it is on: `placeInRoom`, `isValidPosition`, `closestWallEdge`
+		 * and `closestRoofPoint` all ask a floorplan a question about this item,
+		 * and reading `model.floorplan` would ask it of whichever storey the user
+		 * happens to be looking at.
+		 *
+		 * A back-reference rather than a level field on a shared list, which is the
+		 * distinction RM-010 V-5 drew: the list is already scoped by construction,
+		 * and this is the parent link every scene-graph object has anyway.
+		 *
+		 * @type {?import('../model/level.js').Level}
+		 */
+		this.level = null;
 		this.geometry = geometry;
 		this.material = material;
 		// center in its boundingbox
@@ -995,6 +1012,21 @@ export class Item extends Mesh
 	}
 
 	/** */
+	/**
+	 * The plan this item stands on (RM-010 G1).
+	 *
+	 * Its own level's, falling back to the active one for an item that has not
+	 * joined a level yet - which is every item mid-construction and every item a
+	 * test builds by hand. Before there were levels the two were always the same
+	 * object, so the fallback is the old behaviour exactly.
+	 *
+	 * @returns {import('../model/floorplan.js').Floorplan}
+	 */
+	get floorplan()
+	{
+		return (this.level && this.level.floorplan) ? this.level.floorplan : this.model.floorplan;
+	}
+
 	objectHalfSize()
 	{
     this.geometry.computeBoundingBox();

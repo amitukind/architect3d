@@ -15,7 +15,7 @@ export {CHANGE_TOPOLOGY, CHANGE_GEOMETRY, CHANGE_SURFACE, CHANGE_ITEMS, CHANGE_S
 export {REASON_LOAD, REASON_EDIT, REASON_UNDO, REASON_DERIVE} from './core/change_set.js';
 export {EVENT_ROOM_NAME_CHANGED} from './core/events.js';
 export {EVENT_ITEM_LOADING, EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED, EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED} from './core/events.js';
-export {EVENT_ITEMS_PROJECTED, EVENT_ITEM_2D_CLICKED} from './core/events.js';
+export {EVENT_ITEMS_PROJECTED, EVENT_ITEM_2D_CLICKED, EVENT_LEVELS_CHANGED} from './core/events.js';
 export {EVENT_ANNOTATIONS_CHANGED, EVENT_DIMENSION_2D_CLICKED, EVENT_ANNOTATION_2D_CLICKED} from './core/events.js';
 export {EVENT_ITEM_MOVE_FINISH} from './core/events.js';
 export {EVENT_CAMERA_MOVED, EVENT_CAMERA_ACTIVE_STATUS, EVENT_FPS_EXIT, EVENT_CAMERA_VIEW_CHANGE} from './core/events.js';
@@ -35,7 +35,7 @@ export {LEGACY_MODEL_MAP, resolveModelUrl} from './core/legacy_models.js';
 export {dimInch, dimFeetAndInch, dimMeter, dimCentiMeter, dimMilliMeter, dimensioningOptions, decimals, Dimensioning, defaultDimensioning} from './core/dimensioning.js';
 export {cmPerFoot, pixelsPerFoot, cmPerPixel, pixelsPerCm} from './core/dimensioning.js';
 
-export {cornerTolerance, configDimUnit, configWallHeight, configWallThickness, configSystemUI, wallInformation, scale, snapToGrid, snapTolerance, gridSpacing, config, Configuration, defaultConfiguration, configurationOf} from './core/configuration.js';
+export {cornerTolerance, configDimUnit, configWallHeight, configWallThickness, configSystemUI, configLevels, wallInformation, scale, snapToGrid, snapTolerance, gridSpacing, config, Configuration, defaultConfiguration, configurationOf} from './core/configuration.js';
 // One document's services, with an identity (RM-003 A4): its configuration, the
 // dimensioning bound to that, the render profile, the load session and the
 // resource registries. `defaultRuntime.configuration`, `.dimensioning` and
@@ -58,6 +58,10 @@ export {WallTypes} from './core/constants.js';
 export {HalfEdge} from './model/half_edge.js';
 export {Corner} from './model/corner.js';
 export {defaultFloorPlanTolerance, Floorplan, SAVE_UNITS} from './model/floorplan.js';
+// Storeys (RM-010 G1). A level is its own `Floorplan` rather than a field on
+// one; see `model/level.js` for the measurement that decided it.
+export {Level, DEFAULT_LEVEL_HEIGHT, MIN_LEVEL_HEIGHT, MAX_LEVEL_HEIGHT, defaultLevelName} from './model/level.js';
+export {projectPlanOutline} from './model/level_projection.js';
 // What the 2D plan is allowed to know about the furniture (RM-008 E1). A
 // footprint is plain data - the plan draws a description of an item, never the
 // item - which is what lets the 2D view show furniture without a Floorplan

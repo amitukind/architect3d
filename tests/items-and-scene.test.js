@@ -195,6 +195,32 @@ beforeEach(() => {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * Everything under the three scene, at any depth (RM-010 G1).
+ *
+ * These assertions used to read `getScene().children` and mean "what is in the
+ * scene". A level's geometry now goes into that level's `Group` - which is
+ * where its base elevation is applied - so `children` is one group per storey
+ * and the meshes are a level down. Re-pointed rather than relaxed: the question
+ * each of them asks is still "is this mesh in the scene", and this answers it
+ * without caring how deep the graph is.
+ *
+ * The groups themselves are excluded, because a container is not a thing in the
+ * scene in the sense these tests mean.
+ */
+function sceneContents(model)
+{
+	const found = [];
+	model.scene.getScene().traverse((object) =>
+	{
+		if (object !== model.scene.getScene() && !String(object.name).startsWith('level:'))
+		{
+			found.push(object);
+		}
+	});
+	return found;
+}
+
 describe('Factory registry (written into every save file)', () => {
 	/**
 	 * The eight original numbers, still meaning the same eight classes.
@@ -510,7 +536,7 @@ describe('Scene.setItemLoader seam', () => {
 		model.scene.addItem(1, 'a.js', {}, null, 0, null, false);
 		expect(loaded).toBe(0);
 		expect(model.scene.itemCount()).toBe(0);
-		expect(model.scene.getScene().children).toHaveLength(0);
+		expect(sceneContents(model)).toHaveLength(0);
 	});
 });
 
@@ -532,7 +558,7 @@ describe('Scene.addItem with the loader seam (Item stubbed - see DOM STATUS)', (
 			expect(events[1][0]).toBe('EVENT_ITEM_LOADED');
 			expect(events[1][1]).toBe(item);
 			// The item mesh plus the BoxHelper that initObject() adds.
-			expect(model.scene.getScene().children).toContain(item);
+			expect(sceneContents(model)).toContain(item);
 		});
 	});
 
@@ -545,7 +571,11 @@ describe('Scene.addItem with the loader seam (Item stubbed - see DOM STATUS)', (
 				stateAtLoaded = {
 					calls: e.item.calls.slice(),
 					inItems: model.scene.getItems().indexOf(e.item),
-					parented: e.item.parent === model.scene.getScene(),
+					// Parented to the storey's group rather than to the scene since
+					// RM-010 G1: that group is where the level's base elevation is
+					// applied. What the assertion means - "it is in the graph before
+					// the event fires" - is unchanged.
+					parented: e.item.parent === model.scene.levelGroup(model.level),
 				};
 			});
 			model.scene.addItem(1, 'a.js', {}, null, 0, null, false);
@@ -678,7 +708,7 @@ describe('Scene.addItem with a real Item (DOM boundary)', () => {
 		expect(error.stack).toMatch(/items\/item\.js/);
 		expect(events).toEqual(['EVENT_ITEM_LOADING']);
 		expect(model.scene.itemCount()).toBe(0);
-		expect(model.scene.getScene().children).toHaveLength(0);
+		expect(sceneContents(model)).toHaveLength(0);
 	});
 });
 
@@ -689,7 +719,7 @@ describe('Scene container bookkeeping', () => {
 		const model = new Model('/textures/');
 		const mesh = plainMesh();
 		model.scene.add(mesh);
-		expect(model.scene.getScene().children).toEqual([mesh]);
+		expect(sceneContents(model)).toEqual([mesh]);
 		expect(mesh.parent).toBe(model.scene.getScene());
 		expect(model.scene.itemCount()).toBe(0);
 	});
@@ -699,7 +729,7 @@ describe('Scene container bookkeeping', () => {
 		const mesh = plainMesh();
 		model.scene.add(mesh);
 		model.scene.remove(mesh);
-		expect(model.scene.getScene().children).toHaveLength(0);
+		expect(sceneContents(model)).toHaveLength(0);
 		expect(mesh.parent).toBeNull();
 	});
 
@@ -709,7 +739,7 @@ describe('Scene container bookkeeping', () => {
 	it('remove() also strips the mesh from the items list, despite being the non-item path', () => {
 		const model = new Model('/textures/');
 		const mesh = plainMesh();
-		model.scene.items.push(mesh);
+		model.level.items.push(mesh);
 		model.scene.add(mesh);
 		model.scene.remove(mesh);
 		expect(model.scene.itemCount()).toBe(0);
@@ -723,35 +753,35 @@ describe('Scene container bookkeeping', () => {
 		const events = [];
 		model.scene.addEventListener(EVENT_ITEM_REMOVED, (e) => events.push(e.item));
 
-		model.scene.items.push(mesh);
+		model.level.items.push(mesh);
 		model.scene.add(mesh);
 		model.scene.removeItem(mesh);
 
 		expect(events).toEqual([mesh]);
 		expect(removedCalled).toBe(true);
 		expect(model.scene.itemCount()).toBe(0);
-		expect(model.scene.getScene().children).toHaveLength(0);
+		expect(sceneContents(model)).toHaveLength(0);
 	});
 
 	it('removeItem(item, true) detaches the mesh but keeps it in getItems()', () => {
 		const model = new Model('/textures/');
 		const mesh = plainMesh();
 		mesh.removed = () => {};
-		model.scene.items.push(mesh);
+		model.level.items.push(mesh);
 		model.scene.add(mesh);
 		model.scene.removeItem(mesh, true);
-		expect(model.scene.getScene().children).toHaveLength(0);
+		expect(sceneContents(model)).toHaveLength(0);
 		expect(model.scene.getItems()).toEqual([mesh]);
 	});
 
 	it('clearItems() detaches every item and empties the list', () => {
 		const model = new Model('/textures/');
 		const meshes = [plainMesh(), plainMesh(), plainMesh()];
-		meshes.forEach((m) => { m.removed = () => {}; model.scene.items.push(m); model.scene.add(m); });
+		meshes.forEach((m) => { m.removed = () => {}; model.level.items.push(m); model.scene.add(m); });
 		model.scene.clearItems();
 		expect(model.scene.itemCount()).toBe(0);
 		expect(model.scene.getItems()).toEqual([]);
-		expect(model.scene.getScene().children).toHaveLength(0);
+		expect(sceneContents(model)).toHaveLength(0);
 	});
 
 	it('clearItems() fires one EVENT_ITEM_REMOVED per item, in insertion order', () => {
@@ -762,7 +792,7 @@ describe('Scene container bookkeeping', () => {
 			const m = plainMesh();
 			m.name = name;
 			m.removed = () => {};
-			model.scene.items.push(m);
+			model.level.items.push(m);
 			model.scene.add(m);
 		});
 		model.scene.clearItems();
@@ -793,20 +823,20 @@ describe('Scene container bookkeeping', () => {
 			const item = model.scene.getItems()[0];
 			expect(item.bhelper).toBeInstanceOf(three.BoxHelper);
 			expect(item.bhelper.visible).toBe(false);
-			expect(model.scene.getScene().children.map((c) => c.type)).toEqual(['Mesh', 'BoxHelper']);
+			expect(sceneContents(model).map((c) => c.type)).toEqual(['Mesh', 'BoxHelper']);
 
 			model.scene.removeItem(item);
 			expect(model.scene.itemCount()).toBe(0);
-			expect(model.scene.getScene().children.map((c) => c.type)).toEqual(['BoxHelper']);
-			expect(model.scene.getScene().children[0]).toBe(item.bhelper);
+			expect(sceneContents(model).map((c) => c.type)).toEqual(['BoxHelper']);
+			expect(sceneContents(model)[0]).toBe(item.bhelper);
 		});
 	});
 
 	it('Model.switchWireframe forwards the flag to every item', () => {
 		const model = new Model('/textures/');
 		const calls = [];
-		model.scene.items.push({switchWireframe: (flag) => calls.push(['a', flag])});
-		model.scene.items.push({switchWireframe: (flag) => calls.push(['b', flag])});
+		model.level.items.push({switchWireframe: (flag) => calls.push(['a', flag])});
+		model.level.items.push({switchWireframe: (flag) => calls.push(['b', flag])});
 		model.switchWireframe(true);
 		expect(calls).toEqual([['a', true], ['b', true]]);
 	});
@@ -1053,13 +1083,13 @@ describe('Model.loadSerialized', () => {
 		model.scene.setItemLoader(() => {});
 		const stale = new three.Mesh();
 		stale.removed = () => {};
-		model.scene.items.push(stale);
+		model.level.items.push(stale);
 		model.scene.add(stale);
 
 		model.loadSerialized(JSON.stringify(makeDesign([])));
 
 		expect(model.scene.itemCount()).toBe(0);
-		expect(model.scene.getScene().children).toHaveLength(0);
+		expect(sceneContents(model)).toHaveLength(0);
 	});
 
 	// RETIRED QUIRK (RM-003 A1). This used to read "throws on a design with no
@@ -1098,8 +1128,8 @@ describe('Model.loadSerialized', () => {
 describe('Model.exportSerialized', () => {
 	it('emits {floorplan, items} with one getMetaData object per scene item', () => {
 		const model = new Model('/textures/');
-		model.scene.items.push({getMetaData: () => ({item_name: 'A', item_type: 1})});
-		model.scene.items.push({getMetaData: () => ({item_name: 'B', item_type: 7})});
+		model.level.items.push({getMetaData: () => ({item_name: 'A', item_type: 1})});
+		model.level.items.push({getMetaData: () => ({item_name: 'B', item_type: 7})});
 
 		const out = JSON.parse(model.exportSerialized());
 
@@ -1236,10 +1266,38 @@ describe('Model.exportSerialized', () => {
  */
 describe('RoofItem on a design with no ceiling (RM-005 C2, J-5)', () =>
 {
-	/** The two things `closestCeilingPoint` reads off `this`. */
+	/**
+	 * The two things `closestCeilingPoint` reads off `this`.
+	 *
+	 * `floorplan` rather than `model.floorplan` since RM-010 G1: an item asks its
+	 * own storey's plan, through an `Item.prototype` getter, because reading
+	 * `model.floorplan` would ask whichever storey the user is looking at. A
+	 * duck-typed stand-in has no prototype, so it states the resolved value - and
+	 * the getter's own fallback is pinned separately below.
+	 */
 	const withRoofs = (planes) => ({
-		model: {floorplan: {roofPlanes: () => planes}},
+		floorplan: {roofPlanes: () => planes},
 		position: new three.Vector3(10, 20, 30),
+	});
+
+	/**
+	 * The getter itself: an item's own storey, falling back to the active one.
+	 *
+	 * The fallback is not a nicety - `Item`'s constructor runs before
+	 * `Scene.addItem` can assign a level, and every item a test builds by hand
+	 * has none. Before there were storeys the two were always the same object, so
+	 * the fallback is exactly the old behaviour.
+	 */
+	it('asks its own storey for a floorplan, and the active one when it has none', () =>
+	{
+		const active = {name: 'active'};
+		const mine = {name: 'mine'};
+		const unplaced = {model: {floorplan: active}, level: null};
+		const placed = {model: {floorplan: active}, level: {floorplan: mine}};
+
+		const read = Object.getOwnPropertyDescriptor(Item.prototype, 'floorplan').get;
+		expect(read.call(unplaced)).toBe(active);
+		expect(read.call(placed)).toBe(mine);
 	});
 
 	it('does not throw when the floorplan has no rooms', () =>
@@ -1273,7 +1331,8 @@ describe('RoofItem on a design with no ceiling (RM-005 C2, J-5)', () =>
 		// Same shape as J-5, named by the same checker, and neither had a test
 		// because no fixture is empty enough to hit either.
 		const item = {
-			model: {floorplan: {wallEdges: () => []}},
+			// `floorplan` rather than `model.floorplan`, for the reason above.
+			floorplan: {wallEdges: () => []},
 			position: new three.Vector3(1, 2, 3),
 			position_set: false,
 			closestWallEdge: WallItem.prototype.closestWallEdge,
@@ -1291,7 +1350,7 @@ describe('RoofItem on a design with no ceiling (RM-005 C2, J-5)', () =>
 		// The fix must not have turned the normal path into the fallback. One roof
 		// that contains the point, so the loop assigns and the guard is not reached.
 		const item = withRoofs([{}]);
-		item.model.floorplan.roofPlanes = () => [{}];
+		item.floorplan.roofPlanes = () => [{}];
 		const contained = {distance: 5, contains: true, point: new three.Vector3(1, 2, 3), closestPoint: new three.Vector3(9, 9, 9)};
 		const stub = {...item, roofContainsPoint: () => contained};
 

@@ -317,7 +317,7 @@ describe('the model keeps the projection current', () =>
 	it('projects what the scene holds when asked', () =>
 	{
 		const model = new Model();
-		model.scene.items = [fakeItem({designId: 'a'}), fakeItem({designId: 'b'})];
+		model.level.items = [fakeItem({designId: 'a'}), fakeItem({designId: 'b'})];
 
 		model.projectItemsToPlan();
 
@@ -334,7 +334,7 @@ describe('the model keeps the projection current', () =>
 		const model = new Model();
 		const item = fakeItem({designId: 'a'});
 
-		model.scene.items = [item];
+		model.level.items = [item];
 		model.scene.dispatchEvent({type: EVENT_ITEM_LOADED, item: item});
 		expect(model.floorplan.itemProjection).toHaveLength(1);
 		expect(model.floorplan.itemProjection.length).toBe(model.scene.itemCount());
@@ -344,7 +344,7 @@ describe('the model keeps the projection current', () =>
 		expect(model.floorplan.itemProjection[0].x).toBe(400);
 		expect(model.floorplan.itemProjection[0].y).toBe(400);
 
-		model.scene.items = [];
+		model.level.items = [];
 		model.scene.dispatchEvent({type: EVENT_ITEM_REMOVED, item: item});
 		expect(model.floorplan.itemProjection).toHaveLength(0);
 		expect(model.floorplan.itemProjection.length).toBe(model.scene.itemCount());
@@ -353,7 +353,7 @@ describe('the model keeps the projection current', () =>
 	it('stops projecting once disposed, so a dropped document releases its scene', () =>
 	{
 		const model = new Model();
-		model.scene.items = [fakeItem()];
+		model.level.items = [fakeItem()];
 
 		model.dispose();
 		model.scene.dispatchEvent({type: EVENT_ITEM_LOADED, item: null});

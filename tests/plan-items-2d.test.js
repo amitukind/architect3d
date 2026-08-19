@@ -361,7 +361,7 @@ describe('dragging a footprint on the plan', () =>
 		const dom = buildFloorplannerDom(window, {width: 1000, height: 800});
 		planner = new Floorplanner2D(dom.canvas, floorplan);
 		planner.setMode(floorplannerModes.MOVE);
-		model.scene.items = [fakeItem()];
+		model.level.items = [fakeItem()];
 		model.projectItemsToPlan();
 	});
 
@@ -372,10 +372,10 @@ describe('dragging a footprint on the plan', () =>
 
 		model.moveItemInPlan('bed', 250, -125);
 
-		expect(model.scene.items[0].position.x).toBe(250);
-		expect(model.scene.items[0].position.z).toBe(-125);
+		expect(model.level.items[0].position.x).toBe(250);
+		expect(model.level.items[0].position.z).toBe(-125);
 		// Height is not a plan concept and must survive the move.
-		expect(model.scene.items[0].position.y).toBe(20);
+		expect(model.level.items[0].position.y).toBe(20);
 		expect(floorplan.itemProjection[0].x).toBe(250);
 		expect(finished).not.toHaveBeenCalled();
 	});
@@ -413,8 +413,8 @@ describe('dragging a footprint on the plan', () =>
 		expect(planner.selectedItemId).toBe('bed');
 
 		planner.mousemove(pointerAt(120, 60, 'pointermove'));
-		expect(model.scene.items[0].position.x).toBeCloseTo(120, 5);
-		expect(model.scene.items[0].position.z).toBeCloseTo(60, 5);
+		expect(model.level.items[0].position.x).toBeCloseTo(120, 5);
+		expect(model.level.items[0].position.z).toBeCloseTo(60, 5);
 
 		const finished = vi.fn();
 		model.scene.addEventListener(EVENT_ITEM_MOVE_FINISH, finished);
@@ -453,7 +453,7 @@ describe('dragging a footprint on the plan', () =>
 
 	it('will not grab a locked item, but will still select it', () =>
 	{
-		model.scene.items = [fakeItem({fixed: true})];
+		model.level.items = [fakeItem({fixed: true})];
 		model.projectItemsToPlan();
 
 		planner.mousedown(pointerAt(0, 0));
