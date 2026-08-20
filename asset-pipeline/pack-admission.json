@@ -5,18 +5,18 @@
 		"high": 600
 	},
 	"reach": {
-		"headroom": 5206429,
+		"headroom": 5153921,
 		"mean": 24128,
 		"count": 217,
-		"buysAtMean": 215,
+		"buysAtMean": 213,
 		"needLow": 183,
 		"needHigh": 383,
-		"maxMeanForLow": 28450,
-		"maxMeanForHigh": 13593,
+		"maxMeanForLow": 28163,
+		"maxMeanForHigh": 13456,
 		"reachesLow": true,
 		"reachesHigh": false,
 		"curatedPrice": 12285,
-		"buysAtCurated": 423,
+		"buysAtCurated": 419,
 		"reachesLowCurated": true,
 		"reachesHighCurated": true
 	},

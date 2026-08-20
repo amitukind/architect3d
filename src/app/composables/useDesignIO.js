@@ -593,5 +593,9 @@ export function useDesignIO(store)
 	}
 
 	return {busy, lastError, documentName, newDesign, loadDesign, openDesign, saveDesign, saveMesh,
-		saveGLTF, savePhoto, savePanorama, savePlanSVG, savePlanPNG, printPlan};
+		saveGLTF, savePhoto, savePanorama, savePlanSVG, savePlanPNG, printPlan,
+		// Exposed for RM-013 K2's bundle, which is bytes rather than a document
+		// and so has nothing else in here to go through. One download helper, and
+		// the note at the top of this file is why there is only one.
+		download};
 }

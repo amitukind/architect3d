@@ -25,7 +25,7 @@ import {useSelection, SELECTION_ITEM, SELECTION_DIMENSION, SELECTION_ANNOTATION}
 import {useCameraViews, MODE_WALKTHROUGH, MODE_EXTERIOR} from './composables/useCameraViews.js';
 import {useWalkthrough} from './composables/useWalkthrough.js';
 import {useFloorplannerMode} from './composables/useFloorplannerMode.js';
-import {useDesignIO} from './composables/useDesignIO.js';
+import {useDesignIO, fileNameFor} from './composables/useDesignIO.js';
 import {useProjects} from './composables/useProjects.js';
 import {useTemplates} from './composables/useTemplates.js';
 import {useShare} from './composables/useShare.js';
@@ -261,6 +261,29 @@ async function openShare()
 	await share.makeLink();
 }
 
+/**
+ * Save the design as a bundle.
+ *
+ * Through the same download helper as every other export, which is why it goes
+ * through `io` rather than building its own anchor - `useDesignIO`'s note about
+ * the demo creating four of those by hand is the reason there is only one.
+ */
+async function onSaveBundle()
+{
+	const built = await share.makeBundle();
+	if (!built)
+	{
+		return;
+	}
+	io.download(built.bytes, `${fileNameFor(built.name)}.zip`, 'application/zip');
+	const carried = built.manifest.carried.length;
+	toasts.success(`Exported ${fileNameFor(built.name)}.zip`, {
+		detail: carried
+			? `${carried} model(s) travelled with it.`
+			: 'Every model in it ships with the app, so none had to travel.',
+	});
+}
+
 async function adoptShared()
 {
 	if (await share.adopt(projects.current.value ? undefined : 'Shared design'))
@@ -482,8 +505,28 @@ function onNewDesign()
 	markSaved();
 }
 
+/**
+ * Open whatever somebody picked, whichever of the two it is (RM-013 K2).
+ *
+ * A `.zip` and a `.blueprint3d` arrive through the same control on purpose:
+ * "open a design" is one intention, and making a person choose the right of two
+ * buttons for a distinction the file itself declares is an interface asking
+ * them to do the computer's job.
+ */
 async function onOpenDesign(file)
 {
+	if (file && /\.zip$/i.test(file.name))
+	{
+		const bytes = new Uint8Array(await file.arrayBuffer());
+		if (!await share.openBundle(bytes))
+		{
+			return;
+		}
+		history.reset();
+		markSaved();
+		frameDesign();
+		return;
+	}
 	await io.openDesign(file);
 	history.reset();
 	frameDesign();
@@ -790,6 +833,7 @@ useShortcuts(() => bindings.value);
 				@save-design="io.saveDesign"
 				@save-mesh="io.saveMesh"
 				@save-gltf="io.saveGLTF"
+				@save-bundle="onSaveBundle"
 				@save-plan-svg="io.savePlanSVG"
 				@save-photo="io.savePhoto"
 				@save-panorama="io.savePanorama"

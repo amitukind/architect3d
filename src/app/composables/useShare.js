@@ -2,6 +2,7 @@
 import {computed, ref, watch} from 'vue';
 import {encodeDesign, decodeDesign, payloadFromHash, linkFor, linksAvailable,
 	LINK_KEY, MAX_LINK_CHARS} from '../share/design_link.js';
+import {assetResolver} from './useAssets.js';
 import {useToasts} from './useToasts.js';
 
 /**
@@ -30,7 +31,37 @@ import {useToasts} from './useToasts.js';
  * which makes the two designs two things - and means a person who opens a link,
  * changes their mind and reloads gets the design they were sent rather than
  * whatever they had started doing to it.
+ *
+ * ## The bundle is imported when it is used, and the budget is why
+ *
+ * `design_bundle.js` and the zip container under it are reached through a
+ * dynamic `import()`, which is the same move RM-011 H2 made on the ambient
+ * occlusion chain and for the same measured reason: they are machinery nobody
+ * touches until they click Export or open a `.zip`, and `first-load` is the
+ * thinnest line in `budget.json`. The link codec above is NOT deferred - it is
+ * small, and a boot that carries a link has to decode it before first paint.
  */
+
+/**
+ * The bundle module, loaded once.
+ *
+ * Memoised rather than imported per call, because `import()` returns the same
+ * module either way and holding the promise makes that visible instead of
+ * relying on it.
+ *
+ * @type {?Promise<*>}
+ */
+var bundleModule = null;
+
+/** @returns {Promise<*>} */
+function bundleCode()
+{
+	if (!bundleModule)
+	{
+		bundleModule = import('../share/design_bundle.js');
+	}
+	return bundleModule;
+}
 
 /**
  * @param {import('./useBlueprint.js').BlueprintStore} store
@@ -211,9 +242,100 @@ export function useShare(store, projects, io)
 		}
 	}
 
+	/**
+	 * A bundle of the design on screen: the document, plus every asset the
+	 * recipient will not already have.
+	 *
+	 * "Will not have" is decided against this build's own asset manifest, which
+	 * is the same list the recipient's build ships - so for a design made out of
+	 * the catalog the answer is "nothing", and the bundle is the document. See
+	 * `design_bundle.js`: the measurement behind that rule is that the largest
+	 * sample here names 20 files and every one of them is already in the app that
+	 * would open it.
+	 *
+	 * @returns {Promise<?{bytes: Uint8Array, manifest: Object, name: string}>}
+	 */
+	async function makeBundle()
+	{
+		var model = store.model.value;
+		if (!model)
+		{
+			return null;
+		}
+		busy.value = true;
+		try
+		{
+			var resolver = assetResolver();
+			var code = await bundleCode();
+			var built = await code.buildBundle(model.exportSerialized(), {
+				name: io.documentName.value,
+				// `manifest.has` rather than "is it in public/": a bundle is made for
+				// somebody else's build, and the manifest is the only statement this
+				// one has about what a build contains.
+				has: function (url) {return resolver.manifest.has(url);},
+				fetchAsset: async function (url)
+				{
+					try
+					{
+						var at = resolver.resolve(url);
+						var response = await fetch(at.url || url);
+						if (!response || !response.ok)
+						{
+							return null;
+						}
+						return new Uint8Array(await response.arrayBuffer());
+					}
+					catch
+					{
+						return null;
+					}
+				},
+			});
+			return {bytes: built.bytes, manifest: built.manifest, name: io.documentName.value};
+		}
+		finally
+		{
+			busy.value = false;
+		}
+	}
+
+	/**
+	 * Open a `.zip` bundle somebody sent.
+	 *
+	 * The design lands; the carried assets are named rather than loaded, because
+	 * there is nowhere to put them until J3 builds one (RM-012 X-7). Saying so is
+	 * the point - a design quietly missing three models looks like a bug in the
+	 * application rather than a feature that has not shipped.
+	 *
+	 * @param {Uint8Array<ArrayBuffer>} bytes
+	 * @returns {Promise<boolean>}
+	 */
+	async function openBundle(bytes)
+	{
+		var code = await bundleCode();
+		var read = await code.readBundle(bytes);
+		if (!read.ok)
+		{
+			toasts.error('That bundle could not be opened.', {detail: read.reason});
+			return false;
+		}
+		if (!io.loadDesign(read.design, 'that bundle'))
+		{
+			return false;
+		}
+		projects.detach();
+		io.documentName.value = (read.manifest && read.manifest.name) || 'design';
+		if (read.carried.length)
+		{
+			toasts.error(`${read.carried.length} model(s) in that bundle could not be placed.`,
+				{detail: `This build cannot store imported models yet: ${read.carried.join(', ')}`});
+		}
+		return true;
+	}
+
 	return {
 		viewing, link, chars, refusal, busy, available,
-		makeLink, copyLink, openFromHash, adopt, leave,
+		makeLink, copyLink, openFromHash, adopt, leave, makeBundle, openBundle,
 		/** The fragment key and the ceiling, for anything that renders a message. */
 		LINK_KEY, MAX_LINK_CHARS,
 	};

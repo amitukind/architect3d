@@ -19,7 +19,33 @@
 		"on Floorplan, and the footprint drawing and pointer handling in the two",
 		"floorplanner files. 3.1 KB gzipped for furniture on the 2D plan.",
 		"",
-		"RM-008 E3 RAISED two: lib-esm-gzip 53,500 -> 59,500 and demo-total 13,860,000",
+		"RM-013 K2 RAISED two, and corrected a number K1 reported wrong.",
+"",
+"first-load 421,400 -> 441,700 and demo-js-gzip 423,200 -> 439,800. Measured on",
+"fresh builds at four commits rather than subtracted from each other:",
+"",
+"  2879133  before K1              401.9 KiB",
+"  73a4251  K1 complete            407.5 KiB   +5.6",
+"  c83c207  K2 codec, read-only    407.7 KiB   +0.2",
+"  5b81bd7  K2 viewer, share UI    410.2 KiB   +2.5",
+"  now      K2 bundle, deferred    410.8 KiB   +0.6",
+"",
+"K1 REPORTED first-load unmoved AND THAT WAS WRONG: `npm run budget` was run",
+"without rebuilding, so it measured the dist from before the sprint. K1 cost",
+"5.6 KiB. The roadmap entry is corrected in place; this is the measurement.",
+"",
+"The growth is a project library, a starter-plan shelf, a share codec, a share",
+"dialog and a viewer - product surface, deliberately in the payload, reached",
+"from the top bar. What is NOT in it is the zip container: design_bundle.js and",
+"zip.js are behind a dynamic import and ship as a 2,065-byte chunk, which is",
+"RM-011 H2's move on the ambient-occlusion chain applied to the same kind of",
+"thing - machinery nobody touches until they click Export. The link codec is",
+"deliberately not deferred: it is small, and a boot carrying a link has to",
+"decode it before first paint.",
+"",
+"Both raised to ~5% headroom, which is where every line in this file was set.",
+"",
+"RM-008 E3 RAISED two: lib-esm-gzip 53,500 -> 59,500 and demo-total 13,860,000",
 		"-> 14,140,000. The ESM entry went 50,938 -> 56,687 gzipped, 5.7 KB for the",
 		"sprint that makes a plan readable by somebody who did not draw it:",
 		"model/annotation.js, the two authored collections and their save, load and",
@@ -836,16 +862,16 @@
 	],
 	"budgets": {
 		"demo-js-gzip": {
-			"limit": 423200,
-			"measured": 408080
+			"limit": 439800,
+			"measured": 418842
 		},
 		"demo-css-gzip": {
 			"limit": 10000,
-			"measured": 7511
+			"measured": 7790
 		},
 		"demo-total": {
 			"limit": 29985000,
-			"measured": 20286009
+			"measured": 20547813
 		},
 		"lib-iife-gzip": {
 			"limit": 307000,
@@ -853,7 +879,7 @@
 		},
 		"public-total": {
 			"limit": 16770000,
-			"measured": 11563571
+			"measured": 11616079
 		},
 		"lib-esm-gzip": {
 			"limit": 83000,
@@ -877,7 +903,7 @@
 		},
 		"templates": {
 			"limit": 9220,
-			"measured": 8774,
+			"measured": 8767,
 			"note": [
 				"RM-013 K1, the fourteenth line. Seven starter plans and their manifest,",
 				"gzipped, served from public/templates/ and fetched only when somebody opens",
@@ -893,8 +919,8 @@
 			]
 		},
 		"first-load": {
-			"limit": 421400,
-			"measured": 411551
+			"limit": 441700,
+			"measured": 420650
 		},
 		"catalog-bundled": {
 			"limit": 2600,

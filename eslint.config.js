@@ -274,6 +274,11 @@ export default [
 				// with only the right method names would prove that the fake was
 				// called rather than that the codec works.
 				TransformStream: 'readonly',
+				// And the pair the zip container reads and writes names with. Node's
+				// own since 11; declared because the tests reach for them directly
+				// rather than through the module under test.
+				TextEncoder: 'readonly',
+				TextDecoder: 'readonly',
 			},
 		},
 		rules: {

@@ -3,7 +3,7 @@
 import {PopoverRoot, PopoverTrigger, PopoverPortal, PopoverContent} from 'reka-ui';
 import {
 	FilePlus2, FolderOpen, Save, Undo2, Redo2, Box, Share2, Printer, Camera, Globe,
-	Image as ImageIcon, LibraryBig, Link2,
+	Image as ImageIcon, LibraryBig, Link2, Package,
 	Moon, Sun, Keyboard, PanelRight, ChevronDown, Ruler,
 } from '@lucide/vue';
 
@@ -73,7 +73,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits([
-	'new-design', 'open-design', 'save-design', 'save-mesh', 'save-gltf',
+	'new-design', 'open-design', 'save-design', 'save-mesh', 'save-gltf', 'save-bundle',
 	'save-photo', 'save-panorama', 'save-plan-svg', 'save-plan-png', 'print-plan',
 	'undo', 'redo', 'set-layout', 'set-unit', 'toggle-theme',
 	'toggle-inspector', 'show-shortcuts', 'show-library', 'show-share',
@@ -156,7 +156,7 @@ function onUnitChange(event)
 			<AppTip label="Open layout" keys="mod+o">
 				<label class="btn btn-icon btn-file" title="Open layout">
 					<FolderOpen :size="15" />
-					<input type="file" accept=".blueprint3d,application/json" aria-label="Open layout" @change="onFile">
+					<input type="file" accept=".blueprint3d,.zip,application/json,application/zip" aria-label="Open layout" @change="onFile">
 				</label>
 			</AppTip>
 			<AppTip label="Save layout" keys="mod+s">
@@ -195,6 +195,10 @@ function onUnitChange(event)
 							@click="emit('save-gltf')">
 							<Share2 :size="15" />
 							{{ props.exporting ? 'Exporting glTF…' : 'glTF 2.0' }}
+						</button>
+
+						<button type="button" class="btn w-full justify-start" @click="emit('save-bundle')">
+							<Package :size="15" /> Bundle (.zip)
 						</button>
 
 						<p class="eyebrow px-2 py-1.5">Export the view</p>

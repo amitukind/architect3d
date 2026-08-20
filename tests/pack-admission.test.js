@@ -183,13 +183,27 @@ describe('what the gate admits', () =>
 	it('refuses a small pack of expensive ones, and says what it would have cost', () =>
 	{
 		// The failure mode the ceiling exists to catch: 40 items is nothing, and at
-		// 130 KB each it spends most of the headroom the remaining 232 need while
+		// this price it spends most of the headroom the remaining ones need while
 		// raising the divisor they will be counted against.
-		const verdict = admit(candidate(40, 130000), today());
+		//
+		// The price is derived from the tree rather than written down, and RM-013
+		// K2 is why. It was 130,000, and K1's starter plans grew the tree by 50 kB
+		// - enough that 40 x 130,000 crossed the TREE ceiling first, which `admit`
+		// reports instead of the reachability rule because a negative headroom
+		// makes the reachability arithmetic meaningless. Correct behaviour, and a
+		// fixture that had stopped isolating the rule it names. Half the remaining
+		// headroom keeps it inside the tree ceiling by construction, and the
+		// assertion below pins that it is still far above the price that would
+		// reach the target.
+		const state = today();
+		const price = Math.floor((state.limit - state.tree) / 40 / 2);
+		expect(price, 'the fixture must still be an expensive pack')
+			.toBeGreaterThan(reach(state).maxMeanForLow * 2);
+		const verdict = admit(candidate(40, price), today());
 
 		expect(verdict.admitted).toBe(false);
 		expect(verdict.refusals.join(' ')).toContain('400 items would stop being reachable');
-		expect(verdict.refusals.join(' ')).toContain('130,000');
+		expect(verdict.refusals.join(' ')).toContain(price.toLocaleString());
 		// And it says the price it would have had to beat, because "refused" on
 		// its own is not something anybody can act on. The figure itself is not
 		// pinned: it moves with every commit that touches the tree, and an exact
