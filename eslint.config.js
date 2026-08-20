@@ -95,6 +95,12 @@ export default [
 				TextDecoder: 'readonly',
 				Response: 'readonly',
 				btoa: 'readonly',
+				// RM-013 K3. `src/app/sw.js` runs in a worker scope with no `window`
+				// and no `document`; `self` is what it has instead, and everything it
+				// reaches for hangs off that rather than being taken from here.
+				self: 'readonly',
+				caches: 'readonly',
+				Request: 'readonly',
 			},
 		},
 		rules: {
@@ -244,6 +250,31 @@ export default [
 			quotes: ['error', 'single'],
 			semi: ['error', 'always'],
 			'no-mixed-spaces-and-tabs': ['error', 'smart-tabs'],
+		},
+	},
+
+	{
+		// The one tool whose source is partly evaluated IN a page (RM-013 K3).
+		//
+		// `tools/check-offline.mjs` hands real function bodies to
+		// `page.evaluate`, so ESLint parses browser code inside a Node file - the
+		// thumbnail and icon tools avoid this only by building their page as a
+		// template string, which ESLint never reads as JavaScript.
+		//
+		// A block of its own rather than widening the Node one below, because the
+		// note there is right: a tool reaching for `navigator` is normally a
+		// mistake, and this is the single file where it is the point.
+		files: ['tools/check-offline.mjs'],
+		languageOptions: {
+			globals: {
+				navigator: 'readonly',
+				performance: 'readonly',
+				document: 'readonly',
+				requestAnimationFrame: 'readonly',
+				PointerEvent: 'readonly',
+				// Node's own too, and used on both sides of the seam here.
+				URL: 'readonly',
+			},
 		},
 	},
 

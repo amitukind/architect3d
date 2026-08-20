@@ -1,0 +1,19 @@
+{
+	"_comment": "RM-013 K3. Relative start_url and scope on purpose: this deploys under /architect3d/ on GitHub Pages and at the root elsewhere, and a leading slash would send an installed window to the domain root. Everything here resolves against the manifest's own URL, which is the only path that is true in both places.",
+	"name": "Architect3D — Floorplan",
+	"short_name": "Architect3D",
+	"description": "Draw a home in 2D, walk through it in 3D. Free, no account, nothing uploaded.",
+	"start_url": ".",
+	"scope": ".",
+	"display": "standalone",
+	"background_color": "#f4f6f9",
+	"theme_color": "#d9601a",
+	"orientation": "landscape",
+	"categories": ["productivity", "graphics", "utilities"],
+	"icons": [
+		{"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+		{"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+		{"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+		{"src": "icons/architect3d.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}
+	]
+}

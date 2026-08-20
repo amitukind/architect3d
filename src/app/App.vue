@@ -29,6 +29,7 @@ import {useDesignIO, fileNameFor} from './composables/useDesignIO.js';
 import {useProjects} from './composables/useProjects.js';
 import {useTemplates} from './composables/useTemplates.js';
 import {useShare} from './composables/useShare.js';
+import {useOffline} from './composables/useOffline.js';
 import {useCatalog} from './composables/useCatalog.js';
 import {useDisplayUnit, syncDisplayUnit} from './composables/useDisplayUnit.js';
 import {useTheme, applyTheme} from './composables/useTheme.js';
@@ -81,6 +82,7 @@ const io = useDesignIO(store);
 const projects = useProjects(store, io);
 const templates = useTemplates(projects);
 const share = useShare(store, projects, io);
+const offline = useOffline();
 const catalog = useCatalog(store, selection.placementContext);
 const display = useDisplayUnit(store);
 const theme = useTheme(store);
@@ -159,6 +161,7 @@ onMounted(() =>
 
 	openShared();
 	loadAssetManifest();
+	goOffline();
 	applyLayoutToCamera(workspace.layout.value);
 });
 
@@ -227,6 +230,27 @@ function frameDesign()
  * about a draft several minutes behind what the user actually had is a prompt
  * that loses work quietly.
  */
+/**
+ * Register the service worker, once the page has finished arriving (RM-013 K3).
+ *
+ * After `load` rather than on mount, because registration competes with first
+ * paint for the same connection and there is nothing a worker can do for the
+ * visit it is racing. It does nothing in development - see `useOffline`.
+ */
+function goOffline()
+{
+	if (document.readyState === 'complete')
+	{
+		offline.register();
+		return;
+	}
+	window.addEventListener('load', function once()
+	{
+		window.removeEventListener('load', once);
+		offline.register();
+	});
+}
+
 /**
  * A design in the URL, and what it displaces (RM-013 K2).
  *
@@ -809,6 +833,46 @@ const bindings = computed(() => /** @type {Array<import('./composables/useShortc
 		},
 	},
 ]));
+
+/**
+ * The two things offline has to say, said in the place notices are said.
+ *
+ * Not new chrome. An install offer that occupied a bar would be a bar advertising
+ * something most people will decline, and an update notice that did would sit
+ * there being ignored - the toast stack already exists, already knows how to
+ * carry an action, and is where this application puts everything else that is
+ * true for a moment.
+ *
+ * The install offer is raised once and never repeated: `beforeinstallprompt`
+ * fires again on later visits, and a browser that keeps asking is the reason
+ * people learn to dismiss without reading.
+ */
+watch(offline.installable, function (canInstall)
+{
+	if (!canInstall)
+	{
+		return;
+	}
+	toasts.info('Architect3D can be installed as an app.', {
+		ttl: 12000,
+		action: {label: 'Install', run: function () {offline.install();}},
+	});
+});
+
+watch(offline.updateReady, function (waiting)
+{
+	if (!waiting)
+	{
+		return;
+	}
+	// No `ttl`: a person who misses this reloads later and gets it anyway, but a
+	// notice that disappears while somebody is reading it is worse than one that
+	// waits to be dismissed.
+	toasts.info('A newer version of Architect3D is ready.', {
+		ttl: 0,
+		action: {label: 'Reload', run: offline.applyUpdate},
+	});
+});
 
 useShortcuts(() => bindings.value);
 </script>

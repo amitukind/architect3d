@@ -82,6 +82,22 @@ export default defineConfig({
 				// frame and disposes it, and `tests/viewer-lifecycle.test.js` covers
 				// Main's whole side of the seam headless.
 				'src/scripts/three/post.js',
+				// The service worker (RM-013 K3). Excluded explicitly, with a reason,
+				// and the reason is checkable: the file is twenty lines of
+				// `addEventListener` and every decision it makes is in
+				// `src/app/offline/`, which is covered exhaustively by
+				// `tests/offline-policy.test.js` - 19 cases over three strategies,
+				// four pass-through rules and a browser that refuses a cache.
+				//
+				// It cannot be covered here. A worker has no DOM and no `window`, it
+				// cannot be imported into a test, jsdom provides no worker scope, and
+				// the browser tier runs against a dev server that never emits it -
+				// `sw.js` exists only in `dist-demo/`, as a second Vite entry, because
+				// a worker's URL is its scope.
+				//
+				// Whether this exclusion is honest is a question about how thin that
+				// file is, which is why it is that thin.
+				'src/app/sw.js',
 			],
 			reporter: ['text-summary', 'json-summary', 'html'],
 			thresholds: {

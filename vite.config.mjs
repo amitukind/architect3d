@@ -266,6 +266,30 @@ export default defineConfig(({mode}) => {
 			emptyOutDir: true,
 			sourcemap: true,
 			chunkSizeWarningLimit: 5000,
+			/**
+			 * A second entry, and it must land unhashed at the deploy root
+			 * (RM-013 K3).
+			 *
+			 * A service worker's URL is both its identity and its scope. Hashed, a
+			 * deploy would register a *different* worker rather than updating the
+			 * one already installed, and a worker at `assets/sw-<hash>.js` would
+			 * control `assets/` and nothing else - which is every URL the
+			 * application does not serve.
+			 *
+			 * Built rather than dropped in `public/` so it can `import` the policy
+			 * modules that the headless suite tests. A copied file would have meant
+			 * either a second copy of those rules or a hand-rolled inliner, and the
+			 * first is how two implementations of one decision start.
+			 */
+			rollupOptions: {
+				input: {
+					index: resolve(ROOT, 'index.html'),
+					sw: resolve(ROOT, 'src/app/sw.js'),
+				},
+				output: {
+					entryFileNames: (chunk) => (chunk.name === 'sw' ? 'sw.js' : 'assets/[name]-[hash].js'),
+				},
+			},
 		},
 	};
 });

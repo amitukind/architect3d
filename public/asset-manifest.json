@@ -58,6 +58,22 @@
 			"bytes": 58456,
 			"kind": "decoder"
 		},
+		"icons/architect3d.svg": {
+			"bytes": 1216,
+			"kind": "document"
+		},
+		"icons/icon-192.png": {
+			"bytes": 3783,
+			"kind": "texture"
+		},
+		"icons/icon-512.png": {
+			"bytes": 8841,
+			"kind": "texture"
+		},
+		"manifest.webmanifest": {
+			"bytes": 1089,
+			"kind": "document"
+		},
 		"materials/CREDITS.md": {
 			"bytes": 3504,
 			"kind": "document"
