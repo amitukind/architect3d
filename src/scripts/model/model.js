@@ -829,7 +829,7 @@ export class Model extends EventDispatcher
 			{
 				return problem.path ? `${problem.path}: ${problem.message}` : problem.message;
 			}).join('; ');
-			throw new Error(`Not a valid design - ${detail}`);
+			throw new Error(this.runtime.text('Not a valid design - {detail}', {detail: detail}));
 		}
 		return result;
 	}
@@ -854,7 +854,7 @@ export class Model extends EventDispatcher
 	 */
 	loadDocument(json, options)
 	{
-		var result = DesignDocument.parse(json);
+		var result = DesignDocument.parse(json, {messages: this.runtime.messages});
 		if (!result.ok)
 		{
 			return result;

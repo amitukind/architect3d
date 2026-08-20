@@ -56,6 +56,11 @@ export {AssetResolver, defaultAssetResolver} from './core/asset_resolver.js';
 // for an imported item, and `orientGeometry` is the one thing `scale_x/y/z` and a
 // single Y rotation cannot already express: which axis the author called up.
 export {LocalModels, normaliseImport, orientGeometry, UP_Y, UP_Z} from './core/imported_model.js';
+// What this library says to a person, and how to say it differently (RM-014 L3).
+// The source English IS the key, so a build that supplies no translator produces
+// byte-identical output and a missing translation degrades to English rather than
+// to an identifier on somebody's screen.
+export {interpolate, translate, keyOf, englishOf, pluralFormOf} from './core/messages.js';
 export {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY, VIEW_EXTERIOR} from './core/constants.js';
 export {NO_TINT, SURFACE_DEFAULTS, normaliseSurface, isPlainSurface, surfaceToJSON, colorValue} from './model/surface.js';
 export {SUN_DEFAULTS, normaliseSun, sunToJSON, solarPosition, sunDirection} from './model/sun.js';
@@ -182,6 +187,7 @@ export class BlueprintJS
 	 * @param {import('./core/configuration.js').Configuration} [options.configuration] - Settings for this design alone (P7). Omit to share the page-wide default.
 	 * @param {Object} [options.renderProfile] - A look for this viewer alone (P7), from `createRenderProfile`. Omit to share the page-wide default.
 	 * @param {import('./core/asset_resolver.js').AssetResolver} [options.assets] - Where this document's asset URLs come from (A5), from `new AssetResolver({manifest, base})`. Omit for the identity resolver, which returns every logical name unchanged - what the library did before A5.
+	 * @param {import('./core/messages.js').Translator} [options.messages] - What this document says to a person (RM-014 L3). A function taking the English source text and the message's parameters, returning a translation or null. Omit and every message is the English this package ships, byte for byte - the source text is the key, so there is no table to fall out of step.
 	 * @param {import('./core/imported_model.js').LocalModelSource} [options.localModels] - Bytes for models no deployment ships (RM-012 J3), from a store the embedder owns. A file picked off a disk has no URL for `assets` to rewrite, so `Scene` asks this first and loads from memory when it answers. Omit and nothing changes.
 	 * @param {import('./core/design_runtime.js').DesignRuntime} [options.runtime] - This document's services as one object (A4): its configuration, dimensioning, render profile, load session and resource registries. Omit and one is built here from `configuration`/`renderProfile`. A runtime passed in belongs to the caller and is never disposed by `dispose()`.
 	 * @example
@@ -219,6 +225,7 @@ export class BlueprintJS
 				renderProfile: options.renderProfile,
 				assets: options.assets,
 				localModels: options.localModels,
+				messages: options.messages,
 			});
 
 		/**

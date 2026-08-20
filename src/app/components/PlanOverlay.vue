@@ -6,6 +6,7 @@ import {ZoomIn, ZoomOut, Maximize2, Crosshair, Grid3x3, Magnet, Triangle, Chevro
 
 import AppTip from './AppTip.vue';
 import {floorplannerModes, Dimensioning} from '../../scripts/blueprint.js';
+import {t} from '../i18n/i18n.js';
 
 /**
  * The controls that float over the 2D plan.
@@ -156,9 +157,9 @@ function commitTyped(place)
 		v-if="props.walls === 0" data-testid="empty-plan"
 		class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-6">
 		<p class="max-w-[36ch] text-center text-[13px] leading-relaxed text-ink-faint">
-			<strong class="block text-ink">Nothing drawn yet</strong>
-			Press <kbd>W</kbd> and drag to draw a wall, or <kbd>R</kbd> to draw a whole room at once.
-			<kbd>Ctrl</kbd>+<kbd>Z</kbd> brings back anything you deleted.
+			<strong class="block text-ink">{{ t('Nothing drawn yet') }}</strong>
+			{{ t('Press') }} <kbd>W</kbd> {{ t('and drag to draw a wall, or') }} <kbd>R</kbd> {{ t('to draw a whole room at once.') }}
+			<kbd>Ctrl</kbd>+<kbd>Z</kbd> {{ t('brings back anything you deleted.') }}
 		</p>
 	</div>
 
@@ -166,21 +167,21 @@ function commitTyped(place)
 		<div class="glass pointer-events-auto flex items-center gap-0.5 p-1">
 			<AppTip label="Zoom out" keys="-" side="top" :delay="0">
 				<button
-					type="button" class="btn btn-icon" title="Zoom out"
+					type="button" class="btn btn-icon" :title="t('Zoom out')"
 					:disabled="!props.canZoomOut" @click="emit('zoom-out')">
 					<ZoomOut :size="15" />
 				</button>
 			</AppTip>
 
 			<AppTip label="Reset to 100%" side="top" :delay="0">
-				<button type="button" class="btn num w-[52px] px-0" title="Reset zoom" @click="emit('zoom-reset')">
+				<button type="button" class="btn num w-[52px] px-0" :title="t('Reset zoom')" @click="emit('zoom-reset')">
 					{{ props.zoomPercent }}%
 				</button>
 			</AppTip>
 
 			<AppTip label="Zoom in" keys="+" side="top" :delay="0">
 				<button
-					type="button" class="btn btn-icon" title="Zoom in"
+					type="button" class="btn btn-icon" :title="t('Zoom in')"
 					:disabled="!props.canZoomIn" @click="emit('zoom-in')">
 					<ZoomIn :size="15" />
 				</button>
@@ -189,12 +190,12 @@ function commitTyped(place)
 			<span class="mx-1 h-4 w-px bg-line" />
 
 			<AppTip label="Frame the whole plan" keys="shift+f" side="top" :delay="0">
-				<button type="button" class="btn btn-icon" title="Zoom to fit" @click="emit('zoom-fit')">
+				<button type="button" class="btn btn-icon" :title="t('Zoom to fit')" @click="emit('zoom-fit')">
 					<Maximize2 :size="15" />
 				</button>
 			</AppTip>
 			<AppTip label="Recentre" side="top" :delay="0">
-				<button type="button" class="btn btn-icon" title="Recentre" @click="emit('centre')">
+				<button type="button" class="btn btn-icon" :title="t('Recentre')" @click="emit('centre')">
 					<Crosshair :size="15" />
 				</button>
 			</AppTip>
@@ -204,7 +205,7 @@ function commitTyped(place)
 			<AppTip label="Snap to grid" keys="s" side="top" :delay="0">
 				<button
 					type="button" class="btn btn-icon" :class="{'is-active': props.snap}"
-					:aria-pressed="props.snap" title="Snap to grid"
+					:aria-pressed="props.snap" :title="t('Snap to grid')"
 					@click="emit('set-snap', !props.snap)">
 					<Magnet :size="15" />
 				</button>
@@ -213,7 +214,7 @@ function commitTyped(place)
 			<AppTip label="Snap the drawing angle to 15°" side="top" :delay="0">
 				<button
 					type="button" class="btn btn-icon" :class="{'is-active': props.angleSnap}"
-					:aria-pressed="props.angleSnap" title="Snap the drawing angle to 15 degrees"
+					:aria-pressed="props.angleSnap" :title="t('Snap the drawing angle to 15 degrees')"
 					@click="emit('set-angle-snap', !props.angleSnap)">
 					<Triangle :size="15" />
 				</button>
@@ -221,7 +222,7 @@ function commitTyped(place)
 
 			<PopoverRoot>
 				<PopoverTrigger as-child>
-					<button type="button" class="btn gap-1 px-1.5" title="Grid spacing">
+					<button type="button" class="btn gap-1 px-1.5" :title="t('Grid spacing')">
 						<Grid3x3 :size="15" />
 						<span class="num">{{ props.spacing }}</span>
 						<ChevronDown :size="11" class="opacity-60" />
@@ -231,7 +232,7 @@ function commitTyped(place)
 					<PopoverContent
 						side="top" align="end" :side-offset="8"
 						class="a3d-pop z-[600] w-40 rounded-panel border border-line bg-overlay p-1 shadow-float">
-						<p class="eyebrow px-2 py-1.5">Grid spacing</p>
+						<p class="eyebrow px-2 py-1.5">{{ t('Grid spacing') }}</p>
 						<button
 							v-for="entry in props.spacings" :key="entry.value" type="button"
 							class="btn w-full justify-between" :class="{'is-active': props.spacing === entry.value}"
@@ -242,7 +243,7 @@ function commitTyped(place)
 						<!-- The heavier line every fourth cell is drawn by the library, so
 						     the metre rhythm follows whatever is chosen here. -->
 						<p class="px-2 py-1.5 text-[10px] leading-snug text-ink-faint">
-							Every fourth line is drawn heavier.
+							{{ t('Every fourth line is drawn heavier.') }}
 						</p>
 					</PopoverContent>
 				</PopoverPortal>
@@ -255,7 +256,7 @@ function commitTyped(place)
 	<div
 		v-show="props.mode === floorplannerModes.DRAW && !drawing"
 		class="btn-hint pointer-events-none absolute left-1/2 top-3 z-20 -translate-x-1/2 rounded-lg border border-line bg-overlay/90 px-3 py-1.5 text-[11px] shadow-float backdrop-blur">
-		Click to place corners · <kbd>Shift</kbd> to snap to the grid · <kbd>Esc</kbd> to finish
+		{{ t('Click to place corners ·') }} <kbd>{{ t('Shift') }}</kbd> {{ t('to snap to the grid ·') }} <kbd>{{ t('Esc') }}</kbd> {{ t('to finish') }}
 	</div>
 
 	<!-- Draw to a number (RM-008 E2). Only while a wall is actually being drawn:
@@ -265,7 +266,7 @@ function commitTyped(place)
 		v-show="drawing"
 		class="glass pointer-events-auto absolute left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-2 px-2 py-1.5 text-[11px]">
 		<label class="flex items-center gap-1">
-			<span class="text-muted">Length</span>
+			<span class="text-muted">{{ t('Length') }}</span>
 			<input
 				type="number" step="0.01" min="0" class="field-input w-20 py-0.5 text-[11px]"
 				:value="lengthShown"
@@ -277,7 +278,7 @@ function commitTyped(place)
 			<span class="text-muted">{{ props.unit }}</span>
 		</label>
 		<label class="flex items-center gap-1">
-			<span class="text-muted">Angle</span>
+			<span class="text-muted">{{ t('Angle') }}</span>
 			<input
 				type="number" step="1" class="field-input w-16 py-0.5 text-[11px]"
 				:value="angleShown"
@@ -288,6 +289,6 @@ function commitTyped(place)
 				@blur="editing = ''">
 			<span class="text-muted">°</span>
 		</label>
-		<span class="text-muted"><kbd>Enter</kbd> places it</span>
+		<span class="text-muted"><kbd>{{ t('Enter') }}</kbd> {{ t('places it') }}</span>
 	</div>
 </template>

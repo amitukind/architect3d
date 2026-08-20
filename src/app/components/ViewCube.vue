@@ -3,6 +3,7 @@
 import {Box, ChevronUp, ChevronDown, ChevronLeft, ChevronRight} from '@lucide/vue';
 import AppTip from './AppTip.vue';
 import {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY} from '../../scripts/blueprint.js';
+import {t} from '../i18n/i18n.js';
 
 /**
  * The five camera presets, arranged as they point.
@@ -35,7 +36,7 @@ const VIEWS = [
 </script>
 
 <template>
-	<div id="viewcube" class="grid grid-cols-3 grid-rows-3 gap-0.5" role="group" aria-label="Camera views">
+	<div id="viewcube" class="grid grid-cols-3 grid-rows-3 gap-0.5" role="group" :aria-label="t('Camera views')">
 		<AppTip
 			v-for="view in VIEWS" :key="view.id" :label="view.label"
 			side="left" :delay="0">

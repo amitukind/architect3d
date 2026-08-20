@@ -15,6 +15,8 @@ import {ROOF_FLAT, ROOF_GABLE, ROOF_HIP, RIDGE_X, RIDGE_Z, MAX_PITCH} from '../.
 import {SUN_DEFAULTS, solarPosition} from '../../scripts/blueprint.js';
 import {useDisplayUnit} from '../composables/useDisplayUnit.js';
 import {onConfigChange, useBooleanConfig} from '../composables/useConfiguration.js';
+import {t} from '../i18n/i18n.js';
+import {useI18n} from '../composables/useI18n.js';
 
 /**
  * Everything that is not about the current selection.
@@ -62,6 +64,7 @@ const props = defineProps({
 });
 
 const {unit, units, setUnit} = useDisplayUnit(props.store);
+const i18n = useI18n();
 
 /**
  * Eye height (RM-011 H3). Shared module state, so this control and the viewer
@@ -392,8 +395,25 @@ function resetClipping()
 
 <template>
 	<div class="settings">
-		<CollapsibleGroup title="Units" :open="true">
-			<div class="radio-list" role="radiogroup" aria-label="Display unit">
+		<CollapsibleGroup :title="t('Language')" :open="true">
+			<div class="radio-list" role="radiogroup" :aria-label="t('Language')">
+				<label v-for="entry in i18n.locales" :key="entry.id" class="radio-row">
+					<input
+						type="radio" name="app-locale" :value="entry.id" :disabled="i18n.busy.value"
+						:checked="i18n.locale.value === entry.id" @change="i18n.choose(entry.id)">
+					<!-- In the language itself, because that is what somebody looking
+					     for it can read. -->
+					<span>{{ entry.label }}</span>
+					<code class="radio-suffix">{{ entry.id }}</code>
+				</label>
+			</div>
+			<p class="px-1 pt-1 text-[11px] leading-relaxed text-ink-faint">
+				{{ t('A language is downloaded when you choose it, so English costs nothing to anybody who does not need another one.') }}
+			</p>
+		</CollapsibleGroup>
+
+		<CollapsibleGroup :title="t('Units')" :open="true">
+			<div class="radio-list" role="radiogroup" :aria-label="t('Display unit')">
 				<label v-for="entry in units" :key="entry.value" class="radio-row">
 					<input
 						type="radio" name="display-unit" :value="entry.value"
@@ -404,7 +424,7 @@ function resetClipping()
 			</div>
 		</CollapsibleGroup>
 
-		<CollapsibleGroup title="2D editor" :open="true">
+		<CollapsibleGroup :title="t('2D editor')" :open="true">
 			<CheckField v-model="snapToGrid" label="Snap to grid" />
 			<NumberField
 				label="Snap every" :unit="unit" :min="0" :step="0.1" :model-value="editor2d.snap"
@@ -415,17 +435,17 @@ function resetClipping()
 			<CheckField v-model="showCollisions" label="Warn when furniture overlaps" />
 		</CollapsibleGroup>
 
-		<CollapsibleGroup title="Plan">
+		<CollapsibleGroup :title="t('Plan')">
 			<NumberField
 				label="North" unit="°" :min="0" :max="360" :step="1"
 				:model-value="north" @update:model-value="setNorth" />
-			<button type="button" class="btn btn-block" @click="setNorth(0)">Point north up</button>
+			<button type="button" class="btn btn-block" @click="setNorth(0)">{{ t('Point north up') }}</button>
 			<p class="inspector-note">
-				Drawn in the top right of the plan, and saved with the design.
+				{{ t('Drawn in the top right of the plan, and saved with the design.') }}
 			</p>
 		</CollapsibleGroup>
 
-		<CollapsibleGroup title="Sun">
+		<CollapsibleGroup :title="t('Sun')">
 			<CheckField
 				label="Light the design by the sun" :model-value="sun.on"
 				@update:model-value="setSun($event ? {} : null)" />
@@ -443,20 +463,18 @@ function resetClipping()
 			<p class="inspector-note">{{ sunNote }}</p>
 		</CollapsibleGroup>
 
-		<CollapsibleGroup title="Walkthrough">
+		<CollapsibleGroup :title="t('Walkthrough')">
 			<RangeField
 				label="Eye height" unit="cm" :min="EYE.min" :max="EYE.max" :step="1"
 				:model-value="eyeHeight" @update:model-value="setEyeHeight($event)" />
 			<p class="inspector-note">
-				How tall the person walking is. Kept in this browser rather than in the
-				design — it describes whoever is looking, not the building. In the
-				walkthrough, click the floor to go there.
+				{{ t('How tall the person walking is. Kept in this browser rather than in the design — it describes whoever is looking, not the building. In the walkthrough, click the floor to go there.') }}
 			</p>
 		</CollapsibleGroup>
 
-		<CollapsibleGroup title="Roof">
+		<CollapsibleGroup :title="t('Roof')">
 			<div class="field">
-				<span class="field-label">Kind</span>
+				<span class="field-label">{{ t('Kind') }}</span>
 				<div class="segmented">
 					<button
 						v-for="entry in ROOF_KINDS_UI" :key="entry.value"
@@ -470,17 +488,17 @@ function resetClipping()
 			<template v-if="roof.kind">
 				<template v-if="roof.kind !== ROOF_FLAT">
 					<div class="field">
-						<span class="field-label">Ridge</span>
+						<span class="field-label">{{ t('Ridge') }}</span>
 						<div class="segmented">
 							<button
 								type="button" class="segment" :class="{'is-active': roof.ridge === RIDGE_X}"
 								:aria-pressed="roof.ridge === RIDGE_X" @click="setRoof({ridge: RIDGE_X})">
-								Across
+								{{ t('Across') }}
 							</button>
 							<button
 								type="button" class="segment" :class="{'is-active': roof.ridge === RIDGE_Z}"
 								:aria-pressed="roof.ridge === RIDGE_Z" @click="setRoof({ridge: RIDGE_Z})">
-								Along
+								{{ t('Along') }}
 							</button>
 						</div>
 					</div>
@@ -497,7 +515,7 @@ function resetClipping()
 			<p class="inspector-note">{{ roofNote }}</p>
 		</CollapsibleGroup>
 
-		<CollapsibleGroup title="Wall measurements">
+		<CollapsibleGroup :title="t('Wall measurements')">
 			<CheckField
 				v-for="flag in WALL_FLAGS" :key="flag.property"
 				:label="flag.label" :model-value="wallInformation[flag.property]"
@@ -508,12 +526,12 @@ function resetClipping()
 				@update:model-value="setWallInfo(entry.property, $event)" />
 		</CollapsibleGroup>
 
-		<CollapsibleGroup title="Carbon sheet">
+		<CollapsibleGroup :title="t('Carbon sheet')">
 			<CarbonSheetPanel v-if="carbonSheet" :carbon-sheet="carbonSheet" />
-			<p v-else class="inspector-note">No 2D view, so no carbon sheet.</p>
+			<p v-else class="inspector-note">{{ t('No 2D view, so no carbon sheet.') }}</p>
 		</CollapsibleGroup>
 
-		<CollapsibleGroup title="3D camera">
+		<CollapsibleGroup :title="t('3D camera')">
 			<RangeField
 				label="Clip near" :min="-1" :max="1" :step="0.01" :model-value="clipping.near"
 				@update:model-value="setClipping('near', $event)" />
@@ -523,7 +541,7 @@ function resetClipping()
 			<CheckField
 				label="Lock view" :model-value="props.camera.viewLocked.value"
 				@update:model-value="props.camera.setViewLocked($event)" />
-			<button type="button" class="btn btn-block" @click="resetClipping">Reset clipping</button>
+			<button type="button" class="btn btn-block" @click="resetClipping">{{ t('Reset clipping') }}</button>
 		</CollapsibleGroup>
 	</div>
 </template>

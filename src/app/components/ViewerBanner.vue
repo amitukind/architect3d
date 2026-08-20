@@ -1,6 +1,7 @@
 <script setup>
 // @ts-check
 import {Eye, Copy} from '@lucide/vue';
+import {t} from '../i18n/i18n.js';
 
 /**
  * You are looking at somebody else's design (RM-013 K2).
@@ -32,11 +33,11 @@ const emit = defineEmits(['adopt', 'leave']);
 	<div class="flex flex-none items-center gap-2 border-b border-line bg-overlay px-3 py-1.5 text-[12px]">
 		<Eye :size="14" class="flex-none text-ink-soft" />
 		<span class="min-w-0 truncate text-ink-soft">
-			You are viewing a shared design. Nothing you do here changes the original.
+			{{ t('You are viewing a shared design. Nothing you do here changes the original.') }}
 		</span>
 		<button type="button" class="btn ml-auto flex-none gap-1.5" :disabled="busy" @click="emit('adopt')">
-			<Copy :size="14" /> Keep a copy
+			<Copy :size="14" /> {{ t('Keep a copy') }}
 		</button>
-		<button type="button" class="btn flex-none" :disabled="busy" @click="emit('leave')">Close</button>
+		<button type="button" class="btn flex-none" :disabled="busy" @click="emit('leave')">{{ t('Close') }}</button>
 	</div>
 </template>

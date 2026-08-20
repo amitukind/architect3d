@@ -9,6 +9,7 @@ import textures from '../../catalog/textures.json';
 import materials from '../../catalog/materials.json';
 import {SELECTION_WALL} from '../composables/useSelection.js';
 import {NO_TINT} from '../../scripts/blueprint.js';
+import {t} from '../i18n/i18n.js';
 
 /**
  * Wall and floor surfaces.
@@ -213,9 +214,9 @@ watch(() => props.selection, () => {forAllWalls.value = false; revision.value++;
 			@update:model-value="(value) => applyMaterial({color: value})" />
 		<button
 			v-if="material.color !== NO_TINT"
-			type="button" class="btn btn-outline" title="Remove the tint"
+			type="button" class="btn btn-outline" :title="t('Remove the tint')"
 			@click="clearTint">
-			Clear tint
+			{{ t('Clear tint') }}
 		</button>
 		<RangeField
 			:model-value="material.rotation" label="Rotation" :min="0" :max="359" :step="1" unit="°"
@@ -228,7 +229,7 @@ watch(() => props.selection, () => {forAllWalls.value = false; revision.value++;
 			@update:model-value="(value) => applyMaterial({offsetY: value})" />
 
 		<template v-if="!isWall">
-			<h4 class="inspector-subheading">Ceiling</h4>
+			<h4 class="inspector-subheading">{{ t('Ceiling') }}</h4>
 			<ColorField
 				:model-value="ceilingTint" label="Ceiling tint"
 				@update:model-value="applyCeiling" />

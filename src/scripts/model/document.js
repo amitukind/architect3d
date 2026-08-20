@@ -1,4 +1,5 @@
 // @ts-check
+import {translate} from '../core/messages.js';
 // SAVE_UNITS lives with the code that writes it. No cycle: floorplan.js does not
 // import this module - Model is what puts the two together.
 import {SAVE_UNITS} from './floorplan.js';
@@ -176,8 +177,27 @@ export class DesignDocument
 	 * @param {string} json
 	 * @returns {ParseResult}
 	 */
-	static parse(json)
+	static parse(json, options)
 	{
+		/**
+		 * How this parse says things (RM-014 L3, finding Z-2).
+		 *
+		 * Threaded rather than read from a module, and the parameter is here
+		 * rather than on a runtime because **a validator has no document to
+		 * belong to** - it runs before one exists, which is the whole point of it.
+		 * `Model.loadDocument` passes its runtime's translator; a caller who
+		 * passes nothing gets the English this file has always produced, byte for
+		 * byte, because the source text is the key.
+		 *
+		 * @param {string|Array<string>} source
+		 * @param {Object} [params]
+		 * @returns {string}
+		 */
+		var say = function (source, params)
+		{
+			return translate((options && options.messages) || null, source, params);
+		};
+
 		/** @type {Array<DocumentProblem>} */
 		var errors = [];
 		/** @type {Array<DocumentProblem>} */
@@ -193,7 +213,7 @@ export class DesignDocument
 			return {
 				ok: false,
 				document: null,
-				errors: [{path: '', message: `not valid JSON: ${error instanceof Error ? error.message : String(error)}`}],
+				errors: [{path: '', message: say('not valid JSON: {value}', {value: error instanceof Error ? error.message : String(error)})}],
 				warnings: warnings,
 			};
 		}
@@ -203,16 +223,16 @@ export class DesignDocument
 			return {
 				ok: false,
 				document: null,
-				errors: [{path: '', message: `a design must be an object, not ${Array.isArray(data) ? 'an array' : String(data === null ? 'null' : typeof data)}`}],
+				errors: [{path: '', message: say('a design must be an object, not {value}', {value: Array.isArray(data) ? 'an array' : String(data === null ? 'null' : typeof data)})}],
 				warnings: warnings,
 			};
 		}
 
-		validateFloorplan(data.floorplan, errors, warnings);
-		validateItems(data.items, errors);
-		validateLevels(data.levels, data.floorplan, errors, warnings);
-		validateRoof(data.roof, errors);
-		validateSun(data.sun, errors);
+		validateFloorplan(data.floorplan, errors, warnings, say);
+		validateItems(data.items, errors, say);
+		validateLevels(data.levels, data.floorplan, errors, warnings, say);
+		validateRoof(data.roof, errors, say);
+		validateSun(data.sun, errors, say);
 
 		if (errors.length)
 		{
@@ -228,22 +248,22 @@ export class DesignDocument
  * @param {Array<DocumentProblem>} errors
  * @param {Array<DocumentProblem>} warnings
  */
-function validateFloorplan(floorplan, errors, warnings)
+function validateFloorplan(floorplan, errors, warnings, say)
 {
 	if (!isPlainObject(floorplan))
 	{
-		errors.push({path: 'floorplan', message: 'missing - a design must carry a "floorplan" object'});
+		errors.push({path: 'floorplan', message: say('missing - a design must carry a "floorplan" object')});
 		return;
 	}
 
 	if (!isPlainObject(floorplan.corners))
 	{
-		errors.push({path: 'floorplan.corners', message: 'missing - a floorplan must carry a "corners" object, even an empty one'});
+		errors.push({path: 'floorplan.corners', message: say('missing - a floorplan must carry a "corners" object, even an empty one')});
 	}
 
 	if (!Array.isArray(floorplan.walls))
 	{
-		errors.push({path: 'floorplan.walls', message: 'missing - a floorplan must carry a "walls" array, even an empty one'});
+		errors.push({path: 'floorplan.walls', message: say('missing - a floorplan must carry a "walls" array, even an empty one')});
 	}
 
 	// Nothing below can run without both of the above.
@@ -257,21 +277,21 @@ function validateFloorplan(floorplan, errors, warnings)
 		var corner = floorplan.corners[id];
 		if (!isPlainObject(corner))
 		{
-			errors.push({path: `floorplan.corners.${id}`, message: 'is not an object'});
+			errors.push({path: `floorplan.corners.${id}`, message: say('is not an object')});
 			return;
 		}
 		['x', 'y'].forEach(function (axis)
 		{
 			if (!isFiniteNumber(corner[axis]))
 			{
-				errors.push({path: `floorplan.corners.${id}.${axis}`, message: `must be a finite number, not ${JSON.stringify(corner[axis])}`});
+				errors.push({path: `floorplan.corners.${id}.${axis}`, message: say('must be a finite number, not {value}', {value: JSON.stringify(corner[axis])})});
 			}
 		});
 		// elevation is optional - pre-2.0.0 files have none, and loadFloorplan
 		// already treats a falsy value as "leave the default".
 		if (corner.elevation !== undefined && corner.elevation !== null && !isFiniteNumber(corner.elevation))
 		{
-			errors.push({path: `floorplan.corners.${id}.elevation`, message: `must be a finite number, not ${JSON.stringify(corner.elevation)}`});
+			errors.push({path: `floorplan.corners.${id}.elevation`, message: say('must be a finite number, not {value}', {value: JSON.stringify(corner.elevation)})});
 		}
 	});
 
@@ -279,7 +299,7 @@ function validateFloorplan(floorplan, errors, warnings)
 	{
 		if (!isPlainObject(wall))
 		{
-			errors.push({path: `floorplan.walls[${index}]`, message: 'is not an object'});
+			errors.push({path: `floorplan.walls[${index}]`, message: say('is not an object')});
 			return;
 		}
 		// The reference check is the one that matters most in practice: a wall
@@ -290,12 +310,12 @@ function validateFloorplan(floorplan, errors, warnings)
 			var id = wall[end];
 			if (typeof id !== 'string' && typeof id !== 'number')
 			{
-				errors.push({path: `floorplan.walls[${index}].${end}`, message: 'missing - a wall must name the corner at each end'});
+				errors.push({path: `floorplan.walls[${index}].${end}`, message: say('missing - a wall must name the corner at each end')});
 				return;
 			}
 			if (!Object.prototype.hasOwnProperty.call(floorplan.corners, String(id)))
 			{
-				errors.push({path: `floorplan.walls[${index}].${end}`, message: `names corner "${id}", which is not in this file`});
+				errors.push({path: `floorplan.walls[${index}].${end}`, message: say('names corner "{value}", which is not in this file', {value: id})});
 			}
 		});
 
@@ -309,7 +329,7 @@ function validateFloorplan(floorplan, errors, warnings)
 		{
 			errors.push({
 				path: `floorplan.walls[${index}].thickness`,
-				message: `must be a positive finite number of centimetres when present, not ${JSON.stringify(wall.thickness)}`,
+				message: say('must be a positive finite number of centimetres when present, not {value}', {value: JSON.stringify(wall.thickness)}),
 			});
 		}
 
@@ -321,7 +341,7 @@ function validateFloorplan(floorplan, errors, warnings)
 		{
 			errors.push({
 				path: `floorplan.walls[${index}].partialHeight`,
-				message: `must be a positive finite number of centimetres when present, not ${JSON.stringify(wall.partialHeight)}`,
+				message: say('must be a positive finite number of centimetres when present, not {value}', {value: JSON.stringify(wall.partialHeight)}),
 			});
 		}
 	});
@@ -340,14 +360,14 @@ function validateFloorplan(floorplan, errors, warnings)
 			var end = record[pair[0]];
 			if (!isPlainObject(end) || !isFiniteNumber(end[pair[1]]))
 			{
-				errors.push({path: `${path}.${pair[0]}.${pair[1]}`, message: 'a dimension must carry finite x and y at each end'});
+				errors.push({path: `${path}.${pair[0]}.${pair[1]}`, message: say('a dimension must carry finite x and y at each end')});
 			}
 		});
 		if (record.offset !== undefined && record.offset !== null && !isFiniteNumber(record.offset))
 		{
-			errors.push({path: `${path}.offset`, message: `must be a finite number of centimetres when present, not ${JSON.stringify(record.offset)}`});
+			errors.push({path: `${path}.offset`, message: say('must be a finite number of centimetres when present, not {value}', {value: JSON.stringify(record.offset)})});
 		}
-	});
+	}, say);
 
 	validateAnnotations(floorplan.annotations, 'floorplan.annotations', errors, function (record, path)
 	{
@@ -355,26 +375,26 @@ function validateFloorplan(floorplan, errors, warnings)
 		{
 			if (!isFiniteNumber(record[axis]))
 			{
-				errors.push({path: `${path}.${axis}`, message: `must be a finite number, not ${JSON.stringify(record[axis])}`});
+				errors.push({path: `${path}.${axis}`, message: say('must be a finite number, not {value}', {value: JSON.stringify(record[axis])})});
 			}
 		});
 		if (record.text !== undefined && record.text !== null && typeof record.text !== 'string')
 		{
-			errors.push({path: `${path}.text`, message: `must be a string when present, not ${JSON.stringify(record.text)}`});
+			errors.push({path: `${path}.text`, message: say('must be a string when present, not {value}', {value: JSON.stringify(record.text)})});
 		}
 		if (record.size !== undefined && record.size !== null
 			&& (!isFiniteNumber(record.size) || record.size <= 0))
 		{
-			errors.push({path: `${path}.size`, message: `must be a positive number of pixels when present, not ${JSON.stringify(record.size)}`});
+			errors.push({path: `${path}.size`, message: say('must be a positive number of pixels when present, not {value}', {value: JSON.stringify(record.size)})});
 		}
-	});
+	}, say);
 
 	// Degrees clockwise from up. A value outside 0-360 is normalised on load
 	// rather than refused - it is the same bearing written differently, and
 	// refusing to open a design over it would be absurd.
 	if (floorplan.north !== undefined && floorplan.north !== null && !isFiniteNumber(floorplan.north))
 	{
-		errors.push({path: 'floorplan.north', message: `must be a finite number of degrees when present, not ${JSON.stringify(floorplan.north)}`});
+		errors.push({path: 'floorplan.north', message: say('must be a finite number of degrees when present, not {value}', {value: JSON.stringify(floorplan.north)})});
 	}
 
 	// `rooms` holds room metadata keyed by corner-id string. Absent on some files
@@ -382,14 +402,14 @@ function validateFloorplan(floorplan, errors, warnings)
 	// non-object would be assigned and then indexed into.
 	if (floorplan.rooms !== undefined && floorplan.rooms !== null && !isPlainObject(floorplan.rooms))
 	{
-		errors.push({path: 'floorplan.rooms', message: 'must be an object of room metadata when present'});
+		errors.push({path: 'floorplan.rooms', message: say('must be an object of room metadata when present')});
 	}
 
 	if (typeof floorplan.units === 'string' && floorplan.units !== SAVE_UNITS)
 	{
 		warnings.push({
 			path: 'floorplan.units',
-			message: `declares units "${floorplan.units}", which this build does not know. Reading coordinates as ${SAVE_UNITS}.`,
+			message: say('declares units "{value}", which this build does not know. Reading coordinates as {second}.', {value: floorplan.units, second: SAVE_UNITS}),
 		});
 	}
 }
@@ -405,8 +425,9 @@ function validateFloorplan(floorplan, errors, warnings)
  * @param {string} path Dotted path to the collection, for the messages.
  * @param {Array<DocumentProblem>} errors
  * @param {function(Record<string, any>, string): void} checkRecord
+ * @param {function(string|Array<string>, Object=): string} say
  */
-function validateAnnotations(collection, path, errors, checkRecord)
+function validateAnnotations(collection, path, errors, checkRecord, say)
 {
 	if (collection === undefined || collection === null)
 	{
@@ -414,14 +435,14 @@ function validateAnnotations(collection, path, errors, checkRecord)
 	}
 	if (!Array.isArray(collection))
 	{
-		errors.push({path: path, message: 'must be an array when present'});
+		errors.push({path: path, message: say('must be an array when present')});
 		return;
 	}
 	collection.forEach(function (record, index)
 	{
 		if (!isPlainObject(record))
 		{
-			errors.push({path: `${path}[${index}]`, message: 'is not an object'});
+			errors.push({path: `${path}[${index}]`, message: say('is not an object')});
 			return;
 		}
 		checkRecord(record, `${path}[${index}]`);
@@ -432,11 +453,11 @@ function validateAnnotations(collection, path, errors, checkRecord)
  * @param {*} items
  * @param {Array<DocumentProblem>} errors
  */
-function validateItems(items, errors)
+function validateItems(items, errors, say)
 {
 	if (!Array.isArray(items))
 	{
-		errors.push({path: 'items', message: 'missing - a design must carry an "items" array, even an empty one'});
+		errors.push({path: 'items', message: say('missing - a design must carry an "items" array, even an empty one')});
 		return;
 	}
 
@@ -444,7 +465,7 @@ function validateItems(items, errors)
 	{
 		if (!isPlainObject(item))
 		{
-			errors.push({path: `items[${index}]`, message: 'is not an object'});
+			errors.push({path: `items[${index}]`, message: say('is not an object')});
 			return;
 		}
 		// Only the fields whose absence breaks the load. Everything else has a
@@ -457,13 +478,13 @@ function validateItems(items, errors)
 		if (!isPlainObject(item.opening) && !isPlainObject(item.stair) && !isPlainObject(item.structure)
 			&& (typeof item.model_url !== 'string' || item.model_url === ''))
 		{
-			errors.push({path: `items[${index}].model_url`, message: 'missing - an item must name the model to load'});
+			errors.push({path: `items[${index}].model_url`, message: say('missing - an item must name the model to load')});
 		}
 		['xpos', 'ypos', 'zpos'].forEach(function (axis)
 		{
 			if (item[axis] !== undefined && !isFiniteNumber(item[axis]))
 			{
-				errors.push({path: `items[${index}].${axis}`, message: `must be a finite number, not ${JSON.stringify(item[axis])}`});
+				errors.push({path: `items[${index}].${axis}`, message: say('must be a finite number, not {value}', {value: JSON.stringify(item[axis])})});
 			}
 		});
 
@@ -482,13 +503,13 @@ function validateItems(items, errors)
 		{
 			if (!isPlainObject(item.local))
 			{
-				errors.push({path: `items[${index}].local`, message: 'must be an object when present'});
+				errors.push({path: `items[${index}].local`, message: say('must be an object when present')});
 			}
 			else if (typeof item.local.id !== 'string' || item.local.id === '')
 			{
 				errors.push({
 					path: `items[${index}].local.id`,
-					message: 'missing - an imported model must name what the store keys it on',
+					message: say('missing - an imported model must name what the store keys it on'),
 				});
 			}
 		}
@@ -502,7 +523,7 @@ function validateItems(items, errors)
 		{
 			if (!isPlainObject(item.opening))
 			{
-				errors.push({path: `items[${index}].opening`, message: 'must be an object when present'});
+				errors.push({path: `items[${index}].opening`, message: say('must be an object when present')});
 			}
 			else
 			{
@@ -513,7 +534,7 @@ function validateItems(items, errors)
 					{
 						errors.push({
 							path: `items[${index}].opening.${field}`,
-							message: `must be a positive number of centimetres when present, not ${JSON.stringify(value)}`,
+							message: say('must be a positive number of centimetres when present, not {value}', {value: JSON.stringify(value)}),
 						});
 					}
 				});
@@ -529,7 +550,7 @@ function validateItems(items, errors)
 		{
 			if (!isPlainObject(item.stair))
 			{
-				errors.push({path: `items[${index}].stair`, message: 'must be an object when present'});
+				errors.push({path: `items[${index}].stair`, message: say('must be an object when present')});
 			}
 			else
 			{
@@ -540,7 +561,7 @@ function validateItems(items, errors)
 					{
 						errors.push({
 							path: `items[${index}].stair.${field}`,
-							message: `must be a positive number when present, not ${JSON.stringify(value)}`,
+							message: say('must be a positive number when present, not {value}', {value: JSON.stringify(value)}),
 						});
 					}
 				});
@@ -556,7 +577,7 @@ function validateItems(items, errors)
 		{
 			if (!isPlainObject(item.structure))
 			{
-				errors.push({path: `items[${index}].structure`, message: 'must be an object when present'});
+				errors.push({path: `items[${index}].structure`, message: say('must be an object when present')});
 			}
 			else
 			{
@@ -567,7 +588,7 @@ function validateItems(items, errors)
 					{
 						errors.push({
 							path: `items[${index}].structure.${field}`,
-							message: `must be a positive number of centimetres when present, not ${JSON.stringify(value)}`,
+							message: say('must be a positive number of centimetres when present, not {value}', {value: JSON.stringify(value)}),
 						});
 					}
 				});
@@ -576,7 +597,7 @@ function validateItems(items, errors)
 				{
 					errors.push({
 						path: `items[${index}].structure.soffit`,
-						message: `must be zero or a positive number of centimetres when present, not ${JSON.stringify(soffit)}`,
+						message: say('must be zero or a positive number of centimetres when present, not {value}', {value: JSON.stringify(soffit)}),
 					});
 				}
 			}
@@ -603,7 +624,7 @@ function validateItems(items, errors)
  * @param {Array<DocumentProblem>} errors
  * @param {Array<DocumentProblem>} warnings
  */
-function validateLevels(levels, floorplan, errors, warnings)
+function validateLevels(levels, floorplan, errors, warnings, say)
 {
 	if (levels === undefined || levels === null)
 	{
@@ -611,14 +632,14 @@ function validateLevels(levels, floorplan, errors, warnings)
 	}
 	if (!Array.isArray(levels))
 	{
-		errors.push({path: 'levels', message: 'must be an array when present'});
+		errors.push({path: 'levels', message: say('must be an array when present')});
 		return;
 	}
 	levels.forEach(function (level, index)
 	{
 		if (!isPlainObject(level))
 		{
-			errors.push({path: `levels[${index}]`, message: 'is not an object'});
+			errors.push({path: `levels[${index}]`, message: say('is not an object')});
 			return;
 		}
 		if (level.height !== undefined && level.height !== null
@@ -626,7 +647,7 @@ function validateLevels(levels, floorplan, errors, warnings)
 		{
 			errors.push({
 				path: `levels[${index}].height`,
-				message: `must be a positive number of centimetres when present, not ${JSON.stringify(level.height)}`,
+				message: say('must be a positive number of centimetres when present, not {value}', {value: JSON.stringify(level.height)}),
 			});
 		}
 		if (index === 0)
@@ -635,15 +656,15 @@ function validateLevels(levels, floorplan, errors, warnings)
 			{
 				warnings.push({
 					path: 'levels[0]',
-					message: 'carries a plan or items; the ground floor\'s are read from the design\'s own "floorplan" and "items", and these are ignored',
+					message: say('carries a plan or items; the ground floor\'s are read from the design\'s own "floorplan" and "items", and these are ignored'),
 				});
 			}
 			return;
 		}
 		// Above the ground floor: a whole design, checked the same way.
 		var problems = [];
-		validateFloorplan(level.floorplan, problems, warnings);
-		validateItems(level.items, problems);
+		validateFloorplan(level.floorplan, problems, warnings, say);
+		validateItems(level.items, problems, say);
 		problems.forEach(function (problem)
 		{
 			errors.push({path: `levels[${index}].${problem.path}`, message: problem.message});
@@ -653,7 +674,7 @@ function validateLevels(levels, floorplan, errors, warnings)
 	// its position is what "the floor above" means.
 	if (levels.length && !isPlainObject(levels[0]) === false && floorplan === undefined)
 	{
-		errors.push({path: 'floorplan', message: 'missing - the ground floor is the design\'s own "floorplan"'});
+		errors.push({path: 'floorplan', message: say('missing - the ground floor is the design\'s own "floorplan"')});
 	}
 }
 
@@ -663,7 +684,7 @@ function validateLevels(levels, floorplan, errors, warnings)
  * @param {*} sun
  * @param {Array<DocumentProblem>} errors
  */
-function validateSun(sun, errors)
+function validateSun(sun, errors, say)
 {
 	if (sun === undefined || sun === null)
 	{
@@ -671,7 +692,7 @@ function validateSun(sun, errors)
 	}
 	if (!isPlainObject(sun))
 	{
-		errors.push({path: 'sun', message: 'must be an object when present'});
+		errors.push({path: 'sun', message: say('must be an object when present')});
 		return;
 	}
 	// Ranges rather than mere finiteness, because all three of these are refused
@@ -692,7 +713,7 @@ function validateSun(sun, errors)
 		{
 			errors.push({
 				path: `sun.${field}`,
-				message: `must be a number from ${range[0]} to ${range[1]} when present, not ${JSON.stringify(value)}`,
+				message: say('must be a number from {low} to {high} when present, not {value}', {low: range[0], high: range[1], value: JSON.stringify(value)}),
 			});
 		}
 	});
@@ -710,7 +731,7 @@ function validateSun(sun, errors)
  * @param {*} roof
  * @param {Array<DocumentProblem>} errors
  */
-function validateRoof(roof, errors)
+function validateRoof(roof, errors, say)
 {
 	if (roof === undefined || roof === null)
 	{
@@ -718,7 +739,7 @@ function validateRoof(roof, errors)
 	}
 	if (!isPlainObject(roof))
 	{
-		errors.push({path: 'roof', message: 'must be an object when present'});
+		errors.push({path: 'roof', message: say('must be an object when present')});
 		return;
 	}
 	['pitch', 'overhang', 'thickness'].forEach(function (field)
@@ -728,7 +749,7 @@ function validateRoof(roof, errors)
 		{
 			errors.push({
 				path: `roof.${field}`,
-				message: `must be zero or a positive number when present, not ${JSON.stringify(value)}`,
+				message: say('must be zero or a positive number when present, not {value}', {value: JSON.stringify(value)}),
 			});
 		}
 	});

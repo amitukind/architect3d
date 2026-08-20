@@ -8,6 +8,7 @@ import {
 	HANDRAIL_NONE, HANDRAIL_LEFT, HANDRAIL_RIGHT, HANDRAIL_BOTH,
 } from '../../scripts/blueprint.js';
 import {useDisplayUnit} from '../composables/useDisplayUnit.js';
+import {t} from '../i18n/i18n.js';
 
 /**
  * A flight of stairs, as the numbers it is (RM-008 F3).
@@ -98,10 +99,10 @@ watch(unit, readBack);
 
 <template>
 	<section class="inspector-section">
-		<h3 class="inspector-heading">Stairs</h3>
+		<h3 class="inspector-heading">{{ t('Stairs') }}</h3>
 
 		<div class="field">
-			<span class="field-label">Shape</span>
+			<span class="field-label">{{ t('Shape') }}</span>
 			<div class="segmented">
 				<button
 					v-for="entry in SHAPES" :key="entry.value"
@@ -113,17 +114,17 @@ watch(unit, readBack);
 		</div>
 
 		<div v-if="turns" class="field">
-			<span class="field-label">Turn</span>
+			<span class="field-label">{{ t('Turn') }}</span>
 			<div class="segmented">
 				<button
 					type="button" class="segment" :class="{'is-active': turn === TURN_LEFT}"
 					:aria-pressed="turn === TURN_LEFT" @click="apply({turn: TURN_LEFT})">
-					Left
+					{{ t('Left') }}
 				</button>
 				<button
 					type="button" class="segment" :class="{'is-active': turn === TURN_RIGHT}"
 					:aria-pressed="turn === TURN_RIGHT" @click="apply({turn: TURN_RIGHT})">
-					Right
+					{{ t('Right') }}
 				</button>
 			</div>
 		</div>
@@ -142,7 +143,7 @@ watch(unit, readBack);
 			:model-value="width" @update:model-value="apply({width: Dimensioning.cmFromMeasureRaw($event)})" />
 
 		<div class="field">
-			<span class="field-label">Handrail</span>
+			<span class="field-label">{{ t('Handrail') }}</span>
 			<div class="segmented">
 				<button
 					v-for="entry in RAILS" :key="entry.value"
@@ -154,7 +155,7 @@ watch(unit, readBack);
 		</div>
 
 		<p class="inspector-readout">
-			Climbs <strong class="num">{{ measure(height) }}</strong> over
+			{{ t('Climbs') }} <strong class="num">{{ measure(height) }}</strong> {{ t('over') }}
 			<strong class="num">{{ measure(run) }}</strong><br>
 			<span class="opacity-70">{{ treads }} &times; rise, {{ treads }} &times; going</span>
 		</p>

@@ -4,6 +4,7 @@ import {computed} from 'vue';
 import {DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose} from 'reka-ui';
 import {AlertTriangle, ExternalLink, X} from '@lucide/vue';
 import {PACKS} from '../composables/useCatalog.js';
+import {t} from '../i18n/i18n.js';
 
 /**
  * Who made the furniture, and under what licence (RM-012 J2).
@@ -91,14 +92,14 @@ const total = computed(() => PACKS.reduce((sum, pack) => sum + pack.rows, 0));
 				class="a3d-pop fixed left-1/2 top-1/2 z-[560] flex max-h-[80vh] w-[620px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-panel border border-line bg-surface shadow-float focus:outline-none">
 				<div class="flex flex-none items-start gap-2 border-b border-line px-4 py-3">
 					<div>
-						<DialogTitle class="text-[14px] font-semibold">Furniture credits</DialogTitle>
+						<DialogTitle class="text-[14px] font-semibold">{{ t('Furniture credits') }}</DialogTitle>
 						<DialogDescription class="text-ink-faint">
 							{{ total }} models from {{ packs.length }} kits. Every one is free to use;
 							the terms are below.
 						</DialogDescription>
 					</div>
 					<DialogClose as-child>
-						<button type="button" class="btn btn-icon ml-auto" aria-label="Close">
+						<button type="button" class="btn btn-icon ml-auto" :aria-label="t('Close')">
 							<X :size="15" />
 						</button>
 					</DialogClose>
@@ -115,7 +116,7 @@ const total = computed(() => PACKS.reduce((sum, pack) => sum + pack.rows, 0));
 							<a
 								v-if="pack.url" :href="pack.url" target="_blank" rel="noopener noreferrer"
 								class="ml-auto inline-flex items-center gap-1 text-[11px] text-accent hover:underline">
-								Source <ExternalLink :size="11" />
+								{{ t('Source') }} <ExternalLink :size="11" />
 							</a>
 						</div>
 
@@ -138,8 +139,7 @@ const total = computed(() => PACKS.reduce((sum, pack) => sum + pack.rows, 0));
 				</div>
 
 				<div class="flex-none border-t border-line px-4 py-2.5 text-[11px] text-ink-faint">
-					Provenance is recorded per kit in <code>src/catalog/sources.json</code>, with the
-					evidence for each identification — nothing here is taken on trust.
+					{{ t('Provenance is recorded per kit in') }} <code>{{ t('src/catalog/sources.json') }}</code>{{ t(', with the evidence for each identification — nothing here is taken on trust.') }}
 				</div>
 			</DialogContent>
 		</DialogPortal>

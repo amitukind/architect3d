@@ -5,6 +5,7 @@ import TextField from './fields/TextField.vue';
 import NumberField from './fields/NumberField.vue';
 import {Dimensioning, EVENT_ROOM_ATTRIBUTES_CHANGED, EVENT_CORNER_ATTRIBUTES_CHANGED} from '../../scripts/blueprint.js';
 import {useDisplayUnit} from '../composables/useDisplayUnit.js';
+import {t} from '../i18n/i18n.js';
 
 /**
  * A room: what it is called, what it is for, how big and how high.
@@ -167,14 +168,14 @@ onBeforeUnmount(detach);
 
 <template>
 	<section class="inspector-section">
-		<h3 class="inspector-heading">Room</h3>
+		<h3 class="inspector-heading">{{ t('Room') }}</h3>
 		<TextField label="Name" :model-value="name" @update:model-value="rename" />
 
 		<label class="field">
-			<span class="field-label">Type</span>
+			<span class="field-label">{{ t('Type') }}</span>
 			<input
 				class="field-input" type="text" list="room-types"
-				placeholder="Bedroom, Kitchen&hellip;"
+				:placeholder="t('Bedroom, Kitchen&hellip;')"
 				:value="type" @input="onTypeInput">
 		</label>
 		<datalist id="room-types">
@@ -186,7 +187,7 @@ onBeforeUnmount(detach);
 			:model-value="ceiling" @update:model-value="setCeiling" />
 
 		<p class="inspector-readout">
-			Floor area <strong>{{ area }}&sup2;</strong><br>
+			{{ t('Floor area') }} <strong>{{ area }}&sup2;</strong><br>
 			<span class="opacity-70">To wall centres {{ centrelineArea }}&sup2;</span>
 		</p>
 

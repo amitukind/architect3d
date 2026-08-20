@@ -6,6 +6,7 @@ import {
 	Dimensioning, STRUCTURE_COLUMN, STRUCTURE_BEAM, SECTION_RECTANGULAR, SECTION_ROUND,
 } from '../../scripts/blueprint.js';
 import {useDisplayUnit} from '../composables/useDisplayUnit.js';
+import {t} from '../i18n/i18n.js';
 
 /**
  * A column or a beam, as the numbers it is (RM-008 F2).
@@ -87,33 +88,33 @@ watch(unit, readBack);
 		<h3 class="inspector-heading">{{ heading }}</h3>
 
 		<div class="field">
-			<span class="field-label">Member</span>
+			<span class="field-label">{{ t('Member') }}</span>
 			<div class="segmented">
 				<button
 					type="button" class="segment" :class="{'is-active': isColumn}"
 					:aria-pressed="isColumn" @click="apply({kind: STRUCTURE_COLUMN})">
-					Column
+					{{ t('Column') }}
 				</button>
 				<button
 					type="button" class="segment" :class="{'is-active': !isColumn}"
 					:aria-pressed="!isColumn" @click="apply({kind: STRUCTURE_BEAM})">
-					Beam
+					{{ t('Beam') }}
 				</button>
 			</div>
 		</div>
 
 		<div v-if="isColumn" class="field">
-			<span class="field-label">Section</span>
+			<span class="field-label">{{ t('Section') }}</span>
 			<div class="segmented">
 				<button
 					type="button" class="segment" :class="{'is-active': !isRound}"
 					:aria-pressed="!isRound" @click="apply({section: SECTION_RECTANGULAR})">
-					Rectangular
+					{{ t('Rectangular') }}
 				</button>
 				<button
 					type="button" class="segment" :class="{'is-active': isRound}"
 					:aria-pressed="isRound" @click="apply({section: SECTION_ROUND})">
-					Round
+					{{ t('Round') }}
 				</button>
 			</div>
 		</div>
@@ -133,7 +134,7 @@ watch(unit, readBack);
 			:model-value="soffit" @update:model-value="apply({soffit: Dimensioning.cmFromMeasureRaw($event)})" />
 
 		<p class="inspector-readout">
-			Top at <strong class="num">{{ measure(top) }}</strong> above the floor
+			{{ t('Top at') }} <strong class="num">{{ measure(top) }}</strong> {{ t('above the floor') }}
 		</p>
 
 		<p class="inspector-note">

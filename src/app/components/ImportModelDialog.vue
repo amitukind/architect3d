@@ -4,6 +4,7 @@ import {computed, ref, watch} from 'vue';
 import {DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose} from 'reka-ui';
 import {X, Upload, Trash2, Plus, RotateCw} from '@lucide/vue';
 import {Dimensioning} from '../../scripts/blueprint.js';
+import {t} from '../i18n/i18n.js';
 
 /**
  * Bring your own model (RM-012 J3).
@@ -140,14 +141,13 @@ function onFile(event)
 				class="a3d-pop fixed left-1/2 top-1/2 z-[560] flex max-h-[calc(100vh-4rem)] w-[560px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-panel border border-line bg-surface shadow-float focus:outline-none">
 				<div class="flex flex-none items-start gap-2 border-b border-line px-4 py-3">
 					<div class="min-w-0">
-						<DialogTitle class="text-[14px] font-semibold">Your own models</DialogTitle>
+						<DialogTitle class="text-[14px] font-semibold">{{ t('Your own models') }}</DialogTitle>
 						<DialogDescription class="text-ink-faint">
-							A .glb, .gltf or .obj from this computer becomes an item you can place. It is stored in
-							this browser and travels in a .zip bundle, not in a link.
+							{{ t('A .glb, .gltf or .obj from this computer becomes an item you can place. It is stored in this browser and travels in a .zip bundle, not in a link.') }}
 						</DialogDescription>
 					</div>
 					<DialogClose as-child>
-						<button type="button" class="btn btn-icon ml-auto" aria-label="Close">
+						<button type="button" class="btn btn-icon ml-auto" :aria-label="t('Close')">
 							<X :size="15" />
 						</button>
 					</DialogClose>
@@ -155,8 +155,7 @@ function onFile(event)
 
 				<div class="flex min-h-0 flex-col gap-3 overflow-y-auto p-4">
 					<p v-if="!props.available" class="rounded-panel border border-line bg-overlay p-3 text-[12px] text-ink-soft">
-						This browser cannot store imported models. Private browsing and some embedded browsers
-						withhold the storage this needs; everything else in the application still works.
+						{{ t('This browser cannot store imported models. Private browsing and some embedded browsers withhold the storage this needs; everything else in the application still works.') }}
 					</p>
 
 					<!-- The decision. -->
@@ -180,57 +179,57 @@ function onFile(event)
 						</div>
 
 						<label class="flex flex-col gap-1">
-							<span class="eyebrow">One unit in the file is</span>
+							<span class="eyebrow">{{ t('One unit in the file is') }}</span>
 							<select
-								v-model="unit" :disabled="Number(longest) > 0" aria-label="Authored unit"
+								v-model="unit" :disabled="Number(longest) > 0" :aria-label="t('Authored unit')"
 								class="rounded-md border border-line bg-overlay px-2 py-1.5 text-[12px] disabled:opacity-50">
 								<option v-for="entry in props.units" :key="entry.id" :value="entry.id">{{ entry.label }}</option>
 							</select>
 						</label>
 
 						<label class="flex flex-col gap-1">
-							<span class="eyebrow">Or set the longest side, in centimetres</span>
+							<span class="eyebrow">{{ t('Or set the longest side, in centimetres') }}</span>
 							<input
-								v-model="longest" type="number" min="0" step="1" placeholder="leave empty to use the unit above"
-								aria-label="Longest side in centimetres"
+								v-model="longest" type="number" min="0" step="1" :placeholder="t('leave empty to use the unit above')"
+								:aria-label="t('Longest side in centimetres')"
 								class="rounded-md border border-line bg-overlay px-2 py-1.5 text-[12px]">
 						</label>
 
 						<fieldset class="flex flex-col gap-1">
-							<legend class="eyebrow">Which way is up in the file</legend>
+							<legend class="eyebrow">{{ t('Which way is up in the file') }}</legend>
 							<div class="flex gap-1.5">
 								<button
 									type="button" class="btn flex-1" :class="{'is-active': up === 'y'}"
 									:aria-pressed="up === 'y'" @click="up = 'y'">
-									Y is up
+									{{ t('Y is up') }}
 								</button>
 								<button
 									type="button" class="btn flex-1 gap-1.5" :class="{'is-active': up === 'z'}"
 									:aria-pressed="up === 'z'" @click="up = 'z'">
 									<RotateCw :size="14" />
-									Z is up
+									{{ t('Z is up') }}
 								</button>
 							</div>
 							<p class="text-[11px] text-ink-faint">
-								Blender, 3ds Max and most CAD write Z-up. If the model lies on its face, this is why.
+								{{ t('Blender, 3ds Max and most CAD write Z-up. If the model lies on its face, this is why.') }}
 							</p>
 						</fieldset>
 
 						<p class="rounded-panel border border-line bg-overlay p-3 text-[12px]">
-							<span class="eyebrow block">It will be placed at</span>
+							<span class="eyebrow block">{{ t('It will be placed at') }}</span>
 							<strong data-testid="import-size" class="text-ink">{{ placed }}</strong>
-							<span class="text-ink-faint"> (width × height × depth)</span>
+							<span class="text-ink-faint"> {{ t('(width × height × depth)') }}</span>
 						</p>
 
 						<p v-if="props.refusal" class="text-[12px] text-danger">{{ props.refusal }}</p>
 
 						<div class="flex gap-1.5">
-							<button type="button" class="btn" :disabled="props.busy" @click="emit('cancel')">Cancel</button>
+							<button type="button" class="btn" :disabled="props.busy" @click="emit('cancel')">{{ t('Cancel') }}</button>
 							<button
 								type="button" class="btn btn-primary gap-1.5" :disabled="props.busy"
 								@click="emit('place', decision)">
 								<Plus :size="14" />
-								Place it
+								{{ t('Place it') }}
 							</button>
 						</div>
 					</template>
@@ -240,17 +239,16 @@ function onFile(event)
 						<label class="btn-file flex cursor-pointer items-center gap-2 rounded-panel border border-dashed border-line bg-overlay px-3 py-4 text-[12px] text-ink-soft hover:border-accent">
 							<Upload :size="16" />
 							<span>
-								<strong class="text-ink">Choose a model</strong>
+								<strong class="text-ink">{{ t('Choose a model') }}</strong>
 								&mdash; .glb, .gltf or .obj, up to {{ Math.round(props.limit / 1048576) }} MB
 							</span>
-							<input type="file" :accept="props.accept" aria-label="Choose a model" @change="onFile">
+							<input type="file" :accept="props.accept" :aria-label="t('Choose a model')" @change="onFile">
 						</label>
 
 						<p v-if="props.refusal" class="text-[12px] text-danger">{{ props.refusal }}</p>
 
 						<p v-if="!props.stored.length" class="text-[12px] text-ink-faint">
-							Nothing imported yet. A model you import here stays in this browser and can be placed as
-							often as you like.
+							{{ t('Nothing imported yet. A model you import here stays in this browser and can be placed as often as you like.') }}
 						</p>
 
 						<ul v-else class="flex flex-col gap-1" data-testid="imported-list">

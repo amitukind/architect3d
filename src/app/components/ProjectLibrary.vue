@@ -3,6 +3,7 @@
 import {computed, nextTick, ref, watch} from 'vue';
 import {DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose} from 'reka-ui';
 import {X, Copy, Trash2, Pencil, FilePlus2, LayoutGrid, Check} from '@lucide/vue';
+import {t} from '../i18n/i18n.js';
 
 /**
  * The project library (RM-013 K1, gap Q-6).
@@ -171,14 +172,14 @@ function size(bytes)
 				class="a3d-pop fixed left-1/2 top-1/2 z-[560] flex max-h-[84vh] w-[860px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-panel border border-line bg-surface shadow-float focus:outline-none">
 				<div class="flex flex-none items-start gap-2 border-b border-line px-4 py-3">
 					<div class="min-w-0">
-						<DialogTitle class="text-[14px] font-semibold">Designs</DialogTitle>
+						<DialogTitle class="text-[14px] font-semibold">{{ t('Designs') }}</DialogTitle>
 						<DialogDescription class="text-ink-faint">
 							<template v-if="props.current">
-								Working on <strong class="font-medium text-ink">{{ props.current.name }}</strong>
+								{{ t('Working on') }} <strong class="font-medium text-ink">{{ props.current.name }}</strong>
 								<span v-if="props.dirty"> &middot; unsaved changes</span>
 							</template>
 							<template v-else>
-								This design has not been kept yet.
+								{{ t('This design has not been kept yet.') }}
 							</template>
 						</DialogDescription>
 					</div>
@@ -190,7 +191,7 @@ function size(bytes)
 						{{ props.current ? 'Save' : 'Keep this design' }}
 					</button>
 					<DialogClose as-child>
-						<button type="button" class="btn btn-icon" aria-label="Close">
+						<button type="button" class="btn btn-icon" :aria-label="t('Close')">
 							<X :size="15" />
 						</button>
 					</DialogClose>
@@ -217,8 +218,7 @@ function size(bytes)
 
 					<template v-else-if="tab === 'designs'">
 						<p v-if="empty" class="rounded-panel border border-dashed border-line p-6 text-center text-[12px] text-ink-soft">
-							Nothing kept yet. Draw something and press <strong class="text-ink">Keep this design</strong>,
-							or start from a plan.
+							{{ t('Nothing kept yet. Draw something and press') }} <strong class="text-ink">{{ t('Keep this design') }}</strong>{{ t(', or start from a plan.') }}
 						</p>
 						<ul v-else class="grid grid-cols-2 gap-3 sm:grid-cols-3">
 							<li
@@ -242,7 +242,7 @@ function size(bytes)
 									<input
 										v-if="renaming === card.id" :ref="captureField" v-model="draft"
 										class="w-full rounded-md border border-line bg-surface px-1.5 py-0.5 text-[12px]"
-										:maxlength="120" aria-label="Design name"
+										:maxlength="120" :aria-label="t('Design name')"
 										@keydown.enter.prevent="commitRename"
 										@keydown.esc.prevent="renaming = null"
 										@blur="commitRename">
@@ -253,27 +253,27 @@ function size(bytes)
 								</div>
 
 								<div v-if="confirming === card.id" class="flex items-center gap-1 border-t border-line px-2 py-1.5">
-									<span class="mr-auto text-[11px] text-ink-soft">Delete this?</span>
-									<button type="button" class="btn px-2 text-[11px]" @click="confirming = null">Cancel</button>
+									<span class="mr-auto text-[11px] text-ink-soft">{{ t('Delete this?') }}</span>
+									<button type="button" class="btn px-2 text-[11px]" @click="confirming = null">{{ t('Cancel') }}</button>
 									<button
 										type="button" class="btn px-2 text-[11px] text-danger"
 										@click="confirming = null; emit('delete-project', card.id)">
-										Delete
+										{{ t('Delete') }}
 									</button>
 								</div>
 								<div v-else class="flex items-center gap-0.5 border-t border-line px-1.5 py-1">
 									<button
-										type="button" class="btn btn-icon" title="Rename" aria-label="Rename"
+										type="button" class="btn btn-icon" :title="t('Rename')" :aria-label="t('Rename')"
 										@click="beginRename(card)">
 										<Pencil :size="14" />
 									</button>
 									<button
-										type="button" class="btn btn-icon" title="Duplicate" aria-label="Duplicate"
+										type="button" class="btn btn-icon" :title="t('Duplicate')" :aria-label="t('Duplicate')"
 										@click="emit('duplicate-project', card.id)">
 										<Copy :size="14" />
 									</button>
 									<button
-										type="button" class="btn btn-icon ml-auto" title="Delete" aria-label="Delete"
+										type="button" class="btn btn-icon ml-auto" :title="t('Delete')" :aria-label="t('Delete')"
 										@click="askDelete(card)">
 										<Trash2 :size="14" />
 									</button>
@@ -310,8 +310,7 @@ function size(bytes)
 				</div>
 
 				<div class="flex-none border-t border-line px-4 py-2.5 text-[11px] text-ink-faint">
-					Designs are kept in this browser, on this machine. Nothing is uploaded anywhere.
-					Use <strong class="font-medium">Save layout</strong> for a file you can move.
+					{{ t('Designs are kept in this browser, on this machine. Nothing is uploaded anywhere. Use') }} <strong class="font-medium">{{ t('Save layout') }}</strong> {{ t('for a file you can move.') }}
 				</div>
 			</DialogContent>
 		</DialogPortal>

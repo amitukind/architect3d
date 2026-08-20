@@ -3,6 +3,7 @@
 import {computed, ref, watch, onBeforeUnmount, onMounted, nextTick} from 'vue';
 import {PopoverRoot, PopoverAnchor, PopoverPortal, PopoverContent} from 'reka-ui';
 import {X} from '@lucide/vue';
+import {t} from '../i18n/i18n.js';
 
 /**
  * The first-run tour, drawn (RM-014 L2, finding Z-7).
@@ -120,7 +121,7 @@ function onOpenChange(value)
 				<div class="flex items-start gap-2">
 					<p class="eyebrow flex-1">Step {{ props.index + 1 }} of {{ props.total }}</p>
 					<button
-						type="button" class="btn btn-icon -mr-1 -mt-1 h-6 w-6" aria-label="Skip the tour"
+						type="button" class="btn btn-icon -mr-1 -mt-1 h-6 w-6" :aria-label="t('Skip the tour')"
 						@click="emit('skip')">
 						<X :size="13" />
 					</button>
@@ -136,7 +137,7 @@ function onOpenChange(value)
 							:class="n === props.index + 1 ? 'bg-accent' : 'bg-line'" />
 					</div>
 					<button v-if="!props.first" type="button" class="btn h-7 px-2 text-[12px]" @click="emit('back')">
-						Back
+						{{ t('Back') }}
 					</button>
 					<button type="button" class="btn btn-primary h-7 px-2.5 text-[12px]" @click="emit('next')">
 						{{ props.last ? 'Start drawing' : 'Next' }}

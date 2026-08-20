@@ -10,6 +10,7 @@ import {
 import AppTip from './AppTip.vue';
 import {LAYOUTS} from '../composables/useLayout.js';
 import {THEME_DARK} from '../composables/useTheme.js';
+import {t} from '../i18n/i18n.js';
 
 /**
  * The application bar: identity, file, history, layout, and the global toggles.
@@ -150,42 +151,42 @@ function onUnitChange(event)
 				v-if="props.projectName" class="hidden min-w-0 max-w-[220px] items-center gap-1.5 border-l border-line pl-2 lg:flex"
 				:title="props.projectDirty ? `${props.projectName} — unsaved changes` : props.projectName">
 				<span class="truncate text-[12px] text-ink-soft">{{ props.projectName }}</span>
-				<span v-if="props.projectDirty" class="h-1.5 w-1.5 flex-none rounded-full bg-accent" aria-label="Unsaved changes" />
+				<span v-if="props.projectDirty" class="h-1.5 w-1.5 flex-none rounded-full bg-accent" :aria-label="t('Unsaved changes')" />
 			</span>
 		</div>
 
 		<!-- document -->
 		<div class="flex items-center gap-0.5">
 			<AppTip label="New layout" keys="mod+n">
-				<button type="button" class="btn btn-icon" title="New layout" @click="emit('new-design')">
+				<button type="button" class="btn btn-icon" :title="t('New layout')" @click="emit('new-design')">
 					<FilePlus2 :size="15" />
 				</button>
 			</AppTip>
 			<AppTip label="Open layout" keys="mod+o">
-				<label class="btn btn-icon btn-file" title="Open layout">
+				<label class="btn btn-icon btn-file" :title="t('Open layout')">
 					<FolderOpen :size="15" />
-					<input type="file" accept=".blueprint3d,.zip,application/json,application/zip" aria-label="Open layout" @change="onFile">
+					<input type="file" accept=".blueprint3d,.zip,application/json,application/zip" :aria-label="t('Open layout')" @change="onFile">
 				</label>
 			</AppTip>
 			<AppTip label="Save layout" keys="mod+s">
-				<button type="button" class="btn btn-icon" title="Save layout" @click="emit('save-design')">
+				<button type="button" class="btn btn-icon" :title="t('Save layout')" @click="emit('save-design')">
 					<Save :size="15" />
 				</button>
 			</AppTip>
 			<AppTip label="Designs" keys="mod+shift+o">
-				<button type="button" class="btn btn-icon" title="Designs" @click="emit('show-library')">
+				<button type="button" class="btn btn-icon" :title="t('Designs')" @click="emit('show-library')">
 					<LibraryBig :size="15" />
 				</button>
 			</AppTip>
 			<AppTip label="Share a link" keys="mod+shift+c">
-				<button type="button" class="btn btn-icon" title="Share a link" @click="emit('show-share')">
+				<button type="button" class="btn btn-icon" :title="t('Share a link')" @click="emit('show-share')">
 					<Link2 :size="15" />
 				</button>
 			</AppTip>
 
 			<PopoverRoot>
 				<PopoverTrigger as-child>
-					<button type="button" class="btn gap-1 px-1.5" title="Export">
+					<button type="button" class="btn gap-1 px-1.5" :title="t('Export')">
 						<Share2 :size="15" />
 						<ChevronDown :size="12" class="opacity-60" />
 					</button>
@@ -194,9 +195,9 @@ function onUnitChange(event)
 					<PopoverContent
 						side="bottom" align="start" :side-offset="6"
 						class="a3d-pop z-[600] w-56 rounded-panel border border-line bg-overlay p-1 shadow-float">
-						<p class="eyebrow px-2 py-1.5">Export the model</p>
+						<p class="eyebrow px-2 py-1.5">{{ t('Export the model') }}</p>
 						<button type="button" class="btn w-full justify-start" @click="emit('save-mesh')">
-							<Box :size="15" /> Wavefront OBJ
+							<Box :size="15" /> {{ t('Wavefront OBJ') }}
 						</button>
 						<button
 							type="button" class="btn w-full justify-start" :disabled="props.exporting"
@@ -206,10 +207,10 @@ function onUnitChange(event)
 						</button>
 
 						<button type="button" class="btn w-full justify-start" @click="emit('save-bundle')">
-							<Package :size="15" /> Bundle (.zip)
+							<Package :size="15" /> {{ t('Bundle (.zip)') }}
 						</button>
 
-						<p class="eyebrow px-2 py-1.5">Export the view</p>
+						<p class="eyebrow px-2 py-1.5">{{ t('Export the view') }}</p>
 						<button type="button" class="btn w-full justify-start" @click="emit('save-photo', 2)">
 							<Camera :size="15" /> Photo, 2&times; resolution
 						</button>
@@ -217,7 +218,7 @@ function onUnitChange(event)
 							<Globe :size="15" /> 360&deg; panorama, from the walk
 						</button>
 
-						<p class="eyebrow px-2 py-1.5">Export the plan</p>
+						<p class="eyebrow px-2 py-1.5">{{ t('Export the plan') }}</p>
 						<button
 							v-for="ratio in PLAN_SCALES" :key="ratio"
 							type="button" class="btn w-full justify-start"
@@ -241,14 +242,14 @@ function onUnitChange(event)
 		<div class="flex items-center gap-0.5">
 			<AppTip label="Undo" keys="mod+z">
 				<button
-					type="button" class="btn btn-icon" title="Undo"
+					type="button" class="btn btn-icon" :title="t('Undo')"
 					:disabled="!props.canUndo" @click="emit('undo')">
 					<Undo2 :size="15" />
 				</button>
 			</AppTip>
 			<AppTip label="Redo" keys="mod+shift+z">
 				<button
-					type="button" class="btn btn-icon" title="Redo"
+					type="button" class="btn btn-icon" :title="t('Redo')"
 					:disabled="!props.canRedo" @click="emit('redo')">
 					<Redo2 :size="15" />
 				</button>
@@ -257,7 +258,7 @@ function onUnitChange(event)
 
 		<!-- workspace: centred independently of the group widths on either side -->
 		<div class="pointer-events-none absolute left-1/2 flex -translate-x-1/2 items-center">
-			<div class="segmented pointer-events-auto" role="group" aria-label="Workspace layout">
+			<div class="segmented pointer-events-auto" role="group" :aria-label="t('Workspace layout')">
 				<button
 					v-for="entry in LAYOUTS" :key="entry.id" type="button"
 					class="segment" :class="{'is-active': props.layout === entry.id}"
@@ -275,19 +276,19 @@ function onUnitChange(event)
 			</span>
 
 			<select
-				class="field-input num h-7 w-[104px] text-left" aria-label="Display unit"
+				class="field-input num h-7 w-[104px] text-left" :aria-label="t('Display unit')"
 				:value="props.unit" @change="onUnitChange">
 				<option v-for="entry in props.units" :key="entry.value" :value="entry.value">{{ entry.label }}</option>
 			</select>
 
 			<AppTip :label="props.theme === THEME_DARK ? 'Light theme' : 'Dark theme'">
-				<button type="button" class="btn btn-icon" title="Toggle theme" @click="emit('toggle-theme')">
+				<button type="button" class="btn btn-icon" :title="t('Toggle theme')" @click="emit('toggle-theme')">
 					<Sun v-if="props.theme === THEME_DARK" :size="15" />
 					<Moon v-else :size="15" />
 				</button>
 			</AppTip>
 			<AppTip label="Keyboard shortcuts" keys="shift+?">
-				<button type="button" class="btn btn-icon" title="Keyboard shortcuts" @click="emit('show-shortcuts')">
+				<button type="button" class="btn btn-icon" :title="t('Keyboard shortcuts')" @click="emit('show-shortcuts')">
 					<Keyboard :size="15" />
 				</button>
 			</AppTip>
@@ -297,7 +298,7 @@ function onUnitChange(event)
 			     not only something that happens on a first boot (RM-014 L2). -->
 			<PopoverRoot>
 				<PopoverTrigger as-child>
-					<button id="help-button" type="button" class="btn btn-icon" title="Help">
+					<button id="help-button" type="button" class="btn btn-icon" :title="t('Help')">
 						<CircleQuestionMark :size="15" />
 					</button>
 				</PopoverTrigger>
@@ -305,15 +306,15 @@ function onUnitChange(event)
 					<PopoverContent
 						side="bottom" align="end" :side-offset="6"
 						class="a3d-pop z-[600] w-56 rounded-panel border border-line bg-overlay p-1 shadow-float">
-						<p class="eyebrow px-2 py-1.5">Help</p>
+						<p class="eyebrow px-2 py-1.5">{{ t('Help') }}</p>
 						<button type="button" class="btn w-full justify-start" @click="emit('start-tour')">
-							<Compass :size="15" /> Take the tour
+							<Compass :size="15" /> {{ t('Take the tour') }}
 						</button>
 						<a class="btn w-full justify-start" :href="props.helpUrl" target="_blank" rel="noopener noreferrer">
-							<BookOpen :size="15" /> How to use this
+							<BookOpen :size="15" /> {{ t('How to use this') }}
 						</a>
 						<button type="button" class="btn w-full justify-start" @click="emit('show-shortcuts')">
-							<Keyboard :size="15" /> Keyboard shortcuts
+							<Keyboard :size="15" /> {{ t('Keyboard shortcuts') }}
 						</button>
 					</PopoverContent>
 				</PopoverPortal>
@@ -321,7 +322,7 @@ function onUnitChange(event)
 			<AppTip :label="props.inspectorOpen ? 'Hide inspector' : 'Show inspector'" keys="mod+.">
 				<button
 					type="button" class="btn btn-icon" :class="{'is-active': props.inspectorOpen}"
-					title="Toggle inspector" @click="emit('toggle-inspector')">
+					:title="t('Toggle inspector')" @click="emit('toggle-inspector')">
 					<PanelRight :size="15" />
 				</button>
 			</AppTip>

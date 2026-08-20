@@ -3,6 +3,7 @@
 import {Layers, Plus, Trash2, Eye, EyeOff} from '@lucide/vue';
 import AppTip from './AppTip.vue';
 import {Dimensioning} from '../../scripts/blueprint.js';
+import {t} from '../i18n/i18n.js';
 
 /**
  * Which storey is being drawn (RM-010 G1).
@@ -45,7 +46,7 @@ function measure(cm)
 <template>
 	<div class="pointer-events-auto flex flex-col gap-1 rounded-panel border border-line bg-overlay/90 p-1 shadow-float backdrop-blur">
 		<p class="eyebrow flex items-center gap-1.5 px-1.5 pt-0.5">
-			<Layers :size="12" /> Storeys
+			<Layers :size="12" /> {{ t('Storeys') }}
 		</p>
 
 		<button
@@ -62,13 +63,13 @@ function measure(cm)
 
 		<div class="flex items-center gap-0.5 border-t border-line pt-1">
 			<AppTip label="Add a storey above this one">
-				<button type="button" class="btn btn-icon" title="Add a storey" @click="emit('add')">
+				<button type="button" class="btn btn-icon" :title="t('Add a storey')" @click="emit('add')">
 					<Plus :size="15" />
 				</button>
 			</AppTip>
 			<AppTip label="Remove this storey and everything on it">
 				<button
-					type="button" class="btn btn-icon" title="Remove this storey"
+					type="button" class="btn btn-icon" :title="t('Remove this storey')"
 					:disabled="props.levels.length < 2"
 					@click="emit('remove')">
 					<Trash2 :size="15" />

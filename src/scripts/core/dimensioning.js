@@ -49,6 +49,12 @@ export class Dimensioning
 	constructor(configuration)
 	{
 		this.configuration = configuration || defaultConfiguration;
+		/**
+		 * What separates a whole number from its fraction (RM-014 L3, Z-4).
+		 * A full stop, which is what this class did before L3.
+		 * @type {string}
+		 */
+		this._decimal = '.';
 	}
 
 	/** The unit this instance is currently measuring in. */
@@ -145,6 +151,44 @@ export class Dimensioning
 		}
 	}
 
+	/**
+	 * How this document writes a fraction (RM-014 L3, finding Z-4).
+	 *
+	 * A full stop unless somebody says otherwise, which is what every build did
+	 * before L3 and what an embedder who configures nothing keeps. Z-4 is the
+	 * measurement behind it: this method concatenates its suffixes and lets
+	 * JavaScript write the point, so **1.5 m reads `1.5m` in every locale** and a
+	 * German reader expects `1,5 m`.
+	 *
+	 * It is a separator rather than a locale tag on purpose. `toLocaleString`
+	 * would also group thousands and round differently, and a plan's dimensions
+	 * are a fixed-precision engineering number, not prose - what changes between
+	 * languages here is one character.
+	 *
+	 * @type {string}
+	 */
+	get decimalSeparator()
+	{
+		return this._decimal || '.';
+	}
+
+	set decimalSeparator(value)
+	{
+		this._decimal = (typeof value === 'string' && value) ? value : '.';
+	}
+
+	/**
+	 * Write a number the way this document writes numbers.
+	 *
+	 * @param {number} value
+	 * @returns {string}
+	 */
+	number(value)
+	{
+		var text = String(value);
+		return this.decimalSeparator === '.' ? text : text.replace('.', this.decimalSeparator);
+	}
+
 	/** Converts cm to dimensioning string.
 	 * @param cm Centi meter value to be converted.
 	 * @returns String representation.
@@ -161,16 +205,16 @@ export class Dimensioning
 			return floorFeet + '\'' + remainingInches + '"';
 		case dimInch:
 			var inches = Math.round(decimals * (cm * Math.pow(0.393700, power))) / decimals;
-			return inches + '\'';
+			return this.number(inches) + '\'';
 		case dimMilliMeter:
 			var mm = Math.round(decimals * (cm * Math.pow(10, power))) / decimals;
-			return '' + mm + 'mm';
+			return this.number(mm) + 'mm';
 		case dimCentiMeter:
-			return '' + Math.round(decimals * cm) / decimals + 'cm';
+			return this.number(Math.round(decimals * cm) / decimals) + 'cm';
 		case dimMeter:
 		default:
 			var m = Math.round(decimals * (cm  * Math.pow(0.01, power))) / decimals;
-			return '' + m + 'm';
+			return this.number(m) + 'm';
 		}
 	}
 
@@ -207,6 +251,19 @@ export class Dimensioning
 	static cmToMeasureRaw(cm, power=1)
 	{
 		return defaultDimensioning.cmToMeasureRaw(cm, power);
+	}
+
+	/**
+	 * Set the decimal separator every static call writes (RM-014 L3, Z-4).
+	 *
+	 * A static because the 224 existing call sites are statics, and they read
+	 * the module default - the same reason `Configuration.setValue` is one.
+	 *
+	 * @param {string} value
+	 */
+	static setDecimalSeparator(value)
+	{
+		defaultDimensioning.decimalSeparator = value;
 	}
 
 	static cmToMeasure(cm, power=1)

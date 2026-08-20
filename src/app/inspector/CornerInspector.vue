@@ -4,6 +4,7 @@ import {onBeforeUnmount, reactive, watch} from 'vue';
 import NumberField from './fields/NumberField.vue';
 import {Dimensioning, EVENT_CORNER_ATTRIBUTES_CHANGED, EVENT_MOVED} from '../../scripts/blueprint.js';
 import {useDisplayUnit} from '../composables/useDisplayUnit.js';
+import {t} from '../i18n/i18n.js';
 
 /**
  * A corner's position and elevation, in the active display unit.
@@ -71,7 +72,7 @@ onBeforeUnmount(detach);
 
 <template>
 	<section class="inspector-section">
-		<h3 class="inspector-heading">Corner</h3>
+		<h3 class="inspector-heading">{{ t('Corner') }}</h3>
 		<NumberField
 			label="X" :unit="unit" :model-value="values.x"
 			@update:model-value="write('x', $event)" />

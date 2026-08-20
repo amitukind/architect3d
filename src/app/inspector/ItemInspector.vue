@@ -7,6 +7,7 @@ import ColorField from './fields/ColorField.vue';
 import {Trash2, Copy} from '@lucide/vue';
 import {Dimensioning} from '../../scripts/blueprint.js';
 import {useDisplayUnit} from '../composables/useDisplayUnit.js';
+import {t} from '../i18n/i18n.js';
 
 /**
  * The selected item: size, proportional coupling, lock, colours, delete.
@@ -180,7 +181,7 @@ onBeforeUnmount(() => {materials.value = [];});
 			@update:model-value="setFixed" />
 
 		<template v-if="materials.length">
-			<h4 class="inspector-subheading">Materials</h4>
+			<h4 class="inspector-subheading">{{ t('Materials') }}</h4>
 			<ColorField
 				v-for="entry in materials" :key="entry.index"
 				:label="entry.label" :model-value="entry.color"
@@ -189,10 +190,10 @@ onBeforeUnmount(() => {materials.value = [];});
 
 		<div class="mt-2 flex gap-1.5">
 			<button type="button" class="btn btn-outline flex-1" @click="emit('duplicate')">
-				<Copy :size="14" /> Duplicate
+				<Copy :size="14" /> {{ t('Duplicate') }}
 			</button>
 			<button type="button" class="btn btn-outline btn-danger flex-1" @click="remove">
-				<Trash2 :size="14" /> Delete
+				<Trash2 :size="14" /> {{ t('Delete') }}
 			</button>
 		</div>
 	</section>

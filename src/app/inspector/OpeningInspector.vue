@@ -5,6 +5,7 @@ import NumberField from './fields/NumberField.vue';
 import RangeField from './fields/RangeField.vue';
 import {Dimensioning, OPENING_DOOR, OPENING_WINDOW, HINGE_LEFT, HINGE_RIGHT} from '../../scripts/blueprint.js';
 import {useDisplayUnit} from '../composables/useDisplayUnit.js';
+import {t} from '../i18n/i18n.js';
 
 /**
  * A door, a window or an archway, as the numbers it is (RM-008 F1).
@@ -86,17 +87,17 @@ watch(unit, readBack);
 
 		<template v-if="isDoor">
 			<div class="field">
-				<span class="field-label">Hinge</span>
+				<span class="field-label">{{ t('Hinge') }}</span>
 				<div class="segmented">
 					<button
 						type="button" class="segment" :class="{'is-active': hinge === HINGE_LEFT}"
 						:aria-pressed="hinge === HINGE_LEFT" @click="apply({hinge: HINGE_LEFT})">
-						Left
+						{{ t('Left') }}
 					</button>
 					<button
 						type="button" class="segment" :class="{'is-active': hinge === HINGE_RIGHT}"
 						:aria-pressed="hinge === HINGE_RIGHT" @click="apply({hinge: HINGE_RIGHT})">
-						Right
+						{{ t('Right') }}
 					</button>
 				</div>
 			</div>
