@@ -227,6 +227,14 @@ export default [
 				Uint8Array: 'readonly',
 				DataView: 'readonly',
 				TextDecoder: 'readonly',
+				// Added by RM-013 K2. A design travels in the fragment, so the tier
+				// that proves it has to put one there and read it back;
+				// `CompressionStream` is the platform the codec is built on, and this
+				// is the only tier where it is the browser's own.
+				TextEncoder: 'readonly',
+				history: 'readonly',
+				CompressionStream: 'readonly',
+				DecompressionStream: 'readonly',
 				URL: 'readonly',
 				PointerEvent: 'readonly',
 			},
