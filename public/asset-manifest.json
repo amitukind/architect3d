@@ -22,6 +22,14 @@
 			"bytes": 6611,
 			"kind": "document"
 		},
+		"catalog/kenney-food-kit.detail.json": {
+			"bytes": 9741,
+			"kind": "document"
+		},
+		"catalog/kenney-food-kit.json": {
+			"bytes": 12761,
+			"kind": "document"
+		},
 		"catalog/kenney-furniture-kit.detail.json": {
 			"bytes": 23801,
 			"kind": "document"
@@ -36,14 +44,6 @@
 		},
 		"catalog/khronos.json": {
 			"bytes": 347,
-			"kind": "document"
-		},
-		"catalog/unattributed.detail.json": {
-			"bytes": 1744,
-			"kind": "document"
-		},
-		"catalog/unattributed.json": {
-			"bytes": 717,
 			"kind": "document"
 		},
 		"draco/README.md": {
@@ -422,11 +422,6 @@
 			"bytes": 17628,
 			"kind": "texture"
 		},
-		"models/gltf/SimpleCabinet.glb": {
-			"bytes": 42312,
-			"kind": "model",
-			"codec": "draco"
-		},
 		"models/gltf/bathroomCabinet.glb": {
 			"bytes": 4700,
 			"kind": "model",
@@ -584,10 +579,6 @@
 			"bytes": 4288,
 			"kind": "model",
 			"codec": "draco"
-		},
-		"models/gltf/chandelier.gltf": {
-			"bytes": 128070,
-			"kind": "model"
 		},
 		"models/gltf/coatRack.glb": {
 			"bytes": 4088,
@@ -1332,6 +1323,265 @@
 			"bytes": 162795,
 			"kind": "model"
 		},
+		"models/kenney-food/Textures/colormap.png": {
+			"bytes": 10715,
+			"kind": "model-texture"
+		},
+		"models/kenney-food/bottle-ketchup.glb": {
+			"bytes": 2552,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/bottle-musterd.glb": {
+			"bytes": 2552,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/bottle-oil.glb": {
+			"bytes": 2660,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/bowl.glb": {
+			"bytes": 2316,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/cake-slicer.glb": {
+			"bytes": 2268,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/cheese-slicer.glb": {
+			"bytes": 2404,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/chopstic-decorative.glb": {
+			"bytes": 2092,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/chopstick.glb": {
+			"bytes": 1796,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/cooking-fork.glb": {
+			"bytes": 2284,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/cooking-knife-chopping.glb": {
+			"bytes": 2504,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/cooking-knife.glb": {
+			"bytes": 2200,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/cooking-spatula.glb": {
+			"bytes": 2616,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/cooking-spoon.glb": {
+			"bytes": 2760,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/cup-saucer.glb": {
+			"bytes": 2432,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/cup.glb": {
+			"bytes": 2496,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/cutting-board-japanese.glb": {
+			"bytes": 2488,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/cutting-board-round.glb": {
+			"bytes": 2872,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/cutting-board.glb": {
+			"bytes": 2680,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/egg-cup.glb": {
+			"bytes": 2472,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/frying-pan-lid.glb": {
+			"bytes": 4380,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/frying-pan.glb": {
+			"bytes": 3896,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/ginger-bread-cutter.glb": {
+			"bytes": 2824,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/glass-wine.glb": {
+			"bytes": 4524,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/glass.glb": {
+			"bytes": 1948,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/knife-block.glb": {
+			"bytes": 6656,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/meat-tenderizer.glb": {
+			"bytes": 4952,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/mortar-pestle.glb": {
+			"bytes": 2528,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/mortar.glb": {
+			"bytes": 2944,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/mug.glb": {
+			"bytes": 3444,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/pan-stew.glb": {
+			"bytes": 5492,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/pan.glb": {
+			"bytes": 4276,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/pepper-mill.glb": {
+			"bytes": 5220,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/pizza-cutter.glb": {
+			"bytes": 2624,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/plate-deep.glb": {
+			"bytes": 2680,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/plate-dinner.glb": {
+			"bytes": 5840,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/plate-rectangle.glb": {
+			"bytes": 2240,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/plate.glb": {
+			"bytes": 2652,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/pot-lid.glb": {
+			"bytes": 2904,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/pot-stew-lid.glb": {
+			"bytes": 4592,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/pot-stew.glb": {
+			"bytes": 4968,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/pot.glb": {
+			"bytes": 3604,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/rollingPin.glb": {
+			"bytes": 3328,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/shaker-pepper.glb": {
+			"bytes": 2888,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/shaker-salt.glb": {
+			"bytes": 3232,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/steamer.glb": {
+			"bytes": 8992,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/tajine-lid.glb": {
+			"bytes": 3472,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/tajine.glb": {
+			"bytes": 3520,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/utensil-fork.glb": {
+			"bytes": 2232,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/utensil-knife.glb": {
+			"bytes": 2004,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/utensil-spoon.glb": {
+			"bytes": 2568,
+			"kind": "model",
+			"codec": "draco"
+		},
+		"models/kenney-food/whisk.glb": {
+			"bytes": 3584,
+			"kind": "model",
+			"codec": "draco"
+		},
 		"models/thumbnails/BlakeAvenuejoshuatreecheftable.png": {
 			"bytes": 22249,
 			"kind": "thumbnail"
@@ -1346,10 +1596,6 @@
 		},
 		"models/thumbnails/GUSossingtonendtable.png": {
 			"bytes": 24853,
-			"kind": "thumbnail"
-		},
-		"models/thumbnails/SimpleCabinet.png": {
-			"bytes": 5006,
 			"kind": "thumbnail"
 		},
 		"models/thumbnails/bathroomCabinet.png": {
@@ -1432,6 +1678,22 @@
 			"bytes": 5888,
 			"kind": "thumbnail"
 		},
+		"models/thumbnails/bottle-ketchup.png": {
+			"bytes": 8820,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/bottle-musterd.png": {
+			"bytes": 9709,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/bottle-oil.png": {
+			"bytes": 9328,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/bowl.png": {
+			"bytes": 16890,
+			"kind": "thumbnail"
+		},
 		"models/thumbnails/cabinetBed.png": {
 			"bytes": 4698,
 			"kind": "thumbnail"
@@ -1450,6 +1712,10 @@
 		},
 		"models/thumbnails/cabinetTelevisionDoors.png": {
 			"bytes": 6375,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/cake-slicer.png": {
+			"bytes": 5106,
 			"kind": "thumbnail"
 		},
 		"models/thumbnails/cardboardBoxClosed.png": {
@@ -1520,8 +1786,16 @@
 			"bytes": 7163,
 			"kind": "thumbnail"
 		},
-		"models/thumbnails/chandelier.png": {
-			"bytes": 9824,
+		"models/thumbnails/cheese-slicer.png": {
+			"bytes": 5676,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/chopstic-decorative.png": {
+			"bytes": 6850,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/chopstick.png": {
+			"bytes": 6433,
 			"kind": "thumbnail"
 		},
 		"models/thumbnails/closed-door28x80_baked.png": {
@@ -1548,6 +1822,46 @@
 			"bytes": 6391,
 			"kind": "thumbnail"
 		},
+		"models/thumbnails/cooking-fork.png": {
+			"bytes": 6459,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/cooking-knife-chopping.png": {
+			"bytes": 5769,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/cooking-knife.png": {
+			"bytes": 4966,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/cooking-spatula.png": {
+			"bytes": 7469,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/cooking-spoon.png": {
+			"bytes": 5759,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/cup-saucer.png": {
+			"bytes": 8858,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/cup.png": {
+			"bytes": 14969,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/cutting-board-japanese.png": {
+			"bytes": 7526,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/cutting-board-round.png": {
+			"bytes": 8631,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/cutting-board.png": {
+			"bytes": 12702,
+			"kind": "thumbnail"
+		},
 		"models/thumbnails/desk.png": {
 			"bytes": 5247,
 			"kind": "thumbnail"
@@ -1572,6 +1886,10 @@
 			"bytes": 5268,
 			"kind": "thumbnail"
 		},
+		"models/thumbnails/egg-cup.png": {
+			"bytes": 16361,
+			"kind": "thumbnail"
+		},
 		"models/thumbnails/floorCorner.png": {
 			"bytes": 3852,
 			"kind": "thumbnail"
@@ -1586,6 +1904,26 @@
 		},
 		"models/thumbnails/floorHalf.png": {
 			"bytes": 4008,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/frying-pan-lid.png": {
+			"bytes": 10974,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/frying-pan.png": {
+			"bytes": 7961,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/ginger-bread-cutter.png": {
+			"bytes": 12453,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/glass-wine.png": {
+			"bytes": 18043,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/glass.png": {
+			"bytes": 14587,
 			"kind": "thumbnail"
 		},
 		"models/thumbnails/gus-churchchair-whiteoak.png": {
@@ -1700,6 +2038,10 @@
 			"bytes": 11466,
 			"kind": "thumbnail"
 		},
+		"models/thumbnails/knife-block.png": {
+			"bytes": 14654,
+			"kind": "thumbnail"
+		},
 		"models/thumbnails/lampRoundFloor.png": {
 			"bytes": 2154,
 			"kind": "thumbnail"
@@ -1764,6 +2106,22 @@
 			"bytes": 4902,
 			"kind": "thumbnail"
 		},
+		"models/thumbnails/meat-tenderizer.png": {
+			"bytes": 16758,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/mortar-pestle.png": {
+			"bytes": 10222,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/mortar.png": {
+			"bytes": 14637,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/mug.png": {
+			"bytes": 12814,
+			"kind": "thumbnail"
+		},
 		"models/thumbnails/nyc-poster2.png": {
 			"bytes": 19171,
 			"kind": "thumbnail"
@@ -1776,8 +2134,20 @@
 			"bytes": 5855,
 			"kind": "thumbnail"
 		},
+		"models/thumbnails/pan-stew.png": {
+			"bytes": 12935,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/pan.png": {
+			"bytes": 13922,
+			"kind": "thumbnail"
+		},
 		"models/thumbnails/paneling.png": {
 			"bytes": 5331,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/pepper-mill.png": {
+			"bytes": 11233,
 			"kind": "thumbnail"
 		},
 		"models/thumbnails/pillow.png": {
@@ -1796,6 +2166,10 @@
 			"bytes": 5116,
 			"kind": "thumbnail"
 		},
+		"models/thumbnails/pizza-cutter.png": {
+			"bytes": 6363,
+			"kind": "thumbnail"
+		},
 		"models/thumbnails/plantSmall1.png": {
 			"bytes": 5163,
 			"kind": "thumbnail"
@@ -1808,12 +2182,48 @@
 			"bytes": 4191,
 			"kind": "thumbnail"
 		},
+		"models/thumbnails/plate-deep.png": {
+			"bytes": 8926,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/plate-dinner.png": {
+			"bytes": 11420,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/plate-rectangle.png": {
+			"bytes": 10917,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/plate.png": {
+			"bytes": 6005,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/pot-lid.png": {
+			"bytes": 8568,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/pot-stew-lid.png": {
+			"bytes": 10254,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/pot-stew.png": {
+			"bytes": 16767,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/pot.png": {
+			"bytes": 15715,
+			"kind": "thumbnail"
+		},
 		"models/thumbnails/pottedPlant.png": {
 			"bytes": 4320,
 			"kind": "thumbnail"
 		},
 		"models/thumbnails/radio.png": {
 			"bytes": 11672,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/rollingPin.png": {
+			"bytes": 12203,
 			"kind": "thumbnail"
 		},
 		"models/thumbnails/rugDoormat.png": {
@@ -1834,6 +2244,14 @@
 		},
 		"models/thumbnails/rugSquare.png": {
 			"bytes": 5921,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/shaker-pepper.png": {
+			"bytes": 15822,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/shaker-salt.png": {
+			"bytes": 13219,
 			"kind": "thumbnail"
 		},
 		"models/thumbnails/shower.png": {
@@ -1874,6 +2292,10 @@
 		},
 		"models/thumbnails/stairsOpenSingle.png": {
 			"bytes": 4780,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/steamer.png": {
+			"bytes": 19589,
 			"kind": "thumbnail"
 		},
 		"models/thumbnails/stoolBar.png": {
@@ -1924,6 +2346,14 @@
 			"bytes": 4367,
 			"kind": "thumbnail"
 		},
+		"models/thumbnails/tajine-lid.png": {
+			"bytes": 14252,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/tajine.png": {
+			"bytes": 9429,
+			"kind": "thumbnail"
+		},
 		"models/thumbnails/televisionAntenna.png": {
 			"bytes": 5285,
 			"kind": "thumbnail"
@@ -1950,6 +2380,18 @@
 		},
 		"models/thumbnails/trashcan.png": {
 			"bytes": 3064,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/utensil-fork.png": {
+			"bytes": 3973,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/utensil-knife.png": {
+			"bytes": 3248,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/utensil-spoon.png": {
+			"bytes": 4307,
 			"kind": "thumbnail"
 		},
 		"models/thumbnails/wall.png": {
@@ -1998,6 +2440,10 @@
 		},
 		"models/thumbnails/we-narrow6white_baked.png": {
 			"bytes": 29082,
+			"kind": "thumbnail"
+		},
+		"models/thumbnails/whisk.png": {
+			"bytes": 9135,
 			"kind": "thumbnail"
 		},
 		"models/thumbnails/whitewindow.png": {

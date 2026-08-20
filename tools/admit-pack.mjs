@@ -209,11 +209,27 @@ export function reach(state)
  */
 export function curatedPrice(packs)
 {
-	// Packs of one or two rows are not evidence of a price - the duck is a
-	// Khronos test asset and the two unattributed rows are a provenance problem,
-	// and neither says anything about what a kit costs.
+	// Packs of fewer than ten rows are not evidence of a price - the duck is a
+	// Khronos test asset, and one model says nothing about what a kit costs.
 	const real = packs.filter((pack) => pack.count >= 10);
-	return real.length ? Math.min(...real.map((pack) => pack.mean)) : 0;
+	if (!real.length)
+	{
+		return 0;
+	}
+	// The dearer of each pack's two prices, and then the cheapest pack.
+	//
+	// The Food Kit is why. Its 51 models share one 10,715-byte colour atlas, so
+	// its *deduped* mean is 3,561 bytes an item - true of the tree, and a
+	// benchmark that would say the headroom buys 1,619 more items and make this
+	// gate incapable of failing. Its median is 13,439, because a row charged for
+	// its own copy of the atlas costs that much.
+	//
+	// Neither number is wrong and neither alone is the price of a kit: a pack
+	// with an internal atlas costs its deduped mean, and one without costs
+	// something nearer its median. Taking the dearer of the two per pack is the
+	// assumption that does not flatter an acquisition, which is the only kind of
+	// assumption a ceiling should be divided by.
+	return Math.min(...real.map((pack) => Math.max(pack.mean, pack.median)));
 }
 
 /**

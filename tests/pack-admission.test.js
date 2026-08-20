@@ -92,37 +92,43 @@ describe('the report is the tree, and it is current', () =>
 describe('the arithmetic task one took', () =>
 {
 	/**
-	 * The correction this tool produced on its first run.
+	 * What the first acquisition did to the arithmetic, which is the whole reason
+	 * this tool exists.
 	 *
-	 * Task one's landing said 1.5x "reaches the top of that range only if packs
-	 * come in near the median". Re-run rather than quoted, the arithmetic is
-	 * sharper than that: 232 items are needed for the LOWER figure and the
-	 * headroom buys 206 at today's mean, so **neither end of RM-007's range is
-	 * reachable without curation**. Which strengthens the argument for 1.5x
-	 * rather than weakening it - a ceiling that reached 400 by doing nothing
-	 * would not have imposed the constraint it was chosen to impose.
+	 * On its first run it corrected task one: that landing said 1.5x reaches
+	 * *the top* of RM-007's range only with curation, and the arithmetic said
+	 * neither end was reachable standing still - 232 needed for the lower figure
+	 * and 206 affordable.
+	 *
+	 * The Food Kit changed that, and this is what "curation is the lever" looks
+	 * like when it works. 51 rows at 3,561 bytes each pulled the catalog's mean
+	 * from 27,995 to 24,096 while adding to the count, so **400 is now reachable
+	 * without further curation and 600 still is not**. One acquisition moved the
+	 * lower figure from out of reach to comfortable, which no amount of
+	 * compression could have done - X-2's point, demonstrated rather than argued.
 	 */
-	it('does not reach 400 at today\'s mean, which is the point of the ceiling', () =>
+	it('reaches 400 unaided now, and still refuses an uncurated 600', () =>
 	{
 		const now = reach(today());
 		expect(now.needLow).toBe(TARGET_LOW - CATALOG.items.length);
-		expect(now.reachesLow, 'a ceiling that reached 400 unaided imposes nothing').toBe(false);
-		expect(now.reachesHigh).toBe(false);
-		// About two hundred at today's mean, against 232 needed. A band rather
-		// than a number: it moves with every commit that touches the tree, and
-		// pinning it exactly would make this a test about the last acquisition.
-		expect(now.buysAtMean).toBeGreaterThan(150);
-		expect(now.buysAtMean).toBeLessThan(now.needLow);
+		expect(now.reachesLow, 'the Food Kit is what put this in reach').toBe(true);
+		expect(now.reachesHigh, 'reaching 600 must still require curation').toBe(false);
+		// A band rather than a number: it moves with every commit that touches the
+		// tree, and pinning it exactly would make this a test about the last
+		// acquisition rather than about the decision.
+		expect(now.buysAtMean).toBeGreaterThanOrEqual(now.needLow);
+		expect(now.buysAtMean).toBeLessThan(now.needHigh);
 	});
 
 	it('says what a new item may cost, which is the number an acquisition needs', () =>
 	{
 		const now = reach(today());
-		// Both ceilings are under today's mean, which is the constraint stated as
-		// a price rather than as a verdict. 24,863 B to reach 400; 13,352 to reach
-		// 600. The catalog costs 27,997.
-		expect(now.maxMeanForLow).toBeLessThan(now.mean);
-		expect(now.maxMeanForHigh).toBeLessThan(now.maxMeanForLow);
+		// The ceiling for 400 is above today's mean and the one for 600 is below
+		// it, which is the constraint stated as a price rather than as a verdict:
+		// more of what is already here reaches the lower figure and nothing but a
+		// cheaper kit reaches the upper.
+		expect(now.maxMeanForLow).toBeGreaterThan(now.mean);
+		expect(now.maxMeanForHigh).toBeLessThan(now.mean);
 	});
 
 	it('and reaches both at a price a kit in this tree is actually had at', () =>
@@ -143,8 +149,9 @@ describe('the arithmetic task one took', () =>
 		// The duck is one Khronos test asset and the two unattributed rows are a
 		// provenance problem. Neither says anything about what a kit costs, and a
 		// minimum taken over them would make the gate a test of the duck.
-		expect(curatedPrice([{count: 1, mean: 5}, {count: 140, mean: 12285}])).toBe(12285);
-		expect(curatedPrice([{count: 2, mean: 9}])).toBe(0);
+		expect(curatedPrice([{count: 1, mean: 5, median: 5}, {count: 140, mean: 12285, median: 10683}]))
+			.toBe(12285);
+		expect(curatedPrice([{count: 2, mean: 9, median: 9}])).toBe(0);
 	});
 
 	it('needs nothing more once the target is met', () =>
@@ -264,15 +271,43 @@ describe('what the shipped packs measure', () =>
 		expect(packs.blueprint3d.mean).toBeGreaterThan(packs['kenney-furniture-kit'].mean * 5);
 	});
 
-	it('and the kit J2 would acquire more of is eight times cheaper than the catalog', () =>
+	it('and both Kenney kits are far cheaper than the catalog they are in', () =>
 	{
-		const kenney = REPORT.packs.find((pack) => pack.id === 'kenney-furniture-kit');
-		expect(kenney.mean).toBeLessThan(REPORT.reach.mean / 2);
-		// Which is the whole answer to "can 1.5x reach 600": at this mean the
-		// headroom buys more than the 432 still needed, so a Kenney-shaped
-		// acquisition clears RM-007's upper figure and a blueprint3d-shaped one
-		// does not clear its lower.
-		expect(Math.floor(REPORT.reach.headroom / kenney.mean)).toBeGreaterThan(REPORT.reach.needHigh);
+		const kits = REPORT.packs.filter((pack) => pack.id.startsWith('kenney-'));
+		expect(kits).toHaveLength(2);
+		kits.forEach((kit) => {expect(kit.mean, kit.id).toBeLessThan(REPORT.reach.mean * 0.6);});
+
+		// Which is the whole answer to "can 1.5x reach 600": at a Kenney price the
+		// headroom buys more than is still needed, so a Kenney-shaped acquisition
+		// clears RM-007's upper figure and a blueprint3d-shaped one does not clear
+		// its lower.
+		const cheapest = Math.min(...kits.map((kit) => Math.max(kit.mean, kit.median)));
+		expect(Math.floor(REPORT.reach.headroom / cheapest)).toBeGreaterThan(REPORT.reach.needHigh);
+	});
+
+	it('measures the Food Kit\'s sharing, which is why its two prices disagree', () =>
+	{
+		// 51 models sharing one 10,715-byte colour atlas. Counted once across the
+		// pack it is nearly free, which is the deduped mean; charged to each row
+		// that names it, it is most of a small model, which is the median. Before
+		// this acquisition the whole catalog had exactly two shared textures and
+		// the two figures differed by 7.7 %; this pack's differ by 41 %.
+		//
+		// Measured twice on the way in, and the two readings are worth keeping
+		// apart. Before its thumbnails existed the pack's deduped mean was 3,561
+		// bytes an item; with a 300 x 225 render per row - which is per-row and
+		// shares nothing - it is 13,939. The sharing is in the models and the
+		// thumbnails dilute it, which is a fact about how this catalog costs
+		// things rather than about this kit.
+		const food = REPORT.packs.find((pack) => pack.id === 'kenney-food-kit');
+		expect(food.count).toBe(51);
+		expect(food.mean).toBeLessThan(food.median * 0.7);
+		// And it is why `curatedPrice` takes the dearer of a pack's two prices. On
+		// the mean alone, at the moment before the thumbnails landed, this kit
+		// would have said the headroom buys 1,600 more items.
+		expect(REPORT.reach.curatedPrice).toBe(Math.min(
+			...REPORT.packs.filter((pack) => pack.count >= 10)
+				.map((pack) => Math.max(pack.mean, pack.median))));
 	});
 
 	it('reports the codec census rather than assuming the pipeline ran', () =>

@@ -119,11 +119,25 @@ const PAINTS = [
 		srgb: [255, 255, 255], from: '(no photograph; the row claims no colour)',
 		note: 'Open Door. Same: explicit white, so the audit distinguishes checked from overlooked.',
 	},
-	{
-		model: 'models/gltf/chandelier.gltf', material: 'black metal',
-		srgb: [28, 28, 30], from: '(the material\'s own name)',
-		note: 'Found by the material-name rule rather than by looking. A material called `black metal` that renders white is the same defect as a row called Black that does.',
-	},
+];
+
+/**
+ * One paint is recorded here rather than in the table above, because the file it
+ * was applied to is gone.
+ *
+ * `models/gltf/chandelier.gltf` had a material called `black metal` that
+ * rendered white, and it was found by the material-name rule rather than by
+ * anybody looking - which is the case that earned that rule its place. It was
+ * painted rgb(28, 28, 30) in the same commit the rule landed.
+ *
+ * It was then dropped from the catalog with the rest of the `unattributed` pack,
+ * because nobody could establish its licence. Kept as a note because the finding
+ * is still the finding: a rule that only catches what somebody was already
+ * looking at is not a rule, and this is the one row that proves this one is not.
+ */
+export const WITHDRAWN_PAINTS = [
+	{model: 'models/gltf/chandelier.gltf', material: 'black metal', srgb: [28, 28, 30],
+		withdrawn: 'RM-012 J2 - dropped with the unattributed pack, licence never established'},
 ];
 
 /** sRGB 0-255 to linear 0-1, the transfer function glTF specifies. */

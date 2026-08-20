@@ -77,20 +77,20 @@
 			"detail": "catalog/khronos.detail.json"
 		},
 		{
-			"id": "unattributed",
-			"name": "Provenance not established",
-			"licence": "unknown",
-			"rows": 2,
-			"index": "catalog/unattributed.json",
-			"detail": "catalog/unattributed.detail.json"
-		},
-		{
 			"id": "kenney-furniture-kit",
 			"name": "Furniture Kit",
 			"licence": "CC0 1.0 Universal",
 			"rows": 140,
 			"index": "catalog/kenney-furniture-kit.json",
 			"detail": "catalog/kenney-furniture-kit.detail.json"
+		},
+		{
+			"id": "kenney-food-kit",
+			"name": "Food Kit",
+			"licence": "CC0 1.0 Universal",
+			"rows": 51,
+			"index": "catalog/kenney-food-kit.json",
+			"detail": "catalog/kenney-food-kit.detail.json"
 		}
 	]
 }

@@ -17,15 +17,6 @@
 	"toleranceCm": 0.0005,
 	"worstMovedCm": 0.000038147,
 	"models": {
-		"models/gltf/SimpleCabinet.glb": {
-			"name": "models/gltf/SimpleCabinet.glb",
-			"from": 160728,
-			"to": 42312,
-			"movedCm": 5.9605e-8,
-			"boxCm": 7.4506e-9,
-			"vertices": 2690,
-			"triangles": 8280
-		},
 		"models/gltf/bathroomCabinet.glb": {
 			"name": "models/gltf/bathroomCabinet.glb",
 			"from": 7216,
@@ -37,17 +28,17 @@
 		},
 		"models/gltf/bathroomCabinetDrawer.glb": {
 			"name": "models/gltf/bathroomCabinetDrawer.glb",
-			"from": 34744,
-			"to": 14932,
-			"movedCm": 4.4703e-8,
+			"from": 14932,
+			"to": 14916,
+			"movedCm": 5.9605e-8,
 			"boxCm": 2.9802e-8,
 			"vertices": 178,
 			"triangles": 508
 		},
 		"models/gltf/bathroomMirror.glb": {
 			"name": "models/gltf/bathroomMirror.glb",
-			"from": 6792,
-			"to": 4052,
+			"from": 4052,
+			"to": 4040,
 			"movedCm": 2.9802e-8,
 			"boxCm": 2.9802e-8,
 			"vertices": 32,
@@ -55,19 +46,19 @@
 		},
 		"models/gltf/bathroomSink.glb": {
 			"name": "models/gltf/bathroomSink.glb",
-			"from": 22536,
-			"to": 6376,
-			"movedCm": 7.0781e-8,
+			"from": 6376,
+			"to": 6336,
+			"movedCm": 5.9605e-8,
 			"boxCm": 5.9605e-8,
 			"vertices": 156,
 			"triangles": 316
 		},
 		"models/gltf/bathroomSinkSquare.glb": {
 			"name": "models/gltf/bathroomSinkSquare.glb",
-			"from": 15108,
-			"to": 6104,
+			"from": 6104,
+			"to": 6100,
 			"movedCm": 5.9605e-8,
-			"boxCm": 2.9802e-8,
+			"boxCm": 5.9605e-8,
 			"vertices": 118,
 			"triangles": 234
 		},
@@ -118,8 +109,8 @@
 		},
 		"models/gltf/benchCushion.glb": {
 			"name": "models/gltf/benchCushion.glb",
-			"from": 12500,
-			"to": 4312,
+			"from": 4312,
+			"to": 4292,
 			"movedCm": 2.9802e-8,
 			"boxCm": 2.9802e-8,
 			"vertices": 90,
@@ -271,19 +262,19 @@
 		},
 		"models/gltf/coatRackStanding.glb": {
 			"name": "models/gltf/coatRackStanding.glb",
-			"from": 13288,
-			"to": 3644,
-			"movedCm": 1.1921e-7,
+			"from": 3644,
+			"to": 3584,
+			"movedCm": 5.9605e-8,
 			"boxCm": 5.9605e-8,
 			"vertices": 92,
 			"triangles": 190
 		},
 		"models/gltf/computerKeyboard.glb": {
 			"name": "models/gltf/computerKeyboard.glb",
-			"from": 3476,
-			"to": 2636,
+			"from": 2636,
+			"to": 2616,
 			"movedCm": 2.9802e-8,
-			"boxCm": 2.9802e-8,
+			"boxCm": 1.4901e-8,
 			"vertices": 18,
 			"triangles": 32
 		},
@@ -298,8 +289,8 @@
 		},
 		"models/gltf/computerScreen.glb": {
 			"name": "models/gltf/computerScreen.glb",
-			"from": 6404,
-			"to": 3152,
+			"from": 3152,
+			"to": 3128,
 			"movedCm": 2.9802e-8,
 			"boxCm": 2.9802e-8,
 			"vertices": 38,
@@ -307,9 +298,9 @@
 		},
 		"models/gltf/deskCorner.glb": {
 			"name": "models/gltf/deskCorner.glb",
-			"from": 17984,
-			"to": 5948,
-			"movedCm": 1.1921e-7,
+			"from": 5948,
+			"to": 5940,
+			"movedCm": 5.9605e-8,
 			"boxCm": 5.9605e-8,
 			"vertices": 117,
 			"triangles": 250
@@ -397,8 +388,8 @@
 		},
 		"models/gltf/hoodModern.glb": {
 			"name": "models/gltf/hoodModern.glb",
-			"from": 3968,
-			"to": 2576,
+			"from": 2576,
+			"to": 2564,
 			"movedCm": 2.9802e-8,
 			"boxCm": 2.9802e-8,
 			"vertices": 16,
@@ -406,9 +397,9 @@
 		},
 		"models/gltf/kitchenBar.glb": {
 			"name": "models/gltf/kitchenBar.glb",
-			"from": 6004,
-			"to": 4048,
-			"movedCm": 5.9605e-8,
+			"from": 4048,
+			"to": 4044,
+			"movedCm": 2.9802e-8,
 			"boxCm": 2.9802e-8,
 			"vertices": 40,
 			"triangles": 76
@@ -451,9 +442,9 @@
 		},
 		"models/gltf/kitchenCabinetCornerRound.glb": {
 			"name": "models/gltf/kitchenCabinetCornerRound.glb",
-			"from": 13656,
-			"to": 4580,
-			"movedCm": 4.4703e-8,
+			"from": 4580,
+			"to": 4572,
+			"movedCm": 2.9802e-8,
 			"boxCm": 2.9802e-8,
 			"vertices": 99,
 			"triangles": 194
@@ -478,10 +469,10 @@
 		},
 		"models/gltf/kitchenCabinetUpperCorner.glb": {
 			"name": "models/gltf/kitchenCabinetUpperCorner.glb",
-			"from": 13712,
-			"to": 3752,
-			"movedCm": 4.4703e-8,
-			"boxCm": 4.4703e-8,
+			"from": 3752,
+			"to": 3724,
+			"movedCm": 2.9802e-8,
+			"boxCm": 2.9802e-8,
 			"vertices": 96,
 			"triangles": 204
 		},
@@ -496,8 +487,8 @@
 		},
 		"models/gltf/kitchenCabinetUpperLow.glb": {
 			"name": "models/gltf/kitchenCabinetUpperLow.glb",
-			"from": 7216,
-			"to": 4712,
+			"from": 4712,
+			"to": 4704,
 			"movedCm": 2.9802e-8,
 			"boxCm": 2.9802e-8,
 			"vertices": 36,
@@ -523,8 +514,8 @@
 		},
 		"models/gltf/kitchenFridgeBuiltIn.glb": {
 			"name": "models/gltf/kitchenFridgeBuiltIn.glb",
-			"from": 22616,
-			"to": 12572,
+			"from": 12572,
+			"to": 12472,
 			"movedCm": 5.9605e-8,
 			"boxCm": 5.9605e-8,
 			"vertices": 114,
@@ -550,9 +541,9 @@
 		},
 		"models/gltf/kitchenMicrowave.glb": {
 			"name": "models/gltf/kitchenMicrowave.glb",
-			"from": 11248,
-			"to": 7728,
-			"movedCm": 3.3528e-8,
+			"from": 7728,
+			"to": 7720,
+			"movedCm": 2.9802e-8,
 			"boxCm": 2.9802e-8,
 			"vertices": 76,
 			"triangles": 152
@@ -631,9 +622,9 @@
 		},
 		"models/gltf/laptop.glb": {
 			"name": "models/gltf/laptop.glb",
-			"from": 5540,
-			"to": 3940,
-			"movedCm": 3.4422e-8,
+			"from": 3940,
+			"to": 3928,
+			"movedCm": 2.6226e-8,
 			"boxCm": 2.6226e-8,
 			"vertices": 36,
 			"triangles": 68
@@ -685,8 +676,8 @@
 		},
 		"models/gltf/loungeSofa.glb": {
 			"name": "models/gltf/loungeSofa.glb",
-			"from": 9644,
-			"to": 3776,
+			"from": 3776,
+			"to": 3764,
 			"movedCm": 5.9605e-8,
 			"boxCm": 5.9605e-8,
 			"vertices": 66,
@@ -712,9 +703,9 @@
 		},
 		"models/gltf/loungeSofaOttoman.glb": {
 			"name": "models/gltf/loungeSofaOttoman.glb",
-			"from": 6960,
-			"to": 3296,
-			"movedCm": 5.9605e-8,
+			"from": 3296,
+			"to": 3276,
+			"movedCm": 2.9802e-8,
 			"boxCm": 2.9802e-8,
 			"vertices": 44,
 			"triangles": 84
@@ -775,19 +766,19 @@
 		},
 		"models/gltf/plantSmall2.glb": {
 			"name": "models/gltf/plantSmall2.glb",
-			"from": 12996,
-			"to": 4720,
-			"movedCm": 1.4901e-8,
-			"boxCm": 1.4901e-8,
+			"from": 4720,
+			"to": 4708,
+			"movedCm": 7.4506e-9,
+			"boxCm": 7.4506e-9,
 			"vertices": 81,
 			"triangles": 158
 		},
 		"models/gltf/plantSmall3.glb": {
 			"name": "models/gltf/plantSmall3.glb",
-			"from": 8424,
-			"to": 3708,
-			"movedCm": 1.4901e-8,
-			"boxCm": 1.4901e-8,
+			"from": 3708,
+			"to": 3696,
+			"movedCm": 1.1176e-8,
+			"boxCm": 7.4506e-9,
 			"vertices": 51,
 			"triangles": 98
 		},
@@ -838,9 +829,9 @@
 		},
 		"models/gltf/rugSquare.glb": {
 			"name": "models/gltf/rugSquare.glb",
-			"from": 3180,
-			"to": 2496,
-			"movedCm": 8.9407e-8,
+			"from": 2496,
+			"to": 2484,
+			"movedCm": 5.9605e-8,
 			"boxCm": 5.9605e-8,
 			"vertices": 16,
 			"triangles": 28
@@ -856,9 +847,9 @@
 		},
 		"models/gltf/showerRound.glb": {
 			"name": "models/gltf/showerRound.glb",
-			"from": 72048,
-			"to": 16824,
-			"movedCm": 1.2014e-7,
+			"from": 16824,
+			"to": 16764,
+			"movedCm": 1.1921e-7,
 			"boxCm": 1.1921e-7,
 			"vertices": 304,
 			"triangles": 960
@@ -883,9 +874,9 @@
 		},
 		"models/gltf/speaker.glb": {
 			"name": "models/gltf/speaker.glb",
-			"from": 15744,
-			"to": 5200,
-			"movedCm": 8.9407e-8,
+			"from": 5200,
+			"to": 5148,
+			"movedCm": 5.9605e-8,
 			"boxCm": 5.9605e-8,
 			"vertices": 116,
 			"triangles": 228
@@ -973,10 +964,10 @@
 		},
 		"models/gltf/tableCoffee.glb": {
 			"name": "models/gltf/tableCoffee.glb",
-			"from": 8256,
-			"to": 2668,
-			"movedCm": 8.9407e-8,
-			"boxCm": 5.2154e-8,
+			"from": 2668,
+			"to": 2656,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
 			"vertices": 56,
 			"triangles": 124
 		},
@@ -1000,10 +991,10 @@
 		},
 		"models/gltf/tableCoffeeSquare.glb": {
 			"name": "models/gltf/tableCoffeeSquare.glb",
-			"from": 8276,
-			"to": 2672,
-			"movedCm": 2.6077e-8,
-			"boxCm": 2.6077e-8,
+			"from": 2672,
+			"to": 2660,
+			"movedCm": 2.9802e-8,
+			"boxCm": 2.9802e-8,
 			"vertices": 56,
 			"triangles": 124
 		},
@@ -1018,8 +1009,8 @@
 		},
 		"models/gltf/tableCrossCloth.glb": {
 			"name": "models/gltf/tableCrossCloth.glb",
-			"from": 13852,
-			"to": 4664,
+			"from": 4664,
+			"to": 4624,
 			"movedCm": 1.0014e-7,
 			"boxCm": 1.0014e-7,
 			"vertices": 94,
@@ -1027,8 +1018,8 @@
 		},
 		"models/gltf/tableGlass.glb": {
 			"name": "models/gltf/tableGlass.glb",
-			"from": 9848,
-			"to": 3752,
+			"from": 3752,
+			"to": 3736,
 			"movedCm": 5.9605e-8,
 			"boxCm": 5.9605e-8,
 			"vertices": 64,
@@ -1036,8 +1027,8 @@
 		},
 		"models/gltf/tableRound.glb": {
 			"name": "models/gltf/tableRound.glb",
-			"from": 6444,
-			"to": 2292,
+			"from": 2292,
+			"to": 2280,
 			"movedCm": 5.9605e-8,
 			"boxCm": 5.9605e-8,
 			"vertices": 42,
@@ -1054,18 +1045,18 @@
 		},
 		"models/gltf/televisionModern.glb": {
 			"name": "models/gltf/televisionModern.glb",
-			"from": 6368,
-			"to": 3096,
+			"from": 3096,
+			"to": 3092,
 			"movedCm": 5.9605e-8,
-			"boxCm": 5.9605e-8,
+			"boxCm": 0,
 			"vertices": 38,
 			"triangles": 72
 		},
 		"models/gltf/toaster.glb": {
 			"name": "models/gltf/toaster.glb",
-			"from": 14924,
-			"to": 4968,
-			"movedCm": 2.2352e-8,
+			"from": 4968,
+			"to": 4944,
+			"movedCm": 1.4901e-8,
 			"boxCm": 1.4901e-8,
 			"vertices": 112,
 			"triangles": 220
@@ -1099,8 +1090,8 @@
 		},
 		"models/gltf/wallCorner.glb": {
 			"name": "models/gltf/wallCorner.glb",
-			"from": 4460,
-			"to": 3376,
+			"from": 3376,
+			"to": 3360,
 			"movedCm": 1.1921e-7,
 			"boxCm": 1.1921e-7,
 			"vertices": 16,
@@ -1108,8 +1099,8 @@
 		},
 		"models/gltf/wallCornerRond.glb": {
 			"name": "models/gltf/wallCornerRond.glb",
-			"from": 10448,
-			"to": 4604,
+			"from": 4604,
+			"to": 4588,
 			"movedCm": 1.1921e-7,
 			"boxCm": 1.1921e-7,
 			"vertices": 60,
@@ -1144,8 +1135,8 @@
 		},
 		"models/gltf/wallWindow.glb": {
 			"name": "models/gltf/wallWindow.glb",
-			"from": 10744,
-			"to": 6036,
+			"from": 6036,
+			"to": 6008,
 			"movedCm": 1.1921e-7,
 			"boxCm": 1.1921e-7,
 			"vertices": 52,
@@ -1153,8 +1144,8 @@
 		},
 		"models/gltf/wallWindowSlide.glb": {
 			"name": "models/gltf/wallWindowSlide.glb",
-			"from": 14564,
-			"to": 8124,
+			"from": 8124,
+			"to": 8100,
 			"movedCm": 1.1921e-7,
 			"boxCm": 1.1921e-7,
 			"vertices": 70,
@@ -1189,18 +1180,18 @@
 		},
 		"models/js-glb/DWR_MATERA_DRESSER2.glb": {
 			"name": "models/js-glb/DWR_MATERA_DRESSER2.glb",
-			"from": 23700,
-			"to": 6352,
-			"movedCm": 0.000015259,
+			"from": 6352,
+			"to": 6264,
+			"movedCm": 0.0000076294,
 			"boxCm": 0.0000076294,
 			"vertices": 228,
 			"triangles": 460
 		},
 		"models/js-glb/bd-shalebedside-smoke_baked.glb": {
 			"name": "models/js-glb/bd-shalebedside-smoke_baked.glb",
-			"from": 34260,
-			"to": 8876,
-			"movedCm": 0.0000076294,
+			"from": 8876,
+			"to": 8752,
+			"movedCm": 0.0000038147,
 			"boxCm": 0.0000038147,
 			"vertices": 438,
 			"triangles": 808
@@ -1216,8 +1207,8 @@
 		},
 		"models/js-glb/cb-blue-block-60x96.glb": {
 			"name": "models/js-glb/cb-blue-block-60x96.glb",
-			"from": 2200,
-			"to": 1616,
+			"from": 1696,
+			"to": 1680,
 			"movedCm": 0.000015259,
 			"boxCm": 0.000015259,
 			"vertices": 8,
@@ -1225,27 +1216,27 @@
 		},
 		"models/js-glb/cb-clapboard_baked.glb": {
 			"name": "models/js-glb/cb-clapboard_baked.glb",
-			"from": 153912,
-			"to": 33584,
-			"movedCm": 0.000022888,
+			"from": 33584,
+			"to": 33284,
+			"movedCm": 0.000015259,
 			"boxCm": 0.000015259,
 			"vertices": 2645,
 			"triangles": 5118
 		},
 		"models/js-glb/cb-kendallbookcasewalnut_baked.glb": {
 			"name": "models/js-glb/cb-kendallbookcasewalnut_baked.glb",
-			"from": 19172,
-			"to": 5284,
-			"movedCm": 0.000015259,
-			"boxCm": 0.0000038147,
+			"from": 5364,
+			"to": 5244,
+			"movedCm": 0,
+			"boxCm": 0,
 			"vertices": 207,
 			"triangles": 362
 		},
 		"models/js-glb/cb-moore_baked.glb": {
 			"name": "models/js-glb/cb-moore_baked.glb",
-			"from": 123304,
-			"to": 22064,
-			"movedCm": 0.000022888,
+			"from": 22108,
+			"to": 21928,
+			"movedCm": 0.000015259,
 			"boxCm": 0.000015259,
 			"vertices": 2201,
 			"triangles": 4322
@@ -1261,17 +1252,17 @@
 		},
 		"models/js-glb/cb-scholartable_baked.glb": {
 			"name": "models/js-glb/cb-scholartable_baked.glb",
-			"from": 12552,
-			"to": 4112,
-			"movedCm": 0.000011444,
+			"from": 4192,
+			"to": 4176,
+			"movedCm": 0.0000076294,
 			"boxCm": 0.0000076294,
 			"vertices": 124,
 			"triangles": 220
 		},
 		"models/js-glb/cb-tecs_baked.glb": {
 			"name": "models/js-glb/cb-tecs_baked.glb",
-			"from": 20368,
-			"to": 4596,
+			"from": 4676,
+			"to": 4640,
 			"movedCm": 0.0000076294,
 			"boxCm": 0.0000076294,
 			"vertices": 196,
@@ -1306,18 +1297,18 @@
 		},
 		"models/js-glb/ik-ekero-orange_baked.glb": {
 			"name": "models/js-glb/ik-ekero-orange_baked.glb",
-			"from": 54140,
-			"to": 16112,
-			"movedCm": 0.000013351,
+			"from": 16112,
+			"to": 16096,
+			"movedCm": 0.0000076294,
 			"boxCm": 0.0000076294,
 			"vertices": 978,
 			"triangles": 1784
 		},
 		"models/js-glb/ik-kivine_baked.glb": {
 			"name": "models/js-glb/ik-kivine_baked.glb",
-			"from": 89428,
-			"to": 20900,
-			"movedCm": 0.000026703,
+			"from": 20928,
+			"to": 20856,
+			"movedCm": 0.000015259,
 			"boxCm": 0.000015259,
 			"vertices": 1460,
 			"triangles": 2848
@@ -1351,8 +1342,8 @@
 		},
 		"models/js-glb/ore-3legged-white_baked.glb": {
 			"name": "models/js-glb/ore-3legged-white_baked.glb",
-			"from": 159944,
-			"to": 40148,
+			"from": 40228,
+			"to": 39392,
 			"movedCm": 0.000015259,
 			"boxCm": 0.000015259,
 			"vertices": 2878,
@@ -1369,21 +1360,480 @@
 		},
 		"models/js-glb/we-narrow6white_baked.glb": {
 			"name": "models/js-glb/we-narrow6white_baked.glb",
-			"from": 116196,
-			"to": 24108,
-			"movedCm": 0.000022888,
+			"from": 24108,
+			"to": 23892,
+			"movedCm": 0.000015259,
 			"boxCm": 0.000015259,
 			"vertices": 1652,
 			"triangles": 3156
 		},
 		"models/js-glb/whitewindow.glb": {
 			"name": "models/js-glb/whitewindow.glb",
-			"from": 64824,
-			"to": 25232,
+			"from": 25312,
+			"to": 25296,
 			"movedCm": 0.000015259,
 			"boxCm": 0.000015259,
 			"vertices": 504,
 			"triangles": 1006
+		},
+		"models/kenney-food/bottle-ketchup.glb": {
+			"name": "models/kenney-food/bottle-ketchup.glb",
+			"from": 2568,
+			"to": 2552,
+			"movedCm": 2.4796e-8,
+			"boxCm": 2.4796e-8,
+			"vertices": 50,
+			"triangles": 96
+		},
+		"models/kenney-food/bottle-musterd.glb": {
+			"name": "models/kenney-food/bottle-musterd.glb",
+			"from": 2568,
+			"to": 2552,
+			"movedCm": 2.4796e-8,
+			"boxCm": 2.4796e-8,
+			"vertices": 50,
+			"triangles": 96
+		},
+		"models/kenney-food/bottle-oil.glb": {
+			"name": "models/kenney-food/bottle-oil.glb",
+			"from": 2704,
+			"to": 2660,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 56,
+			"triangles": 96
+		},
+		"models/kenney-food/bowl.glb": {
+			"name": "models/kenney-food/bowl.glb",
+			"from": 6340,
+			"to": 2316,
+			"movedCm": 8.3148e-8,
+			"boxCm": 5.5432e-8,
+			"vertices": 42,
+			"triangles": 84
+		},
+		"models/kenney-food/cake-slicer.glb": {
+			"name": "models/kenney-food/cake-slicer.glb",
+			"from": 2276,
+			"to": 2268,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 22,
+			"triangles": 36
+		},
+		"models/kenney-food/cheese-slicer.glb": {
+			"name": "models/kenney-food/cheese-slicer.glb",
+			"from": 2436,
+			"to": 2404,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 24,
+			"triangles": 44
+		},
+		"models/kenney-food/chopstic-decorative.glb": {
+			"name": "models/kenney-food/chopstic-decorative.glb",
+			"from": 2228,
+			"to": 2092,
+			"movedCm": 2.9802e-8,
+			"boxCm": 2.9802e-8,
+			"vertices": 20,
+			"triangles": 36
+		},
+		"models/kenney-food/chopstick.glb": {
+			"name": "models/kenney-food/chopstick.glb",
+			"from": 1808,
+			"to": 1796,
+			"movedCm": 2.9802e-8,
+			"boxCm": 2.9802e-8,
+			"vertices": 8,
+			"triangles": 12
+		},
+		"models/kenney-food/cooking-fork.glb": {
+			"name": "models/kenney-food/cooking-fork.glb",
+			"from": 2316,
+			"to": 2284,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 22,
+			"triangles": 36
+		},
+		"models/kenney-food/cooking-knife-chopping.glb": {
+			"name": "models/kenney-food/cooking-knife-chopping.glb",
+			"from": 2528,
+			"to": 2504,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 42,
+			"triangles": 80
+		},
+		"models/kenney-food/cooking-knife.glb": {
+			"name": "models/kenney-food/cooking-knife.glb",
+			"from": 2228,
+			"to": 2200,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 23,
+			"triangles": 39
+		},
+		"models/kenney-food/cooking-spatula.glb": {
+			"name": "models/kenney-food/cooking-spatula.glb",
+			"from": 6144,
+			"to": 2616,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 34,
+			"triangles": 72
+		},
+		"models/kenney-food/cooking-spoon.glb": {
+			"name": "models/kenney-food/cooking-spoon.glb",
+			"from": 6796,
+			"to": 2760,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 22,
+			"triangles": 56
+		},
+		"models/kenney-food/cup-saucer.glb": {
+			"name": "models/kenney-food/cup-saucer.glb",
+			"from": 7848,
+			"to": 2432,
+			"movedCm": 2.9802e-8,
+			"boxCm": 2.9802e-8,
+			"vertices": 60,
+			"triangles": 116
+		},
+		"models/kenney-food/cup.glb": {
+			"name": "models/kenney-food/cup.glb",
+			"from": 8008,
+			"to": 2496,
+			"movedCm": 3.7253e-8,
+			"boxCm": 2.9802e-8,
+			"vertices": 62,
+			"triangles": 112
+		},
+		"models/kenney-food/cutting-board-japanese.glb": {
+			"name": "models/kenney-food/cutting-board-japanese.glb",
+			"from": 2520,
+			"to": 2488,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 54,
+			"triangles": 104
+		},
+		"models/kenney-food/cutting-board-round.glb": {
+			"name": "models/kenney-food/cutting-board-round.glb",
+			"from": 2980,
+			"to": 2872,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 80,
+			"triangles": 156
+		},
+		"models/kenney-food/cutting-board.glb": {
+			"name": "models/kenney-food/cutting-board.glb",
+			"from": 2704,
+			"to": 2680,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 62,
+			"triangles": 120
+		},
+		"models/kenney-food/egg-cup.glb": {
+			"name": "models/kenney-food/egg-cup.glb",
+			"from": 2480,
+			"to": 2472,
+			"movedCm": 1.4901e-8,
+			"boxCm": 1.4901e-8,
+			"vertices": 42,
+			"triangles": 84
+		},
+		"models/kenney-food/frying-pan-lid.glb": {
+			"name": "models/kenney-food/frying-pan-lid.glb",
+			"from": 4388,
+			"to": 4380,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 72,
+			"triangles": 156
+		},
+		"models/kenney-food/frying-pan.glb": {
+			"name": "models/kenney-food/frying-pan.glb",
+			"from": 4004,
+			"to": 3896,
+			"movedCm": 1.1921e-7,
+			"boxCm": 1.1921e-7,
+			"vertices": 102,
+			"triangles": 200
+		},
+		"models/kenney-food/ginger-bread-cutter.glb": {
+			"name": "models/kenney-food/ginger-bread-cutter.glb",
+			"from": 2892,
+			"to": 2824,
+			"movedCm": 2.9802e-8,
+			"boxCm": 2.9802e-8,
+			"vertices": 51,
+			"triangles": 136
+		},
+		"models/kenney-food/glass-wine.glb": {
+			"name": "models/kenney-food/glass-wine.glb",
+			"from": 4676,
+			"to": 4524,
+			"movedCm": 2.9802e-8,
+			"boxCm": 2.9802e-8,
+			"vertices": 60,
+			"triangles": 232
+		},
+		"models/kenney-food/glass.glb": {
+			"name": "models/kenney-food/glass.glb",
+			"from": 1960,
+			"to": 1948,
+			"movedCm": 2.9802e-8,
+			"boxCm": 2.9802e-8,
+			"vertices": 24,
+			"triangles": 44
+		},
+		"models/kenney-food/knife-block.glb": {
+			"name": "models/kenney-food/knife-block.glb",
+			"from": 6828,
+			"to": 6656,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 91,
+			"triangles": 157
+		},
+		"models/kenney-food/meat-tenderizer.glb": {
+			"name": "models/kenney-food/meat-tenderizer.glb",
+			"from": 31372,
+			"to": 4952,
+			"movedCm": 8.9407e-8,
+			"boxCm": 8.9407e-8,
+			"vertices": 160,
+			"triangles": 322
+		},
+		"models/kenney-food/mortar-pestle.glb": {
+			"name": "models/kenney-food/mortar-pestle.glb",
+			"from": 2564,
+			"to": 2528,
+			"movedCm": 2.9802e-8,
+			"boxCm": 2.9802e-8,
+			"vertices": 30,
+			"triangles": 56
+		},
+		"models/kenney-food/mortar.glb": {
+			"name": "models/kenney-food/mortar.glb",
+			"from": 2948,
+			"to": 2944,
+			"movedCm": 2.9802e-8,
+			"boxCm": 2.9802e-8,
+			"vertices": 48,
+			"triangles": 92
+		},
+		"models/kenney-food/mug.glb": {
+			"name": "models/kenney-food/mug.glb",
+			"from": 3568,
+			"to": 3444,
+			"movedCm": 2.9802e-8,
+			"boxCm": 2.9802e-8,
+			"vertices": 116,
+			"triangles": 232
+		},
+		"models/kenney-food/pan-stew.glb": {
+			"name": "models/kenney-food/pan-stew.glb",
+			"from": 5532,
+			"to": 5492,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 200,
+			"triangles": 344
+		},
+		"models/kenney-food/pan.glb": {
+			"name": "models/kenney-food/pan.glb",
+			"from": 4324,
+			"to": 4276,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 124,
+			"triangles": 236
+		},
+		"models/kenney-food/pepper-mill.glb": {
+			"name": "models/kenney-food/pepper-mill.glb",
+			"from": 5236,
+			"to": 5220,
+			"movedCm": 0,
+			"boxCm": 0,
+			"vertices": 128,
+			"triangles": 252
+		},
+		"models/kenney-food/pizza-cutter.glb": {
+			"name": "models/kenney-food/pizza-cutter.glb",
+			"from": 8584,
+			"to": 2624,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 52,
+			"triangles": 96
+		},
+		"models/kenney-food/plate-deep.glb": {
+			"name": "models/kenney-food/plate-deep.glb",
+			"from": 7944,
+			"to": 2680,
+			"movedCm": 8.9407e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 72,
+			"triangles": 140
+		},
+		"models/kenney-food/plate-dinner.glb": {
+			"name": "models/kenney-food/plate-dinner.glb",
+			"from": 5900,
+			"to": 5840,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 188,
+			"triangles": 354
+		},
+		"models/kenney-food/plate-rectangle.glb": {
+			"name": "models/kenney-food/plate-rectangle.glb",
+			"from": 6756,
+			"to": 2240,
+			"movedCm": 8.9407e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 28,
+			"triangles": 68
+		},
+		"models/kenney-food/plate.glb": {
+			"name": "models/kenney-food/plate.glb",
+			"from": 2660,
+			"to": 2652,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 72,
+			"triangles": 140
+		},
+		"models/kenney-food/pot-lid.glb": {
+			"name": "models/kenney-food/pot-lid.glb",
+			"from": 2924,
+			"to": 2904,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 72,
+			"triangles": 132
+		},
+		"models/kenney-food/pot-stew-lid.glb": {
+			"name": "models/kenney-food/pot-stew-lid.glb",
+			"from": 15824,
+			"to": 4592,
+			"movedCm": 8.9407e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 82,
+			"triangles": 176
+		},
+		"models/kenney-food/pot-stew.glb": {
+			"name": "models/kenney-food/pot-stew.glb",
+			"from": 5008,
+			"to": 4968,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 222,
+			"triangles": 370
+		},
+		"models/kenney-food/pot.glb": {
+			"name": "models/kenney-food/pot.glb",
+			"from": 3676,
+			"to": 3604,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 124,
+			"triangles": 228
+		},
+		"models/kenney-food/rollingPin.glb": {
+			"name": "models/kenney-food/rollingPin.glb",
+			"from": 3336,
+			"to": 3328,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 72,
+			"triangles": 140
+		},
+		"models/kenney-food/shaker-pepper.glb": {
+			"name": "models/kenney-food/shaker-pepper.glb",
+			"from": 2940,
+			"to": 2888,
+			"movedCm": 1.4901e-8,
+			"boxCm": 1.4901e-8,
+			"vertices": 60,
+			"triangles": 116
+		},
+		"models/kenney-food/shaker-salt.glb": {
+			"name": "models/kenney-food/shaker-salt.glb",
+			"from": 3320,
+			"to": 3232,
+			"movedCm": 1.4901e-8,
+			"boxCm": 1.4901e-8,
+			"vertices": 60,
+			"triangles": 116
+		},
+		"models/kenney-food/steamer.glb": {
+			"name": "models/kenney-food/steamer.glb",
+			"from": 9076,
+			"to": 8992,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 260,
+			"triangles": 492
+		},
+		"models/kenney-food/tajine-lid.glb": {
+			"name": "models/kenney-food/tajine-lid.glb",
+			"from": 13796,
+			"to": 3472,
+			"movedCm": 1.1921e-7,
+			"boxCm": 1.1921e-7,
+			"vertices": 70,
+			"triangles": 136
+		},
+		"models/kenney-food/tajine.glb": {
+			"name": "models/kenney-food/tajine.glb",
+			"from": 3552,
+			"to": 3520,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 84,
+			"triangles": 164
+		},
+		"models/kenney-food/utensil-fork.glb": {
+			"name": "models/kenney-food/utensil-fork.glb",
+			"from": 4816,
+			"to": 2232,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 24,
+			"triangles": 44
+		},
+		"models/kenney-food/utensil-knife.glb": {
+			"name": "models/kenney-food/utensil-knife.glb",
+			"from": 3492,
+			"to": 2004,
+			"movedCm": 7.4506e-8,
+			"boxCm": 2.2352e-8,
+			"vertices": 11,
+			"triangles": 18
+		},
+		"models/kenney-food/utensil-spoon.glb": {
+			"name": "models/kenney-food/utensil-spoon.glb",
+			"from": 2592,
+			"to": 2568,
+			"movedCm": 2.9802e-8,
+			"boxCm": 2.9802e-8,
+			"vertices": 19,
+			"triangles": 46
+		},
+		"models/kenney-food/whisk.glb": {
+			"name": "models/kenney-food/whisk.glb",
+			"from": 3632,
+			"to": 3584,
+			"movedCm": 5.9605e-8,
+			"boxCm": 5.9605e-8,
+			"vertices": 66,
+			"triangles": 150
 		}
 	}
 }

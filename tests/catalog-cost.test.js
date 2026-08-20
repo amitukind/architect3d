@@ -103,15 +103,51 @@ describe('the deploy-size decision still buys what it said (J2 task one)', () =>
 		const atMedian = Math.floor(headroom / REPORT.totals.median);
 
 		// The whole content of the decision, as arithmetic. RM-007 wants 400-600 in
-		// the catalog; 168 are here, so 232-432 have to fit. Curated to the median
-		// they do; bought at the mean they do not, which is the pressure the
-		// ceiling was chosen to apply rather than a shortfall in it.
-		expect(atMedian, `${atMedian} items at the median`).toBeGreaterThanOrEqual(432);
-		expect(atMean, `${atMean} items at the mean`).toBeLessThan(232);
+		// the catalog, so what has to fit is what is not here yet - taken from the
+		// live count rather than from 232 and 432, which were the figures when the
+		// catalog had 168 rows and needed an edit the first time it did not.
+		const forLow = 400 - REPORT.totals.count;
+		const forHigh = 600 - REPORT.totals.count;
+
+		// Curated to the median, the lower figure fits. Bought at the mean it does
+		// not, which is the pressure the ceiling was chosen to apply rather than a
+		// shortfall in it.
+		expect(atMedian, `${atMedian} items at the median`).toBeGreaterThanOrEqual(forLow);
+		expect(atMean, `${atMean} items at the mean`).toBeLessThan(forHigh);
 
 		// And it is not so loose that it stops being an instrument: 2.0x would have
-		// bought 432 at the mean, which is X-2's warning about a ceiling with the
-		// whole growth pre-authorised inside it.
-		expect(atMean, 'the ceiling should still refuse an uncurated 600').toBeLessThan(432);
+		// bought the whole range at the mean, which is X-2's warning about a
+		// ceiling with the growth pre-authorised inside it.
+		expect(atMean, 'the ceiling should still refuse an uncurated 600').toBeLessThan(forHigh);
+	});
+
+	/**
+	 * What the first acquisition did to the divisor, which is M-45's whole job.
+	 *
+	 * The mean fell and the median rose, and both are the same fact seen twice.
+	 * The Food Kit's 51 models share one 10,715-byte colour atlas: counted once
+	 * across the pack it is nearly free, so the deduped mean fell 27,995 ->
+	 * 24,096; charged to each row that names it, it is most of a small model, so
+	 * the median rose 11,218 -> 14,013.
+	 *
+	 * The consequence is worth an assertion rather than a note, because it is the
+	 * first time the ceiling has got measurably harder to reach: **600 at the
+	 * median is now just out of reach** - 371 affordable against 383 needed -
+	 * where before the acquisition it was comfortable. Nothing is over budget and
+	 * nothing has to change today. What must not happen is that it stops being
+	 * true quietly.
+	 */
+	it('records that the first acquisition put 600 just out of reach at the median', () =>
+	{
+		const headroom = BUDGET.budgets['public-total'].limit - BUDGET.budgets['public-total'].measured;
+		const atMedian = Math.floor(headroom / REPORT.totals.median);
+		const forHigh = 600 - REPORT.totals.count;
+
+		expect(REPORT.totals.median).toBeGreaterThan(11218);
+		expect(REPORT.totals.mean).toBeLessThan(27995);
+		// Within 10 % of reaching it, which is the difference between "curate the
+		// next pack a little harder" and "the ceiling was wrong".
+		expect(atMedian).toBeLessThan(forHigh);
+		expect(atMedian / forHigh).toBeGreaterThan(0.9);
 	});
 });

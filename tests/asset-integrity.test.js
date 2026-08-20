@@ -53,6 +53,8 @@ import {resolveModelUrl} from '../src/scripts/core/legacy_models.js';
 import {AssetManifest, MANIFEST_VERSION} from '../src/scripts/core/asset_manifest.js';
 import {AssetResolver} from '../src/scripts/core/asset_resolver.js';
 import {defaultRoomTexture} from '../src/scripts/model/room.js';
+import {WITHDRAWN} from '../tools/make-asset-manifest.mjs';
+import * as SPLIT_VOCABULARY from '../tools/split-catalog.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC = join(ROOT, 'public');
@@ -150,7 +152,16 @@ describe('saved designs still resolve', () =>
 		const liveResolver = new AssetResolver({manifest: liveManifest});
 		const physical = (url) => liveResolver.resolve(url).url;
 
+		// And one indirection more, added by RM-012 J2: a name may be WITHDRAWN.
+		// A retirement says "the old name keeps working, it just points somewhere
+		// new", which honours A5's contract. A withdrawal is the other thing and
+		// J2 is the first time this project has done it - two models whose licence
+		// nobody could establish, deleted on purpose, whose names now resolve to
+		// nothing. That breaks the contract, which is exactly why it is a register
+		// with a reason per name rather than a deletion. A fixture naming one is
+		// a record of what shipped then, not a claim about what ships now.
 		const broken = [...urls.entries()]
+			.filter(([url]) => !WITHDRAWN[url])
 			.map(([url, where]) => [physical(resolveModelUrl(url).url), url, where])
 			.filter(([resolved]) => !existsSync(join(PUBLIC, resolved)))
 			.map(([resolved, url, where]) => (resolved === url
@@ -158,6 +169,24 @@ describe('saved designs still resolve', () =>
 				: `${url} -> ${resolved}  (${where[0]})`));
 
 		expect(broken, `saved designs name files that no longer exist:\n  ${broken.join('\n  ')}`).toEqual([]);
+	});
+
+	it('withdraws a name only with a reason, and only when it is really gone', () =>
+	{
+		// The register is not a place to park an inconvenient assertion. Every
+		// entry has to name a file that is actually absent - otherwise it is
+		// hiding a live asset from the check - and carry a reason long enough to
+		// be one.
+		const names = Object.keys(WITHDRAWN);
+		expect(names).toHaveLength(2);
+		names.forEach((name) =>
+		{
+			expect(existsSync(join(PUBLIC, name)), `${name} is withdrawn but still in the tree`).toBe(false);
+			expect(CATALOG.items.some((item) => item.model === name),
+				`${name} is withdrawn but still a catalog row`).toBe(false);
+			expect(WITHDRAWN[name].length, `${name} needs a reason, not a label`).toBeGreaterThan(80);
+			expect(WITHDRAWN[name]).toContain('RM-012 J2');
+		});
 	});
 
 	it('nothing under rooms/textures was renamed by the compression pass', () =>
@@ -240,20 +269,28 @@ describe('the catalogs point at real files', () =>
  */
 describe('every catalog row carries its metadata (RM-012 J1, M-29)', () =>
 {
-	const ROOMS = ['living', 'kitchen', 'dining', 'bedroom', 'bathroom', 'office', 'utility', 'structure'];
-	const TAGS = ['seating', 'table', 'storage', 'bed', 'lighting', 'appliance', 'plumbing',
-		'decor', 'electronics', 'textile', 'plant', 'stairs', 'opening', 'panel'];
+	// Imported rather than restated. These were a second copy of the splitter's
+	// two lists, and RM-012 J2 found out the hard way what a second copy is for:
+	// adding `kitchenware` to the vocabulary that refuses to write a bad row left
+	// this one behind, and 51 valid rows failed against a list that was simply
+	// out of date. The counts below are what actually pin the vocabulary - a
+	// fifteenth tag has to be a deliberate edit in two places, which is the point,
+	// and neither of them is a silent copy of the other.
+	const {ROOMS, TAGS} = SPLIT_VOCABULARY;
 
 	it('names a room from the closed list, on 100 % of rows', () =>
 	{
 		const without = CATALOG.items.filter((item) => ROOMS.indexOf(item.room) === -1);
 		expect(without.map((item) => item.name)).toEqual([]);
-		expect(CATALOG.items).toHaveLength(168);
+		// 168 at J1, then J2: 51 admitted from the Food Kit and 2 withdrawn with
+		// the pack whose licence nobody could establish.
+		expect(CATALOG.items).toHaveLength(217);
 
 		// The vocabulary is closed for a reason X-3 priced rather than for tidiness:
-		// eight words repeated is what makes the key affordable in the bundled
-		// index. A ninth room is allowed - it just has to be added here too, which
-		// is the point.
+		// eight words repeated is what makes the key affordable. A ninth room is
+		// allowed - it just has to be a deliberate edit to this number, which is
+		// the point.
+		expect(ROOMS).toHaveLength(8);
 		expect(new Set(CATALOG.items.map((item) => item.room)).size).toBe(8);
 	});
 
@@ -262,6 +299,11 @@ describe('every catalog row carries its metadata (RM-012 J1, M-29)', () =>
 		const bad = CATALOG.items.filter((item) => !Array.isArray(item.tags) || !item.tags.length
 			|| item.tags.some((tag) => TAGS.indexOf(tag) === -1));
 		expect(bad.map((item) => `${item.name}: ${JSON.stringify(item.tags)}`)).toEqual([]);
+		// Fifteen since RM-012 J2 added `kitchenware` with the Food Kit. Its own
+		// word rather than `decor` or `appliance`, because somebody looking for a
+		// saucepan is looking for neither.
+		expect(TAGS).toHaveLength(15);
+		expect(TAGS).toContain('kitchenware');
 	});
 
 	it('names a source that resolves, on 100 % of rows', () =>
@@ -287,19 +329,24 @@ describe('every catalog row carries its metadata (RM-012 J1, M-29)', () =>
 		}
 	});
 
-	it('says out loud how many rows ship on a licence nobody could establish', () =>
+	it('ships nothing on a licence nobody could establish, and says which two went', () =>
 	{
+		// This used to name the two and assert they were still exactly two - a
+		// pass/fail on whether the number was the one anybody agreed to, not on
+		// the licence. RM-012 J2 took the decision the other way and the number is
+		// zero, so the assertion is the stronger one now: none at all.
 		const unknown = Object.entries(SOURCES.sources)
 			.filter(([, source]) => source.licence.name === 'unknown')
 			.map(([key]) => key);
-		const rows = CATALOG.items.filter((item) => unknown.indexOf(item.source) !== -1);
+		expect(unknown).toEqual([]);
+		expect(CATALOG.items.filter((item) => unknown.indexOf(item.source) !== -1)).toEqual([]);
 
-		// Two, and they are named. This assertion is not a pass/fail on the licence
-		// - it is a pass/fail on whether the number is still the one anybody agreed
-		// to. Adding a third unattributed model has to be a deliberate edit here.
-		expect(rows.map((item) => item.model).sort())
+		// And the two that went are named where a name that no longer resolves has
+		// to be named. A withdrawal breaks A5's contract - a design that used one
+		// shows a missing model - so it is a register with a reason per entry
+		// rather than a deletion.
+		expect(Object.keys(WITHDRAWN).sort())
 			.toEqual(['models/gltf/SimpleCabinet.glb', 'models/gltf/chandelier.gltf']);
-		expect(unknown.every((key) => SOURCES.sources[key].caveat)).toBe(true);
 	});
 
 	it('has a measured size for 100 % of rows, in the detail rather than the payload', () =>
@@ -631,6 +678,7 @@ describe('the asset manifest describes the tree it ships with (RM-003 A5)', () =
 		const resolver = new AssetResolver({manifest});
 
 		const broken = [...fixtureUrls().keys()]
+			.filter((url) => !WITHDRAWN[url])
 			.map((url) => resolveModelUrl(url).url)
 			.filter((url) => resolver.missing(url) || !existsSync(join(PUBLIC, resolver.resolve(url).url)));
 

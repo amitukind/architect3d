@@ -207,6 +207,40 @@ function sriHash(bytes)
  * old name keeps resolving forever, and the entry carries the hash and size of
  * the file it now points at, so nothing downstream has to special-case it.
  */
+/**
+ * Names that deliberately no longer resolve, and why (RM-012 J2).
+ *
+ * ## Why this is not a retirement
+ *
+ * A retirement above says *the old name keeps working, it just points somewhere
+ * new*. That is a rename, and A5's rule - an asset URL is a published contract -
+ * is honoured by it. This is the other thing, and RM-012 J2 is the first time
+ * this project has done it: an asset **withdrawn**, whose name resolves to
+ * nothing because the file is gone on purpose.
+ *
+ * It breaks the contract, which is why it needs to be written down rather than
+ * done. A design that named one of these shows a missing model. That is the
+ * cost, it was weighed, and the reason is recorded per name rather than in a
+ * commit message nobody will find from here.
+ *
+ * The rule for adding one: it must be a decision somebody took with a reason
+ * that outlives them, not an asset that got tidied. Anything that merely moved
+ * belongs in `RETIRED` above, where it keeps resolving.
+ */
+export const WITHDRAWN = {
+	'models/gltf/SimpleCabinet.glb':
+		'RM-012 J2. Licence never established. J1 recorded it as `unknown` rather than assuming CC0 by '
+		+ 'resemblance - foreign material names, the only PascalCase filename in the directory, the only '
+		+ 'catalog row with no thumbnail of its own - and J2 decided a deploy should not carry a file '
+		+ 'nobody can license. The admission gate built in the same sprint refuses an unestablished '
+		+ 'licence, and shipping one while refusing the next would be a rule that applies to strangers.',
+	'models/gltf/chandelier.gltf':
+		'RM-012 J2, with SimpleCabinet.glb and for the same reason. It was also the row whose material '
+		+ 'was called `black metal` and rendered white, found by J2\'s material-name rule and painted in '
+		+ 'that commit; the paint is recorded in tools/material-audit.mjs as withdrawn rather than '
+		+ 'deleted, because the finding stands even though the file does not.',
+};
+
 const RETIRED = {
 	// The only one. `rooms/textures/hardwood.png` was re-encoded as JPEG, and it
 	// is the DEFAULT room texture, so its name is in every design that kept the

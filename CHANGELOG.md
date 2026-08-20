@@ -2,6 +2,47 @@
 
 ## [Unreleased]
 
+**RM-012 J2 closed: the acquisition.** Kenney's Food Kit, CC0 1.0, downloaded and
+checksummed. **51 admitted from 200**, on a rule stated before anything was
+measured: *a catalog row is something a person places in a room and expects to
+stay there*. 149 of the kit's models are food, drinks, packaging or waste.
+
+The unit scale was solved and one model was refused by it. Seven objects checked;
+the two most standardised agree to within a centimetre at **×30** — a dinner
+plate at 26.8 cm against a 26–28 standard, a cooking pot at 24.7 against 24.
+`barrel` came out at 20.4 cm, which is a tub, so it was refused rather than
+rescaled.
+
+The pipeline is run, not built: Draco took the pack **12,718 → 3,561 bytes an
+item**, 51 of 51. The admission gate's pre-pipeline note fired before it ran,
+which is the sequence that note exists to produce.
+
+**The pack's sharing broke the gate, so the gate was hardened.** 51 models share
+one 10,715-byte atlas, so the deduped mean sat far below the median and said the
+headroom buys 1,619 more items. `curatedPrice` now takes the dearer of a pack's
+two prices, then the cheapest pack — the assumption that does not flatter an
+acquisition.
+
+The two rows nobody could license are gone, and that needed a mechanism. A
+retirement keeps a name resolving; this is the first **withdrawal** — a register
+with a reason per name, gated against entries whose file is still in the tree,
+whose row is still in the catalog, or whose reason is short enough to be a label.
+
+M-45: *"168 → 217 items, mean 27,995 → 24,096, tree +529,092 B"* — the 49 net
+rows cost 10,798 bytes each, 39 % of the price the ceiling was raised at.
+`catalog-packs` raised 10,450 → 12,250, the first raise of a line whose own note
+said it would happen, and what it buys improved 59 → 53.8 bytes a row.
+**`first-load` did not move.**
+
+**One acquisition put RM-007's lower figure in reach**: 183 needed against 216
+affordable, where before it was 232 against 206. The median rose 11,218 → 14,013,
+so 600 at the median is now just out of reach — asserted, not noted.
+
+Two of my own passes had to be undone: `encode --force` re-encoded 48
+pre-existing models at settings that are not B1's, and exposed a real gap doing
+it — the encoding report merges, so a deleted model kept its fidelity record and
+`encode:check` reported a withdrawn file as encoded. Fixed.
+
 **RM-012 J4: the re-baseline, and the halo that had never fired.** An addition,
 not a repair — RM-007's rule, and X-5's measurement for why it is the right one:
 `polygonInsidePolygon` has no caller, `polygonOutsidePolygon`'s only one is

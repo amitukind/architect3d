@@ -548,18 +548,17 @@ describe('the catalog drawer', () =>
 		const panel = [...document.querySelectorAll('[role="dialog"]')]
 			.find((node) => node.textContent.includes('Furniture credits'));
 		expect(panel).toBeTruthy();
-		expect(panel.textContent).toContain('168 models from 4 kits');
+		expect(panel.textContent).toContain('217 models from 4 kits');
 		expect(panel.textContent).toContain('Furniture Kit');
 		expect(panel.textContent).toContain('CC0 1.0 Universal');
 
-		// The pack whose licence nobody could establish is shown with a warning
-		// rather than omitted or quietly called CC0. J1's whole argument for
-		// writing provenance down was that assuming one by resemblance is the
-		// thing to avoid, and a credits screen that dropped the fourth kit would
-		// undo that in the one place a person would look.
-		expect(panel.textContent).toContain('Provenance not established');
-		expect(panel.textContent).toContain('unknown');
-		expect(panel.querySelector('.border-danger')).toBeTruthy();
+		// The pack whose licence nobody could establish was shown here with a
+		// warning rather than omitted or quietly called CC0 - and RM-012 J2 then
+		// withdrew it. So the claim is the stronger one now: every kit on this
+		// screen states a licence, and none of them says `unknown`.
+		expect(panel.textContent).toContain('Food Kit');
+		expect(panel.textContent).not.toContain('unknown');
+		expect(panel.querySelector('.border-danger')).toBeNull();
 
 		wrapper.unmount();
 	});

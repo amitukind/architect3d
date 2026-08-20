@@ -25,7 +25,9 @@ import {execFileSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 
-import {audit, claims, colourOf, linear, paintState} from '../tools/material-audit.mjs';
+import {
+	WITHDRAWN_PAINTS, audit, claims, colourOf, linear, paintState,
+} from '../tools/material-audit.mjs';
 
 const ROOT = process.cwd();
 const CATALOG = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog.json'), 'utf8'));
@@ -89,7 +91,7 @@ describe('the gate: a claim the file cannot honour', () =>
 	});
 });
 
-describe('what the audit found across all 168', () =>
+describe('what the audit found across the whole catalog', () =>
 {
 	it('counts the colourless materials rather than assuming the four J1 saw', () =>
 	{
@@ -97,7 +99,7 @@ describe('what the audit found across all 168', () =>
 		// order of magnitude more materials and most of them are fine - which is
 		// the finding, and is why the gate is about claims rather than about
 		// colourlessness.
-		expect(REPORT.totals.items).toBe(168);
+		expect(REPORT.totals.items).toBe(217);
 		expect(REPORT.totals.materials).toBeGreaterThan(400);
 		expect(REPORT.totals.colourless).toBeGreaterThan(40);
 		expect(REPORT.totals.rowsAffected).toBeGreaterThan(25);
@@ -119,7 +121,11 @@ describe('the paint, and where its colours came from', () =>
 	it('applies every declared colour, and the report says which', () =>
 	{
 		const state = paintState();
-		expect(state).toHaveLength(5);
+		// Four, not five: the chandelier's paint was withdrawn with the pack whose
+		// licence nobody could establish (RM-012 J2). It is recorded in
+		// WITHDRAWN_PAINTS rather than deleted, because the finding stands even
+		// though the file does not.
+		expect(state).toHaveLength(4);
 		state.forEach((entry) =>
 		{
 			expect(entry.applied, `${entry.model} :: ${entry.material}`).toEqual(entry.linear);
@@ -153,13 +159,21 @@ describe('the paint, and where its colours came from', () =>
 		expect(sofa.srgb[1]).toBeGreaterThan(sofa.srgb[2]);
 	});
 
-	it('found the chandelier by the material\'s own name, not by looking', () =>
+	it('keeps the chandelier finding after the chandelier went', () =>
 	{
-		// The second rule earning its place. Nobody was looking at the chandelier -
-		// its row name claims no colour - and a material called `black metal` that
-		// renders white is the same defect as a row called Black that does.
-		const entry = paintState().find((one) => one.material === 'black metal');
-		expect(entry.model).toBe('models/gltf/chandelier.gltf');
-		expect(entry.from).toContain('own name');
+		// The second rule earning its place, and the record of it surviving the
+		// row. Nobody was looking at the chandelier - its row name claims no
+		// colour - and a material called `black metal` that renders white is the
+		// same defect as a row called Black that does. J2 then withdrew the file
+		// with the pack whose licence nobody could establish.
+		//
+		// A rule that only catches what somebody was already looking at is not a
+		// rule, and this is the one row that proved this one is not. So the paint
+		// is recorded as withdrawn rather than deleted.
+		expect(paintState().some((one) => one.material === 'black metal')).toBe(false);
+		const withdrawn = WITHDRAWN_PAINTS.find((one) => one.material === 'black metal');
+		expect(withdrawn.model).toBe('models/gltf/chandelier.gltf');
+		expect(withdrawn.srgb).toEqual([28, 28, 30]);
+		expect(withdrawn.withdrawn).toContain('RM-012 J2');
 	});
 });

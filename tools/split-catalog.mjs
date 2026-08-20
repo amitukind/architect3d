@@ -383,7 +383,12 @@ export const ROOMS = ['living', 'kitchen', 'dining', 'bedroom', 'bathroom', 'off
  * bedside table is storage *and* a table.
  */
 export const TAGS = ['seating', 'table', 'storage', 'bed', 'lighting', 'appliance', 'plumbing',
-	'decor', 'electronics', 'textile', 'plant', 'stairs', 'opening', 'panel'];
+	'decor', 'electronics', 'textile', 'plant', 'stairs', 'opening', 'panel',
+	// The fifteenth, added by RM-012 J2 with the Food Kit: tableware, cookware
+	// and the tools between them. Its own word rather than `decor` or
+	// `appliance`, because a person looking for a saucepan is not looking for an
+	// ornament and is not looking for a fridge.
+	'kitchenware'];
 
 /**
  * What every row has to carry before either file is written.

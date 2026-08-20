@@ -137,8 +137,10 @@ describe('the boundary between them', () =>
 			expect(row.model, 'model').toBeTypeOf('string');
 			expect(row.type, 'type').toBeTypeOf('number');
 		});
+		// Seven since RM-012 J2 withdrew the chandelier with the pack whose licence
+		// nobody could establish. It was the eighth.
 		const lamps = INDEX.items.filter((row) => row.lamp);
-		expect(lamps, 'a lamp must light on the frame it is added').toHaveLength(8);
+		expect(lamps, 'a lamp must light on the frame it is added').toHaveLength(7);
 
 		// And the resolved unit scale, which is the key `Item.applyUnitScale` reads
 		// at the moment an item is placed. A row authors it only when it disagrees
@@ -253,15 +255,15 @@ describe('the packs are fetched, not bundled', () =>
 		});
 	});
 
-	it('names the two rows nobody could establish a licence for, in their own pack', () =>
+	it('ships no pack on a licence nobody could establish', () =>
 	{
-		// J1 recorded them as `unknown` rather than assuming CC0 by resemblance,
-		// and J2's pack split makes that decision a thing you can act on: whether
-		// this deployment ships them is one manifest line and one file.
-		const unknown = MANIFEST.packs.find((entry) => entry.licence === 'unknown');
-		expect(unknown.id).toBe('unattributed');
-		expect(pack(unknown.id + '.json').items.map((row) => row.model).sort())
-			.toEqual(['models/gltf/SimpleCabinet.glb', 'models/gltf/chandelier.gltf']);
+		// This used to name the two and assert they were in their own pack, which
+		// is what the split made actionable: whether the deployment shipped them
+		// was one manifest line and one file. J2 took that decision, so the
+		// assertion is the stronger one - there is no such pack.
+		expect(MANIFEST.packs.filter((entry) => entry.licence === 'unknown')).toEqual([]);
+		expect(MANIFEST.packs.map((entry) => entry.id).sort())
+			.toEqual(['blueprint3d', 'kenney-food-kit', 'kenney-furniture-kit', 'khronos']);
 	});
 });
 
@@ -377,14 +379,21 @@ describe('the unit rule is declared, not detected', () =>
 		expect(sizeOf(bounds, null).refused).toMatch(/no unitScale/);
 	});
 
-	it('puts this catalog on three scales, and says which', () =>
+	it('puts this catalog on four scales, and says which', () =>
 	{
 		const scales = Object.values(DETAIL.items).map((entry) => entry.size.scale);
 		const count = (value) => scales.filter((scale) => scale === value).length;
-		expect(count(1), 'centimetres: 25 demo models, a ceiling fan and a chandelier').toBe(27);
+		expect(count(1), 'centimetres: 25 demo models and a ceiling fan').toBe(26);
 		expect(count(10), 'the duck, which has no real-world size at all').toBe(1);
-		expect(count(200), 'the 2 m kit grid, and one cabinet that is on it').toBe(140);
-		expect(scales).toHaveLength(168);
+		// The Food Kit, RM-012 J2. Solved from the two most standardised objects
+		// in it - a dinner plate at 26.8 cm against a 26-28 standard and a cooking
+		// pot at 24.7 against 24 - which agree to within a centimetre. The other
+		// five checked land short, and that is Kenney's stylised proportion rather
+		// than a disagreement about the scale; `barrel` was the one that could not
+		// be reconciled at 20.4 cm and was refused rather than rescaled.
+		expect(count(30), 'the Food Kit, at 30 cm an authored unit').toBe(51);
+		expect(count(200), 'the 2 m furniture kit grid').toBe(139);
+		expect(scales).toHaveLength(217);
 	});
 
 	it('records the scale in the file, so the conversion can be undone by a reader', () =>

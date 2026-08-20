@@ -147,7 +147,11 @@ describe('M-43 - a boot fetches no pack', () =>
 		// for; the manifest costs one line per kit and is a function of how many
 		// kits exist rather than how many items.
 		expect(PACKS.length).toBe(4);
-		expect(PACKS.reduce((sum, pack) => sum + pack.rows, 0)).toBe(168);
+		// 217 since RM-012 J2 closed: 51 Food Kit rows admitted and 2 withdrawn
+		// with the pack whose licence nobody could establish. The number the
+		// manifest costs the payload did not move with them - it is one line per
+		// kit, and the kit count is unchanged at four.
+		expect(PACKS.reduce((sum, pack) => sum + pack.rows, 0)).toBe(217);
 		expect(PACKS.every((pack) => typeof pack.licence === 'string' && pack.licence)).toBe(true);
 	});
 
@@ -157,7 +161,7 @@ describe('M-43 - a boot fetches no pack', () =>
 		// a tautology: a pack URL that 404s would also never appear in a boot's
 		// timings, and this is the case that tells the two apart.
 		const rows = await loadCatalogPacks();
-		expect(rows.length).toBe(168);
+		expect(rows.length).toBe(217);
 
 		const packs = fetched().filter((path) => path.includes('/catalog/'));
 		expect(packs.length).toBe(4);

@@ -71,15 +71,20 @@ describe('the catalog\'s sixth key (W-11)', () =>
 		// W-11 counted eight entries named like lamps out of 168. Re-counted here
 		// so the schema and the drawing cannot drift apart, and so that adding a
 		// ninth is a decision somebody makes rather than a number that slides.
-		expect(CATALOG.items).toHaveLength(168);
-		expect(LAMPS).toHaveLength(8);
+		//
+		// Seven of 217 now: RM-012 J2 withdrew the chandelier with the pack whose
+		// licence nobody could establish, and admitted 51 Food Kit rows, none of
+		// which emits light. A kitchen full of saucepans changes the row count and
+		// not this one, which is what "and nothing else" is for.
+		expect(CATALOG.items).toHaveLength(217);
+		expect(LAMPS).toHaveLength(7);
 		expect(LAMPS.map((item) => item.name).sort()).toEqual([
-			'Chandelier', 'Floor Lamp', 'Lamproundfloor', 'Lamproundtable',
+			'Floor Lamp', 'Lamproundfloor', 'Lamproundtable',
 			'Lampsquareceiling', 'Lampsquarefloor', 'Lampsquaretable', 'Lampwall',
 		]);
 	});
 
-	it('leaves the other 160 rows without it', () =>
+	it('leaves the other 210 rows without it', () =>
 	{
 		// The cost W-11 priced. A sixth key on a shared file is only cheap if it
 		// appears on the rows that need it and nowhere else.
@@ -99,8 +104,11 @@ describe('the catalog\'s sixth key (W-11)', () =>
 				.toEqual(['format', 'image', 'model', 'name', 'room', 'source', 'tags', 'type']);
 			expect(item.lamp, item.name).toBeUndefined();
 		}
+		// One override left of the three: Simplecabinet and Chandelier went with
+		// the withdrawn pack, and the 51 Food Kit rows take their kit's declared
+		// x30 rather than overriding it.
 		expect(CATALOG.items.filter((item) => item.unitScale !== undefined).map((item) => item.name))
-			.toEqual(['Simplecabinet', 'Ceilingfan', 'Chandelier']);
+			.toEqual(['Ceilingfan']);
 	});
 
 	it('says only what differs from the defaults', () =>
@@ -121,23 +129,30 @@ describe('the catalog\'s sixth key (W-11)', () =>
 	it('puts a pendant\'s bulb low in the fitting and a floor lamp\'s high', () =>
 	{
 		// `at` is a fraction of the item's own height, so the numbers have to
-		// describe the models rather than a convention. A chandelier hangs from
-		// its top and lights from near its bottom; a standard lamp is the reverse.
+		// describe the models rather than a convention. A pendant hangs from its
+		// top and lights from near its bottom; a standard lamp is the reverse.
+		//
+		// The chandelier was the clearest case of the first and it is gone -
+		// withdrawn by RM-012 J2 with the pack whose licence nobody could
+		// establish. `Lampsquareceiling` is the same shape of claim and is still
+		// here, which is why the assertion survives the row rather than the row
+		// being the assertion.
 		const byName = Object.fromEntries(LAMPS.map((item) => [item.name, normaliseLamp(item.lamp)]));
-		expect(byName.Chandelier.at).toBeLessThan(0.5);
 		expect(byName.Lampsquareceiling.at).toBeLessThan(0.5);
 		expect(byName['Floor Lamp'].at).toBeGreaterThan(0.5);
 		expect(byName.Lampwall.at).toBeCloseTo(0.5, 1);
 	});
 
-	it('gives a chandelier more light than a table lamp', () =>
+	it('gives a ceiling fitting more light than a table lamp', () =>
 	{
+		// Was 'gives a chandelier more light'. Same claim, asked of the ceiling
+		// fitting that remains: a room reads as lit by one fitting rather than by
+		// a uniform glow only if the fittings differ, and they differ in the two
+		// ways that matter.
 		const byName = Object.fromEntries(LAMPS.map((item) => [item.name, normaliseLamp(item.lamp)]));
-		expect(byName.Chandelier.brightness).toBeGreaterThan(byName['Floor Lamp'].brightness);
+		expect(byName.Lampsquareceiling.brightness).toBeGreaterThan(byName.Lamproundtable.brightness);
 		expect(byName['Floor Lamp'].brightness).toBeGreaterThan(byName.Lamproundtable.brightness);
-		// And reach further, which is the other half of what makes a room read as
-		// lit by one fitting rather than by a uniform glow.
-		expect(byName.Chandelier.range).toBeGreaterThan(byName.Lamproundtable.range);
+		expect(byName.Lampsquareceiling.range).toBeGreaterThan(byName.Lamproundtable.range);
 	});
 });
 

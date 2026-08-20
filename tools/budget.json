@@ -806,12 +806,38 @@
 		"watch is not the total but what it buys: 9,935 gzipped bytes for 168 rows",
 		"across two tiers is 59 bytes a row, so RM-007's 600 rows is about 35 KB of",
 		"drawer-open. Worth a wait; worth knowing about; not worth discovering.",
+		"",
+		"",
+		"=== J2 CLOSED: THE ACQUISITION ===",
+		"",
+		"catalog-packs RAISED 10,450 -> 12,250, from 9,935 measured to 11,665. This",
+		"is the first raise of a line added four commits ago, and its own note said",
+		"it would happen: \"it WILL be raised when a pack is acquired - that is the",
+		"ratchet working rather than failing\". 49 net rows arrived and the drawer's",
+		"first open got 1,730 gzipped bytes dearer.",
+		"",
+		"The number to watch was never the total but what it buys, and it improved:",
+		"59 gzipped bytes a row before, 53.8 after. So RM-007's 600 rows is about",
+		"32 KB of drawer-open rather than the 35 the line was set against - because",
+		"a pack of 51 rows sharing one vocabulary compresses better than the average",
+		"of what was already here.",
+		"",
+		"first-load did NOT move: 401,041 -> 411,514 limit, 2.3 % headroom, and the",
+		"measurement is unchanged by the acquisition. That is the whole claim of the",
+		"pack split holding under its first real test - 49 rows entered the catalog",
+		"and the payload every visitor downloads did not grow by a byte.",
+		"",
+		"public-total 10,996,146 -> 11,554,xxx and demo-total with it, both inside",
+		"the 1.5x ceiling task one set, with 31 % and 32 % headroom left. The tree",
+		"grew 529,092 B for 49 net items - 10,798 B each - against a catalog mean of",
+		"27,995 at the time. Which is the arithmetic the ceiling was raised on,",
+		"coming in at 39 % of the price it was budgeted at.",
 		""
 	],
 	"budgets": {
 		"demo-js-gzip": {
 			"limit": 423200,
-			"measured": 408092
+			"measured": 408080
 		},
 		"demo-css-gzip": {
 			"limit": 10000,
@@ -819,7 +845,7 @@
 		},
 		"demo-total": {
 			"limit": 29985000,
-			"measured": 19723867
+			"measured": 20286009
 		},
 		"lib-iife-gzip": {
 			"limit": 307000,
@@ -827,7 +853,7 @@
 		},
 		"public-total": {
 			"limit": 16770000,
-			"measured": 11001431
+			"measured": 11563571
 		},
 		"lib-esm-gzip": {
 			"limit": 83000,
@@ -847,19 +873,19 @@
 		},
 		"texture-vram": {
 			"limit": 26250000,
-			"measured": 25004576
+			"measured": 20999541
 		},
 		"first-load": {
 			"limit": 421400,
-			"measured": 410631
+			"measured": 411551
 		},
 		"catalog-bundled": {
 			"limit": 2600,
-			"measured": 2451
+			"measured": 2424
 		},
 		"catalog-packs": {
-			"limit": 10450,
-			"measured": 9935
+			"limit": 12250,
+			"measured": 11666
 		}
 	}
 }

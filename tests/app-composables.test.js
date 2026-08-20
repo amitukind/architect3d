@@ -796,7 +796,7 @@ describe('the catalog is fetched, not bundled (RM-012 J1 X-3, J2)', () =>
 		// And it can still say what is coming, because the manifest is bundled and
 		// the manifest is a list of kits rather than a list of items.
 		expect(catalog.packs).toHaveLength(4);
-		expect(catalog.promised.value).toBe(193);
+		expect(catalog.promised.value).toBe(242);
 		expect(catalog.ready.value).toBe(false);
 	});
 
@@ -807,11 +807,11 @@ describe('the catalog is fetched, not bundled (RM-012 J1 X-3, J2)', () =>
 
 		expect(disk.urls.sort()).toEqual([
 			'catalog/blueprint3d.json',
+			'catalog/kenney-food-kit.json',
 			'catalog/kenney-furniture-kit.json',
 			'catalog/khronos.json',
-			'catalog/unattributed.json',
 		]);
-		expect(catalog.count.value).toBe(193);
+		expect(catalog.count.value).toBe(242);
 		expect(catalog.ready.value).toBe(true);
 
 		// The second open is the common case - the drawer is opened once per chair
@@ -837,17 +837,20 @@ describe('the catalog is fetched, not bundled (RM-012 J1 X-3, J2)', () =>
 		// Three kits that land are three kits somebody can browse. `useAssets`
 		// makes the same call about the asset manifest: a metadata file missing is
 		// a degradation, and refusing to open the catalog over it is an outage.
-		const only = (url) => (url.includes('kenney')
+		// The furniture kit specifically, not `kenney` - there are two Kenney packs
+		// since J2 acquired the Food Kit, and a substring that blocked both would
+		// make this a test about two failures rather than one.
+		const only = (url) => (url.includes('kenney-furniture-kit')
 			? Promise.resolve({ok: false, status: 500, json: () => Promise.reject(new Error('500'))})
 			: diskFetch().fetch(url));
 
 		await loadCatalogPacks({fetch: only});
-		expect(catalog.count.value).toBe(25 + 25 + 1 + 2);
+		expect(catalog.count.value).toBe(25 + 25 + 1 + 51);
 
 		// And the failure is not cached, so the next open tries the missing one
 		// again rather than showing a permanently short catalog.
 		await loadCatalogPacks({fetch: diskFetch().fetch});
-		expect(catalog.count.value).toBe(193);
+		expect(catalog.count.value).toBe(242);
 	});
 
 	it('knows nothing about a row\'s size until somebody asks', async () =>
@@ -883,7 +886,7 @@ describe('the catalog is fetched, not bundled (RM-012 J1 X-3, J2)', () =>
 		// rather than depending on a shared table having been fetched.
 		expect(first.sources.blueprint3d.licence.name).toBe('MIT');
 		expect(Object.keys(first.sources).sort()).toEqual([
-			'blueprint3d', 'kenney-furniture-kit', 'khronos', 'unattributed',
+			'blueprint3d', 'kenney-food-kit', 'kenney-furniture-kit', 'khronos',
 		]);
 
 		// A second caller gets the same object rather than four more round trips.

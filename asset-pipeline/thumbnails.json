@@ -223,6 +223,46 @@
 			"clipped": false
 		},
 		{
+			"name": "Ketchup Bottle",
+			"model": "models/kenney-food/bottle-ketchup.glb",
+			"image": "models/thumbnails/bottle-ketchup.png",
+			"replaced": null,
+			"bytes": 8820,
+			"sha256": "7d3a9301fe8eaed6",
+			"coverage": 0.127,
+			"clipped": false
+		},
+		{
+			"name": "Mustard Bottle",
+			"model": "models/kenney-food/bottle-musterd.glb",
+			"image": "models/thumbnails/bottle-musterd.png",
+			"replaced": null,
+			"bytes": 9709,
+			"sha256": "0df2f8fdba19f72c",
+			"coverage": 0.127,
+			"clipped": false
+		},
+		{
+			"name": "Oil Bottle",
+			"model": "models/kenney-food/bottle-oil.glb",
+			"image": "models/thumbnails/bottle-oil.png",
+			"replaced": null,
+			"bytes": 9328,
+			"sha256": "d6194e6ad785b256",
+			"coverage": 0.109,
+			"clipped": false
+		},
+		{
+			"name": "Mixing Bowl",
+			"model": "models/kenney-food/bowl.glb",
+			"image": "models/thumbnails/bowl.png",
+			"replaced": null,
+			"bytes": 16890,
+			"sha256": "c0f0b7c5ef8008a5",
+			"coverage": 0.201,
+			"clipped": false
+		},
+		{
 			"name": "Cabinetbed",
 			"model": "models/gltf/cabinetBed.glb",
 			"image": "models/thumbnails/cabinetBed.png",
@@ -270,6 +310,16 @@
 			"bytes": 6375,
 			"sha256": "a0357f235330b9fa",
 			"coverage": 0.315,
+			"clipped": false
+		},
+		{
+			"name": "Cake Slice Server",
+			"model": "models/kenney-food/cake-slicer.glb",
+			"image": "models/thumbnails/cake-slicer.png",
+			"replaced": null,
+			"bytes": 5106,
+			"sha256": "3547956072900ac9",
+			"coverage": 0.04,
 			"clipped": false
 		},
 		{
@@ -443,13 +493,33 @@
 			"clipped": false
 		},
 		{
-			"name": "Chandelier",
-			"model": "models/gltf/chandelier.gltf",
-			"image": "models/thumbnails/chandelier.png",
-			"replaced": "models/thumbnails_new/nopreview.png",
-			"bytes": 9824,
-			"sha256": "b418302f84aa8450",
-			"coverage": 0.044,
+			"name": "Cheese Slicer",
+			"model": "models/kenney-food/cheese-slicer.glb",
+			"image": "models/thumbnails/cheese-slicer.png",
+			"replaced": null,
+			"bytes": 5676,
+			"sha256": "5e92f7eb5164311d",
+			"coverage": 0.047,
+			"clipped": false
+		},
+		{
+			"name": "Chopsticks - Decorative",
+			"model": "models/kenney-food/chopstic-decorative.glb",
+			"image": "models/thumbnails/chopstic-decorative.png",
+			"replaced": null,
+			"bytes": 6850,
+			"sha256": "ef1759c7503b5e86",
+			"coverage": 0.045,
+			"clipped": false
+		},
+		{
+			"name": "Chopsticks",
+			"model": "models/kenney-food/chopstick.glb",
+			"image": "models/thumbnails/chopstick.png",
+			"replaced": null,
+			"bytes": 6433,
+			"sha256": "96d87a27103a94dd",
+			"coverage": 0.045,
 			"clipped": false
 		},
 		{
@@ -510,6 +580,106 @@
 			"bytes": 6391,
 			"sha256": "bc567837c5d0fc97",
 			"coverage": 0.262,
+			"clipped": false
+		},
+		{
+			"name": "Cooking Fork",
+			"model": "models/kenney-food/cooking-fork.glb",
+			"image": "models/thumbnails/cooking-fork.png",
+			"replaced": null,
+			"bytes": 6459,
+			"sha256": "2826a07777340c3d",
+			"coverage": 0.038,
+			"clipped": false
+		},
+		{
+			"name": "Chopping Knife",
+			"model": "models/kenney-food/cooking-knife-chopping.glb",
+			"image": "models/thumbnails/cooking-knife-chopping.png",
+			"replaced": null,
+			"bytes": 5769,
+			"sha256": "5c983c6ca55849a9",
+			"coverage": 0.088,
+			"clipped": false
+		},
+		{
+			"name": "Cooking Knife",
+			"model": "models/kenney-food/cooking-knife.glb",
+			"image": "models/thumbnails/cooking-knife.png",
+			"replaced": null,
+			"bytes": 4966,
+			"sha256": "f6823290c25dd06c",
+			"coverage": 0.057,
+			"clipped": false
+		},
+		{
+			"name": "Spatula",
+			"model": "models/kenney-food/cooking-spatula.glb",
+			"image": "models/thumbnails/cooking-spatula.png",
+			"replaced": null,
+			"bytes": 7469,
+			"sha256": "1789de5561c0e627",
+			"coverage": 0.049,
+			"clipped": false
+		},
+		{
+			"name": "Cooking Spoon",
+			"model": "models/kenney-food/cooking-spoon.glb",
+			"image": "models/thumbnails/cooking-spoon.png",
+			"replaced": null,
+			"bytes": 5759,
+			"sha256": "c14e29c6aa5806c5",
+			"coverage": 0.044,
+			"clipped": false
+		},
+		{
+			"name": "Cup and Saucer",
+			"model": "models/kenney-food/cup-saucer.glb",
+			"image": "models/thumbnails/cup-saucer.png",
+			"replaced": null,
+			"bytes": 8858,
+			"sha256": "b11e5ef8bd896d1b",
+			"coverage": 0.143,
+			"clipped": false
+		},
+		{
+			"name": "Cup",
+			"model": "models/kenney-food/cup.glb",
+			"image": "models/thumbnails/cup.png",
+			"replaced": null,
+			"bytes": 14969,
+			"sha256": "a05c03668c356c15",
+			"coverage": 0.177,
+			"clipped": false
+		},
+		{
+			"name": "Cutting Board - Japanese",
+			"model": "models/kenney-food/cutting-board-japanese.glb",
+			"image": "models/thumbnails/cutting-board-japanese.png",
+			"replaced": null,
+			"bytes": 7526,
+			"sha256": "47baadd7751fdd4f",
+			"coverage": 0.18,
+			"clipped": false
+		},
+		{
+			"name": "Cutting Board - Round",
+			"model": "models/kenney-food/cutting-board-round.glb",
+			"image": "models/thumbnails/cutting-board-round.png",
+			"replaced": null,
+			"bytes": 8631,
+			"sha256": "46f38575de70897d",
+			"coverage": 0.154,
+			"clipped": false
+		},
+		{
+			"name": "Cutting Board",
+			"model": "models/kenney-food/cutting-board.glb",
+			"image": "models/thumbnails/cutting-board.png",
+			"replaced": null,
+			"bytes": 12702,
+			"sha256": "808e9be497a7a192",
+			"coverage": 0.202,
 			"clipped": false
 		},
 		{
@@ -593,6 +763,16 @@
 			"clipped": false
 		},
 		{
+			"name": "Egg Cup",
+			"model": "models/kenney-food/egg-cup.glb",
+			"image": "models/thumbnails/egg-cup.png",
+			"replaced": null,
+			"bytes": 16361,
+			"sha256": "df31c4aff1aff628",
+			"coverage": 0.168,
+			"clipped": false
+		},
+		{
 			"name": "Floorcorner",
 			"model": "models/gltf/floorCorner.glb",
 			"image": "models/thumbnails/floorCorner.png",
@@ -630,6 +810,56 @@
 			"bytes": 4008,
 			"sha256": "e96f154c51bc5194",
 			"coverage": 0.179,
+			"clipped": false
+		},
+		{
+			"name": "Frying Pan with Lid",
+			"model": "models/kenney-food/frying-pan-lid.glb",
+			"image": "models/thumbnails/frying-pan-lid.png",
+			"replaced": null,
+			"bytes": 10974,
+			"sha256": "6d22591d8c81155f",
+			"coverage": 0.141,
+			"clipped": false
+		},
+		{
+			"name": "Frying Pan",
+			"model": "models/kenney-food/frying-pan.glb",
+			"image": "models/thumbnails/frying-pan.png",
+			"replaced": null,
+			"bytes": 7961,
+			"sha256": "d5576cfac10a6861",
+			"coverage": 0.109,
+			"clipped": false
+		},
+		{
+			"name": "Biscuit Cutter",
+			"model": "models/kenney-food/ginger-bread-cutter.glb",
+			"image": "models/thumbnails/ginger-bread-cutter.png",
+			"replaced": null,
+			"bytes": 12453,
+			"sha256": "ac111fae95724907",
+			"coverage": 0.13,
+			"clipped": false
+		},
+		{
+			"name": "Wine Glass",
+			"model": "models/kenney-food/glass-wine.glb",
+			"image": "models/thumbnails/glass-wine.png",
+			"replaced": null,
+			"bytes": 18043,
+			"sha256": "8cd2398f1cec0d32",
+			"coverage": 0.093,
+			"clipped": false
+		},
+		{
+			"name": "Drinking Glass",
+			"model": "models/kenney-food/glass.glb",
+			"image": "models/thumbnails/glass.png",
+			"replaced": null,
+			"bytes": 14587,
+			"sha256": "ccb3c4f6a0937cc3",
+			"coverage": 0.181,
 			"clipped": false
 		},
 		{
@@ -923,6 +1153,16 @@
 			"clipped": false
 		},
 		{
+			"name": "Knife Block",
+			"model": "models/kenney-food/knife-block.glb",
+			"image": "models/thumbnails/knife-block.png",
+			"replaced": null,
+			"bytes": 14654,
+			"sha256": "f94af6d856de7760",
+			"coverage": 0.13,
+			"clipped": false
+		},
+		{
 			"name": "Lamproundfloor",
 			"model": "models/gltf/lampRoundFloor.glb",
 			"image": "models/thumbnails/lampRoundFloor.png",
@@ -1083,6 +1323,46 @@
 			"clipped": false
 		},
 		{
+			"name": "Meat Tenderiser",
+			"model": "models/kenney-food/meat-tenderizer.glb",
+			"image": "models/thumbnails/meat-tenderizer.png",
+			"replaced": null,
+			"bytes": 16758,
+			"sha256": "2375d0071b5443b3",
+			"coverage": 0.134,
+			"clipped": false
+		},
+		{
+			"name": "Mortar and Pestle",
+			"model": "models/kenney-food/mortar-pestle.glb",
+			"image": "models/thumbnails/mortar-pestle.png",
+			"replaced": null,
+			"bytes": 10222,
+			"sha256": "4acf034e7b0c4d7c",
+			"coverage": 0.12,
+			"clipped": false
+		},
+		{
+			"name": "Mortar",
+			"model": "models/kenney-food/mortar.glb",
+			"image": "models/thumbnails/mortar.png",
+			"replaced": null,
+			"bytes": 14637,
+			"sha256": "318662b1df125ab7",
+			"coverage": 0.18,
+			"clipped": false
+		},
+		{
+			"name": "Mug",
+			"model": "models/kenney-food/mug.glb",
+			"image": "models/thumbnails/mug.png",
+			"replaced": null,
+			"bytes": 12814,
+			"sha256": "4bf96fd6ca4c86fc",
+			"coverage": 0.189,
+			"clipped": false
+		},
+		{
 			"name": "NYC Poster",
 			"model": "models/js-glb/nyc-poster2.glb",
 			"image": "models/thumbnails/nyc-poster2.png",
@@ -1113,6 +1393,26 @@
 			"clipped": false
 		},
 		{
+			"name": "Stew Pan",
+			"model": "models/kenney-food/pan-stew.glb",
+			"image": "models/thumbnails/pan-stew.png",
+			"replaced": null,
+			"bytes": 12935,
+			"sha256": "11e2d856f2f7ddca",
+			"coverage": 0.147,
+			"clipped": false
+		},
+		{
+			"name": "Saucepan",
+			"model": "models/kenney-food/pan.glb",
+			"image": "models/thumbnails/pan.png",
+			"replaced": null,
+			"bytes": 13922,
+			"sha256": "c27da864456a4b6c",
+			"coverage": 0.147,
+			"clipped": false
+		},
+		{
 			"name": "Paneling",
 			"model": "models/gltf/paneling.glb",
 			"image": "models/thumbnails/paneling.png",
@@ -1120,6 +1420,16 @@
 			"bytes": 5331,
 			"sha256": "e11fe5bde877c47e",
 			"coverage": 0.262,
+			"clipped": false
+		},
+		{
+			"name": "Pepper Mill",
+			"model": "models/kenney-food/pepper-mill.glb",
+			"image": "models/thumbnails/pepper-mill.png",
+			"replaced": null,
+			"bytes": 11233,
+			"sha256": "bb55ed519acc5067",
+			"coverage": 0.088,
 			"clipped": false
 		},
 		{
@@ -1163,6 +1473,16 @@
 			"clipped": false
 		},
 		{
+			"name": "Pizza Cutter",
+			"model": "models/kenney-food/pizza-cutter.glb",
+			"image": "models/thumbnails/pizza-cutter.png",
+			"replaced": null,
+			"bytes": 6363,
+			"sha256": "623294369e2bf05c",
+			"coverage": 0.064,
+			"clipped": false
+		},
+		{
 			"name": "Plantsmall1",
 			"model": "models/gltf/plantSmall1.glb",
 			"image": "models/thumbnails/plantSmall1.png",
@@ -1193,6 +1513,86 @@
 			"clipped": false
 		},
 		{
+			"name": "Bowl Plate",
+			"model": "models/kenney-food/plate-deep.glb",
+			"image": "models/thumbnails/plate-deep.png",
+			"replaced": null,
+			"bytes": 8926,
+			"sha256": "4f13d31df9d51898",
+			"coverage": 0.155,
+			"clipped": false
+		},
+		{
+			"name": "Dinner Plate",
+			"model": "models/kenney-food/plate-dinner.glb",
+			"image": "models/thumbnails/plate-dinner.png",
+			"replaced": null,
+			"bytes": 11420,
+			"sha256": "e173bce743504f3a",
+			"coverage": 0.143,
+			"clipped": false
+		},
+		{
+			"name": "Serving Platter",
+			"model": "models/kenney-food/plate-rectangle.glb",
+			"image": "models/thumbnails/plate-rectangle.png",
+			"replaced": null,
+			"bytes": 10917,
+			"sha256": "42d0db5c9db63853",
+			"coverage": 0.179,
+			"clipped": false
+		},
+		{
+			"name": "Side Plate",
+			"model": "models/kenney-food/plate.glb",
+			"image": "models/thumbnails/plate.png",
+			"replaced": null,
+			"bytes": 6005,
+			"sha256": "29661342c9fbec36",
+			"coverage": 0.137,
+			"clipped": false
+		},
+		{
+			"name": "Cooking Pot with Lid",
+			"model": "models/kenney-food/pot-lid.glb",
+			"image": "models/thumbnails/pot-lid.png",
+			"replaced": null,
+			"bytes": 8568,
+			"sha256": "eb9166238258f150",
+			"coverage": 0.153,
+			"clipped": false
+		},
+		{
+			"name": "Stock Pot with Lid",
+			"model": "models/kenney-food/pot-stew-lid.glb",
+			"image": "models/thumbnails/pot-stew-lid.png",
+			"replaced": null,
+			"bytes": 10254,
+			"sha256": "b082bcd97da54f64",
+			"coverage": 0.153,
+			"clipped": false
+		},
+		{
+			"name": "Stock Pot",
+			"model": "models/kenney-food/pot-stew.glb",
+			"image": "models/thumbnails/pot-stew.png",
+			"replaced": null,
+			"bytes": 16767,
+			"sha256": "22b2d794e9819dad",
+			"coverage": 0.2,
+			"clipped": false
+		},
+		{
+			"name": "Cooking Pot",
+			"model": "models/kenney-food/pot.glb",
+			"image": "models/thumbnails/pot.png",
+			"replaced": null,
+			"bytes": 15715,
+			"sha256": "bc6680be42935af3",
+			"coverage": 0.2,
+			"clipped": false
+		},
+		{
 			"name": "Pottedplant",
 			"model": "models/gltf/pottedPlant.glb",
 			"image": "models/thumbnails/pottedPlant.png",
@@ -1210,6 +1610,16 @@
 			"bytes": 11672,
 			"sha256": "b73b2e23850218f8",
 			"coverage": 0.285,
+			"clipped": false
+		},
+		{
+			"name": "Rolling Pin",
+			"model": "models/kenney-food/rollingPin.glb",
+			"image": "models/thumbnails/rollingPin.png",
+			"replaced": null,
+			"bytes": 12203,
+			"sha256": "c873c954c36c247b",
+			"coverage": 0.107,
 			"clipped": false
 		},
 		{
@@ -1263,6 +1673,26 @@
 			"clipped": false
 		},
 		{
+			"name": "Pepper Shaker",
+			"model": "models/kenney-food/shaker-pepper.glb",
+			"image": "models/thumbnails/shaker-pepper.png",
+			"replaced": null,
+			"bytes": 15822,
+			"sha256": "85e678444ac14511",
+			"coverage": 0.185,
+			"clipped": false
+		},
+		{
+			"name": "Salt Shaker",
+			"model": "models/kenney-food/shaker-salt.glb",
+			"image": "models/thumbnails/shaker-salt.png",
+			"replaced": null,
+			"bytes": 13219,
+			"sha256": "7b2aa05155b3def2",
+			"coverage": 0.185,
+			"clipped": false
+		},
+		{
 			"name": "Shower",
 			"model": "models/gltf/shower.glb",
 			"image": "models/thumbnails/shower.png",
@@ -1300,16 +1730,6 @@
 			"bytes": 5323,
 			"sha256": "ba781dc385905f2d",
 			"coverage": 0.223,
-			"clipped": false
-		},
-		{
-			"name": "Simplecabinet",
-			"model": "models/gltf/SimpleCabinet.glb",
-			"image": "models/thumbnails/SimpleCabinet.png",
-			"replaced": "models/thumbnails_new/SimpleCabinet.png",
-			"bytes": 5006,
-			"sha256": "433bbafdab817e6b",
-			"coverage": 0.276,
 			"clipped": false
 		},
 		{
@@ -1370,6 +1790,16 @@
 			"bytes": 4780,
 			"sha256": "d9c0e0afb8844d74",
 			"coverage": 0.053,
+			"clipped": false
+		},
+		{
+			"name": "Steamer Basket",
+			"model": "models/kenney-food/steamer.glb",
+			"image": "models/thumbnails/steamer.png",
+			"replaced": null,
+			"bytes": 19589,
+			"sha256": "dfa88ad5e4463346",
+			"coverage": 0.207,
 			"clipped": false
 		},
 		{
@@ -1493,6 +1923,26 @@
 			"clipped": false
 		},
 		{
+			"name": "Tagine with Lid",
+			"model": "models/kenney-food/tajine-lid.glb",
+			"image": "models/thumbnails/tajine-lid.png",
+			"replaced": null,
+			"bytes": 14252,
+			"sha256": "81e43399c5d80a60",
+			"coverage": 0.138,
+			"clipped": false
+		},
+		{
+			"name": "Tagine",
+			"model": "models/kenney-food/tajine.glb",
+			"image": "models/thumbnails/tajine.png",
+			"replaced": null,
+			"bytes": 9429,
+			"sha256": "1bb094ff7b67f39e",
+			"coverage": 0.146,
+			"clipped": false
+		},
+		{
 			"name": "Televisionantenna",
 			"model": "models/gltf/televisionAntenna.glb",
 			"image": "models/thumbnails/televisionAntenna.png",
@@ -1560,6 +2010,36 @@
 			"bytes": 3064,
 			"sha256": "2f4d693068b3f25b",
 			"coverage": 0.148,
+			"clipped": false
+		},
+		{
+			"name": "Fork",
+			"model": "models/kenney-food/utensil-fork.glb",
+			"image": "models/thumbnails/utensil-fork.png",
+			"replaced": null,
+			"bytes": 3973,
+			"sha256": "56c761f665a295e0",
+			"coverage": 0.034,
+			"clipped": false
+		},
+		{
+			"name": "Table Knife",
+			"model": "models/kenney-food/utensil-knife.glb",
+			"image": "models/thumbnails/utensil-knife.png",
+			"replaced": null,
+			"bytes": 3248,
+			"sha256": "7d70799134918054",
+			"coverage": 0.027,
+			"clipped": false
+		},
+		{
+			"name": "Spoon",
+			"model": "models/kenney-food/utensil-spoon.glb",
+			"image": "models/thumbnails/utensil-spoon.png",
+			"replaced": null,
+			"bytes": 4307,
+			"sha256": "ca8be2a1e6b2dd44",
+			"coverage": 0.038,
 			"clipped": false
 		},
 		{
@@ -1680,6 +2160,16 @@
 			"bytes": 29082,
 			"sha256": "3a5ed1aeddec9517",
 			"coverage": 0.309,
+			"clipped": false
+		},
+		{
+			"name": "Whisk",
+			"model": "models/kenney-food/whisk.glb",
+			"image": "models/thumbnails/whisk.png",
+			"replaced": null,
+			"bytes": 9135,
+			"sha256": "a3eae35bfa8fe083",
+			"coverage": 0.06,
 			"clipped": false
 		},
 		{

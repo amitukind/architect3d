@@ -5,18 +5,18 @@
 		"high": 600
 	},
 	"reach": {
-		"headroom": 5768569,
-		"mean": 27995,
-		"count": 168,
-		"buysAtMean": 206,
-		"needLow": 232,
-		"needHigh": 432,
-		"maxMeanForLow": 24864,
-		"maxMeanForHigh": 13353,
-		"reachesLow": false,
+		"headroom": 5206429,
+		"mean": 24128,
+		"count": 217,
+		"buysAtMean": 215,
+		"needLow": 183,
+		"needHigh": 383,
+		"maxMeanForLow": 28450,
+		"maxMeanForHigh": 13593,
+		"reachesLow": true,
 		"reachesHigh": false,
 		"curatedPrice": 12285,
-		"buysAtCurated": 469,
+		"buysAtCurated": 423,
 		"reachesLowCurated": true,
 		"reachesHighCurated": true
 	},
@@ -37,6 +37,21 @@
 			"basis": 0
 		},
 		{
+			"id": "kenney-food-kit",
+			"licence": "CC0 1.0 Universal",
+			"count": 51,
+			"files": 103,
+			"deduped": 717753,
+			"mean": 14074,
+			"median": 23664,
+			"p90": 30034,
+			"largest": 39296,
+			"largestName": "Steamer Basket",
+			"models": 51,
+			"draco": 51,
+			"basis": 0
+		},
+		{
 			"id": "blueprint3d",
 			"licence": "MIT",
 			"count": 25,
@@ -50,21 +65,6 @@
 			"models": 25,
 			"draco": 23,
 			"basis": 11
-		},
-		{
-			"id": "unattributed",
-			"licence": "unknown",
-			"count": 2,
-			"files": 4,
-			"deduped": 185212,
-			"mean": 92606,
-			"median": 137894,
-			"p90": 137894,
-			"largest": 137894,
-			"largestName": "Chandelier",
-			"models": 2,
-			"draco": 1,
-			"basis": 0
 		},
 		{
 			"id": "khronos",
