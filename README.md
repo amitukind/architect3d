@@ -4,14 +4,21 @@ WebGL 3D interior design tool with a 2D floorplanner.
 
 Draw walls by clicking, close a loop to make a room, put doors, windows, stairs,
 columns and beams in it as numbers rather than as models, furnish it from a
-catalog of 168 models, surface it from a library of 30 CC0 materials, dimension
+catalog of 217 models, surface it from a library of 32 CC0 materials, dimension
 and label the plan, and walk through the result in first person. Plan and 3D view side by side — the furniture is drawn on both,
 and selecting anything in one view selects it in the other — with undo on
 everything, and a dark or light theme that reaches the drawing canvas as well as
 the chrome.
 
-**[Live app](https://architect3d.pages.dev)** ·
-**[Documentation](./docs)**
+**[Documentation](./docs)** · run it with `npm install && npm run dev`
+
+> **There is no public address yet.** One is built and ready to publish - the
+> workflow, the checks and the Lighthouse floor are all in place - and it goes
+> up when the hosting account exists. Until then the only way to see this is to
+> run it, which takes two commands. This README will not advertise an address
+> until there is one to advertise: RM-015 AA-1 found the previous version
+> linking nine times to a host that answered 404, and a button promising a live
+> app that does not resolve is the same defect wearing a newer hostname.
 
 ![](./images/architect3d.jpg)
 
@@ -175,13 +182,16 @@ Types are generated from the JSDoc and ship with the package.
 | [Migration roadmap](./docs/public/roadmap.html) | The ten-sprint plan, and what each sprint delivered |
 
 The sources are Markdown under [`docs/`](./docs); `npm run docs` serves them
-locally and the deploy publishes them at [/docs](https://architect3d.pages.dev/docs).
+locally, and the deploy publishes them at `/docs` once there is a deploy.
 
 They are linked here as files rather than as pages on the site, deliberately: a
 link into the repository resolves on github.com, in an editor and in a clone,
 and it cannot be made wrong by a deploy that has not run yet. RM-015 AA-1 found
 the previous version of this README advertising nine links to an address that
 returned 404, and a file path is the form of that link which cannot go stale.
+RM-016 AB-6 found the rule had been kept for the documentation links and broken
+for the one at the top: `architect3d.pages.dev` does not resolve at all - not a
+404, no such host - because the account it would live in does not exist yet.
 
 
 ## Layout
