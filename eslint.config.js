@@ -83,6 +83,18 @@ export default [
 				// annotations.
 				indexedDB: 'readonly',
 				URLSearchParams: 'readonly',
+				// Added by RM-013 K2. A design in a link is deflated by the platform
+				// rather than by a dependency - `CompressionStream` is in every
+				// browser this project targets, and its gzip output was measured
+				// byte-identical to Node's - and `btoa`/`Response` are what turn the
+				// bytes into something a person can paste. `crypto` is the zip
+				// bundle's CRC-32 seed source, `Uint8Array` and friends are already
+				// ambient.
+				CompressionStream: 'readonly',
+				DecompressionStream: 'readonly',
+				TextDecoder: 'readonly',
+				Response: 'readonly',
+				btoa: 'readonly',
 			},
 		},
 		rules: {
@@ -256,6 +268,12 @@ export default [
 				// RM-011 H3. `useDesignIO` decodes a panorama's data URL to bytes,
 				// and the test that checks it has to encode one to hand over.
 				btoa: 'readonly',
+				// RM-013 K2. jsdom ships no `CompressionStream`, so the headless tier
+				// puts Node's deflate behind the browser's interface - a real
+				// `TransformStream`, because the codec pipes through it and anything
+				// with only the right method names would prove that the fake was
+				// called rather than that the codec works.
+				TransformStream: 'readonly',
 			},
 		},
 		rules: {

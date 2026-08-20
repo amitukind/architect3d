@@ -185,6 +185,13 @@ export class Main extends EventDispatcher
 		/** @type {?PointerLockControls} */
 		this.fpscontrols = null;
 		this.firstpersonmode = false;
+		/**
+		 * Whether this viewer is showing a design nobody may edit (RM-013 K2).
+		 * Combined with `firstpersonmode` by `_applyPointerEditing`, because both
+		 * turn the pointer off and neither owns the flag alone.
+		 * @type {boolean}
+		 */
+		this._readOnly = false;
 
 		/** @type {?WebGLRenderer} */
 		this.renderer = null;
@@ -1948,6 +1955,40 @@ export class Main extends EventDispatcher
 		this.render(true);
 	}
 
+	/**
+	 * Whether the pointer may move anything in the 3D view (RM-013 K2).
+	 *
+	 * `Controller.enabled` is the switch and it has existed since the fork; what
+	 * it has never had is two owners. The walkthrough turns it off so a person
+	 * walking through a room cannot shove a sofa with their face, and a read-only
+	 * design turns it off because it is read-only - and both are true at once
+	 * when somebody walks through a shared link. A single assignment means the
+	 * second event to fire wins, so the two are stored and combined.
+	 *
+	 * @param {boolean} flag
+	 * @returns {void}
+	 */
+	setReadOnly(flag)
+	{
+		this._readOnly = Boolean(flag);
+		this._applyPointerEditing();
+	}
+
+	/** Whether this viewer is showing a design nobody may edit. */
+	get readOnly()
+	{
+		return Boolean(this._readOnly);
+	}
+
+	/** @returns {void} */
+	_applyPointerEditing()
+	{
+		if (this.controller)
+		{
+			this.controller.enabled = !this._readOnly && !this.firstpersonmode;
+		}
+	}
+
 	switchFPSMode(flag)
 	{
 		if (!this.fpscontrols || !this.controls || !this.controller || !this.skybox || !this.levelViews.size)
@@ -1957,7 +1998,12 @@ export class Main extends EventDispatcher
 		this.firstpersonmode = flag;
 		this.fpscontrols.enabled = flag;
 		this.controls.enabled = !flag;
-		this.controller.enabled = !flag;
+		// Through `_applyPointerEditing` rather than straight to the field
+		// (RM-013 K2): read-only and the walkthrough both want the controller off
+		// and only one of them can own a boolean. Leaving the assignment here
+		// meant that leaving a walkthrough in a shared design handed the pointer
+		// back and made the furniture draggable again.
+		this._applyPointerEditing();
 		this.controls.signalCameraActive();
 
 		if(flag)

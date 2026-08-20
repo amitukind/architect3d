@@ -272,6 +272,11 @@ export class Floorplanner2D extends EventDispatcher
 		/** Kept for back-compat: callers used to read `.canvas` as an element id. */
 		this.canvas = (typeof canvas === 'string') ? canvas : this.canvasElement.id;
 		this.floorplan = floorplan;
+		/**
+		 * Whether this plan may be edited (RM-013 K2). See {@link setReadOnly}.
+		 * @type {boolean}
+		 */
+		this.readOnly = false;
 		this.view = new FloorplannerView2D(this.floorplan, this, this.canvasElement);
 		this._disposed = false;
 
@@ -654,8 +659,18 @@ export class Floorplanner2D extends EventDispatcher
 
 		this.lastX = this.rawMouseX;
 		this.lastY = this.rawMouseY;
-		
-				
+
+		// A plan nobody may edit stops here (RM-013 K2). See `setReadOnly`: this
+		// is the whole gate, and it works because of how `mousemove` is already
+		// built. Everything below this line either deletes something or GRABS
+		// something, and the pan branch in `mousemove` runs precisely when nothing
+		// is grabbed - so returning here leaves panning working and turns every
+		// mutation off by construction rather than by listing them.
+		if (this.readOnly)
+		{
+			return;
+		}
+
 		// delete
 		if (this.mode == floorplannerModes.DELETE)
 		{
@@ -1070,6 +1085,19 @@ export class Floorplanner2D extends EventDispatcher
 	mouseup(/*event*/)
 	{
 		this.mouseDown = false;
+
+		// The other half of the gate (RM-013 K2). Nothing below can have been
+		// grabbed, since `mousedown` returned before grabbing anything - but the
+		// final `else` reaches for `activeCorner` and `activeWall`, which HOVER
+		// sets rather than the press, and calls `updateAttachedRooms(true)` on
+		// them. That recomputes and announces, and an announcement is what the
+		// shell turns into "you have unsaved changes" on a design somebody is only
+		// looking at.
+		if (this.readOnly)
+		{
+			this.view.invalidate();
+			return;
+		}
 
 		// The annotation drags end here and announce nothing extra (RM-008 E3):
 		// each mutator has already announced itself, and the application commits a
@@ -1833,6 +1861,14 @@ export class Floorplanner2D extends EventDispatcher
 	/** */
 	setMode(mode)
 	{
+		// A read-only plan has exactly one mode and it is the one that draws
+		// nothing (RM-013 K2). Refused here rather than at every caller, because
+		// the callers are a tool rail, a keyboard map and an Escape handler, and a
+		// guard that lives in three places is a guard with two holes in it.
+		if (this.readOnly && mode !== floorplannerModes.MOVE)
+		{
+			return;
+		}
 		this.lastNode = null;
 		// A half-drawn rectangle does not survive leaving the tool (RM-008 E2).
 		// Escape resets the mode, so this is also what Escape clears.
@@ -1842,6 +1878,53 @@ export class Floorplanner2D extends EventDispatcher
 		this.mode = mode;
 		this.dispatchEvent({type:EVENT_MODE_RESET, mode: mode});
 		this.updateTarget();
+	}
+
+	/**
+	 * Whether this plan may be edited (RM-013 K2).
+	 *
+	 * ## The library had no such state, which is the finding
+	 *
+	 * There are six modes and **all six mutate** - MOVE included, because MOVE is
+	 * what drags corners, walls, footprints, dimensions and notes. So a viewer
+	 * could not be built by choosing a harmless mode; there was no harmless mode.
+	 * The 3D half already had the switch and had had it for years -
+	 * `Controller.enabled`, which `switchFPSMode` toggles so the walkthrough does
+	 * not let somebody shove a sofa with their face - and the asymmetry was
+	 * simply that nobody had needed the plan's.
+	 *
+	 * ## What it turns off, and what it deliberately leaves on
+	 *
+	 * Off: drawing, deleting, dragging anything, and selecting anything - because
+	 * a press is what starts all four and `mousedown` now returns before any of
+	 * them. On: **panning and zooming**, which is what makes this a viewer rather
+	 * than a picture. That falls out of the existing structure rather than being
+	 * added - see the note in `mousedown`.
+	 *
+	 * Off, too: the mode itself. `setMode` refuses anything but MOVE, so a tool
+	 * rail that is still on screen, a keyboard map that still has `w` bound, or
+	 * an embedder that never heard of this flag cannot arm a tool.
+	 *
+	 * @param {boolean} flag
+	 * @returns {void}
+	 */
+	setReadOnly(flag)
+	{
+		this.readOnly = Boolean(flag);
+		if (this.readOnly)
+		{
+			// Straight to the field, because `setMode` now refuses to move a
+			// read-only plan and this is the one call that has to get through.
+			this.mode = floorplannerModes.MOVE;
+			this.lastNode = null;
+			this.rectangleAnchor = null;
+			this.dimensionAnchor = null;
+			this.activeCorner = null;
+			this.activeWall = null;
+			this.activeRoom = null;
+			this.dispatchEvent({type: EVENT_MODE_RESET, mode: this.mode});
+		}
+		this.view.invalidate();
 	}
 
 	/** Sets the origin so that floorplan is centered */
