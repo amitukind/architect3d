@@ -22,7 +22,15 @@ defineExpose({container});
 </script>
 
 <template>
-	<div id="viewer" ref="container" class="relative h-full w-full overflow-hidden">
+	<!-- Focusable since RM-014 L4. OrbitControls' arrow-key panning is bound to
+	     this element rather than to the window, so the tab stop is what makes the
+	     keys reachable - and what keeps them from firing while the plan or an
+	     inspector field has focus. -->
+	<div
+		id="viewer" ref="container" tabindex="0"
+		role="application"
+		aria-label="3D view. Arrow keys pan the camera."
+		class="relative h-full w-full overflow-hidden">
 		<slot />
 	</div>
 </template>

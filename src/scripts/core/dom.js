@@ -144,3 +144,73 @@ export function resolveCanvas(target, description)
 	}
 	return element;
 }
+
+/** The query that decides whether the application is allowed to move. */
+export const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+
+/**
+ * Whether this person has asked the system to stop animating things
+ * (RM-014 L4, finding Z-6).
+ *
+ * A function rather than a constant, because the preference can change while
+ * the page is open - a user switching it in system settings expects the tab
+ * they left open to obey - and because a constant evaluated at import time
+ * would be read before jsdom has a `matchMedia` in some test setups.
+ *
+ * Absent `matchMedia`, the answer is **false**: an environment that cannot be
+ * asked has not asked for anything, and defaulting to "reduce" would silently
+ * turn off motion for every embedder on an older host.
+ *
+ * @returns {boolean}
+ */
+export function prefersReducedMotion()
+{
+	try
+	{
+		return Boolean(window.matchMedia && window.matchMedia(REDUCED_MOTION_QUERY).matches);
+	}
+	catch
+	{
+		// A host that throws on an unknown media feature. Not worth a boot.
+		return false;
+	}
+}
+
+/**
+ * Call `onChange` whenever the reduced-motion preference flips.
+ *
+ * `addEventListener` where it exists and `addListener` where it does not: the
+ * latter is deprecated but is the only form Safari understood until 14, and a
+ * preference listener that silently does nothing is worse than none.
+ *
+ * @param {function(boolean): void} onChange
+ * @returns {function(): void} Detach. Safe to call more than once.
+ */
+export function watchReducedMotion(onChange)
+{
+	var query = null;
+	try
+	{
+		query = window.matchMedia ? window.matchMedia(REDUCED_MOTION_QUERY) : null;
+	}
+	catch
+	{
+		query = null;
+	}
+	if (!query)
+	{
+		return function () {};
+	}
+	var handler = function (event) {onChange(Boolean(event && event.matches));};
+	if (query.addEventListener)
+	{
+		query.addEventListener('change', handler);
+		return function () {query.removeEventListener('change', handler);};
+	}
+	if (query.addListener)
+	{
+		query.addListener(handler);
+		return function () {query.removeListener(handler);};
+	}
+	return function () {};
+}

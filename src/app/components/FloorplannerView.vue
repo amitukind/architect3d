@@ -29,7 +29,7 @@ import {ref} from 'vue';
  * and the page would scroll anyway.
  */
 
-const emit = defineEmits(['wheel-zoom', 'pointer-move', 'pointer-leave']);
+const emit = defineEmits(['wheel-zoom', 'pointer-move', 'pointer-leave', 'canvas-focus', 'canvas-blur']);
 
 const canvas = ref(null);
 
@@ -51,9 +51,19 @@ defineExpose({canvas});
 
 <template>
 	<div id="floorplanner" class="relative h-full w-full overflow-hidden">
+		<!-- Focusable since RM-014 L4 (finding Z-5), which is what puts the plan in
+		     the tab order and scopes the drawing keys to it. `role="application"`
+		     tells a screen reader to pass the arrow keys through rather than using
+		     them to browse, which is the whole gesture. The label names the keys
+		     because there is no other way to discover them from here. -->
 		<canvas
 			id="floorplanner-canvas" ref="canvas" class="block h-full w-full"
+			tabindex="0"
+			role="application"
+			aria-label="Floor plan. Arrow keys move the cursor, Enter presses, Space picks up and puts down."
 			@wheel.prevent="onWheel"
+			@focus="emit('canvas-focus')"
+			@blur="emit('canvas-blur')"
 			@pointermove="emit('pointer-move', $event)"
 			@pointerleave="emit('pointer-leave')" />
 		<slot />

@@ -486,3 +486,62 @@ export function buildFloorplannerDom(window, {left = 0, top = 0, width = 1000, h
 
 	return {container, canvas};
 }
+
+/**
+ * A `matchMedia` that answers whatever the test says, and can change its mind.
+ *
+ * jsdom ships no `matchMedia` at all, so anything reading a media preference
+ * gets the "cannot be asked" branch by default - which is the right default for
+ * the library and useless for testing the other branch. This installs one that
+ * matches a given set of query strings, and `set()` flips a query and notifies
+ * every listener, which is how a person changing a system setting with the tab
+ * already open reaches the application (RM-014 L4, finding Z-6).
+ *
+ * @param {Window} window
+ * @param {Object<string, boolean>} [initial] Query string to whether it matches.
+ */
+export function installMatchMedia(window, initial = {})
+{
+	const state = new Map(Object.entries(initial));
+	/** @type {Map<string, Set<function(Object): void>>} */
+	const listeners = new Map();
+	const had = Object.prototype.hasOwnProperty.call(window, 'matchMedia');
+	const original = window.matchMedia;
+
+	function listenersFor(query)
+	{
+		if (!listeners.has(query)) { listeners.set(query, new Set()); }
+		return listeners.get(query);
+	}
+
+	window.matchMedia = function (query)
+	{
+		return {
+			media: query,
+			get matches() {return Boolean(state.get(query));},
+			addEventListener: (type, handler) => {if (type === 'change') { listenersFor(query).add(handler); }},
+			removeEventListener: (type, handler) => {if (type === 'change') { listenersFor(query).delete(handler); }},
+			// The pre-Safari-14 spelling, which watchReducedMotion falls back to.
+			addListener: (handler) => listenersFor(query).add(handler),
+			removeListener: (handler) => listenersFor(query).delete(handler),
+			dispatchEvent: () => true,
+			onchange: null,
+		};
+	};
+
+	return {
+		/** Flip a query and tell everyone listening to it. */
+		set(query, matches)
+		{
+			state.set(query, matches);
+			listenersFor(query).forEach((handler) => handler({matches: matches, media: query}));
+		},
+		/** How many listeners are attached to a query right now. */
+		listenerCount(query) {return listenersFor(query).size;},
+		restore()
+		{
+			if (had) { window.matchMedia = original; }
+			else { delete window.matchMedia; }
+		},
+	};
+}

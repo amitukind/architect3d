@@ -863,15 +863,15 @@
 	"budgets": {
 		"demo-js-gzip": {
 			"limit": 439800,
-			"measured": 428083
+			"measured": 429300
 		},
 		"demo-css-gzip": {
 			"limit": 10000,
-			"measured": 7995
+			"measured": 8116
 		},
 		"demo-total": {
 			"limit": 29985000,
-			"measured": 20776613
+			"measured": 20809944
 		},
 		"lib-iife-gzip": {
 			"limit": 307000,
@@ -920,7 +920,7 @@
 		},
 		"first-load": {
 			"limit": 441700,
-			"measured": 430337
+			"measured": 431665
 		},
 		"catalog-bundled": {
 			"limit": 2600,

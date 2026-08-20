@@ -225,10 +225,27 @@ export default defineConfig({
 				// fraction and rounding down is what keeps these floors rather than
 				// targets. Measured 86.61 / 86.62 / 77.77 / 84.45; rounded down, as
 				// always.
+				//
+				// RM-014 L4 moves branches 78 -> 79 and functions 85 -> 86. Measured
+				// 87.78 lines, 87.77 statements, 79.28 branches, 86.03 functions.
+				//
+				// Branches is the interesting one, because a keyboard sprint should
+				// not obviously move it. It does because the keyboard path is not new
+				// code with new branches - it synthesises into `mousedown`,
+				// `mousemove` and `mouseup`, so 28 new tests walk the branches those
+				// three methods already had: the drawing modes, the delete mode, the
+				// hover cases and the read-only guards RM-013 K2 wrote, several of
+				// which no existing test reached from that direction. Covering old
+				// branches is what a second way of driving the same code buys.
+				//
+				// Functions crossed on the plainer route: `dom.js` gained two, the
+				// floorplanner six, and every one of them is called by the suite that
+				// arrived with it. Lines and statements gained fractions (87.35 ->
+				// 87.78, 87.33 -> 87.77) and stay where they are.
 				lines: 87,
 				statements: 87,
-				branches: 78,
-				functions: 85,
+				branches: 79,
+				functions: 86,
 			},
 		},
 	},

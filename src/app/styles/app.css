@@ -231,6 +231,17 @@
 		border-radius: 4px;
 	}
 
+	/* The two drawing surfaces fill their panes, and both panes clip. The shared
+	   ring above sits 1px OUTSIDE its element, so on these two it would be drawn
+	   into the overflow and disappear - the focus state would be correct and
+	   invisible, which is the worst of both. Inset instead (RM-014 L4). */
+	#floorplanner-canvas:focus-visible,
+	#viewer:focus-visible
+	{
+		outline-offset: -2px;
+		border-radius: 0;
+	}
+
 	::selection
 	{
 		background: var(--accent-wash);

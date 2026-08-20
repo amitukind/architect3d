@@ -86,12 +86,23 @@ export class OrbitControls extends OrbitControlsAddon
 		};
 		this.addEventListener('change', this._cameraMoved);
 
-		// The fork bound keydown to window unconditionally; the addon makes that
-		// opt-in. Passing window keeps arrow-key panning working exactly where it
-		// worked before. disconnect() unbinds it, so dispose() is still complete.
+		// The element, not the window (RM-014 L4).
+		//
+		// The fork bound keydown to `window` unconditionally and the migration
+		// kept that for parity, with a note saying it preserved arrow-key panning
+		// exactly where it worked before. Where it worked before was *everywhere*:
+		// three's handler checks `enabled` and nothing else - not focus, not
+		// whether a text field has the caret - so an arrow key pressed while
+		// renaming a room panned the 3D camera behind the dialog.
+		//
+		// L4 makes both drawing surfaces focusable and gives the plan the same
+		// four keys, so "everywhere" stopped being merely untidy and became
+		// ambiguous. Scoped to the element, the answer is the one a keyboard user
+		// already expects: the arrows drive whichever surface has focus.
+		// `disconnect()` unbinds it, so dispose() is still complete.
 		if (domElement)
 		{
-			this.listenToKeyEvents(window);
+			this.listenToKeyEvents(domElement);
 		}
 
 		/**

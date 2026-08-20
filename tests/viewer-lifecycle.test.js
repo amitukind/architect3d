@@ -26,7 +26,7 @@ import {dimCentiMeter} from '../src/scripts/core/units.js';
 import {EVENT_CAMERA_MOVED, EVENT_CAMERA_ACTIVE_STATUS} from '../src/scripts/core/events.js';
 import {VIEW_TOP} from '../src/scripts/core/constants.js';
 import {resetAll, stubItemLoader} from './helpers/harness.js';
-import {installCanvas2D, installListenerCounter, installPointerApis, installResizeObserver, setLayout} from './helpers/dom.js';
+import {installCanvas2D, installListenerCounter, installMatchMedia, installPointerApis, installResizeObserver, setLayout} from './helpers/dom.js';
 // Shared with the S6 application suites - see tests/helpers/renderer.js.
 import {createRendererStub} from './helpers/renderer.js';
 import {readFileSync} from 'node:fs';
@@ -839,14 +839,126 @@ describe('the OrbitControls shim', () =>
 		three.dispose();
 	});
 
+	/**
+	 * RM-014 L4 moved this listener from `window` to the viewer element, and the
+	 * numbers that justified it were measured on a live instance rather than read
+	 * off three's source. Dispatching ArrowLeft and counting `_handleKeyDown`:
+	 *
+	 *   binding    key on window   key on the viewer   key in a focused <input>
+	 *   window                 1                   1                          1
+	 *   element                0                   1                          0
+	 *
+	 * The last column is why. three's handler checks `enabled` and nothing else -
+	 * not focus, not whether a caret is in a field - so with the old binding an
+	 * arrow key typed while renaming a room panned the 3D camera behind the
+	 * dialog. L4 also gives the plan canvas the same four keys, so "everywhere"
+	 * stopped being untidy and became ambiguous.
+	 */
+	it('binds its key listener to the viewer, not the window (RM-014 L4)', () =>
+	{
+		const {three, controls} = mount();
+		let hits = 0;
+		const real = controls._handleKeyDown.bind(controls);
+		controls._handleKeyDown = (event) => {hits += 1; return real(event);};
+		const arrow = (target) => target.dispatchEvent(
+			new window.KeyboardEvent('keydown', {key: 'ArrowLeft', bubbles: true, cancelable: true}));
+
+		arrow(window);
+		expect(hits, 'an arrow key anywhere on the page must not reach the camera').toBe(0);
+
+		arrow(three.domElement);
+		expect(hits, 'an arrow key on the focused viewer must reach the camera').toBe(1);
+
+		three.dispose();
+	});
+
 	it('unbinds its key listener on dispose', () =>
 	{
+		// Counted on the viewer element since L4, which is where the listener now
+		// lives. The assertion is the same one it always was - nothing this
+		// instance attached outlives it - re-pointed at the new target rather than
+		// relaxed. The `window` half is asserted too, so a future change that
+		// widens the scope back fails here instead of silently working.
 		const listeners = installListenerCounter(window);
 		const {three} = mount();
-		expect(listeners.netFor(window, 'keydown')).toBeGreaterThan(0);
-		three.dispose();
+		const element = three.domElement;
+		expect(listeners.netFor(element, 'keydown')).toBeGreaterThan(0);
 		expect(listeners.netFor(window, 'keydown')).toBe(0);
+		three.dispose();
+		expect(listeners.netFor(element, 'keydown')).toBe(0);
 		listeners.restore();
+	});
+});
+
+/**
+ * RM-014 L4, finding Z-6: the one piece of motion CSS cannot reach.
+ *
+ * Z-6 read the `prefers-reduced-motion` block in `app.css` against a count of
+ * every animation and transition in the tree - 6 animations, 4 keyframe sets, 7
+ * transitions - and found the query reaches all of them. It cannot reach
+ * OrbitControls damping, because that is not a style: it is the camera gliding
+ * on after the hand stops, produced by arithmetic in an animation frame.
+ *
+ * Read back off the controls rather than off the CSS, which is the acceptance
+ * clause: asserting that a media query exists in a stylesheet would be
+ * asserting that a constant equals itself.
+ */
+describe('reduced motion and the 3D camera', () =>
+{
+	const QUERY = '(prefers-reduced-motion: reduce)';
+	let media;
+
+	function mount()
+	{
+		const viewer = document.createElement('div');
+		viewer.id = 'viewer';
+		document.body.appendChild(viewer);
+		setLayout(viewer, {left: 0, top: 0, width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT});
+		return new Main(new Model(), viewer, 'three-canvas', {});
+	}
+
+	afterEach(() => {if (media) { media.restore(); media = null; }});
+
+	it('damps by default, because nobody has asked it not to', () =>
+	{
+		media = installMatchMedia(window, {[QUERY]: false});
+		const three = mount();
+		expect(three.controls.enableDamping).toBe(true);
+		three.dispose();
+	});
+
+	it('does not damp for somebody who asked the system to stop moving things', () =>
+	{
+		media = installMatchMedia(window, {[QUERY]: true});
+		const three = mount();
+		expect(three.controls.enableDamping).toBe(false);
+		three.dispose();
+	});
+
+	it('damps where the preference cannot be asked at all', () =>
+	{
+		// jsdom has no matchMedia, which is also every older embedding host. An
+		// environment that cannot be asked has not asked for anything, and
+		// defaulting to "reduce" would silently still every viewer on one.
+		const three = mount();
+		expect(three.controls.enableDamping).toBe(true);
+		three.dispose();
+	});
+
+	it('follows the preference changing while the tab is open, and stops when disposed', () =>
+	{
+		media = installMatchMedia(window, {[QUERY]: false});
+		const three = mount();
+		expect(three.controls.enableDamping).toBe(true);
+
+		media.set(QUERY, true);
+		expect(three.controls.enableDamping).toBe(false);
+		media.set(QUERY, false);
+		expect(three.controls.enableDamping).toBe(true);
+
+		expect(media.listenerCount(QUERY)).toBe(1);
+		three.dispose();
+		expect(media.listenerCount(QUERY)).toBe(0);
 	});
 });
 

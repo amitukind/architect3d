@@ -111,6 +111,16 @@ const toasts = useToasts();
 // (RM-004 B3).
 /** @type {import('vue').Ref<?{canvas: HTMLCanvasElement}>} */
 const floorplanRef = ref(null);
+/**
+ * Whether the plan canvas has keyboard focus (RM-014 L4, finding Z-5).
+ *
+ * A ref written by the canvas's own focus and blur, rather than a call to
+ * `document.activeElement` inside `enabled`. The keyboard map is a `computed`
+ * and `activeElement` is not reactive, so reading it there would answer with
+ * whatever was true when the map last rebuilt. This is the same question asked
+ * in a form Vue can see change.
+ */
+const planFocused = ref(false);
 /** @type {import('vue').Ref<?{container: HTMLElement}>} */
 const viewportRef = ref(null);
 const catalogOpen = ref(false);
@@ -782,6 +792,66 @@ const canDeleteSelection = computed(function ()
 });
 
 /**
+ * The plan lost focus, so the keyboard cursor goes away with it.
+ *
+ * `hideCursor` also lets go of anything a Space grab is holding: a `mousedown`
+ * with no matching `mouseup` would leave the plan dragging it for the life of
+ * the page. Escape reaches this too, because Escape's fall-through blurs
+ * whatever has focus.
+ */
+function onPlanBlur()
+{
+	planFocused.value = false;
+	withPlanner((planner) => planner.hideCursor());
+}
+
+/**
+ * Run something against the live floorplanner, if there is one.
+ *
+ * @param {function(any): void} run
+ */
+function withPlanner(run)
+{
+	const planner = store.floorplanner.value;
+	if (planner)
+	{
+		run(planner);
+	}
+}
+
+/**
+ * One direction of the plan cursor, fine and coarse (RM-014 L4).
+ *
+ * A pair rather than one binding reading `event.shiftKey`, because `describe()`
+ * spells a held Shift into the combination itself - so 'arrowup' would simply
+ * not match while Shift is down, and the coarse step would be unreachable. The
+ * shifted one is an `alias` so the sheet lists the direction once and explains
+ * the modifier in prose rather than four more times.
+ *
+ * @param {string} key
+ * @param {string} label
+ * @param {number} dx
+ * @param {number} dy
+ * @returns {Array<Object>}
+ */
+function cursorKeys(key, label, dx, dy)
+{
+	return [
+		{
+			group: 'Plan cursor', keys: key, label: label, repeats: true,
+			enabled: () => planFocused.value, yieldWhenDisabled: true,
+			run: () => withPlanner((planner) => planner.moveCursor(dx, dy, false)),
+		},
+		{
+			group: 'Plan cursor', keys: 'shift+' + key, label: label + ' by a metre',
+			alias: true, repeats: true,
+			enabled: () => planFocused.value, yieldWhenDisabled: true,
+			run: () => withPlanner((planner) => planner.moveCursor(dx, dy, true)),
+		},
+	];
+}
+
+/**
  * The keyboard map.
  *
  * A computed rather than a constant, so `enabled` and the bindings themselves
@@ -813,6 +883,31 @@ const bindings = computed(() => /** @type {Array<import('./composables/useShortc
 	{group: 'Tools', keys: 't', label: 'Add a text label', run: () => editor.setMode(floorplannerModes.TEXT)},
 	{group: 'Tools', keys: 'x', label: 'Delete walls', run: () => editor.setMode(floorplannerModes.DELETE)},
 	{group: 'Tools', keys: 's', label: 'Toggle snap to grid', run: () => zoom.setSnap(!zoom.snap.value)},
+
+	// --- the plan, with no pointer (RM-014 L4, finding Z-5) ---
+	//
+	// Live only while the plan canvas has focus, and `yieldWhenDisabled` because
+	// the same four keys pan the 3D camera, scroll the inspector and drive the
+	// pane splitter when it does not. They stay in the array either way, because
+	// this array is also what the shortcuts sheet renders and a key nobody can
+	// discover is a key nobody has.
+	//
+	// `repeats`, because holding an arrow IS the gesture - the one case the
+	// repeat guard in `useShortcuts` was written to expect.
+	...cursorKeys('arrowup', 'Move the plan cursor up', 0, -1),
+	...cursorKeys('arrowdown', 'Move the plan cursor down', 0, 1),
+	...cursorKeys('arrowleft', 'Move the plan cursor left', -1, 0),
+	...cursorKeys('arrowright', 'Move the plan cursor right', 1, 0),
+	{
+		group: 'Plan cursor', keys: 'enter', label: 'Press at the cursor',
+		enabled: () => planFocused.value, yieldWhenDisabled: true,
+		run: () => withPlanner((planner) => planner.pressCursor()),
+	},
+	{
+		group: 'Plan cursor', keys: 'space', label: 'Pick up, or put down',
+		enabled: () => planFocused.value, yieldWhenDisabled: true,
+		run: () => withPlanner((planner) => planner.toggleCursorGrab()),
+	},
 	{group: 'Tools', keys: 'a', label: 'Furniture catalog', run: toggleCatalog},
 	{
 		group: 'Tools', keys: 'mod+d', label: 'Duplicate item',
@@ -941,6 +1036,16 @@ useShortcuts(() => bindings.value);
 <template>
 	<TooltipProvider :delay-duration="260" :skip-delay-duration="240">
 		<div id="app-shell" class="flex h-screen w-screen flex-col overflow-hidden bg-ground text-ink">
+			<!-- First in the tab order, and invisible until it has focus
+			     (RM-014 L4). It points at the plan rather than at the <main>
+			     landmark, because a landmark is not focusable and the browser would
+			     move the caret without moving focus - the next Tab would carry on
+			     from the top bar as if nothing had happened. The plan canvas IS
+			     focusable now, so the link lands somewhere a person can work. -->
+			<a
+				href="#floorplanner-canvas"
+				class="absolute left-3 top-3 z-[100] -translate-y-[200%] rounded bg-panel px-3 py-2 text-[13px] font-medium text-ink shadow-lg ring-1 ring-line transition-transform focus:translate-y-0"
+			>Skip to the plan</a>
 			<TopBar
 				:help-url="help"
 				:layout="workspace.layout.value"
@@ -1007,6 +1112,8 @@ useShortcuts(() => bindings.value);
 						<FloorplannerView
 							ref="floorplanRef"
 							@wheel-zoom="zoom.nudge"
+							@canvas-focus="planFocused = true"
+							@canvas-blur="onPlanBlur"
 							@pointer-move="onPlanPointerMove"
 							@pointer-leave="stats.setCursor(null)">
 							<div

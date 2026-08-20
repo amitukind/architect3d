@@ -169,6 +169,17 @@ export function snapToAngle(originX, originY, pointX, pointY)
 	};
 }
 
+/**
+ * How much bigger a coarse cursor step is than a fine one (RM-014 L4, Z-5).
+ *
+ * Four, so that at the default 25 cm grid a fine step is 25 cm and a coarse one
+ * is a round metre. The fine step IS the grid step rather than a number of its
+ * own: a cursor that lands between grid lines would have to be snapped back by
+ * `updateTarget`, and a person pressing an arrow four times should arrive where
+ * the grid says they are.
+ */
+export const CURSOR_COARSE_STEPS = 4;
+
 export class Floorplanner2D extends EventDispatcher
 {
 	/**
@@ -360,6 +371,34 @@ export class Floorplanner2D extends EventDispatcher
 		/** @type {?import('../model/annotation.js').Dimension} The dimension whose offset is being dragged. */
 		this._draggingDimension = null;
 		this.shiftkey = false;
+
+		/**
+		 * Where the keyboard is pointing, in plan centimetres (RM-014 L4, Z-5).
+		 *
+		 * Plan space rather than screen space, so a cursor survives a pan and a
+		 * zoom - the same reason `mouseX`/`mouseY` are in centimetres and
+		 * `rawMouseX`/`rawMouseY` are not.
+		 *
+		 * @type {number}
+		 */
+		this.cursorX = 0;
+		/** @type {number} See cursorX. */
+		this.cursorY = 0;
+		/**
+		 * Whether the keyboard cursor is on screen. False until the first arrow
+		 * key, and false again the moment a real pointer moves - two cursors on one
+		 * canvas is a question about which one acts, and there is no good answer.
+		 * @type {boolean}
+		 */
+		this.cursorVisible = false;
+		/**
+		 * Whether a keyboard grab is in progress: Space pressed something down and
+		 * has not let it go. Arrow keys between the two drag it, because
+		 * `mousemove` drags precisely when `mouseDown` is true.
+		 * @type {boolean}
+		 */
+		this.cursorCarrying = false;
+
 		// Initialization:
 
 		this.setMode(floorplannerModes.MOVE);
@@ -371,8 +410,14 @@ export class Floorplanner2D extends EventDispatcher
 		// page scrolling out from under a drag; touch-action does the same job for
 		// gestures the browser would otherwise claim before a listener ever runs.
 		this._pointerOptions = {passive: false};
-		this._pointerDownEvent = (event) => {scope.mousedown(event);};
-		this._pointerMoveEvent = (event) => {scope.mousemove(event);};
+		//
+		// The two that a person drives with a hand on the mouse also put the
+		// keyboard cursor away (RM-014 L4). It is done in the LISTENER rather than
+		// inside `mousemove`, because the listener is the thing that knows the
+		// event came from a pointer - `moveCursor` calls the same method and must
+		// not undo itself. That keeps the hot path one branch shorter, too.
+		this._pointerDownEvent = (event) => {scope.hideCursor(); scope.mousedown(event);};
+		this._pointerMoveEvent = (event) => {scope.hideCursor(); scope.mousemove(event);};
 		// These three take no event - `mouseup(/*event*/)` has its parameter
 		// commented out - so they are called without one (RM-005 C2). Passing an
 		// argument to a zero-parameter function is a no-op in JS and a TS2554 here;
@@ -1748,6 +1793,234 @@ export class Floorplanner2D extends EventDispatcher
 		this.targetY = origin.y + (Math.sin(radians) * wanted);
 		this.view.invalidate();
 		return true;
+	}
+
+	/**
+	 * ## Drawing with no pointer (RM-014 L4, finding Z-5)
+	 *
+	 * Z-5 measured that this class attaches five pointer listeners and a
+	 * `dblclick` to its canvas, and two key listeners to `document` that handle
+	 * Escape and Shift and nothing else. Neither canvas is in the tab order. What
+	 * follows is the other half of the gesture, and the whole of it is *four
+	 * fields wide*: `mousedown`, `mousemove` and `mouseup` read `clientX`,
+	 * `clientY` and `pointerType`, and nothing else off an event.
+	 *
+	 * ### One drawing implementation, not two
+	 *
+	 * So the keyboard does not draw. It **moves a point and presses it**, through
+	 * the same three methods a pointer goes through, with an object carrying the
+	 * two coordinates they read. Snapping, alignment guides, angle snap, the
+	 * undo entry a drag commits on release, and the read-only guards RM-013 K2
+	 * added are all inherited rather than reimplemented - none of them is
+	 * mentioned again below, which is the point. A second path would be a second
+	 * set of bugs, and every characterization test in the suite covers this one.
+	 *
+	 * `pointerType` is left undefined on purpose: `_isTouchLike` therefore reports
+	 * false, and the two branches that call `preventDefault()` and
+	 * `stopPropagation()` on a real touch never run on an object that has neither.
+	 *
+	 * ### The cursor cannot drift from where it acts
+	 *
+	 * `_cursorEvent` projects with `convertX`/`convertY` - the same pair the view
+	 * draws every corner and every wall with, and the exact inverse of the line in
+	 * `mousemove` that turns a client coordinate back into centimetres. So the
+	 * ring drawn on screen and the point the press lands on are the same number
+	 * put through a function and its inverse, rather than two computations that
+	 * have to be kept in agreement.
+	 *
+	 * ### Click and drag are two keys, because they are two gestures
+	 *
+	 * Enter presses and releases. Space presses and holds; arrows then drag,
+	 * because `mousemove` drags precisely when `mouseDown` is true; Space again
+	 * lets go, which is the moment `mouseup` commits one undo entry for the whole
+	 * movement. Overloading one key with both would make selecting a wall and
+	 * dragging it the same keystroke, told apart by what happened next.
+	 *
+	 * @returns {{clientX: number, clientY: number}} the cursor as the pointer
+	 * handlers expect to receive it.
+	 */
+	_cursorEvent()
+	{
+		var bounds = this.canvasElement.getBoundingClientRect();
+		return {
+			clientX: this.convertX(this.cursorX) + bounds.left,
+			clientY: this.convertY(this.cursorY) + bounds.top,
+		};
+	}
+
+	/**
+	 * Put the cursor on screen, if it is not already.
+	 *
+	 * Where it appears is a choice: **at the wall being drawn if there is one**,
+	 * because that is where the person is working and a cursor that appeared
+	 * elsewhere would have to be walked back; otherwise at the middle of what is
+	 * on screen, snapped to the grid. The centre is always visible at any pan or
+	 * zoom, which the plan origin is not.
+	 *
+	 * @returns {boolean} whether this call is what revealed it.
+	 */
+	startCursor()
+	{
+		if (this.cursorVisible)
+		{
+			return false;
+		}
+		if (this.mode == floorplannerModes.DRAW && this.lastNode)
+		{
+			this.cursorX = this.lastNode.x;
+			this.cursorY = this.lastNode.y;
+		}
+		else
+		{
+			var width = (this.view && this.view.canvasWidth) || this.canvasElement.clientWidth || 0;
+			var height = (this.view && this.view.canvasHeight) || this.canvasElement.clientHeight || 0;
+			var step = this.configuration.getNumericValue(snapTolerance) || 1;
+			var centreX = this.dimensioning.pixelToCm(width / 2) + this.dimensioning.pixelToCm(this.originX);
+			var centreY = this.dimensioning.pixelToCm(height / 2) + this.dimensioning.pixelToCm(this.originY);
+			this.cursorX = Math.round(centreX / step) * step;
+			this.cursorY = Math.round(centreY / step) * step;
+		}
+		this.cursorVisible = true;
+		this.mousemove(this._cursorEvent());
+		return true;
+	}
+
+	/**
+	 * Put the cursor away.
+	 *
+	 * Called by the pointer listeners, and by the shell when the canvas loses
+	 * focus. A grab in progress is released rather than abandoned, because a
+	 * `mousedown` with no matching `mouseup` leaves `mouseDown` true and the plan
+	 * dragging whatever it was holding for as long as the page lives.
+	 */
+	hideCursor()
+	{
+		if (!this.cursorVisible)
+		{
+			return;
+		}
+		if (this.cursorCarrying)
+		{
+			this.cursorCarrying = false;
+			this.mouseup();
+		}
+		this.cursorVisible = false;
+		this.view.invalidate();
+	}
+
+	/**
+	 * Put the cursor at a point in plan centimetres.
+	 *
+	 * For a shell that knows where a person should be looking - the item they
+	 * just selected, a corner an inspector is editing. It tells the plan, like
+	 * every other way of moving the cursor does, which is what lets `pressCursor`
+	 * assume its hover state is current.
+	 *
+	 * @param {number} x
+	 * @param {number} y
+	 */
+	placeCursor(x, y)
+	{
+		this.cursorX = x;
+		this.cursorY = y;
+		this.cursorVisible = true;
+		this.mousemove(this._cursorEvent());
+	}
+
+	/**
+	 * Move the cursor one step, and tell the plan the pointer went there.
+	 *
+	 * The first arrow key only reveals the cursor - it does not also move it. A
+	 * person needs to see where they are before they can decide where to go, and
+	 * a cursor that appeared already one step away from its own starting point
+	 * would be lying about the step size.
+	 *
+	 * One `mousemove` covers both hovering and dragging, because that method
+	 * already branches on `mouseDown`. There is no drag case here.
+	 *
+	 * @param {number} dx -1, 0 or 1.
+	 * @param {number} dy -1, 0 or 1.
+	 * @param {boolean} [coarse] A round metre instead of a grid step.
+	 * @returns {boolean} whether the cursor moved, as opposed to appearing.
+	 */
+	moveCursor(dx, dy, coarse)
+	{
+		if (this.startCursor())
+		{
+			return false;
+		}
+		var step = (this.configuration.getNumericValue(snapTolerance) || 1)
+			* (coarse ? CURSOR_COARSE_STEPS : 1);
+		this.cursorX += dx * step;
+		this.cursorY += dy * step;
+		this.mousemove(this._cursorEvent());
+		return true;
+	}
+
+	/**
+	 * Press and release at the cursor: a click.
+	 *
+	 * **No `mousemove` first, and the first version of this had one.** The reason
+	 * it was there is real - `mousedown` seeds its pan origin from `rawMouseX`,
+	 * which only a preceding move writes, and hover is what a press in DELETE mode
+	 * acts on. The reason it is gone is that every way in has already done it:
+	 * `startCursor`, `moveCursor` and `placeCursor` each end in a `mousemove` at
+	 * the current point, and the cursor cannot move by any other route.
+	 *
+	 * It was removed because a deliberate break found it: deleting the call broke
+	 * no test, which meant either the call or the coverage was wrong. It was the
+	 * call.
+	 *
+	 * @returns {boolean} whether anything was pressed.
+	 */
+	pressCursor()
+	{
+		this.startCursor();
+		if (this.cursorCarrying)
+		{
+			// Enter while carrying means "put it down here", which is what the drop
+			// half of a grab does. Better than ignoring the key and leaving somebody
+			// holding a wall they cannot let go of with the key they just pressed.
+			return this.toggleCursorGrab();
+		}
+		var event = this._cursorEvent();
+		this.mousedown(event);
+		this.mouseup();
+		return true;
+	}
+
+	/**
+	 * Take hold at the cursor, or let go of what is already held.
+	 *
+	 * @returns {boolean} whether anything is held after this call.
+	 */
+	toggleCursorGrab()
+	{
+		this.startCursor();
+		if (this.cursorCarrying)
+		{
+			this.cursorCarrying = false;
+			this.mouseup();
+			return false;
+		}
+		// See pressCursor: the hover state is already current, by construction.
+		this.mousedown(this._cursorEvent());
+		this.cursorCarrying = true;
+		return true;
+	}
+
+	/**
+	 * Where the cursor is, for a shell that wants to show it.
+	 *
+	 * @returns {?{x: number, y: number, carrying: boolean}}
+	 */
+	cursorPoint()
+	{
+		if (!this.cursorVisible)
+		{
+			return null;
+		}
+		return {x: this.cursorX, y: this.cursorY, carrying: this.cursorCarrying};
 	}
 
 	/** */

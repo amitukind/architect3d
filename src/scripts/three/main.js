@@ -16,7 +16,7 @@ import {EVENT_ITEMS_PROJECTED} from '../core/events.js';
 import {CHANGE_TOPOLOGY} from '../core/change_set.js';
 import {EVENT_FPS_EXIT, EVENT_CAMERA_VIEW_CHANGE} from '../core/events.js';
 import {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY, VIEW_EXTERIOR} from '../core/constants.js';
-import {resolveElement, elementBox, measureViewport, pixelRatio} from '../core/dom.js';
+import {resolveElement, elementBox, measureViewport, pixelRatio, prefersReducedMotion, watchReducedMotion} from '../core/dom.js';
 
 import {OrbitControls} from './orbitcontrols.js';
 
@@ -182,6 +182,8 @@ export class Main extends EventDispatcher
 
 		/** @type {?OrbitControls} */
 		this.controls = null;
+		/** @type {?function(): void} Detaches the reduced-motion listener. See _watchReducedMotion. */
+		this._unwatchMotion = null;
 		/** @type {?PointerLockControls} */
 		this.fpscontrols = null;
 		this.firstpersonmode = false;
@@ -559,12 +561,32 @@ export class Main extends EventDispatcher
 
 		scope.controls = new OrbitControls(scope.camera, scope.domElement);
 		scope.controls.autoRotate = this.options['spin'];
-		scope.controls.enableDamping = true;
+		// The one piece of motion a media query cannot reach (RM-014 L4, Z-6).
+		//
+		// Z-6 read the `prefers-reduced-motion` block in `app.css` against a count
+		// of every animation and transition in the tree: 6 animations, 4 keyframe
+		// sets, 7 transitions, and the query reaches all of them. It cannot reach
+		// this, because damping is not a style - it is the camera continuing to
+		// glide for a second after the hand stops, produced by arithmetic in an
+		// animation frame. For somebody who asked the system to stop moving
+		// things, it is the most noticeable motion the application has left.
+		scope.controls.enableDamping = !prefersReducedMotion();
 		scope.controls.dampingFactor = 0.5;
 		scope.controls.maxPolarAngle = Math.PI * 0.5;
 		scope.controls.maxDistance = 3000;
 		scope.controls.minZoom = 0.9;
 		scope.controls.screenSpacePanning = true;
+
+		// A preference can change while the tab is open, and a person who turns
+		// motion off in system settings expects the window they left open to obey.
+		// One listener, torn down in dispose() with the other four.
+		this._unwatchMotion = watchReducedMotion(function (reduced)
+		{
+			if (scope.controls)
+			{
+				scope.controls.enableDamping = !reduced;
+			}
+		});
 
 		// domElement is what gets pointer-locked and taken fullscreen. The fork
 		// defaulted it to document.body and the addon requires it explicitly;
@@ -700,6 +722,7 @@ export class Main extends EventDispatcher
 		if (this._mouseEnterEvent) { this.element.removeEventListener('mouseenter', this._mouseEnterEvent); }
 		if (this._mouseLeaveEvent) { this.element.removeEventListener('mouseleave', this._mouseLeaveEvent); }
 		if (this._clickEvent) { this.element.removeEventListener('click', this._clickEvent); }
+		if (this._unwatchMotion) { this._unwatchMotion(); this._unwatchMotion = null; }
 
 		this._watchedPlans.forEach((plan) =>
 		{

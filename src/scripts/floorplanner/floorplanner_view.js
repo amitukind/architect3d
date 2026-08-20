@@ -202,6 +202,17 @@ export const floorplannerPalette = {
 
 	delete: deleteColor,
 
+	/**
+	 * The keyboard cursor (RM-014 L4, finding Z-5).
+	 *
+	 * Two colours rather than one, because pointing at something and holding it
+	 * are different states and the difference has to survive a still screenshot -
+	 * a pulse or a wobble would say it too, and would say it to nobody who has
+	 * asked for reduced motion.
+	 */
+	cursor: '#008cba',
+	cursorCarry: '#00ba8c',
+
 	/** Dimension text, and the halo stroked behind it so a label stays legible
 	 * over a filled room. */
 	label: '#000000',
@@ -1010,6 +1021,48 @@ export class FloorplannerView2D
 		{
 			this.drawCircle(this.project.convertX(this.viewmodel._clickedWallControl.x), this.project.convertY(this.viewmodel._clickedWallControl.y), 7, floorplannerPalette.wallControl);
 		}
+
+		// The keyboard cursor is the last thing drawn and the last thing exported
+		// (RM-014 L4). Last on screen because it is the thing being aimed, and
+		// never on a sheet because it is a property of who is looking rather than
+		// of the building - the same rule that keeps the grid and the north
+		// arrow's chrome apart.
+		if (!this.exporting && this.viewmodel.cursorVisible)
+		{
+			this.drawKeyboardCursor();
+		}
+	}
+
+	/**
+	 * A crosshair and a ring, at the keyboard cursor (RM-014 L4, finding Z-5).
+	 *
+	 * A crosshair rather than an arrow, and for the reason a plan is a plan: the
+	 * thing being aimed is a *coordinate*, and the two strokes cross exactly on
+	 * it. An arrow would put the point at one end of a glyph and leave the reader
+	 * to work out which end.
+	 *
+	 * `project` rather than raw arithmetic, so the ring lands on the same pixel
+	 * the press does - see `_cursorEvent`, which projects with the same function.
+	 */
+	drawKeyboardCursor()
+	{
+		var x = this.project.convertX(this.viewmodel.cursorX);
+		var y = this.project.convertY(this.viewmodel.cursorY);
+		var colour = this.viewmodel.cursorCarrying
+			? floorplannerPalette.cursorCarry
+			: floorplannerPalette.cursor;
+		var arm = 11;
+		var gap = 4;
+
+		// A gap at the centre, so the crosshair frames the point rather than
+		// covering the corner or the footprint that is under it.
+		this.backend.line(x - arm, y, x - gap, y, 1.5, colour);
+		this.backend.line(x + gap, y, x + arm, y, 1.5, colour);
+		this.backend.line(x, y - arm, x, y - gap, 1.5, colour);
+		this.backend.line(x, y + gap, x, y + arm, 1.5, colour);
+		// `arc` rather than `circle`: the latter fills, and a filled disc would
+		// hide the thing being aimed at.
+		this.backend.arc(x, y, arm, 0, 2 * Math.PI, 1.5, colour);
 	}
 	
 	/**
