@@ -135,11 +135,45 @@ function readAsText(file)
 }
 
 /**
+ * Strip what a filesystem will not take, and keep what a person typed.
+ *
+ * Not a slug: `Loft conversion.blueprint3d` is the file somebody wants, not
+ * `loft-conversion`. Only the characters that are illegal on Windows, macOS or
+ * Linux go - the path separators, the shell wildcards, the reserved punctuation
+ * and the control range - plus a leading dot, which would make the download
+ * hidden on two of the three.
+ *
+ * @param {?string} name
+ * @returns {string}
+ */
+export function fileNameFor(name)
+{
+	// eslint-disable-next-line no-control-regex
+	var cleaned = String(name == null ? '' : name).replace(/[/\\:*?"<>|\u0000-\u001f]/g, ' ')
+		.replace(/\s+/g, ' ').replace(/^\.+/, '').trim();
+	return cleaned || 'design';
+}
+
+/**
  * @param {import('./useBlueprint.js').BlueprintStore} store
  */
 export function useDesignIO(store)
 {
 	var busy = ref(false);
+	/**
+	 * What the exports are called (RM-013 K1, finding Y-2).
+	 *
+	 * Every download this application produced was named by a constant -
+	 * `design.blueprint3d`, `design.obj`, `design.gltf`, `plan-1-100.svg`,
+	 * `plan.png`, `view.png`, `panorama.png` - so seven exports of seven
+	 * different designs all arrived in a downloads folder under the same seven
+	 * names. A project has a name now, and `useProjects` writes it here.
+	 *
+	 * Owned by this composable rather than passed in, because the alternative is
+	 * a cycle: the library loads designs through `loadDesign` below, so it cannot
+	 * also be what this reads its name from.
+	 */
+	var documentName = ref('design');
 	// Kept alongside the toasts rather than replaced by them. A toast is
 	// transient by design, and a caller - a test, an embedder - that wants to
 	// know whether the last operation failed should not have to scrape a queue
@@ -264,14 +298,16 @@ export function useDesignIO(store)
 
 	function saveDesign()
 	{
-		download(store.model.value.exportSerialized(), 'design.blueprint3d', 'text/plain');
-		toasts.success('Saved design.blueprint3d');
+		var name = `${fileNameFor(documentName.value)}.blueprint3d`;
+		download(store.model.value.exportSerialized(), name, 'text/plain');
+		toasts.success(`Saved ${name}`);
 	}
 
 	function saveMesh()
 	{
-		download(store.model.value.exportMeshAsObj(), 'design.obj', 'text/plain');
-		toasts.success('Exported design.obj');
+		var name = `${fileNameFor(documentName.value)}.obj`;
+		download(store.model.value.exportMeshAsObj(), name, 'text/plain');
+		toasts.success(`Exported ${name}`);
 	}
 
 	/**
@@ -309,8 +345,9 @@ export function useDesignIO(store)
 			fail('There is nothing on the plan to export yet.');
 			return;
 		}
-		download(svg, `plan-1-${scale}.svg`, 'image/svg+xml');
-		toasts.success(`Exported plan-1-${scale}.svg`);
+		var name = `${fileNameFor(documentName.value)} plan 1-${scale}.svg`;
+		download(svg, name, 'image/svg+xml');
+		toasts.success(`Exported ${name}`);
 	}
 
 	/**
@@ -357,11 +394,11 @@ export function useDesignIO(store)
 		}
 		var anchor = document.createElement('a');
 		anchor.href = url;
-		anchor.download = 'view.png';
+		anchor.download = `${fileNameFor(documentName.value)} view.png`;
 		document.body.appendChild(anchor);
 		anchor.click();
 		anchor.remove();
-		toasts.success('Exported view.png');
+		toasts.success(`Exported ${fileNameFor(documentName.value)} view.png`);
 	}
 
 	/**
@@ -394,8 +431,9 @@ export function useDesignIO(store)
 			fail('The browser could not encode the panorama.');
 			return;
 		}
-		download(dataUrlToBlob(url), 'panorama.png', 'image/png');
-		toasts.success('Exported panorama.png');
+		var name = `${fileNameFor(documentName.value)} panorama.png`;
+		download(dataUrlToBlob(url), name, 'image/png');
+		toasts.success(`Exported ${name}`);
 	}
 
 	function savePlanPNG(pixelWidth)
@@ -430,12 +468,12 @@ export function useDesignIO(store)
 			var url = URL.createObjectURL(blob);
 			var anchor = document.createElement('a');
 			anchor.href = url;
-			anchor.download = 'plan.png';
+			anchor.download = `${fileNameFor(documentName.value)} plan.png`;
 			document.body.appendChild(anchor);
 			anchor.click();
 			document.body.removeChild(anchor);
 			URL.revokeObjectURL(url);
-			toasts.success(`Exported plan.png, ${size.width}\u00d7${size.height}`);
+			toasts.success(`Exported ${fileNameFor(documentName.value)} plan.png, ${size.width}\u00d7${size.height}`);
 		}, 'image/png');
 	}
 
@@ -539,8 +577,9 @@ export function useDesignIO(store)
 			function onReady(event)
 			{
 				finish();
-				download(event.gltf, 'design.gltf', 'model/gltf+json');
-				toasts.success('Exported design.gltf');
+				var name = `${fileNameFor(documentName.value)}.gltf`;
+				download(event.gltf, name, 'model/gltf+json');
+				toasts.success(`Exported ${name}`);
 				resolve(event.gltf);
 			}
 
@@ -553,5 +592,6 @@ export function useDesignIO(store)
 		});
 	}
 
-	return {busy, lastError, newDesign, loadDesign, openDesign, saveDesign, saveMesh, saveGLTF, savePhoto, savePanorama, savePlanSVG, savePlanPNG, printPlan};
+	return {busy, lastError, documentName, newDesign, loadDesign, openDesign, saveDesign, saveMesh,
+		saveGLTF, savePhoto, savePanorama, savePlanSVG, savePlanPNG, printPlan};
 }

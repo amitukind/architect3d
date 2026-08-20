@@ -78,15 +78,24 @@ export function installCanvas2D(window)
 {
 	const context = createContext2DStub();
 	const original = window.HTMLCanvasElement.prototype.getContext;
+	const originalDataUrl = window.HTMLCanvasElement.prototype.toDataURL;
 	window.HTMLCanvasElement.prototype.getContext = function ()
 	{
 		return context;
 	};
+	// jsdom has no encoder either, and says so through the virtual console on
+	// every call - which is thirteen lines of "Not implemented" in one suite once
+	// something starts making thumbnails (RM-013 K1). `data:,` is exactly what
+	// jsdom returns after logging, so this changes no behaviour: a caller that
+	// checks what came back still finds nothing usable, which is the honest
+	// answer under jsdom and the reason `captureThumbnail` returns null there.
+	window.HTMLCanvasElement.prototype.toDataURL = function () {return 'data:,';};
 	return {
 		context,
 		restore()
 		{
 			window.HTMLCanvasElement.prototype.getContext = original;
+			window.HTMLCanvasElement.prototype.toDataURL = originalDataUrl;
 		},
 	};
 }
