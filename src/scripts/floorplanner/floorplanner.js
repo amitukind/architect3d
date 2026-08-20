@@ -660,12 +660,16 @@ export class Floorplanner2D extends EventDispatcher
 		this.lastX = this.rawMouseX;
 		this.lastY = this.rawMouseY;
 
-		// A plan nobody may edit stops here (RM-013 K2). See `setReadOnly`: this
-		// is the whole gate, and it works because of how `mousemove` is already
-		// built. Everything below this line either deletes something or GRABS
-		// something, and the pan branch in `mousemove` runs precisely when nothing
-		// is grabbed - so returning here leaves panning working and turns every
-		// mutation off by construction rather than by listing them.
+		// A plan nobody may edit stops here (RM-013 K2). Everything below this
+		// line either deletes something or GRABS something, and `mousemove` pans
+		// precisely when nothing is grabbed - so returning here leaves panning
+		// working and turns these mutations off by construction rather than by
+		// listing them.
+		//
+		// It is not the whole gate, and the first version of this comment claimed
+		// it was. `activeCorner` and `activeWall` are set by hover rather than by
+		// the press, so the drag branch could still find one; `mousemove` has the
+		// matching guard, and `mouseup` has the third.
 		if (this.readOnly)
 		{
 			return;
@@ -883,7 +887,19 @@ export class Floorplanner2D extends EventDispatcher
 		}
 
 		// update object target
-		if (this.mode != floorplannerModes.DRAW && !this.mouseDown)
+		//
+		// `!this.readOnly` added by RM-013 K2, and it is the half of the gate the
+		// first attempt missed. `activeCorner` and `activeWall` are set by HOVER,
+		// not by the press - so a read-only plan whose `mousedown` returned early
+		// still had them set, the pan guard below excludes them by design, and the
+		// MOVE branch after it moved whatever the pointer had last passed over. A
+		// corner moved 182 cm in a plan nobody was allowed to touch, and the
+		// suite caught it on the first run.
+		//
+		// It also removes hover highlighting from a read-only plan, which is
+		// correct rather than collateral: highlighting a thing that will not
+		// respond is a promise the view cannot keep.
+		if (this.mode != floorplannerModes.DRAW && !this.mouseDown && !this.readOnly)
 		{
 			var hoverCorner = this.floorplan.overlappedCorner(this.mouseX, this.mouseY, undefined);
 			var hoverWall = this.floorplan.overlappedWall(this.mouseX, this.mouseY, undefined);

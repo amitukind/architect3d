@@ -15,6 +15,8 @@ import SceneOverlay from './components/SceneOverlay.vue';
 import CatalogDrawer from './components/CatalogDrawer.vue';
 import ShortcutsDialog from './components/ShortcutsDialog.vue';
 import ProjectLibrary from './components/ProjectLibrary.vue';
+import ShareDialog from './components/ShareDialog.vue';
+import ViewerBanner from './components/ViewerBanner.vue';
 import ToastStack from './components/ToastStack.vue';
 import InspectorPanel from './inspector/InspectorPanel.vue';
 
@@ -26,6 +28,7 @@ import {useFloorplannerMode} from './composables/useFloorplannerMode.js';
 import {useDesignIO} from './composables/useDesignIO.js';
 import {useProjects} from './composables/useProjects.js';
 import {useTemplates} from './composables/useTemplates.js';
+import {useShare} from './composables/useShare.js';
 import {useCatalog} from './composables/useCatalog.js';
 import {useDisplayUnit, syncDisplayUnit} from './composables/useDisplayUnit.js';
 import {useTheme, applyTheme} from './composables/useTheme.js';
@@ -77,6 +80,7 @@ const editor = useFloorplannerMode(store);
 const io = useDesignIO(store);
 const projects = useProjects(store, io);
 const templates = useTemplates(projects);
+const share = useShare(store, projects, io);
 const catalog = useCatalog(store, selection.placementContext);
 const display = useDisplayUnit(store);
 const theme = useTheme(store);
@@ -100,6 +104,7 @@ const viewportRef = ref(null);
 const catalogOpen = ref(false);
 const shortcutsOpen = ref(false);
 const libraryOpen = ref(false);
+const shareOpen = ref(false);
 const inspectorTab = ref('settings');
 const renderMode = ref(renderProfile.mode);
 
@@ -152,7 +157,7 @@ onMounted(() =>
 	history.reset();
 	frameDesign();
 
-	offerDraft();
+	openShared();
 	loadAssetManifest();
 	applyLayoutToCamera(workspace.layout.value);
 });
@@ -222,6 +227,48 @@ function frameDesign()
  * about a draft several minutes behind what the user actually had is a prompt
  * that loses work quietly.
  */
+/**
+ * A design in the URL, and what it displaces (RM-013 K2).
+ *
+ * Before the draft, not beside it. A recovered draft and a shared design are
+ * two documents competing for one screen, and offering the first over the
+ * second would mean a toast inviting somebody to replace the thing they had
+ * just been sent - so the link wins and the draft is not offered at all. It is
+ * not lost either: it is still in the store, and it is offered on the next boot
+ * that does not carry a link.
+ */
+async function openShared()
+{
+	if (await share.openFromHash())
+	{
+		history.reset();
+		markSaved();
+		frameDesign();
+		return;
+	}
+	offerDraft();
+}
+
+/**
+ * Make a link for what is on screen, and show it.
+ *
+ * Encoded on the click rather than kept current, because a design is
+ * re-serialized and deflated to make one and nobody is owed that on every edit.
+ */
+async function openShare()
+{
+	shareOpen.value = true;
+	await share.makeLink();
+}
+
+async function adoptShared()
+{
+	if (await share.adopt(projects.current.value ? undefined : 'Shared design'))
+	{
+		markSaved();
+	}
+}
+
 async function offerDraft()
 {
 	const draft = await readDraft(Date.now());
@@ -622,6 +669,8 @@ const bindings = computed(() => /** @type {Array<import('./composables/useShortc
 	{group: 'Document', keys: 'mod+n', label: 'New layout', run: onNewDesign},
 	{group: 'Document', keys: 'mod+s', label: 'Save layout', run: io.saveDesign},
 	{group: 'Document', keys: 'mod+shift+o', label: 'Designs', run: openLibrary},
+	{group: 'Document', keys: 'mod+shift+c', label: 'Share a link', run: openShare,
+		enabled: () => !share.viewing.value},
 	{group: 'Document', keys: 'mod+z', label: 'Undo', run: undo, enabled: () => history.canUndo.value},
 	{group: 'Document', keys: 'mod+shift+z', label: 'Redo', run: redo, enabled: () => history.canRedo.value},
 	// Windows and Linux editors also bind Ctrl+Y. Harmless on Apple platforms,
@@ -753,10 +802,18 @@ useShortcuts(() => bindings.value);
 				@toggle-theme="theme.toggleTheme"
 				@toggle-inspector="workspace.toggleInspector"
 				@show-shortcuts="shortcutsOpen = true"
-				@show-library="openLibrary" />
+				@show-library="openLibrary"
+				@show-share="openShare" />
+
+			<ViewerBanner
+				v-if="share.viewing.value"
+				:busy="projects.busy.value"
+				@adopt="adoptShared"
+				@leave="share.leave" />
 
 			<div class="flex min-h-0 flex-1">
 				<ToolRail
+					v-if="!share.viewing.value"
 					:mode="editor.mode.value"
 					:layout="workspace.layout.value"
 					:can-act-on-item="items.canActOnItem.value"
@@ -844,7 +901,15 @@ useShortcuts(() => bindings.value);
 					</template>
 				</AppWorkspace>
 
+				<!--
+					`v-if` while viewing, not `v-show` (RM-013 K2). Every panel in
+					there is a set of live editors bound straight to model objects -
+					18 of the 20 files carry an editable control - so hiding it with
+					CSS would leave a form over somebody else's design that a screen
+					reader still reaches and a Tab still lands in.
+				-->
 				<InspectorPanel
+					v-if="!share.viewing.value"
 					v-show="workspace.inspectorOpen.value"
 					v-model:tab="inspectorTab"
 					:selection="selection.selection.value"
@@ -872,6 +937,17 @@ useShortcuts(() => bindings.value);
 			@prefetch-item="assets.prefetchItem" />
 
 		<ShortcutsDialog v-model:open="shortcutsOpen" :bindings="bindings" />
+
+		<ShareDialog
+			v-model:open="shareOpen"
+			:link="share.link.value"
+			:chars="share.chars.value"
+			:limit="share.MAX_LINK_CHARS"
+			:refusal="share.refusal.value"
+			:busy="share.busy.value"
+			:available="share.available.value"
+			:copy="share.copyLink"
+			@save-file="io.saveDesign" />
 
 		<ProjectLibrary
 			v-model:open="libraryOpen"

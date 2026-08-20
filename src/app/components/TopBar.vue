@@ -3,7 +3,7 @@
 import {PopoverRoot, PopoverTrigger, PopoverPortal, PopoverContent} from 'reka-ui';
 import {
 	FilePlus2, FolderOpen, Save, Undo2, Redo2, Box, Share2, Printer, Camera, Globe,
-	Image as ImageIcon, LibraryBig,
+	Image as ImageIcon, LibraryBig, Link2,
 	Moon, Sun, Keyboard, PanelRight, ChevronDown, Ruler,
 } from '@lucide/vue';
 
@@ -76,7 +76,7 @@ const emit = defineEmits([
 	'new-design', 'open-design', 'save-design', 'save-mesh', 'save-gltf',
 	'save-photo', 'save-panorama', 'save-plan-svg', 'save-plan-png', 'print-plan',
 	'undo', 'redo', 'set-layout', 'set-unit', 'toggle-theme',
-	'toggle-inspector', 'show-shortcuts', 'show-library',
+	'toggle-inspector', 'show-shortcuts', 'show-library', 'show-share',
 ]);
 
 /**
@@ -167,6 +167,11 @@ function onUnitChange(event)
 			<AppTip label="Designs" keys="mod+shift+o">
 				<button type="button" class="btn btn-icon" title="Designs" @click="emit('show-library')">
 					<LibraryBig :size="15" />
+				</button>
+			</AppTip>
+			<AppTip label="Share a link" keys="mod+shift+c">
+				<button type="button" class="btn btn-icon" title="Share a link" @click="emit('show-share')">
+					<Link2 :size="15" />
 				</button>
 			</AppTip>
 
