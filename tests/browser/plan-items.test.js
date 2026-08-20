@@ -280,35 +280,36 @@ describe('the frame budget (RM-008 T-4)', () =>
 	 * - so it fails on a regression rather than on noise, and it is checked here
 	 * because this tier is the one with a real canvas and a real rasteriser.
 	 *
-	 * ## RM-015 M2 ran AA-4's conditional here, and it fired
+	 * ## RM-015 M2 raised this fixture to 100 rooms, and kept the 2 ms
 	 *
-	 * AA-4 measured this pass at 0.825 ms for 144 walls, 0.985 for 196 - the size
-	 * RM-007 asks M2 to build a cached static layer for - and 1.96 for 400 walls
-	 * with no furniture, and concluded the cache was not wrong but early. It made
-	 * the cache conditional rather than scheduled: raise this fixture to where the
-	 * pass is under pressure, and let this gate decide.
+	 * AA-4 made M2's cached static layer conditional on this gate: raise the
+	 * fixture to where the pass is under pressure and let the measurement decide.
+	 * At a 10x10 grid - 404 walls and the same 150 items - it measured **2.165 ms
+	 * against 2**, so the conditional fired.
 	 *
-	 * M2 raised it to a 10x10 grid - 404 walls and the same 150 items - and
-	 * measured **2.165 ms against the 2 ms gate**. So the answer is that the cache
-	 * IS needed, and it is needed at roughly 400 walls rather than at the 200 the
-	 * sprint was written for. The fixture is back at 36 rooms because a failing
-	 * test is not a finding, it is a broken suite; the finding is the number, and
-	 * it is recorded in RM-015's landing block as the outstanding half of M2.
+	 * **The cache was not what fixed it, and could not have been.** Timing every
+	 * phase at that size put `drawWallLabels` at 0.595 ms, `drawWall` at 0.470,
+	 * `drawRoom` at 0.420 - and `drawGrid`, which is what a cached static layer
+	 * under the draw would cache, at **0.005 ms, three tenths of one per cent**.
+	 * What the same measurement found instead is that **245 of the fixture's 400
+	 * walls are off the canvas**: the plan is 1,476 pixels wide in a 1,024 pixel
+	 * viewport. So the pass now culls against the viewport, and this fixture
+	 * measures **1.10 to 1.29 ms** - inside its own budget with 40 % to spare,
+	 * where before it was 8 % over.
 	 *
-	 * Two things from that run are kept. The wall-only probe said 1.51 ms warm at
-	 * 400 walls and would have concluded the opposite - **the 150 footprints are
-	 * what push it over**, which is worth knowing before anybody optimises walls.
-	 * And the warm-up below is five blocks rather than one draw, because the same
-	 * fixture measured 1.995, 1.73, 1.615, 1.51, 1.51 cold-to-warm: a single warm
-	 * draw leaves the timing on the settling curve, where this gate would pass or
-	 * fail on JIT rather than on anything in the repository.
+	 * Two things from getting there are kept. A wall-only probe said 1.51 ms warm
+	 * and would have declined the cache outright: **the 150 footprints are what
+	 * pushed it over**, which is worth knowing before anybody optimises walls. And
+	 * the warm-up below is five blocks rather than one draw, because the same
+	 * fixture measured 1.995, 1.73, 1.615, 1.51, 1.51 cold-to-warm - one warm draw
+	 * left this gate deciding on JIT rather than on anything in the repository.
 	 */
-	it('draws a large furnished plan inside 2 ms', () =>
+	it('draws a 400-wall furnished plan inside 2 ms', () =>
 	{
 		model.floorplan.beginBatch('load');
-		for (let i = 0; i < 6; i++)
+		for (let i = 0; i < 10; i++)
 		{
-			for (let j = 0; j < 6; j++)
+			for (let j = 0; j < 10; j++)
 			{
 				const x = i * 300;
 				const y = j * 300;
@@ -335,7 +336,10 @@ describe('the frame budget (RM-008 T-4)', () =>
 		model.projectItemsToPlan();
 
 		expect(model.floorplan.itemProjection).toHaveLength(150);
-		expect(model.floorplan.getWalls().length).toBeGreaterThanOrEqual(100);
+		// 404 rather than 400: the grid's rooms are edge to edge, so `newCorner`
+		// returns one that already exists where two meet, and the count is a
+		// property of the topology rather than of the loop bounds.
+		expect(model.floorplan.getWalls().length).toBeGreaterThanOrEqual(400);
 
 		// Five blocks of warm-up, not one draw. See the note above: the same pass
 		// measured 1.995, 1.73, 1.615, 1.51, 1.51 cold-to-warm, so one warm draw

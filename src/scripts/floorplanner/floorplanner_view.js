@@ -117,6 +117,19 @@ export const floorplannerModes = {MOVE: 0,DRAW: 1,DELETE: 2,RECTANGLE: 3,DIMENSI
 
 // grid parameters
 //export const gridSpacing = this.dimensioning.cmToPixel(25);//20; // pixels
+/**
+ * How far outside the canvas something may be and still be drawn (RM-015 M2).
+ *
+ * Two parts, because what a wall's drawing covers beyond its own endpoints is
+ * partly a plan-space distance and partly a screen-space one. The centimetre
+ * part covers the wall's thickness and its label's 40 cm offset, and grows with
+ * the zoom as those do. The pixel part covers the text, its halo and a corner's
+ * radius, which are the same size at every zoom. See FloorplannerView2D#cullBounds.
+ */
+export const CULL_MARGIN_CM = 60;
+/** See CULL_MARGIN_CM. */
+export const CULL_MARGIN_PIXELS = 64;
+
 export const gridWidth = 1;
 export const gridColor = '#f1f1f1';
 
@@ -898,6 +911,97 @@ export class FloorplannerView2D
 		}
 	}
 
+	/**
+	 * ## Not drawing what is not on the canvas (RM-015 M2, finding AA-4)
+	 *
+	 * AA-4 made M2's cached static layer conditional on this pass failing its own
+	 * 2 ms gate at 400 walls, and it fired: **2.165 ms**. What it did not predict
+	 * is where the time goes. Timing every phase of the draw at that size:
+	 *
+	 *   drawWallLabels  0.595 ms   30 %
+	 *   drawWall        0.470      24 %
+	 *   drawRoom        0.420      21 %
+	 *   drawItems       0.240      12 %
+	 *   drawGrid        0.005       0.3 %
+	 *
+	 * **The grid is 0.3 % of the pass**, and a cached static layer under the draw
+	 * is a cache of the grid. RM-007 proposed the one optimisation that could not
+	 * have helped; the pass is dominated by the building, and the building is not
+	 * static - it moves with every pan, every zoom and every edit.
+	 *
+	 * What is true instead is that most of the building is not on the screen.
+	 * Measured on the gate's own fixture: **245 of its 400 walls are outside the
+	 * canvas**, because the plan is 1,476 pixels wide in a 1,024 pixel viewport.
+	 * So the answer is not to remember what was drawn, it is to stop drawing what
+	 * nobody can see - which is also the case that gets better rather than worse
+	 * as somebody zooms in to work, and a cache gets worse.
+	 *
+	 * ### The margin, and why it is partly in centimetres
+	 *
+	 * A wall's two endpoints do not bound what its drawing covers: the wall has
+	 * thickness, its corners have radius, and its label sits 40 cm off the line
+	 * with text and a halo around it. Forty centimetres is 20 pixels at this
+	 * zoom and 400 at ten times it, so the margin has a plan-space part that
+	 * grows with the zoom and a screen-space part that does not.
+	 *
+	 * ### It does not run while exporting
+	 *
+	 * An export draws the whole plan to a sheet through a different projection,
+	 * and it has no frame budget. Culling there would be one more thing that
+	 * could crop a drawing, for no benefit anybody experiences.
+	 *
+	 * @returns {?{left: number, top: number, right: number, bottom: number}} Null
+	 * while exporting, which every caller reads as "draw everything".
+	 */
+	cullBounds()
+	{
+		if (this.exporting)
+		{
+			return null;
+		}
+		var margin = this.dimensioning.cmToPixel(CULL_MARGIN_CM) + CULL_MARGIN_PIXELS;
+		return {
+			left: -margin,
+			top: -margin,
+			right: this.canvasWidth + margin,
+			bottom: this.canvasHeight + margin,
+		};
+	}
+
+	/**
+	 * Whether a set of plan-space points has any part inside the viewport.
+	 *
+	 * Bounding boxes rather than exact shapes, and overlap rather than
+	 * containment: a wall crossing the screen has both endpoints outside it.
+	 *
+	 * @param {?Object} bounds From {@link cullBounds}. Null means draw it.
+	 * @param {Array<number>} xs Plan-space x coordinates.
+	 * @param {Array<number>} ys Plan-space y coordinates.
+	 * @returns {boolean}
+	 */
+	onScreen(bounds, xs, ys)
+	{
+		if (!bounds || !xs.length)
+		{
+			return true;
+		}
+		var minX = Infinity;
+		var maxX = -Infinity;
+		var minY = Infinity;
+		var maxY = -Infinity;
+		for (var i = 0; i < xs.length; i++)
+		{
+			var x = this.project.convertX(xs[i]);
+			var y = this.project.convertY(ys[i]);
+			if (x < minX) { minX = x; }
+			if (x > maxX) { maxX = x; }
+			if (y < minY) { minY = y; }
+			if (y > maxY) { maxY = y; }
+		}
+		return maxX >= bounds.left && minX <= bounds.right
+			&& maxY >= bounds.top && minY <= bounds.bottom;
+	}
+
 	draw()
 	{
 		wallWidth = this.dimensioning.cmToPixel(this.configuration.getNumericValue(configWallThickness));
@@ -937,11 +1041,32 @@ export class FloorplannerView2D
 			this.drawGhostPlan();
 		}
 
-		this.floorplan.getRooms().forEach((room) => {this.drawRoom(room);});
+		// Everything from here to the wall labels is culled against the viewport
+		// (RM-015 M2). Computed once per draw rather than per entity: it depends on
+		// the canvas and the zoom, neither of which changes inside a frame.
+		var cull = this.cullBounds();
 
-		this.floorplan.getWalls().forEach((wall) => {this.drawWall(wall);});
+		this.floorplan.getRooms().forEach((room) =>
+		{
+			var corners = room.corners || [];
+			if (this.onScreen(cull, corners.map((c) => c.x), corners.map((c) => c.y)))
+			{
+				this.drawRoom(room);
+			}
+		});
+
+		this.floorplan.getWalls().forEach((wall) =>
+		{
+			if (this.onScreen(cull, [wall.getStartX(), wall.getEndX()], [wall.getStartY(), wall.getEndY()]))
+			{
+				this.drawWall(wall);
+			}
+		});
 		this.floorplan.getCorners().forEach((corner) => {
-			this.drawCorner(corner);
+			if (this.onScreen(cull, [corner.x], [corner.y]))
+			{
+				this.drawCorner(corner);
+			}
 			});
 
 		// Furniture, after the building and before the drawing aids (RM-008 E1).
@@ -1012,7 +1137,13 @@ export class FloorplannerView2D
 				this.drawTextLabel(`${angle}°`, this.project.convertX(location.x), this.project.convertY(location.y));
 			}
 		}
-		this.floorplan.getWalls().forEach((wall) => {this.drawWallLabels(wall);});
+		this.floorplan.getWalls().forEach((wall) =>
+		{
+			if (this.onScreen(cull, [wall.getStartX(), wall.getEndX()], [wall.getStartY(), wall.getEndY()]))
+			{
+				this.drawWallLabels(wall);
+			}
+		});
 		// Last, and in screen coordinates: the arrow is chrome fixed to the canvas
 		// rather than a mark on the plan, so nothing may draw over it. It IS on the
 		// sheet - a plan without one does not say which way the building faces.
@@ -1242,8 +1373,20 @@ export class FloorplannerView2D
 			return;
 		}
 		var scope = this;
+		var cull = this.cullBounds();
 		projection.forEach(function (footprint)
 		{
+			// A footprint's own extent, not its centre: an item straddling the edge
+			// of the screen is half on it. The half-extents are before rotation, so
+			// the diagonal is the reach at any angle - cheaper and safer than
+			// rotating the box to find out it was already going to be drawn.
+			var reach = Math.hypot(footprint.halfWidth || 0, footprint.halfDepth || 0);
+			if (!scope.onScreen(cull,
+				[footprint.x - reach, footprint.x + reach],
+				[footprint.y - reach, footprint.y + reach]))
+			{
+				return;
+			}
 			if (footprint.type === ITEM_TYPE_ON_FLOOR)
 			{
 				scope.drawItem(footprint);

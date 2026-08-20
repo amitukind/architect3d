@@ -88,6 +88,23 @@ export class CanvasBackend
 		this.context = context;
 		this.font = font || 'Arial';
 		this.background = background || null;
+		/**
+		 * What this backend last wrote to the context's text state (RM-015 M2).
+		 *
+		 * Null means "unknown", which is the safe reading: the next call assigns.
+		 * See `_useFont` for why an assignment nobody needs is worth avoiding.
+		 *
+		 * @type {?string}
+		 */
+		this._font = null;
+		// The two below carry the DOM's own union types rather than `string`: the
+		// context properties they mirror are `CanvasTextBaseline` and
+		// `CanvasTextAlign`, and a widened cache is a cache the checker will not
+		// let you write back (RM-004 B3).
+		/** @type {?CanvasTextBaseline} See _font. */
+		this._baseline = null;
+		/** @type {?CanvasTextAlign} See _font. */
+		this._align = null;
 	}
 
 	/**
@@ -331,10 +348,10 @@ export class CanvasBackend
 			this.context.translate(x, y);
 			this.context.rotate(rotation);
 		}
-		this.context.font = `${options.style || 'normal'} ${options.size}px ${this.font}`;
-		this.context.textBaseline = 'middle';
-		this.context.textAlign = (options.anchor === 'end') ? 'right'
-			: (options.anchor === 'start') ? 'left' : 'center';
+		this._useFont(`${options.style || 'normal'} ${options.size}px ${this.font}`);
+		this._useBaseline('middle');
+		this._useAlign((options.anchor === 'end') ? 'right'
+			: (options.anchor === 'start') ? 'left' : 'center');
 		var atX = rotation ? 0 : x;
 		var atY = (rotation ? 0 : y) + offsetY;
 		if (options.halo)
@@ -348,7 +365,68 @@ export class CanvasBackend
 		if (rotation)
 		{
 			this.context.restore();
+			// `restore()` puts back the text state this method just set, so the
+			// cache below no longer describes the context. Forgetting this is the
+			// one way the optimisation turns into a rendering bug: the next label
+			// would skip an assignment the context no longer has.
+			this._forgetTextState();
 		}
+	}
+
+	/**
+	 * Set a canvas text property only when it is not already that.
+	 *
+	 * ## Why this is worth three methods (RM-015 M2)
+	 *
+	 * Assigning `context.font` parses a CSS font shorthand, and the 2D pass calls
+	 * `text()` once per wall label. M2's phase timing at 400 walls put
+	 * `drawWallLabels` at **0.595 ms of a 1.98 ms frame - 30 %, the single largest
+	 * phase** - against `drawGrid` at 0.005 ms, which is what RM-007 had proposed
+	 * caching. Every one of those labels asks for the same 12px face, so the
+	 * assignment happens roughly a thousand times a frame and changes nothing
+	 * 999 of them.
+	 *
+	 * The cache is per backend instance and describes what was last written to
+	 * this context. Anything that can put the context's own state back - the
+	 * `restore()` above - has to clear it, which is what `_forgetTextState` is for.
+	 *
+	 * @param {string} font
+	 */
+	_useFont(font)
+	{
+		if (this._font !== font)
+		{
+			this.context.font = font;
+			this._font = font;
+		}
+	}
+
+	/** @param {CanvasTextBaseline} baseline */
+	_useBaseline(baseline)
+	{
+		if (this._baseline !== baseline)
+		{
+			this.context.textBaseline = baseline;
+			this._baseline = baseline;
+		}
+	}
+
+	/** @param {CanvasTextAlign} align */
+	_useAlign(align)
+	{
+		if (this._align !== align)
+		{
+			this.context.textAlign = align;
+			this._align = align;
+		}
+	}
+
+	/** The context's text state is no longer what this backend last wrote. */
+	_forgetTextState()
+	{
+		this._font = null;
+		this._baseline = null;
+		this._align = null;
 	}
 
 	/**
@@ -359,7 +437,10 @@ export class CanvasBackend
 	 */
 	measureText(label, size, style)
 	{
-		this.context.font = `${style || 'normal'} ${size}px ${this.font}`;
+		// Through the cache like everything else: measuring is the other half of
+		// laying a label out, and a measure between two draws in the same face
+		// should not cost an assignment either.
+		this._useFont(`${style || 'normal'} ${size}px ${this.font}`);
 		return this.context.measureText(label).width;
 	}
 
