@@ -1,11 +1,53 @@
 {
-	"floor": 60,
-	"measured": 62,
-	"metrics": {
-		"first-contentful-paint": 5853.5851999999995,
-		"largest-contentful-paint": 6470.377799999999,
-		"total-blocking-time": 115,
-		"cumulative-layout-shift": 0,
-		"speed-index": 5853.5851999999995
+	"note": [
+		"Lighthouse performance floors. Checked by `npm run lighthouse:check`, enforced in CI.",
+		"",
+		"TWO PRESETS, TWO FLOORS, AND BOTH GATE (RM-016 N1, finding AB-1).",
+		"",
+		"`desktop` is the audience. RM-007 rev B fixed it as web desktop only and withdrew",
+		"a 2.5-week phone-and-tablet sprint to make the decision explicit, so this is the",
+		"number that describes what a user of this product actually waits for.",
+		"",
+		"`mobile` is Lighthouse's default and is kept because it is the sensitive one. The",
+		"desktop run measures 0 ms of total blocking time and would keep measuring 0 ms",
+		"after a regression that doubled the main-thread work; the mobile run measures 87.",
+		"A phone is a slow computer, and what it exaggerates is real even where nobody",
+		"runs it.",
+		"",
+		"A floor is the largest multiple of 5 leaving at least two points of margin below",
+		"the first measurement, and it is never lowered - a coverage floor's contract, not",
+		"a budget limit's, because the failure direction is the other way round. Raising",
+		"one after a real improvement is a commit with a reason.",
+		"",
+		"The margin is not headroom-shaving, it is the sampling spread. Measured across",
+		"runs of one build: desktop 96, 96, 96, 95; mobile 62, 62, 63, 62, 61. M3 wrote the",
+		"rule as \"rounded down to the nearest 5\", which gives 60 for mobile - right - and",
+		"95 for desktop, which one run in four would have touched. A floor a green build",
+		"reaches is a red mark somebody learns to re-run rather than read.",
+		"",
+		"`measured` is refreshed by `npm run lighthouse:update`; that command deliberately",
+		"does NOT touch a floor that already exists."
+	],
+	"desktop": {
+		"floor": 90,
+		"measured": 96,
+		"metrics": {
+			"first-contentful-paint": 1013.6360999999999,
+			"largest-contentful-paint": 1184.9541500000003,
+			"total-blocking-time": 0,
+			"cumulative-layout-shift": 0,
+			"speed-index": 1013.6360999999999
+		}
+	},
+	"mobile": {
+		"floor": 60,
+		"measured": 62,
+		"metrics": {
+			"first-contentful-paint": 5851.0073,
+			"largest-contentful-paint": 6445.510949999999,
+			"total-blocking-time": 94,
+			"cumulative-layout-shift": 0,
+			"speed-index": 5851.0073
+		}
 	}
 }

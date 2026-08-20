@@ -1,8 +1,8 @@
 /**
  * A performance score somebody else chose the definition of (RM-015 M3, M-53).
  *
- *   node tools/check-lighthouse.mjs            check, exit 1 below the floor
- *   node tools/check-lighthouse.mjs --update   record the measurement
+ *   node tools/check-lighthouse.mjs            check, exit 1 below either floor
+ *   node tools/check-lighthouse.mjs --update   record the measurements
  *   node tools/check-lighthouse.mjs --url=...  measure a deployed page instead
  *
  * ## Why a Lighthouse score, when there are already fourteen budget lines
@@ -20,18 +20,46 @@
  * own change carries, since deferring three moves the wait rather than removing
  * it.
  *
- * ## The floor works like a coverage floor, not like a budget limit
+ * ## Two presets, and why neither one is enough (RM-016 N1, finding AB-1)
+ *
+ * M3 added this gate and did not look at its configuration. Lighthouse's
+ * default emulates a mid-range phone: a 4x CPU slowdown, a 1.6 Mbps link with
+ * 150 ms of latency, and a 412x823 viewport. This application's audience was
+ * fixed as **web desktop only** by RM-007 rev B, which withdrew a 2.5-week
+ * phone-and-tablet sprint in order to make the decision explicit - so for one
+ * sprint the only gate in this repository that measures the product from
+ * outside was measuring a device the product declines to support.
+ *
+ * AB-1 measured both, one build, one machine, one server:
+ *
+ *     desktop   91   FCP 1,094 ms   LCP 1,215 ms   TBT   0 ms
+ *     mobile    62   FCP 5,988 ms   LCP 6,439 ms   TBT  87 ms
+ *
+ * The obvious fix is to swap one for the other, and it is wrong. **Desktop is
+ * the audience** and belongs in the gate. But its total blocking time is
+ * **0 ms**, which means it carries no signal at all on the metric most
+ * sensitive to a javascript regression - a build that doubled its main-thread
+ * work would still read 0. The mobile run has 87 ms of it, and a phone is
+ * simply a slow computer: what it exaggerates is real, it is just not what a
+ * user of this product experiences.
+ *
+ * So both run and both hold a floor. Desktop is the product's promise; mobile
+ * is the sensitive instrument. Neither is deleted to make the other look
+ * better.
+ *
+ * ## The floors work like coverage floors, not like budget limits
  *
  * First measurement, rounded down, and never lowered. A budget limit is a
  * ceiling with headroom above the measurement; this is a floor with headroom
- * below it, because the failure direction is the other way round. Raising it
+ * below it, because the failure direction is the other way round. Raising one
  * after an improvement is a commit with a reason, exactly as lowering a budget
  * limit is.
  *
  * The rounding is deliberate and it is not headroom-shaving: a Lighthouse score
  * is a sampled measurement of a real browser on a real machine, and the same
- * build scores within a point or two of itself run to run. A floor at the exact
- * first measurement would fail on noise, which is how a gate stops being read.
+ * build scores within a point or two of itself run to run - measured, three
+ * runs of one build at M3: 62, 62, 61. A floor at the exact first measurement
+ * would fail on noise, which is how a gate stops being read.
  *
  * ## What is measured, and the honest limit of it
  *
@@ -56,6 +84,40 @@ import {fileURLToPath} from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TREE = join(ROOT, 'dist-demo');
 const RECORD = join(ROOT, 'tools/lighthouse.json');
+
+/**
+ * Written into tools/lighthouse.json so the file explains itself where it is
+ * read, the way tools/budget.json's `note` does.
+ */
+const NOTE = [
+	'Lighthouse performance floors. Checked by `npm run lighthouse:check`, enforced in CI.',
+	'',
+	'TWO PRESETS, TWO FLOORS, AND BOTH GATE (RM-016 N1, finding AB-1).',
+	'',
+	'`desktop` is the audience. RM-007 rev B fixed it as web desktop only and withdrew',
+	'a 2.5-week phone-and-tablet sprint to make the decision explicit, so this is the',
+	'number that describes what a user of this product actually waits for.',
+	'',
+	'`mobile` is Lighthouse\'s default and is kept because it is the sensitive one. The',
+	'desktop run measures 0 ms of total blocking time and would keep measuring 0 ms',
+	'after a regression that doubled the main-thread work; the mobile run measures 87.',
+	'A phone is a slow computer, and what it exaggerates is real even where nobody',
+	'runs it.',
+	'',
+	'A floor is the largest multiple of 5 leaving at least two points of margin below',
+	'the first measurement, and it is never lowered - a coverage floor\'s contract, not',
+	'a budget limit\'s, because the failure direction is the other way round. Raising',
+	'one after a real improvement is a commit with a reason.',
+	'',
+	'The margin is not headroom-shaving, it is the sampling spread. Measured across',
+	'runs of one build: desktop 96, 96, 96, 95; mobile 62, 62, 63, 62, 61. M3 wrote the',
+	'rule as "rounded down to the nearest 5", which gives 60 for mobile - right - and',
+	'95 for desktop, which one run in four would have touched. A floor a green build',
+	'reaches is a red mark somebody learns to re-run rather than read.',
+	'',
+	'`measured` is refreshed by `npm run lighthouse:update`; that command deliberately',
+	'does NOT touch a floor that already exists.',
+];
 
 const update = process.argv.includes('--update');
 const urlArgument = process.argv.find((argument) => argument.startsWith('--url='));
@@ -117,18 +179,42 @@ function serve()
 }
 
 /**
- * Run Lighthouse against one URL and return its performance category.
+ * The two device profiles, in the order they are reported.
+ *
+ * `desktop` is Lighthouse's own preset, imported rather than copied: it is a
+ * throttling table and a viewport that upstream changes from time to time, and
+ * a hand-transcribed copy of it would drift silently into measuring a machine
+ * that no longer matches what anybody else calls desktop.
+ *
+ * `mobile` is the default, which is why its entry is empty.
+ */
+const PRESETS = [
+	{key: 'desktop', label: 'desktop  (the audience)', gate: true},
+	{key: 'mobile', label: 'mobile   (the sensitive one)', gate: true},
+];
+
+/**
+ * Run Lighthouse against one URL on both device profiles.
  *
  * Chromium comes from Playwright, which this repository already installs for
  * the browser test tier - so CI needs no second browser and no assumption that
  * the runner image ships Chrome. chrome-launcher still does the launching,
  * because Lighthouse talks to a debugging port rather than to a Playwright
  * session.
+ *
+ * One browser for both runs, and Lighthouse clears its own state between them:
+ * two launches would double the slowest part of this gate for no benefit, and
+ * the point of running them together is that the only difference between the
+ * two numbers is the emulation.
+ *
+ * @param {string} url
+ * @returns {Promise<Object<string, {score: number, metrics: Object}>>}
  */
 async function measure(url)
 {
-	const [{default: lighthouse}, chromeLauncher, {chromium}] = await Promise.all([
+	const [{default: lighthouse}, {default: desktopConfig}, chromeLauncher, {chromium}] = await Promise.all([
 		import('lighthouse'),
+		import('lighthouse/core/config/desktop-config.js'),
 		import('chrome-launcher'),
 		import('playwright'),
 	]);
@@ -140,36 +226,65 @@ async function measure(url)
 
 	try
 	{
-		const result = await lighthouse(url, {
-			port: chrome.port,
-			output: 'json',
-			logLevel: 'error',
-			onlyCategories: ['performance'],
-		});
-		if (!result || !result.lhr) { throw new Error('Lighthouse returned no report'); }
-
-		const {lhr} = result;
-		if (lhr.runtimeError && lhr.runtimeError.code !== 'NO_ERROR')
+		const results = {};
+		for (const preset of PRESETS)
 		{
-			throw new Error(`${lhr.runtimeError.code}: ${lhr.runtimeError.message}`);
-		}
+			const result = await lighthouse(url, {
+				port: chrome.port,
+				output: 'json',
+				logLevel: 'error',
+				onlyCategories: ['performance'],
+			}, preset.key === 'desktop' ? desktopConfig : undefined);
+			if (!result || !result.lhr) { throw new Error(`Lighthouse returned no ${preset.key} report`); }
 
-		const audit = (id) => (lhr.audits[id] ? lhr.audits[id].numericValue : null);
-		return {
-			score: Math.round(lhr.categories.performance.score * 100),
-			metrics: {
-				'first-contentful-paint': audit('first-contentful-paint'),
-				'largest-contentful-paint': audit('largest-contentful-paint'),
-				'total-blocking-time': audit('total-blocking-time'),
-				'cumulative-layout-shift': audit('cumulative-layout-shift'),
-				'speed-index': audit('speed-index'),
-			},
-		};
+			const {lhr} = result;
+			if (lhr.runtimeError && lhr.runtimeError.code !== 'NO_ERROR')
+			{
+				throw new Error(`${preset.key}: ${lhr.runtimeError.code}: ${lhr.runtimeError.message}`);
+			}
+
+			const audit = (id) => (lhr.audits[id] ? lhr.audits[id].numericValue : null);
+			results[preset.key] = {
+				score: Math.round(lhr.categories.performance.score * 100),
+				metrics: {
+					'first-contentful-paint': audit('first-contentful-paint'),
+					'largest-contentful-paint': audit('largest-contentful-paint'),
+					'total-blocking-time': audit('total-blocking-time'),
+					'cumulative-layout-shift': audit('cumulative-layout-shift'),
+					'speed-index': audit('speed-index'),
+				},
+			};
+		}
+		return results;
 	}
 	finally
 	{
 		await chrome.kill();
 	}
+}
+
+/**
+ * The floor for a first measurement: the largest multiple of five that leaves
+ * at least two points of margin.
+ *
+ * M3 wrote "rounded down to the nearest 5" and that was the rule being applied
+ * rather than the rule that was needed. It works for a score of 62 - the floor
+ * lands on 60, two points clear, and three runs of that build measured 62, 62
+ * and 61. It fails for a score of 96: the nearest 5 below is 95, and four runs
+ * of this build measured 96, 96, 96, 95. A floor a build touches on one run in
+ * four is a red mark somebody learns to re-run rather than read.
+ *
+ * So the margin is stated instead of hoped for. Note what this rule does NOT
+ * do: it reproduces the existing mobile floor of 60 exactly, which is how it is
+ * known to be a description of the practice rather than a number invented to
+ * make today's measurement comfortable.
+ *
+ * @param {number} measured
+ * @returns {number}
+ */
+function floorFor(measured)
+{
+	return Math.floor((measured - 2) / 5) * 5;
 }
 
 function readRecord()
@@ -180,7 +295,7 @@ function readRecord()
 function report(label, result)
 {
 	const ms = (value) => (value === null ? '     -' : `${Math.round(value)} ms`.padStart(8));
-	console.log(`    ${label}: ${result.score}`);
+	console.log(`    ${label}`);
 	console.log(`      FCP ${ms(result.metrics['first-contentful-paint'])}`
 		+ `   LCP ${ms(result.metrics['largest-contentful-paint'])}`
 		+ `   TBT ${ms(result.metrics['total-blocking-time'])}`
@@ -194,9 +309,9 @@ async function main()
 	if (urlArgument)
 	{
 		const url = urlArgument.slice('--url='.length);
-		const result = await measure(url);
+		const results = await measure(url);
 		console.log(`  Lighthouse   ${url}`);
-		report('performance', result);
+		for (const preset of PRESETS) { report(preset.label, results[preset.key]); }
 		// Reported, never gated. See the note at the top: a CDN's cold cache is
 		// not a regression in this repository.
 		return;
@@ -210,10 +325,10 @@ async function main()
 	}
 
 	const site = await serve();
-	let result;
+	let results;
 	try
 	{
-		result = await measure(`${site.origin}/index.html`);
+		results = await measure(`${site.origin}/index.html`);
 	}
 	finally
 	{
@@ -224,32 +339,58 @@ async function main()
 
 	if (update)
 	{
-		const floor = record ? record.floor : Math.floor(result.score / 5) * 5;
-		writeFileSync(RECORD, `${JSON.stringify({...record, floor, measured: result.score,
-			metrics: result.metrics}, null, '\t')}\n`);
-		console.log(`  Lighthouse   recorded ${result.score}, floor ${floor}`);
-		report('performance', result);
+		const next = {};
+		for (const preset of PRESETS)
+		{
+			const measured = results[preset.key].score;
+			const existing = record && record[preset.key];
+			// An existing floor is never recomputed. `--update` refreshes what was
+			// measured; moving a floor is a hand edit with a reason, which is the
+			// same contract `budget:update` has with its limits.
+			next[preset.key] = {
+				floor: existing ? existing.floor : floorFor(measured),
+				measured,
+				metrics: results[preset.key].metrics,
+			};
+		}
+		writeFileSync(RECORD, `${JSON.stringify({note: NOTE, ...next}, null, '\t')}\n`);
+		console.log('  Lighthouse   recorded');
+		for (const preset of PRESETS)
+		{
+			console.log(`    ${preset.label}  ${next[preset.key].measured}, floor ${next[preset.key].floor}`);
+			report(preset.label, results[preset.key]);
+		}
 		return;
 	}
 
-	if (!record)
+	if (!record || PRESETS.some((preset) => !record[preset.key]))
 	{
-		console.error('there is no floor in tools/lighthouse.json.\n'
+		console.error('tools/lighthouse.json has no floor for every preset.\n'
 			+ '  npm run lighthouse:update  records the first measurement');
 		process.exit(1);
 	}
 
-	console.log(`  Lighthouse   floor ${record.floor}`);
-	report('performance', result);
-
-	if (result.score < record.floor)
+	const failures = [];
+	for (const preset of PRESETS)
 	{
-		console.error(`\n  ✗ performance ${result.score} is below the floor of ${record.floor}.`
-			+ '\n    The floor does not come down. See tools/lighthouse.json for what it is'
-			+ '\n    and tools/check-lighthouse.mjs for why it works that way.');
+		const {score} = results[preset.key];
+		const {floor} = record[preset.key];
+		report(`${preset.label}  ${String(score).padStart(3)}  / floor ${floor}`, results[preset.key]);
+		if (preset.gate && score < floor)
+		{
+			failures.push(`${preset.key} scored ${score} against a floor of ${floor}`);
+		}
+	}
+
+	if (failures.length)
+	{
+		console.error(`\n  ✗ ${failures.join('\n  ✗ ')}.`
+			+ '\n    Neither floor comes down. See tools/lighthouse.json for what they are'
+			+ '\n    and tools/check-lighthouse.mjs for why there are two of them.');
 		process.exit(1);
 	}
-	console.log(`  ✓ Lighthouse     performance ${result.score}  /  floor ${record.floor}`);
+	console.log(`  ✓ Lighthouse     desktop ${results.desktop.score} / ${record.desktop.floor}`
+		+ `   mobile ${results.mobile.score} / ${record.mobile.floor}`);
 }
 
 main().catch((error) =>

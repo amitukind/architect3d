@@ -20,6 +20,13 @@
  * These are draw-call ceilings, not frame times. A millisecond on a CI runner
  * measures the runner; a draw call is the same number on every machine, and
  * AA-3's table says the frame was never the thing that was wrong.
+ *
+ * RM-016 N1 re-pointed what this file is FOR without changing what it asserts.
+ * It is a stress fixture and an early-warning instrument - 144 and 400 walls,
+ * far beyond anything a person draws - and it is where the batching was proved.
+ * The metric about designs that exist is M-56, in `real-designs.test.js`; the
+ * note on the 400-wall case below explains why M-52 is not here any more and
+ * why its ceiling still is.
  */
 import {afterEach, describe, expect, it} from 'vitest';
 
@@ -105,11 +112,30 @@ describe('the building draws in fewer calls than it did', () =>
 		blueprint.dispose?.();
 	});
 
-	it('draws a 400-wall plan in under 1,100 calls', async () =>
+	/**
+	 * The stress case, and no longer a promise (RM-016 N1, finding AB-2).
+	 *
+	 * This fixture used to carry M-52 - *a 400-wall plan in fewer than 802 draw
+	 * calls* - which M2 left unmet at 972 and correctly declined to soften. AB-2
+	 * then measured what the product actually ships: every design in
+	 * `public/templates/` is 8 to 17 walls, and the largest of them draws in 187
+	 * calls at 0.53 ms. Four hundred walls is twenty-three times the biggest
+	 * starter plan. M-52 is retired against that measurement, and M-56 in
+	 * `real-designs.test.js` is the metric that replaced it.
+	 *
+	 * **The fixture stays and so does its ceiling.** The drawing proposed
+	 * loosening it to "catch a tenfold regression"; that was a step too far, and
+	 * the reason is worth keeping. The 1,100 here was never M-52 - it is a
+	 * ratchet on what M2 actually achieved, it passes today at 972 with 13 % of
+	 * margin, and it costs nothing. What demanded a rewrite of how a wall face
+	 * fades was the *metric*, not this assertion. Relaxing a working instrument
+	 * because a neighbouring promise was withdrawn would be the withdrawal
+	 * spreading further than the evidence for it.
+	 */
+	it('draws a 400-wall plan in under 1,100 calls, as a stress case', async () =>
 	{
 		// 2.8 times the plan for 1.2 times the calls of the pre-sprint 144-wall
-		// scene. M-52 asked for under 802 here and this does not reach it; the
-		// landing block records why, and the number is not softened to match.
+		// scene.
 		const blueprint = await mount(100);
 		expect(blueprint.model.floorplan.getWalls().length).toBe(400);
 		expect(blueprint.three.renderer.info.render.calls).toBeLessThan(1100);
