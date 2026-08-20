@@ -467,6 +467,32 @@ function validateItems(items, errors)
 			}
 		});
 
+		// The reference to an imported model, additive since RM-012 J3 and absent
+		// from every older file. Only `id` is checked, because it is the only field
+		// whose absence cannot be defaulted: `normaliseImport` falls back to the id
+		// for a missing filename and to Y-up for a missing axis, but a reference
+		// with nothing to look up is a file naming an import it cannot name.
+		//
+		// This does NOT check that the model is in the store. A design that names
+		// an import this computer has never seen is a perfectly valid document -
+		// it is somebody else's design, and refusing to open it is precisely the
+		// failure J3's second acceptance clause forbids. The item reports itself
+		// missing, by name, and the other nineteen load.
+		if (item.local !== undefined && item.local !== null)
+		{
+			if (!isPlainObject(item.local))
+			{
+				errors.push({path: `items[${index}].local`, message: 'must be an object when present'});
+			}
+			else if (typeof item.local.id !== 'string' || item.local.id === '')
+			{
+				errors.push({
+					path: `items[${index}].local.id`,
+					message: 'missing - an imported model must name what the store keys it on',
+				});
+			}
+		}
+
 		// The opening description, additive since RM-008 F1 and absent from every
 		// older file. Only the two numbers whose absence cannot be defaulted are
 		// checked: `normaliseOpening` fills in a missing width or hinge from the

@@ -161,6 +161,7 @@ export function metadataFromRecord(record, options)
 		structure: record.structure,
 		lamp: record.lamp,
 		group: record.group,
+		local: record.local,
 	};
 	if (settings.designId)
 	{

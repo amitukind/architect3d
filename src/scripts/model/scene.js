@@ -9,9 +9,9 @@ import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';
 import {DRACOLoader} from 'three/addons/loaders/DRACOLoader.js';
 import {KTX2Loader} from 'three/addons/loaders/KTX2Loader.js';
 import {formatSupport} from '../core/texture_formats.js';
-import {Scene as ThreeScene, LoadingManager, Group} from 'three';
+import {Scene as ThreeScene, LoadingManager, Group, Box3, Vector3} from 'three';
 import {runtimeOf} from '../core/design_runtime.js';
-import {disposeMaterial} from '../core/resource_registry.js';
+import {disposeMaterial, disposeObject} from '../core/resource_registry.js';
 import {Utils} from '../core/utils.js';
 import {mergeMeshes} from '../core/geometry_merge.js';
 import {resolveModelUrl} from '../core/legacy_models.js';
@@ -509,6 +509,97 @@ export class Scene extends EventDispatcher
 	}
 
 	/**
+	 * Bytes in, an Object3D out, through the loader the format names (J3).
+	 *
+	 * The one place model bytes are parsed rather than fetched, shared by the
+	 * import branch of `addItem` and by `measureModel`. It is a method rather
+	 * than a function because the loaders it uses are this scene's: the
+	 * `GLTFLoader` here has a `DRACOLoader` and a `KTX2Loader` attached to it,
+	 * pointed at this deployment's decoder paths, and a compressed model parsed
+	 * by a bare loader throws rather than decompressing.
+	 *
+	 * @param {ArrayBuffer} bytes
+	 * @param {?string} format `gltf` or `obj`.
+	 * @returns {Promise<Object>} The parsed root, which the caller owns and must
+	 *          dispose or merge.
+	 * @private
+	 */
+	_parseModel(bytes, format)
+	{
+		var scope = this;
+		return new Promise(function (resolve, reject)
+		{
+			if (format == 'obj')
+			{
+				// `OBJLoader.parse` is synchronous and throws on bytes that are not
+				// an OBJ; inside the executor, that rejects.
+				resolve(scope.objloader.parse(new TextDecoder().decode(new Uint8Array(bytes))));
+				return;
+			}
+			if (format != 'gltf')
+			{
+				reject(new Error(`no loader in this build reads the "${format}" format.`));
+				return;
+			}
+			// The empty path is deliberate, and the limit it imposes is real: a
+			// model whose textures sit beside it as separate files cannot resolve
+			// them from bytes alone, because there is no directory to be relative
+			// to. That is NOT only a `.gltf` problem - `ik_nordli_full.glb` in this
+			// repository names `textures/white_wood.ktx2` as an external image, and
+			// it is a `.glb`. Such a model loads with its geometry and without its
+			// texture, which is the right failure and a silent one; the application
+			// reads the file's own reference list at import and says so
+			// (`externalRefsIn` in `src/app/import/model_file.js`).
+			scope.gltfloader.parse(bytes, '', function (gltf) {resolve(gltf.scene);}, reject);
+		});
+	}
+
+	/**
+	 * How big a model is, in the units its author used (J3).
+	 *
+	 * The import step needs this before anything is placed: a file states no unit
+	 * anywhere, so the only way to ask *"is 1 unit a metre or a centimetre?"* in
+	 * terms a person can answer is to show them what each choice would make the
+	 * model, and that needs the bounds.
+	 *
+	 * Measured with the loader that will do the real load, which is the point:
+	 * a second reader agreeing with this one is an assumption, and RM-013 K1
+	 * found that assumption wrong on 4 of 15 rows when a bounds walk was written
+	 * beside three.js rather than through it.
+	 *
+	 * The parsed graph is disposed here. Nothing is added to the scene, and a
+	 * measurement that leaked a `BufferGeometry` per import would undo RM-003 A0
+	 * one file at a time.
+	 *
+	 * @param {ArrayBuffer} bytes
+	 * @param {?string} format
+	 * @returns {Promise<{min: Array<number>, max: Array<number>, size: Array<number>, empty: boolean}>}
+	 */
+	async measureModel(bytes, format)
+	{
+		var object = await this._parseModel(bytes, format);
+		try
+		{
+			var box = new Box3().setFromObject(object);
+			var size = box.getSize(new Vector3());
+			// `Box3` reports an inverted box for an object with no geometry at all,
+			// which would arrive as a size of -Infinity and make every derived
+			// number nonsense. Saying it is empty is the honest answer.
+			var empty = box.isEmpty();
+			return {
+				min: empty ? [0, 0, 0] : box.min.toArray(),
+				max: empty ? [0, 0, 0] : box.max.toArray(),
+				size: empty ? [0, 0, 0] : size.toArray(),
+				empty: empty,
+			};
+		}
+		finally
+		{
+			disposeObject(object);
+		}
+	}
+
+	/**
 	 * Creates an item and adds it to the scene.
 	 * @param itemType The type of the item given by an enumerator.
 	 * @param fileName The name of the file to load.
@@ -713,6 +804,46 @@ export class Scene extends EventDispatcher
 		this.dispatchEvent({type:EVENT_ITEM_LOADING});
 
 		/**
+		 * A model that is in no deployment, because somebody imported it
+		 * (RM-012 J3).
+		 *
+		 * Asked **before** the availability check below, and the ordering is the
+		 * whole of the change: a manifest is a statement about what this build
+		 * ships, and an imported model is by definition not that. Without this the
+		 * next line would refuse every imported item in any build that fetched a
+		 * manifest - which is every deployment of the application.
+		 *
+		 * Asked **after** `itemLoader`, so an embedder's own pipeline keeps the
+		 * precedence its documentation promises.
+		 *
+		 * It parses rather than fetching. The store hands over bytes; wrapping
+		 * them in a blob URL so the network layer can hand the same bytes back is
+		 * a detour with an object lifetime to manage, and a revoked URL is a class
+		 * of bug that simply does not exist here. What it costs is
+		 * `LoadingManager.abort()`, which cannot reach a `parse` - the generation
+		 * check in `buildItem` still can, and that is the one that decides whether
+		 * a superseded item joins the scene.
+		 */
+		var local = this.runtime.localModels;
+		if (!this.itemLoader && local && local.has(fileName))
+		{
+			Promise.resolve(local.read(fileName)).then(function (bytes)
+			{
+				if (!bytes)
+				{
+					failed('this design names an imported model that is no longer in the store.');
+					return;
+				}
+				return scope._parseModel(bytes, metadata.format).then(function (object)
+				{
+					var merged = mergeMeshes(object);
+					loaderCallback(merged.geometry, merged.materials);
+				});
+			}).catch(function (error) {failed(describeError(error));});
+			return;
+		}
+
+		/**
 		 * Availability as a policy rather than a console line (RM-003 A5).
 		 *
 		 * A resolver carrying a manifest knows what this build ships, so a name
@@ -723,6 +854,16 @@ export class Scene extends EventDispatcher
 		 */
 		if (this.runtime.assets.missing(fileName))
 		{
+			if (metadata.local)
+			{
+				// Reached when a design carrying an import is opened where the store
+				// is not - another computer, another browser, a cleared profile. The
+				// document carries the original filename for exactly this sentence,
+				// which is why `normaliseImport` keeps a field that is otherwise
+				// redundant with the store.
+				failed(`"${metadata.local.file || metadata.local.id}" was imported from a file, and that file is not on this computer.`);
+				return;
+			}
 			failed(`this build does not ship that asset. "${metadata.itemName || 'The item'}" names a file the asset manifest does not declare.`);
 			return;
 		}

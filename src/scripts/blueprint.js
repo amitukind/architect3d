@@ -51,6 +51,11 @@ export {DesignRuntime, defaultRuntime, runtimeOf, resolveRuntime} from './core/d
 // resolver returns every name unchanged, which is what the library did before.
 export {AssetManifest, MANIFEST_VERSION} from './core/asset_manifest.js';
 export {AssetResolver, defaultAssetResolver} from './core/asset_resolver.js';
+// A model that came off somebody's disk (RM-012 J3). `LocalModels` is bytes by
+// logical name, `normaliseImport` reads the additive `local` key a design writes
+// for an imported item, and `orientGeometry` is the one thing `scale_x/y/z` and a
+// single Y rotation cannot already express: which axis the author called up.
+export {LocalModels, normaliseImport, orientGeometry, UP_Y, UP_Z} from './core/imported_model.js';
 export {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY, VIEW_EXTERIOR} from './core/constants.js';
 export {NO_TINT, SURFACE_DEFAULTS, normaliseSurface, isPlainSurface, surfaceToJSON, colorValue} from './model/surface.js';
 export {SUN_DEFAULTS, normaliseSun, sunToJSON, solarPosition, sunDirection} from './model/sun.js';
@@ -177,6 +182,7 @@ export class BlueprintJS
 	 * @param {import('./core/configuration.js').Configuration} [options.configuration] - Settings for this design alone (P7). Omit to share the page-wide default.
 	 * @param {Object} [options.renderProfile] - A look for this viewer alone (P7), from `createRenderProfile`. Omit to share the page-wide default.
 	 * @param {import('./core/asset_resolver.js').AssetResolver} [options.assets] - Where this document's asset URLs come from (A5), from `new AssetResolver({manifest, base})`. Omit for the identity resolver, which returns every logical name unchanged - what the library did before A5.
+	 * @param {import('./core/imported_model.js').LocalModelSource} [options.localModels] - Bytes for models no deployment ships (RM-012 J3), from a store the embedder owns. A file picked off a disk has no URL for `assets` to rewrite, so `Scene` asks this first and loads from memory when it answers. Omit and nothing changes.
 	 * @param {import('./core/design_runtime.js').DesignRuntime} [options.runtime] - This document's services as one object (A4): its configuration, dimensioning, render profile, load session and resource registries. Omit and one is built here from `configuration`/`renderProfile`. A runtime passed in belongs to the caller and is never disposed by `dispose()`.
 	 * @example
 	 * let blueprint3d = new BP3DJS.BlueprintJS(opts);
@@ -212,6 +218,7 @@ export class BlueprintJS
 				configuration: options.configuration,
 				renderProfile: options.renderProfile,
 				assets: options.assets,
+				localModels: options.localModels,
 			});
 
 		/**

@@ -4,6 +4,7 @@ import {CanvasTexture, PlaneGeometry, DoubleSide, SRGBColorSpace} from 'three';
 import {Color, PointLight} from 'three';
 import {isStudio, renderProfile} from '../core/render_profile.js';
 import {normaliseLamp, lampToJSON} from './lamp.js';
+import {normaliseImport, orientGeometry} from '../core/imported_model.js';
 import {Utils} from '../core/utils.js';
 import {boxOf, snapToNeighbours, stackOn} from './snapping.js';
 import {disposeObject, disposeMaterial} from '../core/resource_registry.js';
@@ -252,8 +253,26 @@ export class Item extends Mesh
 		 * @type {?import('../model/level.js').Level}
 		 */
 		this.level = null;
+		/**
+		 * Where this model came from, when it came off somebody's disk (J3).
+		 *
+		 * Null for everything in the catalog, which is the ordinary case, and read
+		 * from the same two places `lamp` is: the metadata a placement builds and
+		 * the metadata `metadataFromRecord` builds from a saved record.
+		 *
+		 * @type {?import('../core/imported_model.js').ImportedModel}
+		 */
+		this.local = normaliseImport(metadata.local);
+
 		this.geometry = geometry;
 		this.material = material;
+		// Which axis the author called up, applied to the buffer before anything
+		// measures it (J3). It has to happen here and not on the object: the
+		// centring below, `objectHalfSize`, both label planes and every resize
+		// handle read the geometry, and `getMetaData` writes `rotation.y` alone -
+		// so a tilt on the object would be the wrong size now and gone on the next
+		// save. A catalog model is Y-up and nothing happens.
+		orientGeometry(this.geometry, this.local ? this.local.up : null);
 		// center in its boundingbox
 		this.geometry.computeBoundingBox();
 		var box = this.bounds();
@@ -1457,6 +1476,15 @@ export class Item extends Mesh
 		if (this.groupId)
 		{
 			data.group = this.groupId;
+		}
+		// The reference to a model no deployment ships (RM-012 J3), additive and
+		// conditional like the five keys above it - so a design of catalog
+		// furniture is byte-identical to the file it was before this sprint, and a
+		// build that reads 2.0.0 and not this key still opens the document. What it
+		// cannot do is find the model, which is what `file` is here to let it say.
+		if (this.local)
+		{
+			data.local = {id: this.local.id, file: this.local.file, up: this.local.up};
 		}
 		return data;
 	}
