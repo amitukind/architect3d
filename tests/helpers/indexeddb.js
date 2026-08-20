@@ -26,7 +26,10 @@
  * and would let a bug through that ordering would catch.
  *
  * No cursors, no indexes, no key ranges, no `onversionchange`. If the repository
- * ever needs one, it belongs here rather than in a test.
+ * ever needs one, it belongs here rather than in a test - which is what happened
+ * for RM-013 K1: the project library reads whole stores and writes two of them
+ * in one transaction, so `getAll`, `clear` and a multi-store `transaction()`
+ * were added here.
  */
 
 /** Fire a callback on a microtask, the way a real IDBRequest does. */
@@ -128,6 +131,31 @@ class FakeObjectStore
 		request._succeed(this._records.size);
 		return request;
 	}
+
+	/**
+	 * Every record in the store (RM-013 K1).
+	 *
+	 * Added for the project library, whose `list()` reads every card and no
+	 * document. Deep-copied on the way out for the same reason `put` copies on
+	 * the way in: a real IndexedDB hands back structured clones, and a fake that
+	 * handed back live references would let a test mutate the store by editing
+	 * what it read.
+	 */
+	getAll()
+	{
+		const request = new FakeRequest();
+		request._succeed([...this._records.values()].map((row) => JSON.parse(JSON.stringify(row))));
+		return request;
+	}
+
+	/** Empty the store. Added with `getAll` for the project library. */
+	clear()
+	{
+		const request = new FakeRequest();
+		this._records.clear();
+		request._succeed(undefined);
+		return request;
+	}
 }
 
 class FakeTransaction
@@ -200,13 +228,22 @@ class FakeDatabase
 		return new FakeObjectStore(this._stores.get(name), this._keyPaths.get(name), new FakeTransaction(this, name));
 	}
 
-	transaction(name)
+	/**
+	 * @param {string|Array<string>} names One store, or several in one
+	 *        transaction - which is how the project library writes a card and a
+	 *        body atomically (RM-013 K1). A real `transaction()` takes either.
+	 */
+	transaction(names)
 	{
-		if (!this._stores.has(name))
+		const wanted = Array.isArray(names) ? names : [names];
+		for (const name of wanted)
 		{
-			throw new Error(`no object store named ${name}`);
+			if (!this._stores.has(name))
+			{
+				throw new Error(`no object store named ${name}`);
+			}
 		}
-		return new FakeTransaction(this, name);
+		return new FakeTransaction(this, wanted[0]);
 	}
 
 	close()
