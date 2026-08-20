@@ -371,6 +371,38 @@ describe('what the document says the shell is', () =>
 		expect(shellAssets(twice)).toEqual(['a.js', 'b.js']);
 	});
 
+	it('takes the chunks the document modulepreloads (RM-015 M3)', () =>
+	{
+		// Vite emits `rel="modulepreload"` for the entry's STATIC imports, and only
+		// for those - a dynamically imported chunk is preloaded at runtime by the
+		// bundler's own helper and never gets a link tag. So this is exactly the
+		// set the boot blocks on, and it grew from nothing to two the day M3 split
+		// the 3D engine out.
+		const split = '<link rel="modulepreload" crossorigin href="/assets/three.core-C1u-bVJY.js">'
+			+ '<link rel="modulepreload" crossorigin href="/assets/dom-bGeZIdCh.js">'
+			+ '<link rel="stylesheet" crossorigin href="/assets/index-DsldbTQC.css">'
+			+ '<script type="module" crossorigin src="/assets/index-SNTEcjzc.js"></script>';
+
+		expect(shellAssets(split)).toEqual([
+			'/assets/index-SNTEcjzc.js',
+			'/assets/three.core-C1u-bVJY.js',
+			'/assets/dom-bGeZIdCh.js',
+			'/assets/index-DsldbTQC.css',
+		]);
+	});
+
+	it('still leaves prefetch and prerender alone, which are not blocking', () =>
+	{
+		// The rule is "what the document blocks on", not "every link with a URL in
+		// it". A prefetch is a hint about a later navigation and precaching one on
+		// install would spend a first visit's bandwidth on a guess.
+		const hints = '<link rel="prefetch" href="/assets/later.js">'
+			+ '<link rel="prerender" href="/next.html">'
+			+ '<link rel="preload" as="font" href="/f.woff2">';
+
+		expect(shellAssets(hints)).toEqual([]);
+	});
+
 	it('is empty for anything that is not a document', () =>
 	{
 		expect(shellAssets('')).toEqual([]);

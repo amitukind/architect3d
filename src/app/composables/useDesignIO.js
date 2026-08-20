@@ -403,9 +403,14 @@ export function useDesignIO(store, options)
 	 *
 	 * @param {number} [supersample] Multiples of the displayed resolution, 1 to 4.
 	 */
-	function savePhoto(supersample)
+	async function savePhoto(supersample)
 	{
-		var viewer = store.instance.value && store.instance.value.three;
+		// The engine may not be here yet (RM-015 M3): somebody can reach this from
+		// the plan-only layout, which no longer builds a viewer at boot. Waiting
+		// for it is right rather than refusing - `dataUrl` calls `render(true)`,
+		// so a viewer attached one line ago photographs the same frame one
+		// attached at boot would have.
+		var viewer = await store.ensureViewer();
 		if (!viewer)
 		{
 			fail('There is no 3D view to photograph.');
@@ -442,9 +447,10 @@ export function useDesignIO(store, options)
 	 *
 	 * @param {number} [width] Output width in pixels. The height is half of it.
 	 */
-	function savePanorama(width)
+	async function savePanorama(width)
 	{
-		var viewer = store.instance.value && store.instance.value.three;
+		// See savePhoto: the viewer arrives on demand as of M3.
+		var viewer = await store.ensureViewer();
 		if (!viewer)
 		{
 			fail('There is no 3D view to photograph.');
@@ -578,11 +584,22 @@ export function useDesignIO(store, options)
 	 *
 	 * @returns {Promise<string>} the glTF JSON, already downloaded.
 	 */
-	function saveGLTF()
+	async function saveGLTF()
 	{
-		var three = store.three.value;
+		// The export runs through the viewer - `Main.exportForBlender()` hides the
+		// skybox and the ground before asking the model - so it needs one, and as
+		// of M3 there may not be one yet.
+		var three = await store.ensureViewer();
 		busy.value = true;
 		lastError.value = null;
+
+		if (!three)
+		{
+			busy.value = false;
+			var absent = new Error('There is no 3D view to export.');
+			fail(absent.message, absent);
+			throw absent;
+		}
 
 		return new Promise(function (resolve, reject)
 		{

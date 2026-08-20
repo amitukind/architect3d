@@ -94,7 +94,7 @@ function run(fn)
 	return value;
 }
 
-beforeEach(() =>
+beforeEach(async () =>
 {
 	resetAll();
 	installStreams();
@@ -111,6 +111,11 @@ beforeEach(() =>
 	store = run(() => createBlueprintStore());
 	elements = buildDom();
 	store.mount({floorplannerElement: elements.canvas, threeElement: elements.viewer});
+	// With a viewer, because half of what a read-only session has to switch off
+	// is in the 3D view. Since RM-015 M3 that has to be asked for; the case
+	// below named "a viewer that arrives afterwards" is the one that checks the
+	// other order.
+	await store.ensureViewer();
 	io = run(() => useDesignIO(store));
 	projects = run(() => useProjects(store, io));
 	models = run(() => useModelImport(store));

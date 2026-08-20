@@ -31,7 +31,6 @@ import {flushPromises, mount} from '@vue/test-utils';
 
 import App from '../src/app/App.vue';
 import {markTourSeen} from '../src/app/composables/useTour.js';
-import {Main} from '../src/scripts/three/main.js';
 import {floorplannerModes} from '../src/scripts/floorplanner/floorplanner_view.js';
 import {Dimensioning} from '../src/scripts/blueprint.js';
 import {loadCatalogDetail} from '../src/app/composables/useCatalog.js';
@@ -54,6 +53,8 @@ let observer;
 let pointerApis;
 let listeners;
 let renderers;
+/** The `Main` the app will import. See the note in the beforeEach. */
+let live;
 
 /**
  * Listeners that would actually outlive the app.
@@ -107,6 +108,28 @@ async function mountApp()
 	return wrapper;
 }
 
+/** The store the shell built, for the cases that reach past the DOM. */
+function storeOf(wrapper)
+{
+	return wrapper.vm.$.setupState.store;
+}
+
+/**
+ * Mount, then wait for the 3D engine (RM-015 M3).
+ *
+ * A boot in the plan-only layout builds no viewer - that is the sprint - so a
+ * case about the viewer has to ask for one. Switching layout would ask too, and
+ * two of the cases below do exactly that; this is for the ones whose subject is
+ * something else.
+ */
+async function mountAppWithViewer()
+{
+	const wrapper = await mountApp();
+	await storeOf(wrapper).ensureViewer();
+	await nextTick();
+	return wrapper;
+}
+
 /** A button anywhere in the shell, by its tooltip text. */
 function byTitle(wrapper, title, scope)
 {
@@ -132,7 +155,7 @@ function layoutOf(wrapper)
 	return wrapper.vm.$.setupState.workspace.layout.value;
 }
 
-beforeEach(() =>
+beforeEach(async () =>
 {
 	resetAll();
 	document.body.innerHTML = '';
@@ -144,12 +167,15 @@ beforeEach(() =>
 	canvasStub = installCanvas2D(window);
 	observer = installResizeObserver(window);
 	pointerApis = installPointerApis(window);
-	Main.setRendererFactory(() => createRendererStub(renderers));
+	// See the note in app-composables.test.js: the seam goes on the module the
+	// application imports, which since M3 it does when the 3D view is asked for.
+	live = (await import('../src/scripts/three/main.js')).Main;
+	live.setRendererFactory(() => createRendererStub(renderers));
 });
 
 afterEach(() =>
 {
-	Main.setRendererFactory(null);
+	live.setRendererFactory(null);
 	observer.restore();
 	pointerApis.restore();
 	canvasStub.restore();
@@ -165,6 +191,36 @@ describe('App boot', () =>
 
 		expect(wrapper.find('canvas#floorplanner-canvas').exists()).toBe(true);
 		expect(wrapper.find('#viewer').exists()).toBe(true);
+		// Both panes are in the DOM at full size - that has been load-bearing
+		// since S6, because the library measures its containers - and only one of
+		// them has an engine behind it. RM-015 M3: the boot builds no renderer,
+		// and the case below is the one that says what does.
+		expect(renderers).toHaveLength(0);
+
+		wrapper.unmount();
+	});
+
+	it('downloads no 3D engine until the 3D view is asked for (RM-015 M3)', async () =>
+	{
+		const wrapper = await mountApp();
+
+		// The plan is drawn, the design is loaded, and there is no WebGL context
+		// on the page. three is 47% of what this application used to make a
+		// visitor download before it drew anything.
+		expect(storeOf(wrapper).three.value).toBeNull();
+		expect(renderers).toHaveLength(0);
+
+		await layoutButton(wrapper, '3D').trigger('click');
+		await storeOf(wrapper).ensureViewer();
+		await nextTick();
+
+		expect(storeOf(wrapper).three.value).not.toBeNull();
+		expect(renderers).toHaveLength(1);
+
+		// And switching away and back does not build a second one.
+		await layoutButton(wrapper, '2D').trigger('click');
+		await layoutButton(wrapper, 'Split').trigger('click');
+		await storeOf(wrapper).ensureViewer();
 		expect(renderers).toHaveLength(1);
 
 		wrapper.unmount();
@@ -301,11 +357,13 @@ describe('switching layouts', () =>
 {
 	it('moves between plan, split and 3D, and resumes the viewer when 3D is shown', async () =>
 	{
-		const wrapper = await mountApp();
-		const three = wrapper.vm.$.setupState.store.three.value;
+		const wrapper = await mountAppWithViewer();
+		const three = storeOf(wrapper).three.value;
 
 		// Boots into the plan, so the 3D render loop is paused - nobody is looking
-		// at it.
+		// at it. Since RM-015 M3 that is true of a viewer asked for from the plan
+		// layout as well: `useCameraViews` applies the boot state when the viewer
+		// attaches, whenever that is.
 		expect(three.pauseRender).toBe(true);
 
 		await layoutButton(wrapper, '3D').trigger('click');
@@ -642,7 +700,7 @@ describe('lifecycle', () =>
 {
 	it('unmounts without leaving a renderer or a listener behind', async () =>
 	{
-		const wrapper = await mountApp();
+		const wrapper = await mountAppWithViewer();
 		wrapper.unmount();
 
 		expect(renderers[0].disposed).toBe(true);
@@ -654,7 +712,7 @@ describe('lifecycle', () =>
 	{
 		for (let i = 0; i < 5; i++)
 		{
-			const wrapper = await mountApp();
+			const wrapper = await mountAppWithViewer();
 			expect(wrapper.find('canvas#floorplanner-canvas').exists()).toBe(true);
 			wrapper.unmount();
 		}

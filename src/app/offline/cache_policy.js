@@ -109,10 +109,27 @@ export const SHELL_FALLBACK = 'shell';
  * from what shipped. A manifest would be a second list of the same thing, kept
  * in step by hope.
  *
- * Only the module entry and the stylesheets - the files the document blocks on.
- * The lazily-imported chunks are deliberately absent: `GTAOPass` and
- * `design_bundle` are deferred precisely so a boot does not pay for them, and
- * precaching them would undo that on the install instead.
+ * The files the document blocks on: the module entry, the stylesheets, and the
+ * chunks it modulepreloads. The lazily-imported chunks are deliberately absent:
+ * `GTAOPass`, `design_bundle` and - since RM-015 M3 - the whole 3D engine are
+ * deferred precisely so a boot does not pay for them, and precaching them would
+ * undo that on the install instead.
+ *
+ * ## modulepreload, and the visit that went offline without it
+ *
+ * `rel="modulepreload"` was not read here until M3, and until M3 it did not
+ * matter: the application was one entry chunk and Vite emitted no such link. M3
+ * split the engine out, which left the entry statically importing two shared
+ * chunks - three's maths and the library core - and Vite preloads exactly those.
+ * They are as much the shell as the entry is; the boot cannot run without them.
+ *
+ * `tools/check-offline.mjs` is what said so, on the first run after the split: a
+ * first-visit-then-offline reload rendered nothing, with `three.core-*.js` and
+ * `dom-*.js` named as the two resources the cache did not have. The rule that
+ * fixes it is the one this function was always trying to state - *what the
+ * document blocks on* - and a modulepreload is a fetch the document blocks on.
+ * Vite emits them only for STATIC imports of the entry, so the lazy chunks stay
+ * lazy by construction rather than by a list kept in step by hope.
  *
  * @param {string} html
  * @returns {Array<string>} URLs as written, relative to the document.
@@ -122,7 +139,7 @@ export function shellAssets(html)
 	var found = [];
 	var text = String(html || '');
 	var script = /<script[^>]*\ssrc=["']([^"']+)["'][^>]*>/gi;
-	var link = /<link[^>]*\srel=["']stylesheet["'][^>]*>/gi;
+	var link = /<link[^>]*\srel=["'](?:stylesheet|modulepreload)["'][^>]*>/gi;
 	var href = /\shref=["']([^"']+)["']/i;
 	var match;
 	while ((match = script.exec(text)) !== null)

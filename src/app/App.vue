@@ -406,6 +406,17 @@ function applyLayoutToCamera(next)
 		camera.showFloorplan();
 		return;
 	}
+	// The moment the 3D engine is worth downloading (RM-015 M3). Every layout
+	// that is not the plan alone shows the viewer, so this is the one place that
+	// has to ask for it - and it is already the place that decides what the
+	// camera does about a layout change. `ensureViewer` is idempotent and caches
+	// its import, so switching back and forth costs one fetch.
+	//
+	// Not awaited: the camera calls below are written for a viewer that may not
+	// be there, `useCameraViews` re-runs `applyBootState` when it arrives, and
+	// blocking the layout change on a network fetch would leave the workspace
+	// mid-transition with nothing on screen.
+	store.ensureViewer();
 	// Except when the exterior view asked for the layout in the first place
 	// (RM-010 G3). `toggleExterior` sets LAYOUT_VIEW and then frames the
 	// building; without this the watcher fires in between and `showDesign()`
@@ -507,6 +518,19 @@ function setRenderMode(mode)
 		store.three.value.applyRenderProfile(mode);
 	}
 }
+
+// A viewer built after the fact starts on whichever profile is current
+// (RM-015 M3). Before this sprint the viewer existed from boot and the only way
+// to change the look was through the function above; now the order can be the
+// other way round - somebody picks a look while still on the plan, then opens
+// the 3D pane - and the engine has to arrive wearing it.
+watch(store.three, function (viewer)
+{
+	if (viewer)
+	{
+		viewer.applyRenderProfile(renderMode.value);
+	}
+});
 
 /**
  * The plan-space coordinate readout.
@@ -1154,6 +1178,22 @@ useShortcuts(() => bindings.value);
 
 					<template #view>
 						<ThreeViewport ref="viewportRef">
+							<!--
+								The 3D engine is 130 KB gzipped and it is fetched on the
+								first switch to a layout that shows it (RM-015 M3). On a
+								fast connection this is one frame and nobody sees it; on a
+								slow one the alternative is an empty box that looks broken.
+								`aria-live` because a person using a screen reader gets no
+								other signal that the pane is populating.
+							-->
+							<div
+								v-if="store.viewerLoading.value"
+								class="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+								<p class="glass px-3 py-2 text-[11px] text-ink-soft" role="status" aria-live="polite">
+									Preparing the 3D view&hellip;
+								</p>
+							</div>
+
 							<SceneOverlay
 								v-show="!walkthrough"
 								:active-view="camera.activeView.value"

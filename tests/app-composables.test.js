@@ -17,7 +17,6 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {effectScope, isReactive, nextTick, toRaw} from 'vue';
 
-import {Main} from '../src/scripts/three/main.js';
 import {Configuration, configDimUnit} from '../src/scripts/core/configuration.js';
 import {dimCentiMeter} from '../src/scripts/core/units.js';
 import {floorplannerModes} from '../src/scripts/floorplanner/floorplanner_view.js';
@@ -52,6 +51,8 @@ let canvasStub;
 let observer;
 let pointerApis;
 let renderers;
+/** The `Main` the app will import, which `vi.resetModules()` can replace. */
+let live;
 let scope;
 let store;
 let elements;
@@ -90,7 +91,23 @@ function mountStore()
 	return store.mount({floorplannerElement: elements.canvas, threeElement: elements.viewer});
 }
 
-beforeEach(() =>
+/**
+ * Mount, and wait for the 3D engine (RM-015 M3).
+ *
+ * `mountStore()` no longer builds a viewer - three arrives on the first ask,
+ * which is what makes it absent from the first load. Every case below that is
+ * about the viewer rather than about the boundary says so by calling this, and
+ * the ones that call `mountStore()` and then assert `three` is null are
+ * asserting the boundary on purpose.
+ */
+async function mountStoreWithViewer()
+{
+	var blueprint = mountStore();
+	await store.ensureViewer();
+	return blueprint;
+}
+
+beforeEach(async () =>
 {
 	resetAll();
 	document.body.innerHTML = '';
@@ -101,7 +118,14 @@ beforeEach(() =>
 	canvasStub = installCanvas2D(window);
 	observer = installResizeObserver(window);
 	pointerApis = installPointerApis(window);
-	Main.setRendererFactory(() => createRendererStub(renderers));
+	// On the module the application will actually import, which since RM-015 M3
+	// is resolved when somebody asks for the 3D view rather than when this file
+	// is loaded. One case below calls `vi.resetModules()`, and after that the
+	// static `Main` at the top of this file is a different class from the one
+	// `useBlueprint` gets - so the seam is installed on whatever `import()`
+	// answers with now. In every other case this is the same object.
+	live = (await import('../src/scripts/three/main.js')).Main;
+	live.setRendererFactory(() => createRendererStub(renderers));
 
 	scope = effectScope();
 	store = run(() => createBlueprintStore());
@@ -112,7 +136,7 @@ afterEach(() =>
 {
 	store.unmount();
 	scope.stop();
-	Main.setRendererFactory(null);
+	live.setRendererFactory(null);
 	observer.restore();
 	pointerApis.restore();
 	canvasStub.restore();
@@ -144,18 +168,61 @@ describe('useBlueprint', () =>
 		expect(store.model.value.floorplan).toBe(blueprint.model.floorplan);
 	});
 
-	it('mounts once', () =>
+	it('mounts once', async () =>
 	{
 		const first = mountStore();
 		const second = mountStore();
 
 		expect(second).toBe(first);
+		// And attaching twice attaches once, which is the property that matters
+		// now that the caller is a layout watcher rather than a constructor: it
+		// can fire again before the first import has landed.
+		const [a, b] = await Promise.all([store.ensureViewer(), store.ensureViewer()]);
+		expect(a).toBe(b);
 		expect(renderers).toHaveLength(1);
 	});
 
-	it('unmounts, disposing the renderer and clearing every ref', () =>
+	it('builds no renderer until somebody asks to see the room (RM-015 M3)', async () =>
+	{
+		const blueprint = mountStore();
+
+		// The whole sprint, as one assertion. A mounted document has a model and a
+		// plan and no WebGL context, because three is not in the payload that drew
+		// the plan - it is behind the `import()` in `ensureViewer`.
+		expect(blueprint.model).not.toBeNull();
+		expect(blueprint.floorplanner).not.toBeNull();
+		expect(blueprint.three).toBeNull();
+		expect(store.three.value).toBeNull();
+		expect(renderers).toHaveLength(0);
+
+		const viewer = await store.ensureViewer();
+
+		expect(viewer).toBe(blueprint.three);
+		expect(store.three.value).toBe(blueprint.three);
+		expect(renderers).toHaveLength(1);
+	});
+
+	it('says while the engine is on its way, and stops saying it', async () =>
 	{
 		mountStore();
+		expect(store.viewerLoading.value).toBe(false);
+
+		const arriving = store.ensureViewer();
+		expect(store.viewerLoading.value).toBe(true);
+
+		await arriving;
+		expect(store.viewerLoading.value).toBe(false);
+	});
+
+	it('answers with nothing when there is no document to attach to', async () =>
+	{
+		expect(await store.ensureViewer()).toBeNull();
+		expect(renderers).toHaveLength(0);
+	});
+
+	it('unmounts, disposing the renderer and clearing every ref', async () =>
+	{
+		await mountStoreWithViewer();
 		store.unmount();
 
 		expect(store.instance.value).toBeNull();
@@ -174,15 +241,49 @@ describe('useBlueprint', () =>
 		expect(() => store.unmount()).not.toThrow();
 	});
 
-	it('remounts onto a fresh renderer', () =>
+	it('remounts onto a fresh renderer', async () =>
 	{
-		mountStore();
+		await mountStoreWithViewer();
 		store.unmount();
 		const second = mountStore();
+		await store.ensureViewer();
 
 		expect(second).not.toBeNull();
 		expect(renderers).toHaveLength(2);
 		expect(renderers[1].disposed).toBe(false);
+	});
+
+	it('says so when the engine will not start, and lets the next ask try again', async () =>
+	{
+		// A machine with no working WebGL, which is the likelier of the two ways
+		// this fails - the chunk lands and the renderer refuses to be built.
+		live.setRendererFactory(() => {throw new Error('no WebGL here');});
+		mountStore();
+
+		await expect(store.ensureViewer()).rejects.toThrow('no WebGL here');
+		expect(store.three.value).toBeNull();
+		// Not stuck saying "preparing" forever, and not stuck replaying the
+		// failure either: the cached promise is dropped, so a later attempt - a
+		// second click, a driver that woke up - re-imports and can succeed.
+		expect(store.viewerLoading.value).toBe(false);
+
+		live.setRendererFactory(() => createRendererStub(renderers));
+		expect(await store.ensureViewer()).not.toBeNull();
+		expect(renderers).toHaveLength(1);
+	});
+
+	it('attaches nothing to a document that went away while the engine loaded', async () =>
+	{
+		mountStore();
+		// The race the null check in ensureViewer exists for: a route change, or a
+		// closed tab's last render, between the import starting and landing. A
+		// renderer built here would belong to a disposed document and would never
+		// be disposed itself.
+		const arriving = store.ensureViewer();
+		store.unmount();
+
+		expect(await arriving).toBeNull();
+		expect(renderers).toHaveLength(0);
 	});
 });
 
@@ -191,10 +292,13 @@ describe('useSelection', () =>
 	let selection;
 	let blueprint;
 
-	beforeEach(() =>
+	// With a viewer, because half of what this composable listens to is a 3D
+	// pick (RM-015 M3). The other half - the plan's own events - is live from
+	// mount, and `useSelection` re-attaches both when the viewer arrives.
+	beforeEach(async () =>
 	{
 		selection = run(() => useSelection(store));
-		blueprint = mountStore();
+		blueprint = await mountStoreWithViewer();
 		blueprint.model.loadSerialized(DEFAULT_DESIGN);
 	});
 
@@ -562,10 +666,15 @@ describe('useCameraViews', () =>
 	let camera;
 	let blueprint;
 
-	beforeEach(() =>
+	// With a viewer: every verb here moves a camera, and there is no camera
+	// until the engine arrives (RM-015 M3). `applyBootState` - stop the spin,
+	// pause the render loop while the plan is showing - therefore runs when the
+	// viewer is attached rather than when the document is mounted, which for an
+	// application that used to build both in one call is the same moment.
+	beforeEach(async () =>
 	{
 		camera = run(() => useCameraViews(store));
-		blueprint = mountStore();
+		blueprint = await mountStoreWithViewer();
 		blueprint.model.loadSerialized(DEFAULT_DESIGN);
 	});
 
@@ -677,7 +786,9 @@ describe('useCatalog', () =>
 		await loadCatalogFromDisk();
 		selection = run(() => useSelection(store));
 		catalog = run(() => useCatalog(store, selection.placementContext));
-		blueprint = mountStore();
+		// With a viewer: the placement context these cases set comes from a 3D
+		// pick (RM-015 M3).
+		blueprint = await mountStoreWithViewer();
 		blueprint.model.loadSerialized(DEFAULT_DESIGN);
 
 		// Record the placement rather than actually loading a model.
@@ -908,10 +1019,12 @@ describe('useDesignIO', () =>
 	let downloads;
 	let revoked;
 
-	beforeEach(() =>
+	// With a viewer: three of these verbs - the photo, the panorama, the glTF -
+	// go through one, and as of RM-015 M3 they wait for it rather than assume it.
+	beforeEach(async () =>
 	{
 		io = run(() => useDesignIO(store));
-		blueprint = mountStore();
+		blueprint = await mountStoreWithViewer();
 
 		// jsdom has no object URLs and no real download. Record instead.
 		downloads = [];
@@ -951,13 +1064,15 @@ describe('useDesignIO', () =>
 	 * blob rather than handed to an anchor whole, and that a viewer that cannot
 	 * encode says so instead of downloading nothing.
 	 */
-	it('downloads the panorama as bytes rather than as a data URL', () =>
+	it('downloads the panorama as bytes rather than as a data URL', async () =>
 	{
 		io.newDesign();
 		const original = window.HTMLCanvasElement.prototype.toDataURL;
 		window.HTMLCanvasElement.prototype.toDataURL = () => `data:image/png;base64,${btoa('a'.repeat(200))}`;
 
-		io.savePanorama(32);
+		// Awaited since M3: the verb asks for the viewer before it photographs,
+		// which is a promise even when the viewer is already there.
+		await io.savePanorama(32);
 
 		expect(downloads).toHaveLength(1);
 		expect(downloads[0].type).toBe('image/png');
@@ -965,13 +1080,13 @@ describe('useDesignIO', () =>
 		window.HTMLCanvasElement.prototype.toDataURL = original;
 	});
 
-	it('says so when the browser cannot encode the panorama', () =>
+	it('says so when the browser cannot encode the panorama', async () =>
 	{
 		io.newDesign();
 		const original = window.HTMLCanvasElement.prototype.toDataURL;
 		window.HTMLCanvasElement.prototype.toDataURL = () => '';
 
-		io.savePanorama(32);
+		await io.savePanorama(32);
 
 		expect(downloads).toHaveLength(0);
 		expect(io.lastError.value).toMatch(/could not encode the panorama/);
@@ -1012,6 +1127,9 @@ describe('useDesignIO', () =>
 		blueprint.three.exportForBlender = () => {started = true;};
 
 		const promise = io.saveGLTF();
+		// A tick, because `saveGLTF` asks for the viewer before it exports, and an
+		// answer that is already known is still a promise (RM-015 M3).
+		await nextTick();
 		expect(started).toBe(true);
 		expect(io.busy.value).toBe(true);
 
@@ -1198,7 +1316,11 @@ describe('useWalkthrough (RM-011 H3)', () =>
 		// viewer that has to be told is the *next* one. A tick, because the watch
 		// that tells it is a normal pre-flush watch rather than a synchronous one -
 		// a viewer is not walked in the frame it was constructed in.
-		const blueprint = mountStore();
+		//
+		// "Afterwards" got further away in RM-015 M3 and the case got truer: the
+		// viewer is now built on the first ask rather than at mount, so this is no
+		// longer a hypothetical ordering, it is the only ordering.
+		const blueprint = await mountStoreWithViewer();
 		await nextTick();
 		expect(blueprint.three.eyeHeight()).toBe(175);
 	});
@@ -1211,7 +1333,7 @@ describe('useWalkthrough (RM-011 H3)', () =>
 		expect(window.localStorage.getItem('architect3d.walkthrough'))
 			.toBe(`{"eyeHeight":${walk.bounds.max}}`);
 
-		const blueprint = mountStore();
+		const blueprint = await mountStoreWithViewer();
 		await nextTick();
 		expect(blueprint.three.eyeHeight()).toBe(walk.bounds.max);
 	});

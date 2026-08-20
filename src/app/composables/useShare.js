@@ -106,7 +106,9 @@ export function useShare(store, projects, io, models)
 		}
 	}
 
-	watch([viewing, store.instance], apply, {immediate: true});
+	// `store.three` as well since RM-015 M3: a viewer attached after the share
+	// link was read would otherwise be editable in a read-only session.
+	watch([viewing, store.instance, store.three], apply, {immediate: true});
 
 	/**
 	 * A link to the design on screen.

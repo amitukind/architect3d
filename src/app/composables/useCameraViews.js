@@ -243,10 +243,15 @@ export function useCameraViews(store)
 		attached = null;
 	}
 
-	watch(store.instance, (blueprint) =>
+	// Keyed on the viewer rather than the document since RM-015 M3: everything
+	// attach() does needs `blueprint.three`, which is now null from mount until
+	// somebody asks to see the room. `applyBootState` therefore runs when the
+	// viewer is built rather than when the document is - which is the same
+	// moment it always ran, for an application that used to build both at once.
+	watch([store.instance, store.three], ([blueprint, viewer]) =>
 	{
 		detach();
-		if (blueprint)
+		if (blueprint && viewer)
 		{
 			attach(blueprint);
 		}

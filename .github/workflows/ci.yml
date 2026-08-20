@@ -137,6 +137,29 @@ jobs:
           mv docs/.vitepress/dist dist-demo/docs
           npm run deploy:check
 
+      - name: Lighthouse
+        # RM-015 M3, gate eighteen, and the only number in this repository that
+        # this repository did not define. Every budget line and every coverage
+        # floor is a threshold we chose over a quantity we chose; a Lighthouse
+        # performance score weights five metrics the way somebody else weights
+        # them, and it can fall while all fourteen budget lines improve. That is
+        # exactly the failure M3's own change risks - deferring three moves the
+        # wait rather than removing it - so the sprint that moved it is the
+        # sprint that brought in an outside opinion.
+        #
+        # Runs here rather than in the browser job because it needs the
+        # assembled tree, which the step above has just produced, and it costs
+        # only chromium on top of it. The browser job installs chromium too;
+        # they do not share, and the workflow populates no cache by design.
+        #
+        # Against the built tree served from localhost, which is a lab
+        # measurement of the artifact rather than a field measurement of the
+        # deployment - the deploy job points the same analysis at the published
+        # URL and reports it without gating. See tools/check-lighthouse.mjs.
+        run: |
+          npx playwright install chromium
+          npm run lighthouse:check
+
       - name: Advisories
         # RM-006 took this tree to zero, and it is a ratchet from here.
         #

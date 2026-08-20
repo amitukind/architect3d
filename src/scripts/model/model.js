@@ -16,7 +16,6 @@ import {DesignDocument} from './document.js';
 // old enough to branch on `instanceof THREE.Geometry`, and three-gltf-exporter
 // shipped a second copy of three; both are gone.
 import {OBJExporter} from 'three/addons/exporters/OBJExporter.js';
-import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js';
 
 /**
  * One storey's furniture, as the file records it.
@@ -897,7 +896,36 @@ export class Model extends EventDispatcher
 		return exporter.parse(this.scene.getScene());
 	}
 
+	/**
+	 * The glTF exporter arrives with the export (RM-015 M3).
+	 *
+	 * 67,150 rendered bytes of `GLTFExporter`, which used to be a static import
+	 * at the top of this file and therefore in every first load, for a verb
+	 * nobody reaches in the first seconds of a session - and one that already
+	 * answers through `EVENT_GLTF_READY` rather than a return value, so a
+	 * network hop in front of it changes nothing a caller can observe.
+	 *
+	 * `exportMeshAsObj` above deliberately keeps its static import: it returns a
+	 * string synchronously, so deferring it would move the library's public API
+	 * rather than its bytes, and `OBJExporter` is 4,302 of them.
+	 */
 	exportForBlender()
+	{
+		var scope = this;
+		import('three/addons/exporters/GLTFExporter.js').then(function (module)
+		{
+			scope._exportForBlender(module.GLTFExporter);
+		}).catch(function (error)
+		{
+			console.error('glTF export failed', error);
+		});
+	}
+
+	/**
+	 * @param {typeof import('three/addons/exporters/GLTFExporter.js').GLTFExporter} GLTFExporter
+	 * @private
+	 */
+	_exportForBlender(GLTFExporter)
 	{
 		var scope = this;
 		var gltfexporter = new GLTFExporter();

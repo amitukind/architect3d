@@ -1108,9 +1108,11 @@ describe('the library defaults nothing new turned on', () =>
 
 describe('the item move-finish event', () =>
 {
-	it('is dispatched on the scene, where item lifecycle events already live', () =>
+	it('is dispatched on the scene, where item lifecycle events already live', async () =>
 	{
 		const blueprint = mountStore();
+		// The controller belongs to the viewer, which arrives on demand (M3).
+		await store.ensureViewer();
 		const scene = blueprint.model.scene;
 		const controller = blueprint.three.getController();
 

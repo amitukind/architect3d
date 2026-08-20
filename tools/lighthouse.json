@@ -1,0 +1,11 @@
+{
+	"floor": 60,
+	"measured": 62,
+	"metrics": {
+		"first-contentful-paint": 5853.5851999999995,
+		"largest-contentful-paint": 6470.377799999999,
+		"total-blocking-time": 115,
+		"cumulative-layout-shift": 0,
+		"speed-index": 5853.5851999999995
+	}
+}

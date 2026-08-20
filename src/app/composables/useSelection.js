@@ -506,10 +506,17 @@ export function useSelection(store)
 			annotationsChanged: () => {revision.value += 1;},
 		};
 
-		three.addEventListener(EVENT_ITEM_SELECTED, handlers.itemSelected);
-		three.addEventListener(EVENT_ITEM_UNSELECTED, handlers.itemUnselected);
-		three.addEventListener(EVENT_WALL_CLICKED, handlers.wallClicked);
-		three.addEventListener(EVENT_FLOOR_CLICKED, handlers.floorClicked);
+		// Null until somebody asks to see the room (RM-015 M3). The plan's own
+		// events below are the half that must be live from the first frame; these
+		// four are picks in a 3D view that does not exist yet, and the watch
+		// re-runs this whole function when it does.
+		if (three)
+		{
+			three.addEventListener(EVENT_ITEM_SELECTED, handlers.itemSelected);
+			three.addEventListener(EVENT_ITEM_UNSELECTED, handlers.itemUnselected);
+			three.addEventListener(EVENT_WALL_CLICKED, handlers.wallClicked);
+			three.addEventListener(EVENT_FLOOR_CLICKED, handlers.floorClicked);
+		}
 
 		floorplan.addEventListener(EVENT_NOTHING_CLICKED, handlers.nothingClicked);
 		floorplan.addEventListener(EVENT_CORNER_2D_CLICKED, handlers.corner2d);
@@ -531,10 +538,13 @@ export function useSelection(store)
 		var three = handlers.three;
 		var floorplan = handlers.floorplan;
 
-		three.removeEventListener(EVENT_ITEM_SELECTED, handlers.itemSelected);
-		three.removeEventListener(EVENT_ITEM_UNSELECTED, handlers.itemUnselected);
-		three.removeEventListener(EVENT_WALL_CLICKED, handlers.wallClicked);
-		three.removeEventListener(EVENT_FLOOR_CLICKED, handlers.floorClicked);
+		if (three)
+		{
+			three.removeEventListener(EVENT_ITEM_SELECTED, handlers.itemSelected);
+			three.removeEventListener(EVENT_ITEM_UNSELECTED, handlers.itemUnselected);
+			three.removeEventListener(EVENT_WALL_CLICKED, handlers.wallClicked);
+			three.removeEventListener(EVENT_FLOOR_CLICKED, handlers.floorClicked);
+		}
 
 		floorplan.removeEventListener(EVENT_NOTHING_CLICKED, handlers.nothingClicked);
 		floorplan.removeEventListener(EVENT_CORNER_2D_CLICKED, handlers.corner2d);
@@ -552,7 +562,11 @@ export function useSelection(store)
 		placementContext.value = {wall: null, floor: null};
 	}
 
-	watch(store.instance, (blueprint) =>
+	// Both, because a viewer arriving is as much a change of what to listen to
+	// as a document arriving (RM-015 M3). Re-attaching the plan's listeners at
+	// the same time is free - detach() removed them a line ago - and it keeps
+	// one attach path rather than two that can disagree about what is bound.
+	watch([store.instance, store.three], ([blueprint]) =>
 	{
 		detach();
 		if (blueprint)

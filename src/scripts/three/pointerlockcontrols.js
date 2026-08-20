@@ -45,15 +45,17 @@ import {PointerLockControls as PointerLockControlsAddon} from 'three/addons/cont
  *     no longer exists.
  */
 /**
- * Eye height, and the range a person is offered (RM-011 H3).
+ * Eye height, and the range a person is offered - defined in core/constants.js
+ * and re-exported here, where it was declared until RM-015 M3.
  *
- * 160 is the fork's number, which `Main` has always assigned over the class
- * default of 125 - so this constant states what actually runs rather than what
- * the constructor happens to initialise. The bounds are a person: 90 cm is a
- * small child's eye level and 220 is above the tallest adult, and past either
- * end the walkthrough stops being a way of judging a room.
+ * It moved because of what importing it costs. Three numbers in a frozen
+ * object, imported by `useWalkthrough` to bound a slider, were pulling this
+ * module - and therefore three's `PointerLockControls` addon - into the
+ * application's first load: a 35 KB chunk the entry preloaded for a constant.
+ * Nothing about the constant changed, and every import path that ever named
+ * this file still resolves.
  */
-export const EYE_HEIGHT = Object.freeze({default: 160, min: 90, max: 220});
+export {EYE_HEIGHT} from '../core/constants.js';
 
 export class PointerLockControls extends PointerLockControlsAddon
 {

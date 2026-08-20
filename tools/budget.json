@@ -19,6 +19,38 @@
 		"on Floorplan, and the footprint drawing and pointer handling in the two",
 		"floorplanner files. 3.1 KB gzipped for furniture on the 2D plan.",
 		"",
+		"RM-015 M3 LOWERED ONE, WHICH NOTHING IN THIS FILE HAD EVER DONE.",
+		"",
+		"first-load 441,700 -> 294,000, against a measurement of 280,079 - the usual",
+		"~5% headroom, applied downwards for the first time. Every other entry in this",
+		"note is a raise, and the rule that produced them holds: a limit only ever",
+		"moves with a reason and a measurement. The reason here is that a ceiling",
+		"nobody can reach has stopped being a ceiling. M3 took 152,702 gzipped bytes",
+		"out of the payload, and leaving the line at 441,700 would have licensed every",
+		"one of them to come back without a word.",
+		"",
+		"Where the bytes went, each figure from its own build of this tree rather than",
+		"subtracted from the one above it:",
+		"",
+		"  432,781  before M3",
+		"  319,981  the 3D viewer behind a dynamic import        -112,800",
+		"  309,074  the glTF exporter behind one too             - 10,907",
+		"  280,079  the four model loaders in one lazy chunk     - 28,995",
+		"",
+		"AA-5 said three is 204,379 gzipped and 47% of the first load. The viewer",
+		"boundary returns 112,800 of that and not the whole of it, because the rest of",
+		"three is three.core.js - the maths, the scene graph and the event dispatcher -",
+		"which the model layer is built on and which any boot needs. It is now a shared",
+		"chunk of 65,070 gzipped bytes, 23% of what remains, and the largest single",
+		"thing in the first load.",
+		"",
+		"demo-js-gzip did NOT come down and is now at 1.1% headroom, which is the",
+		"honest cost of the change: splitting one chunk into eight adds per-chunk",
+		"overhead and a shared chunk that both sides import, so the TOTAL javascript",
+		"grew by 4,771 bytes while what a boot downloads fell by 152,702. Left where it",
+		"is rather than raised pre-emptively - the next commit to touch it will have to",
+		"look at it, which is what the line is for.",
+		"",
 		"RM-013 K2 RAISED two, and corrected a number K1 reported wrong.",
 		"",
 		"first-load 421,400 -> 441,700 and demo-js-gzip 423,200 -> 439,800. Measured on",
@@ -890,7 +922,7 @@
 	"budgets": {
 		"demo-js-gzip": {
 			"limit": 439800,
-			"measured": 430392
+			"measured": 435163
 		},
 		"demo-css-gzip": {
 			"limit": 10000,
@@ -898,11 +930,11 @@
 		},
 		"demo-total": {
 			"limit": 29985000,
-			"measured": 20842006
+			"measured": 20859173
 		},
 		"lib-iife-gzip": {
 			"limit": 307000,
-			"measured": 298983
+			"measured": 299416
 		},
 		"public-total": {
 			"limit": 16770000,
@@ -910,7 +942,7 @@
 		},
 		"lib-esm-gzip": {
 			"limit": 88000,
-			"measured": 83698
+			"measured": 83223
 		},
 		"public-largest": {
 			"limit": 330000,
@@ -946,8 +978,8 @@
 			]
 		},
 		"first-load": {
-			"limit": 441700,
-			"measured": 432781
+			"limit": 294000,
+			"measured": 280079
 		},
 		"catalog-bundled": {
 			"limit": 2600,

@@ -1,6 +1,6 @@
 // @ts-check
-import {inject, provide, markRaw, shallowRef} from 'vue';
-import {BlueprintJS} from '../../scripts/blueprint.js';
+import {inject, provide, markRaw, ref, shallowRef} from 'vue';
+import {BlueprintCore} from '../../scripts/blueprint.js';
 import {assetResolver} from './useAssets.js';
 import {modelStore} from '../import/model_store.js';
 
@@ -38,9 +38,11 @@ const BLUEPRINT_KEY = Symbol('architect3d.blueprint');
  * @typedef {Object} BlueprintStore
  * @property {import('vue').ShallowRef<?Object>} instance The BlueprintJS, or null before mount / after unmount.
  * @property {import('vue').ShallowRef<?Object>} model
- * @property {import('vue').ShallowRef<?Object>} three
+ * @property {import('vue').ShallowRef<?Object>} three Null until ensureViewer() lands.
  * @property {import('vue').ShallowRef<?Object>} floorplanner Null in widget mode.
+ * @property {import('vue').Ref<boolean>} viewerLoading Whether the 3D engine is on its way.
  * @property {function(Object): Object} mount
+ * @property {function(): Promise<?Object>} ensureViewer
  * @property {function(): void} unmount
  */
 
@@ -57,6 +59,10 @@ export function createBlueprintStore()
 	var three = shallowRef(null);
 	/** @type {import('vue').ShallowRef<?any>} */
 	var floorplanner = shallowRef(null);
+	/** Whether the viewer's chunk is in flight, for anything that wants to say so. */
+	var viewerLoading = ref(false);
+	/** @type {?Promise<?any>} The one in-flight import, so two asks share it. */
+	var viewerLoad = null;
 
 	/**
 	 * @param {Object} options
@@ -75,7 +81,7 @@ export function createBlueprintStore()
 		// Real elements, not ids. The library still accepts id strings for
 		// back-compat, but a component cannot promise its ids are unique on the
 		// page - and it has the nodes in hand already.
-		var blueprint = markRaw(new BlueprintJS({
+		var blueprint = markRaw(new BlueprintCore({
 			floorplannerElement: options.floorplannerElement,
 			threeElement: options.threeElement,
 			threeCanvasElement: null,
@@ -96,12 +102,86 @@ export function createBlueprintStore()
 
 		instance.value = blueprint;
 		model.value = markRaw(blueprint.model);
-		// Non-null immediately after construction; BlueprintJS only clears it in
-		// dispose(), and the property is declared nullable for that reason alone.
-		three.value = blueprint.three ? markRaw(blueprint.three) : null;
+		// Null by construction as of RM-015 M3, and it stays null until something
+		// asks to see the room. `three` is not "the viewer, before dispose()"
+		// any more; it is "the viewer, if one has been attached".
+		three.value = null;
 		floorplanner.value = blueprint.floorplanner ? markRaw(blueprint.floorplanner) : null;
 
 		return blueprint;
+	}
+
+	/**
+	 * Bring the 3D engine in, and attach a viewer to the document (RM-015 M3).
+	 *
+	 * ## What this buys
+	 *
+	 * three is 47 % of what this application used to make a visitor download
+	 * before it drew anything, and the default layout is the plan alone. So the
+	 * engine is behind this call: `import()` is a chunk boundary the bundler
+	 * honours, and the measurement is in blueprint_core.js.
+	 *
+	 * ## Why a promise and not a flag
+	 *
+	 * Because the answer is genuinely not available yet, and the callers that
+	 * cannot proceed without a viewer - exporting a glTF, capturing a
+	 * thumbnail - need something to wait on. The ones that only want the viewer
+	 * *eventually*, which is most of them, watch `three` instead and are
+	 * written for it: `useWalkthrough` has said "one constructed later starts at
+	 * the stored height" since long before this sprint.
+	 *
+	 * Idempotent in both directions: the import is cached in `viewerLoad`, and
+	 * `attachViewer` returns the existing viewer rather than building a second
+	 * one - which matters because a layout watcher can fire twice before a
+	 * chunk arrives.
+	 *
+	 * @returns {Promise<?Object>} The viewer, or null if there is no document to
+	 *          attach it to - before mount, or unmounted while the chunk was in
+	 *          flight.
+	 */
+	function ensureViewer()
+	{
+		if (three.value)
+		{
+			return Promise.resolve(three.value);
+		}
+		if (!instance.value)
+		{
+			return Promise.resolve(null);
+		}
+		if (!viewerLoad)
+		{
+			viewerLoading.value = true;
+			viewerLoad = import('../../scripts/three/main.js').then(function (module)
+			{
+				viewerLoading.value = false;
+				// The document can have gone away while the engine was downloading -
+				// a route change, a closed tab's last render. Attaching to a disposed
+				// core would build a renderer nobody will ever dispose.
+				var blueprint = instance.value;
+				if (!blueprint)
+				{
+					return null;
+				}
+				three.value = markRaw(blueprint.attachViewer(module.Main));
+				return three.value;
+			}).catch(function (error)
+			{
+				viewerLoading.value = false;
+				// `catch` rather than the second argument to `then`, so this covers
+				// both ways the engine can fail to arrive: the chunk not landing, and
+				// the renderer refusing to be constructed once it has. A machine with
+				// no working WebGL fails the second way, and it is the more likely of
+				// the two.
+				//
+				// Cleared so a later attempt re-imports rather than replaying the
+				// failure forever. An offline first switch to 3D should succeed on the
+				// second try once the network is back.
+				viewerLoad = null;
+				throw error;
+			});
+		}
+		return viewerLoad;
 	}
 
 	/**
@@ -125,11 +205,17 @@ export function createBlueprintStore()
 		model.value = null;
 		three.value = null;
 		floorplanner.value = null;
+		// Not the module: an import is cached by the browser and by the bundler's
+		// runtime, so a remount re-imports for free. What must be dropped is the
+		// *attachment* promise, which resolves to a viewer belonging to a document
+		// that is about to be disposed.
+		viewerLoad = null;
+		viewerLoading.value = false;
 
 		blueprint.dispose();
 	}
 
-	return {instance, model, three, floorplanner, mount, unmount};
+	return {instance, model, three, floorplanner, viewerLoading, mount, ensureViewer, unmount};
 }
 
 /**

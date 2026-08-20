@@ -1,14 +1,5 @@
 // @ts-check
 import {EventDispatcher, Color} from 'three';
-// three's own addons since S4, replacing the three-gltf-loader and
-// @calvinscofield/three-objloader repacks. Each of those bundled its own copy
-// of three (r105 and r94), so `instanceof` silently failed across the seam and
-// the bundle carried three full engines.
-import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
-import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';
-import {DRACOLoader} from 'three/addons/loaders/DRACOLoader.js';
-import {KTX2Loader} from 'three/addons/loaders/KTX2Loader.js';
-import {formatSupport} from '../core/texture_formats.js';
 import {Scene as ThreeScene, LoadingManager, Group, Box3, Vector3} from 'three';
 import {runtimeOf} from '../core/design_runtime.js';
 import {disposeMaterial, disposeObject} from '../core/resource_registry.js';
@@ -111,59 +102,19 @@ export class Scene extends EventDispatcher
 		 */
 		this.loadingManager = new LoadingManager();
 
-		// init item loader
-		this.gltfloader = new GLTFLoader(this.loadingManager);
-		this.objloader = new OBJLoader(this.loadingManager);
-		this.gltfloader.setCrossOrigin('');
-
 		/**
-		 * The Draco decoder for this scene (RM-004 B1).
+		 * This scene's glTF, OBJ, Draco and KTX2 loaders - once something has
+		 * asked for them (RM-015 M3).
 		 *
-		 * Every model in the catalog is `KHR_draco_mesh_compression` now, and
-		 * `GLTFLoader` throws on one unless a `DRACOLoader` is attached BEFORE the
-		 * parse - it cannot be supplied on demand once a compressed file has
-		 * arrived. So it is attached here, unconditionally, and the cost of that
-		 * is nothing until it decodes: `DRACOLoader` fetches its 73 KB of WASM and
-		 * starts its worker on the FIRST compressed mesh, not on construction. A
-		 * session that places no furniture never pays for it.
+		 * A promise rather than the loaders, because getting them now involves a
+		 * network fetch: they live behind a dynamic import, and `model/loaders.js`
+		 * carries the measurement that put them there. Held so the second model
+		 * load reuses the first one's import rather than racing it.
 		 *
-		 * The decoder path is resolved through the runtime's asset resolver rather
-		 * than hard-coded, so `?assetBase=` relocates the decoder alongside
-		 * everything else it relocates. A build that serves no decoder is not a
-		 * broken build - it is a build whose models are uncompressed, which is
-		 * every build before this sprint and any embedder shipping their own
-		 * catalog.
-		 *
-		 * @type {DRACOLoader}
+		 * @type {?Promise<import('./loaders.js').ModelLoaders>}
+		 * @private
 		 */
-		this.dracoLoader = new DRACOLoader(this.loadingManager);
-		this.dracoLoader.setDecoderPath(this.runtime.assets.decoderPath());
-		this.gltfloader.setDRACOLoader(this.dracoLoader);
-
-		/**
-		 * The KTX2 transcoder for model textures (RM-004 B5).
-		 *
-		 * 18 of the catalog's textures are KTX2 inside their `.glb`, and the
-		 * containers declare `KHR_texture_basisu` as REQUIRED - so a GLTFLoader
-		 * without this attached does not render them untextured, it refuses the
-		 * file outright. Attached beside the Draco loader and for the same
-		 * reason: it must be in place before the first parse, and it costs
-		 * nothing until something needs it, because three fetches the
-		 * transcoder on the first compressed texture rather than at
-		 * construction.
-		 *
-		 * `workerConfig` is set from the device rather than by calling
-		 * `detectSupport(renderer)`, because a `Scene` has no renderer - it is
-		 * the model layer. `core/texture_formats.js` explains why that is the
-		 * right dependency rather than a workaround.
-		 *
-		 * @type {KTX2Loader}
-		 */
-		this.ktx2Loader = new KTX2Loader(this.loadingManager);
-		this.ktx2Loader.setTranscoderPath(this.runtime.assets.transcoderPath());
-		var support = formatSupport();
-		if (support) { this.ktx2Loader.workerConfig = support; }
-		this.gltfloader.setKTX2Loader(this.ktx2Loader);
+		this._loaders = null;
 
 		/**
 		 * Optional loader override, used by tests to run the model layer without
@@ -509,6 +460,31 @@ export class Scene extends EventDispatcher
 	}
 
 	/**
+	 * This scene's loaders, importing them if this is the first ask (M3).
+	 *
+	 * Every caller of this is already asynchronous - a model load is a network
+	 * fetch - so the import adds a hop to a path that had several, and adds
+	 * nothing at all to a session that never loads a model. The promise is
+	 * cached, not the loaders: two items placed in the same tick share one
+	 * import rather than starting two.
+	 *
+	 * @returns {Promise<import('./loaders.js').ModelLoaders>}
+	 * @private
+	 */
+	_ensureLoaders()
+	{
+		if (!this._loaders)
+		{
+			var scope = this;
+			this._loaders = import('./loaders.js').then(function (module)
+			{
+				return module.createModelLoaders(scope.loadingManager, scope.runtime.assets);
+			});
+		}
+		return this._loaders;
+	}
+
+	/**
 	 * Bytes in, an Object3D out, through the loader the format names (J3).
 	 *
 	 * The one place model bytes are parsed rather than fetched, shared by the
@@ -526,14 +502,13 @@ export class Scene extends EventDispatcher
 	 */
 	_parseModel(bytes, format)
 	{
-		var scope = this;
-		return new Promise(function (resolve, reject)
+		return this._ensureLoaders().then((loaders) => new Promise(function (resolve, reject)
 		{
 			if (format == 'obj')
 			{
 				// `OBJLoader.parse` is synchronous and throws on bytes that are not
 				// an OBJ; inside the executor, that rejects.
-				resolve(scope.objloader.parse(new TextDecoder().decode(new Uint8Array(bytes))));
+				resolve(loaders.objloader.parse(new TextDecoder().decode(new Uint8Array(bytes))));
 				return;
 			}
 			if (format != 'gltf')
@@ -550,8 +525,8 @@ export class Scene extends EventDispatcher
 			// texture, which is the right failure and a silent one; the application
 			// reads the file's own reference list at import and says so
 			// (`externalRefsIn` in `src/app/import/model_file.js`).
-			scope.gltfloader.parse(bytes, '', function (gltf) {resolve(gltf.scene);}, reject);
-		});
+			loaders.gltfloader.parse(bytes, '', function (gltf) {resolve(gltf.scene);}, reject);
+		}));
 	}
 
 	/**
@@ -891,20 +866,34 @@ export class Scene extends EventDispatcher
 		}
 		else if(metadata.format == 'gltf' || metadata.format == 'obj')
 		{
-			var loader = (metadata.format == 'gltf') ? this.gltfloader : this.objloader;
-			var onLoad = (metadata.format == 'gltf') ? gltfCallback : objCallback;
-			try
+			// One `await` in front of the load, and nothing else about this branch
+			// moves (M3). The loaders arrive over the network the first time
+			// anything is placed; on every load after that the promise is already
+			// settled and this is a microtask.
+			//
+			// The `try` still covers starting the load and nothing else, which is
+			// the property the DOM-boundary test in tests/items-and-scene.test.js
+			// pins - so it stays wrapped around exactly the same call rather than
+			// around the import.
+			this._ensureLoaders().then(function (loaders)
 			{
-				// The try covers starting the load and nothing else. three's
-				// FileLoader builds a Request up front, and a URL the environment
-				// cannot parse throws there - synchronously, past the onError
-				// callback that exists for exactly this and never sees it.
-				loader.load(physicalUrl, onLoad, undefined, function (error) {failed(describeError(error));});
-			}
-			catch (error)
-			{
-				failed(describeError(error));
-			}
+				var loader = (metadata.format == 'gltf') ? loaders.gltfloader : loaders.objloader;
+				var onLoad = (metadata.format == 'gltf') ? gltfCallback : objCallback;
+				try
+				{
+					// three's FileLoader builds a Request up front, and a URL the
+					// environment cannot parse throws there - synchronously, past the
+					// onError callback that exists for exactly this and never sees it.
+					loader.load(physicalUrl, onLoad, undefined, function (error) {failed(describeError(error));});
+				}
+				catch (error)
+				{
+					failed(describeError(error));
+				}
+			// A failed import is a failed load: no loader arrived, so nothing can
+			// be parsed, and the item has to be reported as unloadable rather than
+			// left pending forever.
+			}, function (error) {failed(describeError(error));});
 		}
 		else
 		{

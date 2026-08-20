@@ -23,6 +23,7 @@ import {afterEach, describe, it, expect, beforeEach} from 'vitest';
 import * as three from 'three';
 
 import {Model} from '../src/scripts/model/model.js';
+import {EVENT_GLTF_READY} from '../src/scripts/core/events.js';
 import {Scene} from '../src/scripts/model/scene.js';
 import {Factory, item_types} from '../src/scripts/items/factory.js';
 import {Item} from '../src/scripts/items/item.js';
@@ -411,10 +412,20 @@ describe('Scene.addItem failure path (RM-002 R-01)', () => {
 		return seen;
 	}
 
-	it('balances LOADING with LOADED when the URL cannot even be parsed', () => {
+	it('balances LOADING with LOADED when the URL cannot even be parsed', async () => {
 		// Under Node a relative URL throws synchronously out of three's FileLoader,
 		// from `new Request` - past the onError callback that exists for this and
 		// never sees it. That synchronous throw used to escape addItem entirely.
+		//
+		// It also used to be reported synchronously, and as of RM-015 M3 it is
+		// not: the loaders arrive behind a dynamic import, so the branch that
+		// starts a load - and therefore the branch that fails to - runs a
+		// microtask later. The `try` is still wrapped around `loader.load` and
+		// nothing else, which is the property this case exists for; what moved is
+		// when the answer comes back, and it moved to where every other load's
+		// answer already was. A load that reported failure synchronously on one
+		// path and asynchronously on every other was the more surprising of the
+		// two behaviours.
 		const model = new Model('/textures/');
 		const seen = countEvents(model.scene);
 		const before = Scene.unloadableItemCount;
@@ -425,7 +436,14 @@ describe('Scene.addItem failure path (RM-002 R-01)', () => {
 			null, 0, null, false,
 		)).not.toThrow();
 
+		// LOADING is still synchronous: it is dispatched before anything is
+		// fetched, which is what makes it the signal a caller can pair.
 		expect(seen.loading).toBe(1);
+		expect(seen.loaded).toBe(0);
+
+		await model.scene._ensureLoaders();
+		await Promise.resolve();
+
 		expect(seen.loaded).toBe(1);
 		expect(seen.items).toEqual([null]);
 		expect(Scene.unloadableItemCount).toBe(before + 1);
@@ -1871,5 +1889,76 @@ describe('the unit scale replaces the x300 hack (RM-012 J1, RM-009 U-3)', () =>
 			expect(fresh.halfSize.x).toBe(25 * 200);
 			expect([restored.scale.x, restored.scale.y, restored.scale.z]).toEqual([300, 300, 300]);
 		});
+	});
+});
+
+/**
+ * The two exports, and the boundary RM-015 M3 drew between them.
+ *
+ * `exportMeshAsObj` returns a string synchronously and keeps its static
+ * `OBJExporter`: deferring it would move the library's public API rather than
+ * its bytes, and the exporter is 4,302 rendered bytes. `exportForBlender`
+ * answers through `EVENT_GLTF_READY` and never had a return value, so the 67,150
+ * bytes of `GLTFExporter` went behind a dynamic import - a network hop in front
+ * of a verb whose answer already arrived by event changes nothing a caller can
+ * observe.
+ *
+ * Which is a claim, and this is the case that checks it: the event still fires,
+ * still carries glTF JSON, and still comes from a `Model` that was never told
+ * an exporter existed.
+ */
+describe('exporting the mesh (RM-015 M3)', () =>
+{
+	/** Four walls, so there is geometry for an exporter to walk. */
+	function squareRoomIn(model)
+	{
+		const plan = model.floorplan;
+		const corners = [[0, 0], [400, 0], [400, 300], [0, 300]]
+			.map(([x, y]) => plan.newCorner(x, y));
+		corners.forEach((corner, at) => plan.newWall(corner, corners[(at + 1) % corners.length]));
+		plan.update();
+		return plan;
+	}
+
+	it('hands back an OBJ synchronously, from the exporter it still imports', () =>
+	{
+		const model = new Model('/textures/');
+		squareRoomIn(model);
+		// A mesh in the scene, because `exportMeshAsObj` walks the scene - the
+		// furniture - and not the building, which the 3D viewer builds and owns.
+		model.scene.getScene().add(new three.Mesh(
+			new three.BoxGeometry(10, 10, 10), new three.MeshBasicMaterial()));
+
+		const obj = model.exportMeshAsObj();
+
+		// Synchronously, with no await anywhere: that is the property that kept
+		// `OBJExporter` a static import while `GLTFExporter` became a dynamic one.
+		expect(typeof obj).toBe('string');
+		expect(obj).toContain('v ');
+	});
+
+	it('dispatches the glTF once the exporter has been fetched', async () =>
+	{
+		const model = new Model('/textures/');
+		squareRoomIn(model);
+
+		const ready = new Promise((resolve, reject) =>
+		{
+			const timer = setTimeout(() => reject(new Error('EVENT_GLTF_READY never arrived')), 8000);
+			model.addEventListener(EVENT_GLTF_READY, (event) =>
+			{
+				clearTimeout(timer);
+				resolve(event);
+			});
+		});
+
+		// No return value, and that is the point: the caller waits on the event
+		// whether the exporter was already in the bundle or is being fetched now.
+		expect(model.exportForBlender()).toBeUndefined();
+
+		const event = await ready;
+		expect(event.item).toBe(model);
+		const document = JSON.parse(event.gltf);
+		expect(document.asset.version).toBe('2.0');
 	});
 });

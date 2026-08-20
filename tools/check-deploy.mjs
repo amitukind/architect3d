@@ -130,6 +130,69 @@ function main()
 		}
 	}
 
+	// 1b. The 3D engine is not in what the document blocks on (RM-015 M3, M-54).
+	//
+	// The chunk half of the boundary, and the only tier that can see it. The
+	// browser suite counts WebGL contexts, which catches a viewer *constructed*
+	// at boot; `first-load` in the budget counts bytes, which catches the cost
+	// once it has already been paid. Neither can say "the renderer is in exactly
+	// one chunk and the document references none of it", because chunks exist
+	// only here, in the assembled tree.
+	//
+	// The marker is `getShaderPrecisionFormat`, and the first version of this
+	// check used `WebGLRenderer` instead and failed on its first real run.
+	//
+	// three 0.185 ships as two files: `three.core.js`, which is the maths and
+	// the scene graph and IS first-load because the model layer is built on it,
+	// and `three.module.js`, which adds the renderer. The core *mentions*
+	// `WebGLRenderer` - in an `isWebGLRenderer` guard and a message - without
+	// containing it, so a marker that matches a mention condemns the one chunk
+	// that legitimately boots.
+	//
+	// `getShaderPrecisionFormat` is a WebGL API call that only the renderer's
+	// capabilities probe makes. It is a property name on a GL context, so no
+	// minifier renames it, and it appears in no other chunk of this build:
+	// measured across all three at M3, 1 in the viewer chunk and 0 everywhere
+	// else.
+	const ENGINE = /getShaderPrecisionFormat/;
+	const scripts = [...relative].filter((name) => name.endsWith('.js') && name.startsWith('assets/'));
+	const carriers = scripts.filter((name) => ENGINE.test(readFileSync(join(TREE, name), 'utf8')));
+
+	if (existsSync(indexPath))
+	{
+		const html = readFileSync(indexPath, 'utf8');
+		// What the document blocks on: its own scripts and stylesheets, and the
+		// chunks Vite modulepreloads beside them. Exactly the set `first-load`
+		// sums, for exactly the same reason - a modulepreload is a fetch.
+		const referenced = new Set();
+		for (const match of html.matchAll(/(?:src|href)="([^"]+)"/g))
+		{
+			if (/\.js$/i.test(match[1])) { referenced.add(match[1].replace(/^\.?\//, '')); }
+		}
+		const eager = carriers.filter((name) => referenced.has(name));
+		if (eager.length)
+		{
+			problems.push(`index.html loads the 3D engine at boot: ${eager.join(', ')}`
+				+ ' - something on the boot path imports the viewer, and the M3 split does nothing');
+		}
+	}
+
+	if (!carriers.length)
+	{
+		// Not a pass. Either the marker stopped matching - a three upgrade, a
+		// minifier that renames what it never renamed before - or the viewer
+		// stopped being built at all. Both need a person, and a silent green here
+		// would retire the check without anybody deciding to.
+		problems.push('no chunk in the tree probes shader precision. Either three no longer'
+			+ ' builds its capabilities that way, or the viewer is not being built at all;'
+			+ ' check before trusting this gate again');
+	}
+	else if (carriers.length > 1)
+	{
+		problems.push(`the 3D engine is split across ${carriers.length} chunks: ${carriers.join(', ')}`
+			+ ' - it should arrive as one, so switching to the 3D view is one round trip');
+	}
+
 	// 2. The retired host, as a LINK rather than as a mention.
 	//
 	// The first version of this forbade the string anywhere in the tree, and the
@@ -240,6 +303,7 @@ function main()
 	const bytes = files.reduce((sum, f) => sum + statSync(f).size, 0);
 	console.log(`  ✓ Deploy tree    ${files.length} files, ${(bytes / 1048576).toFixed(2)} MB`);
 	console.log('    every referenced path resolves; worker at the root; manifest relative; docs present');
+	console.log(`    the 3D engine is one chunk (${carriers[0]}) and the document does not load it`);
 }
 
 if (process.argv[1] && process.argv[1].endsWith('check-deploy.mjs'))

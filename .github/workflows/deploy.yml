@@ -185,6 +185,24 @@ jobs:
             --project-name=${{ vars.CLOUDFLARE_PROJECT || github.event.repository.name }}
             --branch=${{ github.ref_name }}
 
+      - name: Lighthouse, against what was just published
+        # The field half of M-53. CI runs the same analysis against the tree
+        # served from localhost and gates on it; this one runs against the real
+        # address, over the real CDN, and only reports.
+        #
+        # Not a gate, on purpose. A cold edge cache, a slow region or a
+        # rate-limited run would fail a deploy that published a perfectly good
+        # build, and a red mark nobody can act on is the failure mode RM-006
+        # removed the last one for. What it is good for is the difference: if
+        # the lab says 62 and the network says 40, that gap is the host's, and
+        # nothing else in this repository could have told us.
+        if: always() && steps.publish.outputs.deployment-url != ''
+        continue-on-error: true
+        run: |
+          npx playwright install chromium
+          node tools/check-lighthouse.mjs --url="${{ steps.publish.outputs.deployment-url }}" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Say where it went
         run: |
           echo "### Published" >> "$GITHUB_STEP_SUMMARY"

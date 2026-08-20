@@ -1254,7 +1254,9 @@ describe('the inspector inside the app', () =>
 	it('sets the eye height, in the browser rather than in the design (RM-011 H3)', async () =>
 	{
 		const wrapper = await mountApp();
-		const three = wrapper.vm.$.setupState.store.three.value;
+		// The slider writes a preference and pushes it at the viewer, so this case
+		// needs one; a boot no longer builds it (RM-015 M3).
+		const three = await wrapper.vm.$.setupState.store.ensureViewer();
 		const model = wrapper.vm.$.setupState.store.model.value;
 		const before = model.exportSerialized();
 

@@ -20,7 +20,7 @@ import {Floorplan3D} from '../src/scripts/three/floorPlan.js';
 import {Lights} from '../src/scripts/three/lights.js';
 import {PointerLockControls} from '../src/scripts/three/pointerlockcontrols.js';
 import {Model} from '../src/scripts/model/model.js';
-import {BlueprintJS} from '../src/scripts/blueprint.js';
+import {BlueprintJS, BlueprintCore} from '../src/scripts/blueprint.js';
 import {Configuration, configDimUnit} from '../src/scripts/core/configuration.js';
 import {dimCentiMeter} from '../src/scripts/core/units.js';
 import {EVENT_CAMERA_MOVED, EVENT_CAMERA_ACTIVE_STATUS} from '../src/scripts/core/events.js';
@@ -406,6 +406,127 @@ describe('Main lifecycle', () =>
 
 describe('BlueprintJS mount and unmount', () =>
 {
+	/**
+	 * The half of BlueprintJS that has no viewer in it (RM-015 M3).
+	 *
+	 * `BlueprintJS` is `BlueprintCore` plus a static `import {Main}`, and that
+	 * import is the whole of what an application avoids by constructing the core
+	 * and calling `attachViewer` off a dynamic one. These cases pin the two
+	 * properties the application depends on and the class it extends cannot
+	 * show: that a document is complete without a viewer, and that attaching is
+	 * idempotent - the caller is now a layout watcher, which can fire twice
+	 * before an import lands.
+	 */
+	it('builds a document and a plan with no viewer at all', () =>
+	{
+		buildViewerDom();
+
+		const core = new BlueprintCore({
+			floorplannerElement: 'floorplanner-canvas',
+			threeElement: '#viewer',
+			threeCanvasElement: 'three-canvas',
+			textureDir: 'models/textures/',
+			widget: false,
+		});
+
+		expect(core.model).toBeTruthy();
+		expect(core.floorplanner).toBeTruthy();
+		expect(core.three).toBe(null);
+		expect(renderers).toHaveLength(0);
+
+		core.dispose();
+		expect(ourLeaks()).toEqual([]);
+	});
+
+	it('attaches a viewer once, and returns the same one to a second caller', () =>
+	{
+		buildViewerDom();
+
+		const core = new BlueprintCore({
+			floorplannerElement: 'floorplanner-canvas',
+			threeElement: '#viewer',
+			threeCanvasElement: 'three-canvas',
+			textureDir: 'models/textures/',
+			widget: false,
+		});
+
+		const first = core.attachViewer(Main);
+		const second = core.attachViewer(Main);
+
+		expect(second).toBe(first);
+		expect(core.three).toBe(first);
+		expect(renderers).toHaveLength(1);
+
+		core.dispose();
+		expect(renderers.every((r) => r.disposed)).toBe(true);
+	});
+
+	it('detaches the viewer and leaves the document standing', () =>
+	{
+		buildViewerDom();
+
+		const core = new BlueprintCore({
+			floorplannerElement: 'floorplanner-canvas',
+			threeElement: '#viewer',
+			threeCanvasElement: 'three-canvas',
+			textureDir: 'models/textures/',
+			widget: false,
+		});
+
+		core.attachViewer(Main);
+		core.detachViewer();
+
+		// The inverse of attachViewer, not a teardown: the renderer is released
+		// and the design is still open, so another viewer can take its place.
+		expect(core.three).toBe(null);
+		expect(core.model).toBeTruthy();
+		expect(core.floorplanner).toBeTruthy();
+		expect(renderers).toHaveLength(1);
+		expect(renderers[0].disposed).toBe(true);
+
+		core.attachViewer(Main);
+		expect(core.three).toBeTruthy();
+		expect(renderers).toHaveLength(2);
+
+		core.dispose();
+	});
+
+	it('detaches idempotently, and with nothing attached', () =>
+	{
+		buildViewerDom();
+		const core = new BlueprintCore({
+			floorplannerElement: 'floorplanner-canvas',
+			threeElement: '#viewer',
+			threeCanvasElement: 'three-canvas',
+			textureDir: 'models/textures/',
+			widget: false,
+		});
+
+		expect(() => core.detachViewer()).not.toThrow();
+		core.attachViewer(Main);
+		core.detachViewer();
+		expect(() => core.detachViewer()).not.toThrow();
+		core.dispose();
+	});
+
+	it('still disables the widget controller, wherever the viewer comes from', () =>
+	{
+		buildViewerDom();
+		const core = new BlueprintCore({
+			threeElement: '#viewer',
+			threeCanvasElement: 'three-canvas',
+			textureDir: 'models/textures/',
+			widget: true,
+		});
+
+		// Widget mode's two halves were in one constructor and are now in two
+		// places - no floorplanner here, the disabled controller in attachViewer -
+		// so this is the case that says they did not come apart.
+		expect(core.floorplanner).toBe(null);
+		expect(core.attachViewer(Main).getController().enabled).toBe(false);
+		core.dispose();
+	});
+
 	it('creates the 2D floorplanner in normal mode and disposes both halves', () =>
 	{
 		buildViewerDom();
