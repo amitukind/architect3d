@@ -790,6 +790,13 @@ const MEASUREMENTS = [
 	// And the thirteenth, added by RM-012 J2 beside it, because the bytes the line
 	// above stopped counting did not stop existing - they moved to the drawer's
 	// first open. See catalogPackBytes.
+	//
+	// Its limit was re-derived by RM-016 N3 from the wait rather than from the
+	// last measurement: 50,000 gzipped bytes is 244 ms on the 1.6 Mbps link
+	// Lighthouse throttles to. AB-5 found the old 12,250 rationing the catalog at
+	// 228 rows while five megabytes of model headroom sat unused, and the note in
+	// budget.json carries the measurement that ruled out making the index cheaper
+	// instead.
 	{key: 'catalog-packs', label: 'Catalog packs (gzip)', needs: null,
 		measure: () => catalogPackBytes()},
 	// The fourteenth, added by RM-013 K1 for the same reason the thirteenth

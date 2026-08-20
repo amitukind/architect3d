@@ -42,7 +42,9 @@
  */
 import {existsSync, readdirSync, readFileSync, statSync} from 'node:fs';
 import {join, dirname, posix} from 'node:path';
-import {fileURLToPath} from 'node:url';
+// `URL` explicitly: this file runs under the config's node globals, where it is
+// a web global rather than an implicit one.
+import {fileURLToPath, URL} from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TREE = join(ROOT, 'dist-demo');
@@ -60,8 +62,71 @@ const LINKS_TO_RETIRED = new RegExp(
 	+ '|url\\([^)]*' + RETIRED_HOST
 	+ '|\\]\\([^)]*' + RETIRED_HOST, 'g');
 
+/**
+ * A host that would be a deployment of THIS project (RM-016 N3, M-58).
+ *
+ * ## The class, not the instance
+ *
+ * AA-1 counted nine README links to an address returning 404 and M1 removed
+ * all nine - then wrote the new Cloudflare address into the same first
+ * screenful, in anticipation of a deploy. AB-6 measured what that became when
+ * the deploy did not happen: `curl` against `architect3d.pages.dev` exits 6,
+ * *could not resolve host*, with a control request to github.com returning 200
+ * from the same shell. Worse than a 404 - a 404 is a server saying no, and
+ * this is a name nobody has registered.
+ *
+ * The retired-host rule below could not have caught it, and no rule that names
+ * hostnames ever could: the next one will be plausible too. So this one is
+ * about shape. A deployment address for this project is a host under a
+ * project-hosting suffix, or the project's own name as a domain - and neither
+ * is something this repository can prove it serves, because a repository has
+ * no way to know whether a deploy has ever run.
+ *
+ * ## What it deliberately allows
+ *
+ * Every third-party link: three.js, Reka UI, Creative Commons, and the
+ * repository itself on github.com. `github.com/amitukind/architect3d` contains
+ * the project's name and is not a deployment of it - it is where the source
+ * is, it resolves today, and it is the one absolute link a README of a public
+ * repository certainly should have. Source hosting is not a deploy.
+ *
+ * ## And what to do instead, which the README already says
+ *
+ * *"a link into the repository resolves on github.com, in an editor and in a
+ * clone, and it cannot be made wrong by a deploy that has not run yet."* That
+ * rule was kept for the documentation links and broken for the button at the
+ * top. When M-51 is met and there is an address, this constant is where the
+ * exemption goes - deliberately, so that publishing an address is a commit
+ * somebody makes rather than a line that drifts back in.
+ */
+const DEPLOYMENT_HOST = /^[a-z0-9-]+\.(?:pages\.dev|github\.io|workers\.dev|netlify\.app|vercel\.app)$|^architect3d\.[a-z.]+$/i;
+
+/** Every absolute link a reader could follow out of a markdown file. */
+const ABSOLUTE_LINK = /\]\(\s*(https?:\/\/[^)\s]+)/g;
+
 /** Files whose text is scanned for the retired host. Binary assets are skipped. */
 const TEXT = new Set(['.html', '.js', '.css', '.json', '.webmanifest', '.map', '.svg', '.txt']);
+
+/**
+ * Absolute markdown links whose host would be a deployment of this project.
+ *
+ * @param {string} markdown
+ * @returns {Array<string>} The offending URLs, in the order they appear.
+ */
+export function deploymentLinksIn(markdown)
+{
+	const found = [];
+	for (const match of String(markdown || '').matchAll(ABSOLUTE_LINK))
+	{
+		let host;
+		// A URL the parser refuses is not a link anybody can follow, so it is not
+		// this rule's business - the resolve check above is what catches those.
+		try {host = new URL(match[1]).hostname;}
+		catch {continue;}
+		if (DEPLOYMENT_HOST.test(host)) {found.push(match[1]);}
+	}
+	return found;
+}
 
 function walk(dir, out = [])
 {
@@ -271,10 +336,11 @@ function main()
 
 	// 6. The README, which is what a person reads before any of the above.
 	//
-	// Two claims. That it no longer names the dead host, and that every link it
+	// Three claims now. That it no longer names the dead host; that every link it
 	// makes into this repository resolves - which is why M1 pointed the
-	// documentation links at files rather than at pages on a site: a file path
-	// is the form of that link a repository can actually check.
+	// documentation links at files rather than at pages on a site, a file path
+	// being the form of that link a repository can actually check; and, since
+	// RM-016 N3, that it advertises no address for this project at all.
 	const readme = join(ROOT, 'README.md');
 	if (existsSync(readme))
 	{
@@ -292,6 +358,13 @@ function main()
 				problems.push(`README.md links to ${match[1]}, which is not in the repository`);
 			}
 		}
+		for (const advertised of deploymentLinksIn(text))
+		{
+			problems.push(`README.md advertises ${advertised}, which is a deployment address for this`
+				+ ' project rather than a third party. A repository cannot prove it serves one, and'
+				+ ' AB-6 measured the last such link failing to resolve at all. Link the file, or'
+				+ ' wait until there is a deploy - see DEPLOYMENT_HOST in this file.');
+		}
 	}
 
 	if (problems.length)
@@ -304,6 +377,7 @@ function main()
 	console.log(`  ✓ Deploy tree    ${files.length} files, ${(bytes / 1048576).toFixed(2)} MB`);
 	console.log('    every referenced path resolves; worker at the root; manifest relative; docs present');
 	console.log(`    the 3D engine is one chunk (${carriers[0]}) and the document does not load it`);
+	console.log('    the README advertises no address this repository cannot prove it serves');
 }
 
 if (process.argv[1] && process.argv[1].endsWith('check-deploy.mjs'))
