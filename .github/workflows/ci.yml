@@ -121,6 +121,22 @@ jobs:
         # tools/budget.json; raising one is a commit with a reason.
         run: npm run budget
 
+      - name: Deploy checks
+        # RM-015 M1, gate seventeen. It belongs here rather than only in the
+        # deploy job, and it is nearly free: both builds above already ran, so
+        # all this adds is the `mv` that assembles them the way the deploy does.
+        #
+        # What it asks is the one question nothing else here can - does every
+        # path the built document names exist in what would be uploaded? Every
+        # other gate runs before assembly and none of them resolves a URL, which
+        # is exactly the gap a base-path mistake falls into: green build, green
+        # budgets, and a published page asking for assets under a prefix the
+        # host does not serve. Catching that at merge beats catching it at
+        # deploy, and the deploy job runs it again on its own tree anyway.
+        run: |
+          mv docs/.vitepress/dist dist-demo/docs
+          npm run deploy:check
+
       - name: Advisories
         # RM-006 took this tree to zero, and it is a ratchet from here.
         #

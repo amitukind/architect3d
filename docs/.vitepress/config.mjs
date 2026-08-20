@@ -14,16 +14,18 @@
  *   npm run docs        dev server with hot reload
  *   npm run docs:build  static site -> docs/.vitepress/dist
  *
- * `base` matches the deploy: the Pages workflow puts the application at
- * /architect3d/ and this site at /architect3d/docs/. Override with
- * DOCS_BASE=/ to build for a root-served host.
+ * `base` matches the deploy: Cloudflare Pages serves the project at the root
+ * of its own domain, so the application is at / and this site at /docs/
+ * (RM-015 M1). Override with DOCS_BASE for anywhere else - the GitHub Pages
+ * deploy this replaced passed /architect3d/docs/, and the variable is why
+ * changing host needed one line here and nothing anywhere else (AA-2).
  */
 import {defineConfig} from 'vitepress';
 
 export default defineConfig({
 	title: 'architect3d',
 	description: 'WebGL 3D interior design tool with a 2D floorplanner',
-	base: process.env.DOCS_BASE || '/architect3d/docs/',
+	base: process.env.DOCS_BASE || '/docs/',
 	lang: 'en-GB',
 	cleanUrls: true,
 	// The migration roadmap is a hand-written standalone page under public/ and
@@ -31,11 +33,11 @@ export default defineConfig({
 	//
 	// It is linked two different ways on purpose, because VitePress treats the
 	// two cases differently. A nav entry gets the base prefixed, so that one is
-	// written root-absolute ('/roadmap.html' -> '/architect3d/docs/roadmap.html')
-	// and stays right on every page. A link in markdown body text does NOT get
-	// the base prefixed - root-absolute there emits '/roadmap.html' verbatim,
-	// which lands at the domain root, outside the deploy - so that one is
-	// relative and resolves against /architect3d/docs/.
+	// written root-absolute ('/roadmap.html' -> '/docs/roadmap.html') and stays
+	// right on every page. A link in markdown body text does NOT get the base
+	// prefixed - root-absolute there emits '/roadmap.html' verbatim, which lands
+	// at the domain root, outside the site - so that one is relative and
+	// resolves against the base, whatever it is.
 	ignoreDeadLinks: [/roadmap\.html$/],
 
 	themeConfig: {

@@ -1,0 +1,248 @@
+/**
+ * What is about to be published resolves at the base it will be published at
+ * (RM-015 M1, findings AA-1 and AA-2).
+ *
+ *   npm run deploy:check          against dist-demo/ as the deploy job assembles it
+ *
+ * ## Why this exists
+ *
+ * AA-1 measured that this project has never published anything: both addresses
+ * the README advertised returned 404. So M1 is a first deploy, and a first
+ * deploy is exactly where a base-path mistake hides - the build succeeds, every
+ * gate is green, and the published page asks for `/architect3d/assets/index.js`
+ * on a host that serves it at `/assets/index.js`. Nothing in this repository
+ * could see that, because every other check runs before the tree is assembled
+ * and none of them resolves a URL.
+ *
+ * This one runs last, on the assembled tree, and answers one question: **does
+ * every path this build names exist in what is being uploaded?**
+ *
+ * ## What it checks
+ *
+ *  1. Every `src`/`href` the document blocks on resolves to a file that is
+ *     actually in the tree. This is the base-path failure, caught.
+ *  2. Nothing anywhere in the built tree still names the retired host. A stale
+ *     absolute URL is how a "deployed" page quietly loads yesterday's assets.
+ *  3. The service worker is at the deploy root and unhashed, because a worker's
+ *     URL is its identity and its scope - a hashed one registers a new worker
+ *     on every deploy while the old one keeps serving.
+ *  4. The manifest's `start_url` and `scope` are relative, so an installed
+ *     window opens the application rather than the domain root.
+ *  5. The documentation is present and its own entry document resolves, since
+ *     the shell's help menu links into it and RM-014 L2's gate explicitly could
+ *     not check that half.
+ *  6. The README names no address that this deploy will not serve.
+ *
+ * ## What it deliberately does not check
+ *
+ * That the deployed site answers 200. That is M-51, it needs a network and an
+ * account, and no repository can assert it. This checks the half that is
+ * knowable from the artifact; the other half is one HTTP request after the
+ * first publish, and RM-015 says so rather than pretending otherwise.
+ */
+import {existsSync, readdirSync, readFileSync, statSync} from 'node:fs';
+import {join, dirname, posix} from 'node:path';
+import {fileURLToPath} from 'node:url';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const TREE = join(ROOT, 'dist-demo');
+
+/** The host RM-015 AA-1 measured returning 404. Nothing built may still name it. */
+const RETIRED_HOST = 'amitukind.github.io';
+
+/**
+ * The retired host as something a browser would follow: an attribute value, a
+ * CSS url(), or a markdown link target. Not a bare mention - see the note at
+ * the check itself for why that distinction was earned rather than designed.
+ */
+const LINKS_TO_RETIRED = new RegExp(
+	'(?:href|src|action)\\s*=\\s*["\'][^"\']*' + RETIRED_HOST
+	+ '|url\\([^)]*' + RETIRED_HOST
+	+ '|\\]\\([^)]*' + RETIRED_HOST, 'g');
+
+/** Files whose text is scanned for the retired host. Binary assets are skipped. */
+const TEXT = new Set(['.html', '.js', '.css', '.json', '.webmanifest', '.map', '.svg', '.txt']);
+
+function walk(dir, out = [])
+{
+	for (const entry of readdirSync(dir))
+	{
+		const full = join(dir, entry);
+		if (statSync(full).isDirectory()) { walk(full, out); }
+		else { out.push(full); }
+	}
+	return out;
+}
+
+/**
+ * Resolve a URL found in a document against the deploy root.
+ *
+ * Returns null for anything that is not this deploy's business: another origin,
+ * a data URI, a fragment, a mailto.
+ */
+function resolveInTree(url, fromDir)
+{
+	if (!url || /^(?:[a-z][a-z0-9+.-]*:|\/\/|#|\?)/i.test(url)) { return null; }
+	const clean = url.split('#')[0].split('?')[0];
+	if (!clean) { return null; }
+	return clean.startsWith('/')
+		? join(TREE, clean.slice(1))
+		: join(fromDir, clean);
+}
+
+function main()
+{
+	const problems = [];
+
+	if (!existsSync(TREE))
+	{
+		console.error('deploy:check needs an assembled tree.\n'
+			+ '  npm run build:demo && npm run docs:build && mv docs/.vitepress/dist dist-demo/docs');
+		process.exit(1);
+	}
+
+	const files = walk(TREE);
+	const relative = new Set(files.map((f) => f.slice(TREE.length + 1).split(posix.sep).join('/')));
+
+	// 1. Everything the document blocks on.
+	const indexPath = join(TREE, 'index.html');
+	if (!existsSync(indexPath))
+	{
+		problems.push('there is no index.html at the deploy root');
+	}
+	else
+	{
+		const html = readFileSync(indexPath, 'utf8');
+		let checked = 0;
+		for (const match of html.matchAll(/(?:src|href)="([^"]+)"/g))
+		{
+			const target = resolveInTree(match[1], TREE);
+			if (!target) { continue; }
+			checked += 1;
+			if (!existsSync(target))
+			{
+				problems.push(`index.html references "${match[1]}", which is not in the tree`);
+			}
+		}
+		if (!checked)
+		{
+			problems.push('index.html references nothing resolvable - the scan found no local URLs at all');
+		}
+	}
+
+	// 2. The retired host, as a LINK rather than as a mention.
+	//
+	// The first version of this forbade the string anywhere in the tree, and the
+	// first real run failed on `docs/roadmap.html` - because RM-015's own AA-1
+	// quotes the dead address as the thing it measured returning 404. A gate that
+	// forbids naming a finding is a gate that makes the record worse. So the rule
+	// is about what a browser would follow: an href, a src, a CSS url(), or a
+	// markdown link target. Prose and <code> may say it as often as they like.
+	for (const file of files)
+	{
+		const dot = file.lastIndexOf('.');
+		if (dot < 0 || !TEXT.has(file.slice(dot))) { continue; }
+		const text = readFileSync(file, 'utf8');
+		if (!text.includes(RETIRED_HOST)) { continue; }
+		const linked = [...text.matchAll(LINKS_TO_RETIRED)];
+		if (linked.length)
+		{
+			problems.push(`${file.slice(TREE.length + 1)} links to ${RETIRED_HOST}`
+				+ ` (${linked.length} time${linked.length === 1 ? '' : 's'})`);
+		}
+	}
+
+	// 3. The worker, at the root and unhashed.
+	if (!relative.has('sw.js'))
+	{
+		problems.push('sw.js is not at the deploy root - its URL is its scope, so it cannot move or be hashed');
+	}
+
+	// 4. The manifest, relative.
+	const manifestPath = join(TREE, 'manifest.webmanifest');
+	if (!existsSync(manifestPath))
+	{
+		problems.push('manifest.webmanifest is missing, so the application is not installable');
+	}
+	else
+	{
+		const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+		for (const key of ['start_url', 'scope'])
+		{
+			if (typeof manifest[key] === 'string' && manifest[key].startsWith('/'))
+			{
+				problems.push(`manifest ${key} is "${manifest[key]}" - root-absolute, so an installed`
+					+ ' window would open the domain root rather than the application');
+			}
+		}
+		for (const icon of manifest.icons || [])
+		{
+			if (!existsSync(resolveInTree(icon.src, TREE) || ''))
+			{
+				problems.push(`manifest icon "${icon.src}" is not in the tree`);
+			}
+		}
+	}
+
+	// 5. The documentation, and its own entry.
+	const docsIndex = join(TREE, 'docs', 'index.html');
+	if (!existsSync(docsIndex))
+	{
+		problems.push('docs/index.html is missing - the shell\'s help menu links into it');
+	}
+	else
+	{
+		const html = readFileSync(docsIndex, 'utf8');
+		for (const match of html.matchAll(/(?:src|href)="([^"]+)"/g))
+		{
+			// Only the assets it blocks on; VitePress emits many page links that
+			// are clean URLs without a file of their own.
+			if (!/\.(?:js|css)$/i.test(match[1])) { continue; }
+			const target = resolveInTree(match[1], join(TREE, 'docs'));
+			if (target && !existsSync(target))
+			{
+				problems.push(`docs/index.html references "${match[1]}", which is not in the tree`);
+			}
+		}
+	}
+
+	// 6. The README, which is what a person reads before any of the above.
+	//
+	// Two claims. That it no longer names the dead host, and that every link it
+	// makes into this repository resolves - which is why M1 pointed the
+	// documentation links at files rather than at pages on a site: a file path
+	// is the form of that link a repository can actually check.
+	const readme = join(ROOT, 'README.md');
+	if (existsSync(readme))
+	{
+		const text = readFileSync(readme, 'utf8');
+		if (LINKS_TO_RETIRED.test(text))
+		{
+			problems.push(`README.md still links to ${RETIRED_HOST}, which AA-1 measured returning 404`);
+		}
+		LINKS_TO_RETIRED.lastIndex = 0;
+		for (const match of text.matchAll(/\]\((\.[^)\s]+)\)/g))
+		{
+			const target = join(ROOT, match[1].split('#')[0]);
+			if (!existsSync(target))
+			{
+				problems.push(`README.md links to ${match[1]}, which is not in the repository`);
+			}
+		}
+	}
+
+	if (problems.length)
+	{
+		console.error(`what is about to be published will not resolve:\n  ${problems.join('\n  ')}`);
+		process.exit(1);
+	}
+
+	const bytes = files.reduce((sum, f) => sum + statSync(f).size, 0);
+	console.log(`  ✓ Deploy tree    ${files.length} files, ${(bytes / 1048576).toFixed(2)} MB`);
+	console.log('    every referenced path resolves; worker at the root; manifest relative; docs present');
+}
+
+if (process.argv[1] && process.argv[1].endsWith('check-deploy.mjs'))
+{
+	main();
+}

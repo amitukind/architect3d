@@ -21,11 +21,12 @@
 
   S9 moved them to public/, which Vite serves at the site root in dev and copies
   to the root of dist-demo/ on build - so those same strings now resolve without
-  help. That they are relative rather than root-absolute is what makes the
-  GitHub Pages deploy work: under --base=/architect3d/ the page is served from
-  /architect3d/, and 'models/x.glb' resolves against it to /architect3d/models/
-  x.glb. A leading slash would have sent it to the domain root instead, and a
-  <base> would have had to know the deploy path.
+  help. That they are relative rather than root-absolute is what made the
+  deploy portable: under a sub-path the page is served from /architect3d/ and
+  'models/x.glb' resolves against it, and at a root it resolves against that.
+  A leading slash would have committed to one of those, and a <base> would
+  have had to know the deploy path. RM-015 M1 moved the deploy from a
+  sub-path to a root and changed nothing here, which is the whole point.
 
   The module entry below is root-absolute because Vite rewrites it at build
   time - it is the one URL here that is not resolved by the browser at runtime.
@@ -35,9 +36,9 @@
 <title>Architect3D - Floorplan</title>
 <!--
   Installable, since RM-013 K3. Every href here is relative for the reason the
-  note above gives about <base>: the deploy is under /architect3d/ on GitHub
-  Pages and at the root elsewhere, and a leading slash would resolve to the
-  wrong one of those.
+  note above gives about <base>: the deploy is at a root and an embedder may
+  serve it under a sub-path, and a leading slash would resolve to the wrong
+  one of those.
 -->
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/architect3d.svg" type="image/svg+xml">

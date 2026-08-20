@@ -490,3 +490,67 @@ describe('the shell answers any route offline', () =>
 		expect(answer.body).toBe('this exact page');
 	});
 });
+
+/**
+ * The same claims at a root scope (RM-015 M1, finding AA-2).
+ *
+ * Everything above runs at `/architect3d/`, which was the GitHub Pages sub-path
+ * and is now the *harder* case rather than the deployed one - M1 moved the
+ * application to the root of a Cloudflare Pages domain. Those tests stay,
+ * deliberately: the library is a published package and an embedder may serve it
+ * anywhere, so the sub-path is worth going on proving.
+ *
+ * What this adds is the case that is now live. AA-2 measured that the worker
+ * hard-codes nothing - `sw.js` asks `registration.scope` at runtime and
+ * `WORKER_URL` is the relative string `'sw.js'` - so the policy should behave
+ * identically with a one-character base. These assert that rather than assume
+ * it, because "it is all relative" is exactly the kind of claim that is true
+ * until one join() somewhere is not.
+ */
+describe('the same policy at a root scope', () =>
+{
+	const ROOT_ORIGIN = 'https://architect3d.pages.dev';
+	const ROOT = `${ROOT_ORIGIN}/`;
+
+	it('classifies the same way when the base is a single slash', () =>
+	{
+		// Compared against the sub-path suite above rather than written from
+		// memory: every path below was classified under both bases and the two
+		// agree, which is the claim AA-2 makes and this is what turns it from a
+		// reading of the code into a measurement.
+		expect(strategyFor({url: ROOT, mode: 'navigate'}, ROOT_ORIGIN)).toBe(NETWORK_FIRST);
+		expect(strategyFor({url: `${ROOT}assets/index-BUHeTH6a.js`}, ROOT_ORIGIN)).toBe(CACHE_FIRST);
+		expect(strategyFor({url: `${ROOT}models/js-glb/sofa.glb`}, ROOT_ORIGIN)).toBe(STALE_WHILE_REVALIDATE);
+		expect(strategyFor({url: `${ROOT}asset-manifest.json`}, ROOT_ORIGIN)).toBe(STALE_WHILE_REVALIDATE);
+		expect(strategyFor({url: 'https://elsewhere.test/x.js'}, ROOT_ORIGIN)).toBe(PASS_THROUGH);
+	});
+
+	it('serves the cached document for a route it has never seen', async () =>
+	{
+		cache.store.set(ROOT, response('the document'));
+		network = vi.fn(async () => {throw new TypeError('Failed to fetch');});
+
+		const answer = await respondTo(
+			request(`${ROOT}?assetBase=https://cdn.example.test/`, {mode: 'navigate'}),
+			Object.assign(deps(), {shell: ROOT, origin: ROOT_ORIGIN}));
+
+		expect(answer.body).toBe('the document');
+	});
+
+	it('precaches a document whose assets are root-absolute at the root', async () =>
+	{
+		const document = '<script type="module" src="/assets/index-BUHeTH6a.js"></script>'
+			+ '<link rel="stylesheet" href="/assets/index-DfMuPn0A.css">';
+		network = vi.fn(async (req) =>
+		{
+			const url = typeof req === 'string' ? req : req.url;
+			return response(url === ROOT ? document : `live:${url}`);
+		});
+
+		const landed = await precacheShell(ROOT, Object.assign(deps(), {origin: ROOT_ORIGIN}));
+
+		expect(landed).toEqual({document: true, assets: 2});
+		expect(cache.store.has(`${ROOT}assets/index-BUHeTH6a.js`)).toBe(true);
+		expect(cache.store.has(`${ROOT}assets/index-DfMuPn0A.css`)).toBe(true);
+	});
+});

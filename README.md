@@ -10,8 +10,8 @@ and selecting anything in one view selects it in the other — with undo on
 everything, and a dark or light theme that reaches the drawing canvas as well as
 the chrome.
 
-**[Documentation](https://amitukind.github.io/architect3d/docs/)** ·
-**[Live app](https://amitukind.github.io/architect3d/)**
+**[Live app](https://architect3d.pages.dev)** ·
+**[Documentation](./docs)**
 
 ![](./images/architect3d.jpg)
 
@@ -140,7 +140,7 @@ mapping and fog to the horizon. **Classic** is exactly what the app looked like
 through 1.0.0 — unlit walls, Phong floors, no tone mapping. It is kept because
 ten sprints of parity work went into it and it is the reference this viewer's
 output is checked against. See
-[Architecture](https://amitukind.github.io/architect3d/docs/architecture) for
+[Architecture](./docs/architecture.md) for
 what each one changes.
 
 
@@ -168,14 +168,20 @@ Types are generated from the JSDoc and ship with the package.
 
 | | |
 |---|---|
-| [Getting started](https://amitukind.github.io/architect3d/docs/getting-started) | Running it, the commands, embedding the library |
-| [Architecture](https://amitukind.github.io/architect3d/docs/architecture) | How the layers fit together, and where they meet |
-| [Save file format](https://amitukind.github.io/architect3d/docs/save-format) | Every field in a `.blueprint3d` file, and how an older one is read |
-| [Events](https://amitukind.github.io/architect3d/docs/events) | What fires, from where, carrying what |
-| [Migration roadmap](https://amitukind.github.io/architect3d/docs/roadmap.html) | The ten-sprint plan, and what each sprint delivered |
+| [Getting started](./docs/getting-started.md) | Running it, the commands, embedding the library |
+| [Architecture](./docs/architecture.md) | How the layers fit together, and where they meet |
+| [Save file format](./docs/save-format.md) | Every field in a `.blueprint3d` file, and how an older one is read |
+| [Events](./docs/events.md) | What fires, from where, carrying what |
+| [Migration roadmap](./docs/public/roadmap.html) | The ten-sprint plan, and what each sprint delivered |
 
 The sources are Markdown under [`docs/`](./docs); `npm run docs` serves them
-locally.
+locally and the deploy publishes them at [/docs](https://architect3d.pages.dev/docs).
+
+They are linked here as files rather than as pages on the site, deliberately: a
+link into the repository resolves on github.com, in an editor and in a clone,
+and it cannot be made wrong by a deploy that has not run yet. RM-015 AA-1 found
+the previous version of this README advertising nine links to an address that
+returned 404, and a file path is the form of that link which cannot go stale.
 
 
 ## Layout
@@ -231,7 +237,7 @@ and VueUse, and all four are **devDependencies** — the published package is
 `src/scripts` alone, which imports none of them and ships no CSS.
 
 See [CHANGELOG.md](./CHANGELOG.md) for what changed, and the
-[migration roadmap](https://amitukind.github.io/architect3d/docs/roadmap.html)
+[migration roadmap](./docs/public/roadmap.html)
 for why.
 
 
