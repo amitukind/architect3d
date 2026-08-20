@@ -286,15 +286,31 @@ describe('the tiers, one house through each', () =>
 		expect(model.floorplan.itemProjection.length).toBe(2);
 	});
 
+	/**
+	 * RM-013 K1: this test was passing and asserting nothing it claimed.
+	 *
+	 * It switched storeys on the model and exported through the view, and until
+	 * finding Y-3 was repaired those two were not the same plan: `useLevels` is
+	 * what re-points the canvas at the new storey and it was not mounted here, so
+	 * the view drew the GROUND FLOOR three times. The three sheets still differed,
+	 * because `planBounds` reads the argument rather than the view, so each was
+	 * the ground floor's drawing inside a different storey's frame - and the
+	 * assertion below could not tell.
+	 *
+	 * `useLevels` is mounted now, which is what the application does, and the
+	 * assertion counts paths as well as comparing strings.
+	 */
 	it('an exported sheet: every storey draws, and each draws its own plan', () =>
 	{
 		store.mount({floorplannerElement: elements.canvas, threeElement: elements.viewer});
 		store.model.value.loadSerialized(HOUSE);
+		const levels = run(() => useLevels(store));
 
 		const view = store.floorplanner.value.view;
 		const sheets = [0, 1, 2].map((index) =>
 		{
-			store.model.value.setActiveLevel(index);
+			levels.setActive(index);
+			expect(view.floorplan).toBe(store.model.value.floorplan);
 			return exportPlanSVG(view, store.model.value.floorplan, {scale: 100, title: 'Floor plan'});
 		});
 
@@ -302,6 +318,10 @@ describe('the tiers, one house through each', () =>
 		// Three different storeys, three different drawings - the first floor has
 		// a partition the other two do not, so no two sheets can be equal.
 		expect(new Set(sheets).size).toBe(3);
+		// And the drawings differ, not only the frames around them. This is the
+		// half the test was missing.
+		const paths = sheets.map((svg) => (svg.match(/<path/g) || []).length);
+		expect(new Set(paths).size).toBeGreaterThan(1);
 	});
 });
 
@@ -399,10 +419,13 @@ describe('new, open and save, with a building in them', () =>
 		const originalCreate = window.URL.createObjectURL;
 		window.URL.createObjectURL = (blob) => {written.push(blob); return 'blob:stub';};
 		window.URL.revokeObjectURL = () => {};
+		// Through the composable, because that is what re-points the canvas at the
+		// storey being edited - see the note on the exported-sheet test above.
+		const levels = run(() => useLevels(store));
 		try
 		{
 			design.savePlanSVG(100);
-			store.model.value.setActiveLevel(1);
+			levels.setActive(1);
 			design.savePlanSVG(100);
 		}
 		finally

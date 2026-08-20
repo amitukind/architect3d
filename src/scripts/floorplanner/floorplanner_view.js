@@ -455,6 +455,17 @@ export class FloorplannerView2D
 		 * @type {number}
 		 */
 		this.chromeInset = NORTH_INSET_PIXELS;
+		/**
+		 * Whether the marks that belong to the canvas rather than to the plan are
+		 * drawn - today, the north arrow (RM-013 K1).
+		 *
+		 * True everywhere except a thumbnail. It is deliberately separate from
+		 * `exporting`: a sheet IS an export and still wants the arrow, because a
+		 * plan that does not say which way the building faces is not a drawing.
+		 *
+		 * @type {boolean}
+		 */
+		this.chrome = true;
 
 		var scope = this;
 		this._carbonsheet = new CarbonSheet(floorplan, viewmodel, this.canvasElement);
@@ -833,7 +844,7 @@ export class FloorplannerView2D
 	 *
 	 * @param {Object} backend Any of `backends.js`.
 	 * @param {{convertX: function(number): number, convertY: function(number): number}} project
-	 * @param {{width: number, height: number, inset?: number}} size In the
+	 * @param {{width: number, height: number, inset?: number, chrome?: boolean}} size In the
 	 *        backend's pixels. `inset` is how far chrome - the north arrow - sits
 	 *        in from the edge, which on a sheet has to clear the margin.
 	 * @returns {void}
@@ -845,11 +856,18 @@ export class FloorplannerView2D
 		var wasWidth = this.canvasWidth;
 		var wasHeight = this.canvasHeight;
 		var wasInset = this.chromeInset;
+		var wasChrome = this.chrome;
 		this.backend = backend;
 		this.project = project;
 		this.canvasWidth = size.width;
 		this.canvasHeight = size.height;
 		this.chromeInset = (typeof size.inset === 'number') ? size.inset : NORTH_INSET_PIXELS;
+		// A tile carries the building and not the instruments (RM-013 K1). The
+		// same sentence `draw()` already makes about the grid and the tracing
+		// underlay, extended to the one mark that is chrome on a sheet too: at
+		// 320 px the arrow and its letter are 56 of them, and a person looking at
+		// a wall of tiles is picking a plan out of a grid, not reading a bearing.
+		this.chrome = size.chrome !== false;
 		this.exporting = true;
 		try
 		{
@@ -864,6 +882,7 @@ export class FloorplannerView2D
 			this.canvasWidth = wasWidth;
 			this.canvasHeight = wasHeight;
 			this.chromeInset = wasInset;
+			this.chrome = wasChrome;
 			this.exporting = false;
 		}
 	}
@@ -1961,6 +1980,10 @@ export class FloorplannerView2D
 	 */
 	drawNorthArrow()
 	{
+		if (!this.chrome)
+		{
+			return;
+		}
 		var radius = NORTH_RADIUS_PIXELS;
 		var inset = this.chromeInset;
 		if (this.canvasWidth < inset * 3 || this.canvasHeight < inset * 3)

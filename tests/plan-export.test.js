@@ -24,7 +24,8 @@ import {floorplannerModes, floorplannerPalette} from '../src/scripts/floorplanne
 import {CanvasBackend, SvgBackend} from '../src/scripts/floorplanner/backends.js';
 import {
 	planBounds, scaleProjection, fitProjection, exportPlanSVG, renderPlanToCanvas,
-	drawTitleBlock, PIXELS_PER_PAPER_CM,
+	drawTitleBlock, PIXELS_PER_PAPER_CM, thumbnailProjection, renderPlanThumbnail,
+	THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT,
 } from '../src/scripts/floorplanner/plan_export.js';
 import {resetAll} from './helpers/harness.js';
 import {buildFloorplannerDom, installCanvas2D, installFrameClock, installResizeObserver} from './helpers/dom.js';
@@ -453,5 +454,130 @@ describe('the PNG path', () =>
 		const canvas = document.createElement('canvas');
 
 		expect(renderPlanToCanvas(planner.view, floorplan, canvas, {width: 800})).toBeNull();
+	});
+});
+
+/**
+ * Y-3, the finding this suite could have caught and did not (RM-013 K1).
+ *
+ * `exportPlanSVG` and `renderPlanToCanvas` each take a view and a floorplan and
+ * used to reconcile them nowhere: the argument set the sheet's size and scale,
+ * the view supplied every mark on it. Measured before the repair, a view bound
+ * to a 400 x 300 room and asked for an 1180 x 860 flat produced a 3,988-byte
+ * sheet with the small room's 15 paths under the large plan's title block -
+ * two bytes from a correct small sheet and three and a half thousand from a
+ * correct large one.
+ *
+ * Nothing in this file caught it because every test here passes the planner's
+ * own floorplan, which is also what the application does. A project library is
+ * the first caller for which the two would differ.
+ */
+describe('Y-3 · a sheet is of the plan the view holds', () =>
+{
+	it('refuses a floorplan the view is not showing', () =>
+	{
+		squareRoom(400);
+		const somebodyElse = new Floorplan();
+		somebodyElse.newCorner(0, 0);
+
+		expect(() => exportPlanSVG(planner.view, somebodyElse, {scale: 100}))
+			.toThrow(/does not hold the floorplan/);
+		expect(() => renderPlanToCanvas(planner.view, somebodyElse, document.createElement('canvas'), {width: 600}))
+			.toThrow(/does not hold the floorplan/);
+	});
+
+	it('takes null to mean the view s own', () =>
+	{
+		squareRoom(400);
+
+		const named = exportPlanSVG(planner.view, floorplan, {scale: 100});
+		const implied = exportPlanSVG(planner.view, null, {scale: 100});
+
+		expect(implied).toBe(named);
+	});
+});
+
+/**
+ * Y-4: a tile is not a small sheet.
+ *
+ * Measured in Chromium before this existed - `fitProjection` returned a
+ * 300 x 333 PORTRAIT canvas for an 1180 x 860 LANDSCAPE plan, because a sheet
+ * is as tall as the drawing needs plus a 2.2 cm title block. Correct on paper
+ * and wrong in a grid, where the tiles have to share an aspect.
+ */
+describe('Y-4 · the thumbnail projection', () =>
+{
+	it('holds one aspect whatever shape the plan is', () =>
+	{
+		const wide = thumbnailProjection({minX: 0, minY: 0, maxX: 1180, maxY: 860}, 320, 240);
+		const tall = thumbnailProjection({minX: 0, minY: 0, maxX: 300, maxY: 1400}, 320, 240);
+
+		for (const tile of [wide, tall])
+		{
+			expect(tile.width).toBe(320);
+			expect(tile.height).toBe(240);
+		}
+		// And the whole building is inside the margin in both, which is what
+		// "contained" means and what fitProjection does not promise.
+		expect(wide.drawing.width).toBeLessThanOrEqual(320 - 24);
+		expect(wide.drawing.height).toBeLessThanOrEqual(240 - 24);
+		expect(tall.drawing.width).toBeLessThanOrEqual(320 - 24);
+		expect(tall.drawing.height).toBeLessThanOrEqual(240 - 24);
+	});
+
+	it('centres what it draws', () =>
+	{
+		const tile = thumbnailProjection({minX: 0, minY: 0, maxX: 1180, maxY: 860}, 320, 240);
+
+		expect(tile.drawing.x * 2 + tile.drawing.width).toBeCloseTo(320, 6);
+		expect(tile.drawing.y * 2 + tile.drawing.height).toBeCloseTo(240, 6);
+		// The bound axis touches the margin exactly: 1180 x 860 is wider than 4:3,
+		// so width is what runs out first.
+		expect(tile.drawing.x).toBeCloseTo(12, 6);
+	});
+
+	it('survives a plan with no extent at all', () =>
+	{
+		const tile = thumbnailProjection({minX: 40, minY: 40, maxX: 40, maxY: 40}, 320, 240);
+
+		expect(Number.isFinite(tile.pixelsPerCm)).toBe(true);
+		expect(Number.isFinite(tile.project.convertX(40))).toBe(true);
+	});
+
+	it('renders at the tile size, and draws no north arrow', () =>
+	{
+		squareRoom(400);
+		floorplan.north = 30;
+		const canvas = document.createElement('canvas');
+		// One recording context is shared by every canvas in the document, so the
+		// live view's own draws are already in it. Only the tile's calls are the
+		// subject here.
+		canvasStub.context.calls.length = 0;
+
+		const drawn = renderPlanThumbnail(planner.view, canvas);
+
+		expect(drawn).toEqual({width: THUMBNAIL_WIDTH, height: THUMBNAIL_HEIGHT, scale: expect.any(Number)});
+		expect(canvas.width).toBe(THUMBNAIL_WIDTH);
+		expect(canvas.height).toBe(THUMBNAIL_HEIGHT);
+		// The 'N' is the arrow's own label and the only text it draws. Nothing on
+		// the tile should be it.
+		const texts = canvasStub.context.calls.filter((call) => call.name === 'fillText');
+		expect(texts.some((call) => call.args[0] === 'N')).toBe(false);
+		// And the view is back to drawing its chrome afterwards.
+		expect(planner.view.chrome).toBe(true);
+	});
+
+	it('is null for a plan with nothing in it', () =>
+	{
+		expect(renderPlanThumbnail(planner.view, document.createElement('canvas'))).toBeNull();
+	});
+
+	it('refuses a floorplan the view is not showing', () =>
+	{
+		squareRoom(400);
+		const somebodyElse = new Floorplan();
+
+		expect(() => renderPlanThumbnail(planner.view, document.createElement('canvas'), {floorplan: somebodyElse}))
+			.toThrow(/does not hold the floorplan/);
 	});
 });

@@ -46,6 +46,20 @@ const SHEET_MARGIN_CM = 1.5;
 const TITLE_BLOCK_CM = 2.2;
 
 /**
+ * The size of a plan thumbnail, and the space left round the drawing in it
+ * (RM-013 K1, finding Y-4).
+ *
+ * 4:3, because that is the ratio all 168 catalog thumbnails already are and a
+ * grid that mixes two aspects reads as a mistake. 320 x 240 rather than the
+ * catalog's 300 x 225 for one measured reason: at 300 px this plan encoded to
+ * 5,958 bytes as WebP and 17,372 as PNG, so the format is what the size costs
+ * and 20 more pixels each way is free by comparison.
+ */
+export const THUMBNAIL_WIDTH = 320;
+export const THUMBNAIL_HEIGHT = 240;
+const THUMBNAIL_MARGIN_PX = 12;
+
+/**
  * Everything the plan occupies, in centimetres (RM-008 E4).
  *
  * Corners, item footprints, dimension lines *including their offset* and text
@@ -272,10 +286,47 @@ function chromeInset(sheet)
 }
 
 /**
+ * Which floorplan a sheet is actually of (RM-013 K1, finding Y-3).
+ *
+ * The two export functions below each take a view and a floorplan, and until
+ * this existed they reconciled them nowhere: `planBounds` sized the sheet from
+ * the argument and `view.renderTo` drew whatever the view held. Passing a view
+ * bound to a 400 x 300 room and asking for an 1180 x 860 flat produced a
+ * plausible 3,988-byte sheet carrying the small room's fifteen paths at the
+ * large plan's scale, under a title block describing the large plan. Thirty
+ * paths is the correct answer. Nothing warned, and nothing could have: the
+ * output is a valid document about the wrong building.
+ *
+ * It had never fired because the only caller in the application reads both out
+ * of the same store in one expression. A project library is the first caller
+ * for which they would differ, because a grid of thumbnails is by definition a
+ * set of designs that are not the one on screen.
+ *
+ * So the argument becomes optional and, when given, is checked. A caller that
+ * wants a sheet of a design that is not in the view has to put it in a view
+ * first - which is the true cost of the picture, and is now stated rather than
+ * silently skipped.
+ *
+ * @param {Object} view A `FloorplannerView2D`.
+ * @param {?import('../model/floorplan.js').Floorplan} [floorplan]
+ * @returns {import('../model/floorplan.js').Floorplan}
+ */
+function subjectOf(view, floorplan)
+{
+	if (floorplan && floorplan !== view.floorplan)
+	{
+		throw new Error('plan export: the view does not hold the floorplan it was asked to draw. '
+			+ 'Load the design into this view first, or omit the argument.');
+	}
+	return floorplan || view.floorplan;
+}
+
+/**
  * The plan as an SVG document (RM-008 E4).
  *
  * @param {Object} view A `FloorplannerView2D`.
- * @param {import('../model/floorplan.js').Floorplan} floorplan
+ * @param {?import('../model/floorplan.js').Floorplan} floorplan The view's own,
+ *        or null. Anything else throws - see {@link subjectOf}.
  * @param {Object} [options]
  * @param {number} [options.scale] The denominator; 50 means 1:50.
  * @param {string} [options.title]
@@ -288,7 +339,7 @@ function chromeInset(sheet)
 export function exportPlanSVG(view, floorplan, options)
 {
 	var settings = options || {};
-	var bounds = planBounds(floorplan);
+	var bounds = planBounds(subjectOf(view, floorplan));
 	if (!bounds)
 	{
 		return null;
@@ -318,7 +369,8 @@ export function exportPlanSVG(view, floorplan, options)
  * canvas; a test passes a stub.
  *
  * @param {Object} view A `FloorplannerView2D`.
- * @param {import('../model/floorplan.js').Floorplan} floorplan
+ * @param {?import('../model/floorplan.js').Floorplan} floorplan The view's own,
+ *        or null. Anything else throws - see {@link subjectOf}.
  * @param {HTMLCanvasElement} canvas Resized to fit before drawing.
  * @param {Object} [options]
  * @param {number} [options.width] Pixels. Defaults to the canvas' current width.
@@ -330,7 +382,7 @@ export function exportPlanSVG(view, floorplan, options)
 export function renderPlanToCanvas(view, floorplan, canvas, options)
 {
 	var settings = options || {};
-	var bounds = planBounds(floorplan);
+	var bounds = planBounds(subjectOf(view, floorplan));
 	if (!bounds)
 	{
 		return null;
@@ -359,4 +411,102 @@ export function renderPlanToCanvas(view, floorplan, canvas, options)
 		scale: null,
 	});
 	return {width: canvas.width, height: canvas.height, scale: sheet.pixelsPerCm};
+}
+
+/**
+ * A projection that fits the whole plan inside a fixed rectangle
+ * (RM-013 K1, finding Y-4).
+ *
+ * The difference from {@link fitProjection} beside it is the difference between
+ * a sheet and a tile, and it was measured rather than assumed: asked for a
+ * 300 px image of an 1180 x 860 *landscape* plan, `fitProjection` returned a
+ * 300 x 333 *portrait* canvas. That is correct and deliberate for paper - the
+ * sheet is as tall as the drawing needs plus a 2.2 cm title block, and its
+ * width is the only thing the caller gets to choose. In a grid it is wrong
+ * twice over: the tiles do not share an aspect, so the grid does not line up,
+ * and the title block renders as an illegible smudge along the bottom of each.
+ *
+ * So this one takes both dimensions, scales by whichever axis binds, and
+ * centres what is left. The plan is CONTAINED rather than fitted to the width,
+ * which is why a long thin plan and a square one both come back as pictures of
+ * the whole building instead of one of them being cropped.
+ *
+ * @param {{minX: number, minY: number, maxX: number, maxY: number}} bounds Centimetres.
+ * @param {number} width
+ * @param {number} height
+ * @returns {ReturnType<typeof scaleProjection>}
+ */
+export function thumbnailProjection(bounds, width, height)
+{
+	var availableWidth = Math.max(width - THUMBNAIL_MARGIN_PX * 2, 1);
+	var availableHeight = Math.max(height - THUMBNAIL_MARGIN_PX * 2, 1);
+	// One centimetre is a floor rather than a guess: a plan whose corners are all
+	// at one point has a span of zero, and dividing by it would put every mark at
+	// infinity. A single-corner design is a legal thing to have drawn.
+	var spanX = Math.max(bounds.maxX - bounds.minX, 1);
+	var spanY = Math.max(bounds.maxY - bounds.minY, 1);
+	var pixelsPerCm = Math.min(availableWidth / spanX, availableHeight / spanY);
+	var drawnWidth = spanX * pixelsPerCm;
+	var drawnHeight = spanY * pixelsPerCm;
+	var left = (width - drawnWidth) / 2;
+	var top = (height - drawnHeight) / 2;
+	return {
+		project: {
+			convertX: function (x) {return left + (x - bounds.minX) * pixelsPerCm;},
+			convertY: function (y) {return top + (y - bounds.minY) * pixelsPerCm;},
+		},
+		width: width,
+		height: height,
+		pixelsPerCm: pixelsPerCm,
+		drawing: {x: left, y: top, width: drawnWidth, height: drawnHeight},
+	};
+}
+
+/**
+ * The plan drawn small, for a library tile (RM-013 K1).
+ *
+ * Same drawing code as the screen and the sheet - `view.renderTo` again, for
+ * the reason at the top of this file - with three things off: the title block,
+ * which is not drawn because this function does not call `drawTitleBlock`; the
+ * grid and the tracing underlay, which `draw()` already suppresses while
+ * exporting; and the north arrow, which `renderTo` suppresses when told there
+ * is no chrome.
+ *
+ * The view must already hold this design. {@link subjectOf} enforces it, and
+ * finding Y-3 is why that is not a formality: a tile rendered from a view
+ * holding somebody else's plan is a picture of the wrong building with no way
+ * for anyone to tell.
+ *
+ * @param {Object} view A `FloorplannerView2D`.
+ * @param {HTMLCanvasElement} canvas Resized to the tile before drawing.
+ * @param {Object} [options]
+ * @param {number} [options.width] Defaults to {@link THUMBNAIL_WIDTH}.
+ * @param {number} [options.height] Defaults to {@link THUMBNAIL_HEIGHT}.
+ * @param {?import('../model/floorplan.js').Floorplan} [options.floorplan] The
+ *        view's own, or omitted.
+ * @returns {?{width: number, height: number, scale: number}} Null for an empty
+ *          plan, which is a design with nothing drawn in it yet.
+ */
+export function renderPlanThumbnail(view, canvas, options)
+{
+	var settings = options || {};
+	var bounds = planBounds(subjectOf(view, settings.floorplan));
+	if (!bounds)
+	{
+		return null;
+	}
+	var width = Math.max(1, Math.round(settings.width || THUMBNAIL_WIDTH));
+	var height = Math.max(1, Math.round(settings.height || THUMBNAIL_HEIGHT));
+	canvas.width = width;
+	canvas.height = height;
+	var context = canvas.getContext('2d');
+	if (!context)
+	{
+		return null;
+	}
+	var tile = thumbnailProjection(bounds, width, height);
+	var backend = new CanvasBackend(context, floorplannerPalette.labelFont,
+		floorplannerPalette.labelHalo || '#ffffff');
+	view.renderTo(backend, tile.project, {width: width, height: height, chrome: false});
+	return {width: width, height: height, scale: tile.pixelsPerCm};
 }

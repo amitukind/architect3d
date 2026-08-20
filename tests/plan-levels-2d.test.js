@@ -156,7 +156,13 @@ describe('the storey below, drawn', () =>
 		room(model.floorplan, 200, 200, 200, 200);
 
 		const svg = exportPlanSVG(planner.view, model.floorplan, {scale: 100, title: 'First floor'});
-		const alone = exportPlanSVG(planner.view, model.levels[0].floorplan, {scale: 100, title: 'First floor'});
+		// The second sheet is of the GROUND floor, so the canvas has to be showing
+		// the ground floor to draw it (RM-013 Y-3). Before that finding was
+		// repaired this line asked for the ground floor and got the first floor's
+		// drawing inside the ground floor's frame, and the assertion below passed
+		// on it - the ghost is absent from the wrong drawing too.
+		planner.showFloorplan(model.levels[0].floorplan);
+		const alone = exportPlanSVG(planner.view, model.levels[0].floorplan, {scale: 100, title: 'Ground floor'});
 
 		// A sheet of the first floor carries the first floor. Somebody reading a
 		// drawing cannot be expected to know which of two overlaid plans is theirs,
