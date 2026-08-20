@@ -2,7 +2,6 @@
 // @ts-check
 import {computed, onBeforeUnmount, ref} from 'vue';
 import {LAYOUT_PLAN, LAYOUT_SPLIT, LAYOUT_VIEW} from '../composables/useLayout.js';
-import {t} from '../i18n/i18n.js';
 
 /**
  * The two viewports and the divider between them.
@@ -193,7 +192,7 @@ onBeforeUnmount(() => {dragging.value = false;});
 			:style="{left: `${planFraction * 100}%`}"
 			role="separator"
 			aria-orientation="vertical"
-			:aria-label="t('Resize the plan and 3D panes')"
+			aria-label="Resize the plan and 3D panes"
 			:aria-valuenow="Math.round(planFraction * 100)"
 			:aria-valuemin="20"
 			:aria-valuemax="80"

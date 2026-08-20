@@ -798,7 +798,7 @@ export class Scene extends EventDispatcher
 			{
 				return error.message;
 			}
-			return scope.runtime.text('the model could not be loaded.');
+			return 'the model could not be loaded.';
 		};
 
 		this.dispatchEvent({type:EVENT_ITEM_LOADING});
@@ -831,7 +831,7 @@ export class Scene extends EventDispatcher
 			{
 				if (!bytes)
 				{
-					failed(scope.runtime.text('this design names an imported model that is no longer in the store.'));
+					failed('this design names an imported model that is no longer in the store.');
 					return;
 				}
 				return scope._parseModel(bytes, metadata.format).then(function (object)
@@ -861,12 +861,10 @@ export class Scene extends EventDispatcher
 				// document carries the original filename for exactly this sentence,
 				// which is why `normaliseImport` keeps a field that is otherwise
 				// redundant with the store.
-				failed(this.runtime.text('"{file}" was imported from a file, and that file is not on this computer.',
-					{file: metadata.local.file || metadata.local.id}));
+				failed(`"${metadata.local.file || metadata.local.id}" was imported from a file, and that file is not on this computer.`);
 				return;
 			}
-			failed(this.runtime.text('this build does not ship that asset. "{item}" names a file the asset manifest does not declare.',
-				{item: metadata.itemName || this.runtime.text('The item')}));
+			failed(`this build does not ship that asset. "${metadata.itemName || 'The item'}" names a file the asset manifest does not declare.`);
 			return;
 		}
 
@@ -914,9 +912,7 @@ export class Scene extends EventDispatcher
 			// removed along with r98. resolveModelUrl rewrites every name the
 			// shipped library ever used, so reaching this means a design references
 			// a model that was never part of it.
-			failed(this.runtime.text('the retired three.js JSON model format has no loader as of three r185. '
-				+ 'Convert the model with tools/convert-legacy-json.mjs and add it to LEGACY_MODEL_MAP, '
-				+ 'or give the item metadata a "gltf" or "obj" format.'));
+			failed('the retired three.js JSON model format has no loader as of three r185. Convert the model with tools/convert-legacy-json.mjs and add it to LEGACY_MODEL_MAP, or give the item metadata a "gltf" or "obj" format.');
 		}
 	}
 }

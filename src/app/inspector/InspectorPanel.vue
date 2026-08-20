@@ -16,7 +16,6 @@ import SettingsPanel from './SettingsPanel.vue';
 import {MousePointerClick, SlidersHorizontal} from '@lucide/vue';
 
 import {useBlueprint} from '../composables/useBlueprint.js';
-import {t} from '../i18n/i18n.js';
 import {
 	SELECTION_ITEM, SELECTION_WALL, SELECTION_FLOOR,
 	SELECTION_CORNER_2D, SELECTION_WALL_2D, SELECTION_ROOM_2D,
@@ -198,19 +197,19 @@ watch(selectionKey, (key) =>
 	<aside
 		id="inspector"
 		class="z-[200] flex w-[300px] flex-none flex-col border-l border-line bg-surface"
-		:aria-label="t('Inspector')">
+		aria-label="Inspector">
 		<div class="flex flex-none border-b border-line" role="tablist">
 			<button
 				type="button" class="inspector-tab" role="tab"
 				:class="{'is-active': tab === 'selection'}" :aria-selected="tab === 'selection'"
 				@click="tab = 'selection'">
-				<MousePointerClick :size="14" /> {{ t('Selection') }}
+				<MousePointerClick :size="14" /> Selection
 			</button>
 			<button
 				type="button" class="inspector-tab" role="tab"
 				:class="{'is-active': tab === 'settings'}" :aria-selected="tab === 'settings'"
 				@click="tab = 'settings'">
-				<SlidersHorizontal :size="14" /> {{ t('Settings') }}
+				<SlidersHorizontal :size="14" /> Settings
 			</button>
 		</div>
 
@@ -222,7 +221,8 @@ watch(selectionKey, (key) =>
 					v-bind="bindings"
 					@changed="emit('changed')" />
 				<p v-else class="inspector-empty">
-					{{ t('Nothing selected. Click a corner, a wall, a room, a dimension or a label on the plan, or an item, a wall or a floor in the 3D view.') }}
+					Nothing selected. Click a corner, a wall, a room, a dimension or a label
+					on the plan, or an item, a wall or a floor in the 3D view.
 				</p>
 			</template>
 

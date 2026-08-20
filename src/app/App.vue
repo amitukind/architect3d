@@ -33,7 +33,6 @@ import {useTemplates} from './composables/useTemplates.js';
 import {useShare} from './composables/useShare.js';
 import {useModelImport} from './composables/useModelImport.js';
 import {useTour} from './composables/useTour.js';
-import {useI18n} from './composables/useI18n.js';
 import {helpUrl} from './tour/help.js';
 import {useOffline} from './composables/useOffline.js';
 import {useCatalog} from './composables/useCatalog.js';
@@ -52,7 +51,6 @@ import {useShortcuts} from './composables/useShortcuts.js';
 
 import {floorplannerModes, Configuration, configSystemUI, Dimensioning} from '../scripts/blueprint.js';
 import {renderProfile} from '../scripts/blueprint.js';
-import {t} from './i18n/i18n.js';
 
 /**
  * The application shell.
@@ -99,7 +97,6 @@ const display = useDisplayUnit(store);
 const theme = useTheme(store);
 const workspace = useLayout();
 const tour = useTour(workspace);
-const i18n = useI18n();
 const history = useHistory(store);
 const zoom = useZoom2D(store);
 const levels = useLevels(store);
@@ -181,10 +178,6 @@ onMounted(() =>
 	history.reset();
 	frameDesign();
 
-	// Before anything a person reads (RM-014 L3). The source language fetches
-	// nothing at all, which is M-49; a chosen one is one file, and the shell
-	// re-renders when it lands because `t` reads a ref.
-	i18n.restore();
 	openShared();
 	loadAssetManifest();
 	goOffline();
@@ -1071,8 +1064,9 @@ useShortcuts(() => bindings.value);
 								v-if="walkthrough"
 								class="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center p-4">
 								<p class="glass px-3 py-2 text-[11px]">
-									<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> {{ t('to walk · move the mouse to look ·') }} <strong>{{ t('click the floor') }}</strong> {{ t('to go there ·') }}
-									<kbd>{{ t('Esc') }}</kbd> {{ t('to leave') }}
+									<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> to walk ·
+									move the mouse to look · <strong>click the floor</strong> to go there ·
+									<kbd>Esc</kbd> to leave
 								</p>
 							</div>
 						</ThreeViewport>

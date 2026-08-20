@@ -4,7 +4,6 @@ import {computed, onBeforeUnmount, ref, watch} from 'vue';
 import NumberField from './fields/NumberField.vue';
 import {Dimensioning, EVENT_ANNOTATIONS_CHANGED} from '../../scripts/blueprint.js';
 import {useDisplayUnit} from '../composables/useDisplayUnit.js';
-import {t} from '../i18n/i18n.js';
 
 /**
  * A dimension: what it measures, and where its line sits (RM-008 E3).
@@ -125,23 +124,23 @@ onBeforeUnmount(detach);
 
 <template>
 	<section class="inspector-section">
-		<h3 class="inspector-heading">{{ t('Dimension') }}</h3>
+		<h3 class="inspector-heading">Dimension</h3>
 
 		<p class="inspector-readout">
-			{{ t('Measures') }} <strong>{{ length }}</strong>
+			Measures <strong>{{ length }}</strong>
 		</p>
 
 		<NumberField
 			label="Offset" :unit="unit" :step="0.01"
 			:model-value="offset" @update:model-value="setOffset" />
 		<button type="button" class="btn w-full justify-center" @click="flip">
-			{{ t('Put the line on the other side') }}
+			Put the line on the other side
 		</button>
 
 		<p class="inspector-note">{{ pinnedLabel }}</p>
 
 		<button type="button" class="btn btn-danger w-full justify-center" @click="remove">
-			{{ t('Delete this dimension') }}
+			Delete this dimension
 		</button>
 	</section>
 </template>

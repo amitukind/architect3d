@@ -5,7 +5,6 @@ import {ResourceRegistry} from './resource_registry.js';
 import {LoadSession} from './load_session.js';
 import {defaultAssetResolver} from './asset_resolver.js';
 import {LocalModels} from './imported_model.js';
-import {translate} from './messages.js';
 import {renderProfile} from './render_profile.js';
 import {Utils} from './utils.js';
 
@@ -99,8 +98,6 @@ export class DesignRuntime
 	 *        logical name unchanged.
 	 * @param {import('./imported_model.js').LocalModelSource} [options.localModels]
 	 *        Bytes for models no deployment ships (J3). Omit for an empty store.
-	 * @param {import('./messages.js').Translator} [options.messages] What this
-	 *        document says to a person (L3). Omit for English.
 	 * @param {string} [options.id] An id of the embedder's choosing. Omit for a
 	 *        generated one.
 	 */
@@ -172,19 +169,6 @@ export class DesignRuntime
 		 * @type {import('./imported_model.js').LocalModelSource}
 		 */
 		this.localModels = settings.localModels || new LocalModels();
-
-		/**
-		 * How this document says things to a person (RM-014 L3).
-		 *
-		 * Null unless an embedder brings a translator, and null means English -
-		 * byte-identically, because the source text is the key and `translate`
-		 * returns it unchanged. Z-2 measured why this belongs here rather than in
-		 * the application: 54 messages in this package reach a person as finished
-		 * prose, and prose cannot be translated at a boundary.
-		 *
-		 * @type {?import('./messages.js').Translator}
-		 */
-		this.messages = settings.messages || null;
 
 		/**
 		 * GPU resources belonging to the document itself rather than to a view
@@ -290,24 +274,6 @@ export class DesignRuntime
 		this._registries.forEach(function (registry) {registry.releaseAll();});
 		this._registries.clear();
 		this.resources.releaseAll();
-	}
-
-	/**
-	 * Say something to a person, in this document's language (RM-014 L3).
-	 *
-	 * The one route every user-facing sentence in this library takes. With no
-	 * translator it interpolates the English it was handed and returns it, which
-	 * is what makes "a build that configures nothing is unchanged" a property of
-	 * the code rather than a claim about it.
-	 *
-	 * @param {string|Array<string>} source The English. A pair is `[one, other]`
-	 *        and is selected by `params.count`.
-	 * @param {Object} [params] Named values for `{placeholders}`.
-	 * @returns {string}
-	 */
-	text(source, params)
-	{
-		return translate(this.messages, source, params);
 	}
 
 	/**

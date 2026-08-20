@@ -6,7 +6,6 @@ import TextField from './fields/TextField.vue';
 import CheckField from './fields/CheckField.vue';
 import RangeField from './fields/RangeField.vue';
 import {EVENT_UPDATED} from '../../scripts/blueprint.js';
-import {t} from '../i18n/i18n.js';
 
 /**
  * The carbon sheet: an image traced under the 2D plan.
@@ -70,7 +69,7 @@ onBeforeUnmount(detach);
 
 <template>
 	<TextField
-		label="Image URL" :model-value="values.url" :placeholder="t('rooms/textures/plan.png')"
+		label="Image URL" :model-value="values.url" placeholder="rooms/textures/plan.png"
 		@update:model-value="write('url', $event)" />
 	<NumberField
 		label="Real width" :max="1000" :model-value="values.width"

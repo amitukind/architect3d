@@ -3,7 +3,6 @@
 import {ref, watch} from 'vue';
 import {DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose} from 'reka-ui';
 import {X, Copy, Link2} from '@lucide/vue';
-import {t} from '../i18n/i18n.js';
 
 /**
  * A design as a link (RM-013 K2, finding Y-7).
@@ -117,13 +116,13 @@ function selectAll(event)
 				class="a3d-pop fixed left-1/2 top-1/2 z-[560] flex w-[560px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-panel border border-line bg-surface shadow-float focus:outline-none">
 				<div class="flex flex-none items-start gap-2 border-b border-line px-4 py-3">
 					<div class="min-w-0">
-						<DialogTitle class="text-[14px] font-semibold">{{ t('Share this design') }}</DialogTitle>
+						<DialogTitle class="text-[14px] font-semibold">Share this design</DialogTitle>
 						<DialogDescription class="text-ink-faint">
-							{{ t('The whole design travels in the link. Nothing is uploaded, and there is no server to upload it to.') }}
+							The whole design travels in the link. Nothing is uploaded, and there is no server to upload it to.
 						</DialogDescription>
 					</div>
 					<DialogClose as-child>
-						<button type="button" class="btn btn-icon ml-auto" :aria-label="t('Close')">
+						<button type="button" class="btn btn-icon ml-auto" aria-label="Close">
 							<X :size="15" />
 						</button>
 					</DialogClose>
@@ -131,23 +130,25 @@ function selectAll(event)
 
 				<div class="flex flex-col gap-3 p-4">
 					<p v-if="!props.available" class="rounded-panel border border-line bg-overlay p-3 text-[12px] text-ink-soft">
-						{{ t('This browser cannot compress a design into a link.') }}
-						<button type="button" class="link" @click="emit('save-file')">{{ t('Save it as a file') }}</button> {{ t('instead.') }}
+						This browser cannot compress a design into a link.
+						<button type="button" class="link" @click="emit('save-file')">Save it as a file</button> instead.
 					</p>
 
 					<template v-else-if="props.refusal === 'too-long'">
 						<p class="rounded-panel border border-line bg-overlay p-3 text-[12px] text-ink-soft">
-							{{ t('This design is') }} <strong class="text-ink">{{ props.chars.toLocaleString() }}</strong> {{ t('characters compressed, and links hold') }} <strong class="text-ink">{{ props.limit.toLocaleString() }}</strong>{{ t('. Longer ones survive some inboxes and not others, so this one goes as a file.') }}
+							This design is <strong class="text-ink">{{ props.chars.toLocaleString() }}</strong> characters
+							compressed, and links hold <strong class="text-ink">{{ props.limit.toLocaleString() }}</strong>.
+							Longer ones survive some inboxes and not others, so this one goes as a file.
 						</p>
-						<button type="button" class="btn self-start" @click="emit('save-file')">{{ t('Save layout instead') }}</button>
+						<button type="button" class="btn self-start" @click="emit('save-file')">Save layout instead</button>
 					</template>
 
 					<template v-else-if="props.link">
 						<label class="flex flex-col gap-1">
-							<span class="eyebrow">{{ t('Link') }}</span>
+							<span class="eyebrow">Link</span>
 							<span class="flex gap-1.5">
 								<input
-									ref="field" :value="props.link" readonly :aria-label="t('Shareable link')"
+									ref="field" :value="props.link" readonly aria-label="Shareable link"
 									class="min-w-0 flex-1 rounded-md border border-line bg-overlay px-2 py-1.5 font-mono text-[11px]"
 									@focus="selectAll">
 								<button type="button" class="btn flex-none gap-1.5" :disabled="props.busy" @click="onCopy">

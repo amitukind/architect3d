@@ -3,7 +3,6 @@
 import {computed} from 'vue';
 import {Dimensioning, floorplannerModes} from '../../scripts/blueprint.js';
 import {LAYOUT_PLAN} from '../composables/useLayout.js';
-import {t} from '../i18n/i18n.js';
 
 /**
  * The bottom strip: what the plan contains, where the pointer is, and what the
@@ -107,8 +106,8 @@ const cursorLabel = computed(function ()
 		<a
 			class="hidden flex-none text-[11px] transition-colors hover:text-ink sm:inline"
 			href="https://amitukind.com" target="_blank" rel="noopener noreferrer"
-			:title="t('amitukind.com')">
-			{{ t('Created by') }} <span class="text-ink-soft">Amit Verma</span>
+			title="amitukind.com">
+			Created by <span class="text-ink-soft">Amit Verma</span>
 		</a>
 
 		<div class="ml-auto flex items-center gap-3">
@@ -118,7 +117,7 @@ const cursorLabel = computed(function ()
 				· <span class="text-ink-soft">{{ props.items }}</span> {{ props.items === 1 ? 'item' : 'items' }}
 			</span>
 
-			<span v-if="props.areaLabel" class="num" :title="t('Total floor area')">
+			<span v-if="props.areaLabel" class="num" title="Total floor area">
 				<span class="text-ink-soft">{{ props.areaLabel }}</span>
 			</span>
 
@@ -126,12 +125,12 @@ const cursorLabel = computed(function ()
 
 			<!-- Reserved width, so the bar does not jump as the pointer enters and
 			     leaves the canvas or the coordinates change digit count. -->
-			<span class="num hidden w-[124px] text-right tabular-nums sm:inline" :title="t('Pointer position')">
+			<span class="num hidden w-[124px] text-right tabular-nums sm:inline" title="Pointer position">
 				<template v-if="cursorLabel">{{ cursorLabel }}</template>
 				<template v-else>—</template>
 			</span>
 
-			<span class="num w-[46px] text-right" :title="t('Plan zoom')">{{ props.zoom }}%</span>
+			<span class="num w-[46px] text-right" title="Plan zoom">{{ props.zoom }}%</span>
 		</div>
 	</footer>
 </template>

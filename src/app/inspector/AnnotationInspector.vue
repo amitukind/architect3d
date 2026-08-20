@@ -3,7 +3,6 @@
 import {onBeforeUnmount, onMounted, ref, watch} from 'vue';
 import TextField from './fields/TextField.vue';
 import {EVENT_ANNOTATIONS_CHANGED, ANNOTATION_SIZES} from '../../scripts/blueprint.js';
-import {t} from '../i18n/i18n.js';
 
 /**
  * A text label on the plan (RM-008 E3).
@@ -144,14 +143,14 @@ onMounted(function ()
 
 <template>
 	<section class="inspector-section">
-		<h3 class="inspector-heading">{{ t('Label') }}</h3>
+		<h3 class="inspector-heading">Label</h3>
 
 		<div ref="firstField">
 			<TextField label="Text" :model-value="text" @update:model-value="setText" />
 		</div>
 
 		<div class="field">
-			<span class="field-label">{{ t('Size') }}</span>
+			<span class="field-label">Size</span>
 			<div class="segmented">
 				<button
 					v-for="step in ANNOTATION_SIZES" :key="step"
@@ -167,7 +166,7 @@ onMounted(function ()
 		</p>
 
 		<button type="button" class="btn btn-danger w-full justify-center" @click="remove">
-			{{ t('Delete this label') }}
+			Delete this label
 		</button>
 	</section>
 </template>

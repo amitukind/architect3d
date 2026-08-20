@@ -7,7 +7,6 @@ import CatalogCredits from './CatalogCredits.vue';
 import {PACKS, loadCatalogDetail, loadCatalogPacks, ROOMS} from '../composables/useCatalog.js';
 import {useCatalogBrowse} from '../composables/useCatalogBrowse.js';
 import {Dimensioning} from '../../scripts/blueprint.js';
-import {t} from '../i18n/i18n.js';
 
 /**
  * The furniture catalog.
@@ -352,13 +351,13 @@ watch(() => props.open, async function (open)
 				@interact-outside.prevent>
 				<div class="flex flex-none items-center gap-2 border-b border-line px-3 py-2.5">
 					<div>
-						<DialogTitle class="text-[13px] font-semibold">{{ t('Furniture') }}</DialogTitle>
+						<DialogTitle class="text-[13px] font-semibold">Furniture</DialogTitle>
 						<DialogDescription class="num text-ink-faint">
 							{{ results.length }} of {{ Math.max(total, props.promised) }} models
 						</DialogDescription>
 					</div>
 					<DialogClose as-child>
-						<button type="button" class="btn btn-icon ml-auto" :aria-label="t('Close catalog')" @click="close">
+						<button type="button" class="btn btn-icon ml-auto" aria-label="Close catalog" @click="close">
 							<X :size="15" />
 						</button>
 					</DialogClose>
@@ -369,7 +368,7 @@ watch(() => props.open, async function (open)
 						<Search :size="14" class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint" />
 						<input
 							ref="searchField" v-model="query" type="search"
-							class="field-input pl-8" :placeholder="t('Search the catalog')" :aria-label="t('Search the catalog')">
+							class="field-input pl-8" placeholder="Search the catalog" aria-label="Search the catalog">
 					</div>
 
 					<div class="mt-2 flex flex-wrap gap-1">
@@ -377,7 +376,7 @@ watch(() => props.open, async function (open)
 							type="button" class="btn h-6 px-2 text-[11px]"
 							:class="{'is-active': activeRoom === null && activeList === null}"
 							@click="activeRoom = null; activeList = null">
-							{{ t('All') }}
+							All
 						</button>
 						<button
 							type="button" class="btn h-6 gap-1 px-2 text-[11px]"
@@ -385,13 +384,13 @@ watch(() => props.open, async function (open)
 							:title="`${browse.favourites.value.length} starred`"
 							@click="activeList = activeList === 'favourites' ? null : 'favourites'">
 							<Star :size="11" :fill="activeList === 'favourites' ? 'currentColor' : 'none'" />
-							{{ t('Starred') }}
+							Starred
 						</button>
 						<button
 							v-if="browse.recent.value.length" type="button" class="btn h-6 px-2 text-[11px]"
 							:class="{'is-active': activeList === 'recent'}"
 							@click="activeList = activeList === 'recent' ? null : 'recent'">
-							{{ t('Recent') }}
+							Recent
 						</button>
 						<button
 							v-for="room in ROOMS" :key="room.id" type="button"
@@ -405,8 +404,8 @@ watch(() => props.open, async function (open)
 
 					<select
 						v-model="activeSection" class="field-input mt-2 h-7 text-[11px]"
-						:aria-label="t('Filter by placement type')">
-						<option :value="null">{{ t('Any placement') }}</option>
+						aria-label="Filter by placement type">
+						<option :value="null">Any placement</option>
 						<option v-for="section in props.sections" :key="section.id" :value="section.id">
 							{{ section.heading }}
 						</option>
@@ -415,7 +414,7 @@ watch(() => props.open, async function (open)
 
 				<div class="flex-1 overflow-y-auto p-3">
 					<p v-if="loading && !results.length" class="py-8 text-center text-ink-faint">
-						{{ t('Fetching the catalog…') }}
+						Fetching the catalog…
 					</p>
 					<p
 						v-else-if="!results.length" data-testid="catalog-empty"
@@ -441,7 +440,7 @@ watch(() => props.open, async function (open)
 									class="mx-auto h-[86px] w-full object-contain mix-blend-normal">
 								<span class="mt-1 block truncate text-[11px] leading-tight">{{ row.item.name }}</span>
 								<span v-if="needsWall(row.item)" class="block truncate text-[10px] text-ink-faint">
-									{{ t('click a wall first') }}
+									click a wall first
 								</span>
 								<span v-else-if="sizeLabel(row.item)" class="num block truncate text-[10px] text-ink-faint">
 									{{ sizeLabel(row.item) }}
@@ -471,18 +470,18 @@ watch(() => props.open, async function (open)
 
 				<div class="flex flex-none items-center gap-2 border-t border-line px-3 py-2 text-[11px] text-ink-faint">
 					<span class="min-w-0 flex-1">
-						{{ t('Items land on the last floor or wall you clicked in 3D. The panel stays open —') }}
-						<kbd>{{ t('Esc') }}</kbd> {{ t('to close.') }}
+						Items land on the last floor or wall you clicked in 3D. The panel stays open —
+						<kbd>Esc</kbd> to close.
 					</span>
 					<button
 						type="button" class="btn h-6 flex-none gap-1 px-2 text-[11px]"
 						@click="emit('import-model')">
-						<Upload :size="11" /> {{ t('Your own models') }}
+						<Upload :size="11" /> Your own models
 					</button>
 					<button
 						type="button" class="btn h-6 flex-none gap-1 px-2 text-[11px]"
 						@click="creditsOpen = true">
-						<Scale :size="11" /> {{ t('Credits') }}
+						<Scale :size="11" /> Credits
 					</button>
 				</div>
 			</DialogContent>

@@ -9,7 +9,6 @@ import {
 import AppTip from './AppTip.vue';
 import {floorplannerModes} from '../../scripts/blueprint.js';
 import {LAYOUT_VIEW} from '../composables/useLayout.js';
-import {t} from '../i18n/i18n.js';
 
 /**
  * The tool rail: what the pointer does, and what can be done to the selection.
@@ -82,9 +81,9 @@ const showPlanTools = computed(() => props.layout !== LAYOUT_VIEW);
 	<nav
 		id="tool-rail"
 		class="z-[200] flex w-[52px] flex-none flex-col items-center gap-1 border-r border-line bg-surface py-2"
-		:aria-label="t('Tools')">
+		aria-label="Tools">
 		<template v-if="showPlanTools">
-			<p class="eyebrow mb-0.5 text-[9px] tracking-[0.06em]">{{ t('Plan') }}</p>
+			<p class="eyebrow mb-0.5 text-[9px] tracking-[0.06em]">Plan</p>
 			<AppTip
 				v-for="tool in TOOLS" :key="tool.id" :label="tool.label" :keys="tool.keys"
 				side="right" :delay="0">
@@ -99,7 +98,7 @@ const showPlanTools = computed(() => props.layout !== LAYOUT_VIEW);
 			</AppTip>
 
 			<AppTip label="Trace a floorplan image" side="right" :delay="0">
-				<button type="button" class="btn btn-tool" :title="t('Trace a floorplan image')" @click="emit('open-backdrop')">
+				<button type="button" class="btn btn-tool" title="Trace a floorplan image" @click="emit('open-backdrop')">
 					<ImageIcon :size="17" />
 				</button>
 			</AppTip>
@@ -107,11 +106,11 @@ const showPlanTools = computed(() => props.layout !== LAYOUT_VIEW);
 
 		<div v-if="showPlanTools" class="my-1 h-px w-6 bg-line" />
 
-		<p class="eyebrow mb-0.5 text-[9px] tracking-[0.06em]">{{ t('Scene') }}</p>
+		<p class="eyebrow mb-0.5 text-[9px] tracking-[0.06em]">Scene</p>
 		<AppTip label="Furniture catalog" keys="a" side="right" :delay="0">
 			<button
 				type="button" class="btn btn-tool" :class="{'is-active': props.catalogOpen}"
-				:title="t('Furniture catalog')" @click="emit('open-catalog')">
+				title="Furniture catalog" @click="emit('open-catalog')">
 				<Sofa :size="17" />
 			</button>
 		</AppTip>
@@ -119,7 +118,7 @@ const showPlanTools = computed(() => props.layout !== LAYOUT_VIEW);
 			<button
 				type="button" class="btn btn-tool" :class="{'is-active': props.walkthrough}"
 				:aria-pressed="props.walkthrough"
-				:title="t('Walk through')" @click="emit('toggle-walkthrough')">
+				title="Walk through" @click="emit('toggle-walkthrough')">
 				<Footprints :size="17" />
 			</button>
 		</AppTip>
@@ -127,7 +126,7 @@ const showPlanTools = computed(() => props.layout !== LAYOUT_VIEW);
 			<button
 				type="button" class="btn btn-tool" :class="{'is-active': props.exterior}"
 				:aria-pressed="props.exterior"
-				:title="t('Exterior view')" @click="emit('toggle-exterior')">
+				title="Exterior view" @click="emit('toggle-exterior')">
 				<Home :size="17" />
 			</button>
 		</AppTip>
@@ -136,14 +135,14 @@ const showPlanTools = computed(() => props.layout !== LAYOUT_VIEW);
 
 		<AppTip label="Duplicate item" keys="mod+d" side="right" :delay="0">
 			<button
-				type="button" class="btn btn-tool" :title="t('Duplicate item')"
+				type="button" class="btn btn-tool" title="Duplicate item"
 				:disabled="!props.canActOnItem" @click="emit('duplicate-item')">
 				<Copy :size="17" />
 			</button>
 		</AppTip>
 		<AppTip label="Delete item" keys="delete" side="right" :delay="0">
 			<button
-				type="button" class="btn btn-tool btn-danger" :title="t('Delete item')"
+				type="button" class="btn btn-tool btn-danger" title="Delete item"
 				:disabled="!props.canActOnItem" @click="emit('delete-item')">
 				<Trash2 :size="17" />
 			</button>

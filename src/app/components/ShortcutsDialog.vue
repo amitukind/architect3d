@@ -4,7 +4,6 @@ import {computed} from 'vue';
 import {DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose} from 'reka-ui';
 import {X} from '@lucide/vue';
 import {keyChips} from '../composables/useShortcuts.js';
-import {t} from '../i18n/i18n.js';
 
 /**
  * The keyboard reference.
@@ -67,13 +66,13 @@ const groups = computed(function ()
 				class="a3d-pop fixed left-1/2 top-1/2 z-[560] flex max-h-[80vh] w-[620px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col rounded-panel border border-line bg-surface shadow-float focus:outline-none">
 				<div class="flex flex-none items-start gap-2 border-b border-line px-4 py-3">
 					<div>
-						<DialogTitle class="text-[14px] font-semibold">{{ t('Keyboard shortcuts') }}</DialogTitle>
+						<DialogTitle class="text-[14px] font-semibold">Keyboard shortcuts</DialogTitle>
 						<DialogDescription class="text-ink-faint">
-							{{ t('Shortcuts are suppressed while you are typing in a field.') }}
+							Shortcuts are suppressed while you are typing in a field.
 						</DialogDescription>
 					</div>
 					<DialogClose as-child>
-						<button type="button" class="btn btn-icon ml-auto" :aria-label="t('Close')">
+						<button type="button" class="btn btn-icon ml-auto" aria-label="Close">
 							<X :size="15" />
 						</button>
 					</DialogClose>
@@ -94,7 +93,8 @@ const groups = computed(function ()
 				</div>
 
 				<div class="flex-none border-t border-line px-4 py-2.5 text-[11px] text-ink-faint">
-					{{ t('Hold') }} <kbd>{{ t('Shift') }}</kbd> {{ t('while drawing to snap to the axis and the grid. Double-click a corner to set its elevation.') }}
+					Hold <kbd>Shift</kbd> while drawing to snap to the axis and the grid.
+					Double-click a corner to set its elevation.
 				</div>
 			</DialogContent>
 		</DialogPortal>

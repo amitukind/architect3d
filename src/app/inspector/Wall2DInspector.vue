@@ -4,7 +4,6 @@ import {computed, onBeforeUnmount, ref, watch} from 'vue';
 import NumberField from './fields/NumberField.vue';
 import {Dimensioning, WallTypes, EVENT_MOVED, EVENT_WALL_ATTRIBUTES_CHANGED} from '../../scripts/blueprint.js';
 import {useDisplayUnit} from '../composables/useDisplayUnit.js';
-import {t} from '../i18n/i18n.js';
 
 /**
  * A wall: straight or curved, and how long.
@@ -156,20 +155,20 @@ onBeforeUnmount(detach);
 
 <template>
 	<section class="inspector-section">
-		<h3 class="inspector-heading">{{ t('Wall') }}</h3>
+		<h3 class="inspector-heading">Wall</h3>
 
 		<div class="field">
-			<span class="field-label">{{ t('Type') }}</span>
+			<span class="field-label">Type</span>
 			<div class="segmented">
 				<button
 					type="button" class="segment" :class="{'is-active': !curved}"
 					:aria-pressed="!curved" @click="setCurved(false)">
-					{{ t('Straight') }}
+					Straight
 				</button>
 				<button
 					type="button" class="segment" :class="{'is-active': curved}"
 					:aria-pressed="curved" @click="setCurved(true)">
-					{{ t('Curved') }}
+					Curved
 				</button>
 			</div>
 		</div>
@@ -178,7 +177,7 @@ onBeforeUnmount(detach);
 			v-if="canSetLength" label="Length" :unit="unit" :min="0"
 			:model-value="length" @update:model-value="setLength" />
 		<p v-else class="inspector-note">
-			{{ t('A curved wall is sized by dragging its bezier handles on the plan.') }}
+			A curved wall is sized by dragging its bezier handles on the plan.
 		</p>
 
 		<NumberField
@@ -187,7 +186,7 @@ onBeforeUnmount(detach);
 		<button
 			v-if="ownThickness" type="button" class="btn w-full justify-center"
 			@click="clearThickness">
-			{{ t('Use the default thickness') }}
+			Use the default thickness
 		</button>
 
 		<NumberField
@@ -196,7 +195,7 @@ onBeforeUnmount(detach);
 		<button
 			v-if="isHalfWall" type="button" class="btn w-full justify-center"
 			@click="clearPartialHeight">
-			{{ t('Full height again') }}
+			Full height again
 		</button>
 
 		<p class="inspector-note">

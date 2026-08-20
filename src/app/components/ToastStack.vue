@@ -2,7 +2,6 @@
 // @ts-check
 import {CircleAlert, CircleCheck, Info, X} from '@lucide/vue';
 import {useToasts, TOAST_ERROR, TOAST_SUCCESS} from '../composables/useToasts.js';
-import {t} from '../i18n/i18n.js';
 
 /**
  * The notice stack.
@@ -43,7 +42,7 @@ function run(toast)
 <template>
 	<div
 		class="pointer-events-none fixed inset-x-0 bottom-11 z-[700] flex flex-col items-center gap-2 px-4"
-		role="region" :aria-label="t('Notifications')">
+		role="region" aria-label="Notifications">
 		<TransitionGroup
 			enter-active-class="transition duration-200 ease-out"
 			enter-from-class="translate-y-2 opacity-0"
@@ -71,7 +70,7 @@ function run(toast)
 
 				<button
 					type="button" class="btn btn-icon h-6 w-6 flex-none"
-					:aria-label="t('Dismiss')" @click="dismiss(toast.id)">
+					aria-label="Dismiss" @click="dismiss(toast.id)">
 					<X :size="13" />
 				</button>
 			</div>

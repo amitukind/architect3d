@@ -3,7 +3,6 @@ import {inject, provide, markRaw, shallowRef} from 'vue';
 import {BlueprintJS} from '../../scripts/blueprint.js';
 import {assetResolver} from './useAssets.js';
 import {modelStore} from '../import/model_store.js';
-import {lookup} from '../i18n/i18n.js';
 
 /**
  * Owns the one BlueprintJS instance and its lifetime.
@@ -93,11 +92,6 @@ export function createBlueprintStore()
 			// viewer - a store that lived on the runtime would take somebody's
 			// imported models with it every time they moved a panel.
 			localModels: modelStore(),
-			// The same catalogue the shell reads (RM-014 L3, finding Z-2). It is a
-			// function rather than a table, so `src/scripts` never learns that
-			// `src/app` exists and a build that hands over nothing keeps the English
-			// this package ships, byte for byte.
-			messages: lookup,
 		}));
 
 		instance.value = blueprint;

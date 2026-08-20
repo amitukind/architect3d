@@ -5,7 +5,6 @@ import {Camera, Grid2x2, Sparkles, Lock, LockOpen} from '@lucide/vue';
 import AppTip from './AppTip.vue';
 import ViewCube from './ViewCube.vue';
 import {RENDER_STUDIO, RENDER_CLASSIC} from '../../scripts/blueprint.js';
-import {t} from '../i18n/i18n.js';
 
 /**
  * The controls that float over the 3D view.
@@ -48,7 +47,7 @@ const emit = defineEmits([
 			<AppTip :label="props.orthographic ? 'Perspective camera' : 'Orthographic camera'" keys="o" side="left" :delay="0">
 				<button
 					type="button" class="btn btn-icon" :class="{'is-active': props.orthographic}"
-					:aria-pressed="props.orthographic" :title="t('Switch camera ortho/perspective')"
+					:aria-pressed="props.orthographic" title="Switch camera ortho/perspective"
 					@click="emit('toggle-orthographic')">
 					<Camera :size="15" />
 				</button>
@@ -56,7 +55,7 @@ const emit = defineEmits([
 			<AppTip label="Wireframe" keys="g" side="left" :delay="0">
 				<button
 					type="button" class="btn btn-icon" :class="{'is-active': props.wireframe}"
-					:aria-pressed="props.wireframe" :title="t('Switch wireframe mode')"
+					:aria-pressed="props.wireframe" title="Switch wireframe mode"
 					@click="emit('toggle-wireframe')">
 					<Grid2x2 :size="15" />
 				</button>
@@ -64,7 +63,7 @@ const emit = defineEmits([
 			<AppTip :label="props.viewLocked ? 'Unlock orbit' : 'Lock orbit'" side="left" :delay="0">
 				<button
 					type="button" class="btn btn-icon" :class="{'is-active': props.viewLocked}"
-					:aria-pressed="props.viewLocked" :title="t('Lock camera rotation')"
+					:aria-pressed="props.viewLocked" title="Lock camera rotation"
 					@click="emit('toggle-lock')">
 					<Lock v-if="props.viewLocked" :size="15" />
 					<LockOpen v-else :size="15" />
@@ -76,20 +75,20 @@ const emit = defineEmits([
 	<div class="pointer-events-none absolute bottom-0 right-0 z-20 p-3">
 		<div class="glass pointer-events-auto flex items-center gap-1 p-1">
 			<Sparkles :size="14" class="ml-1.5 text-accent" />
-			<div class="segmented border-0 bg-transparent p-0" role="group" :aria-label="t('Render style')">
+			<div class="segmented border-0 bg-transparent p-0" role="group" aria-label="Render style">
 				<button
 					type="button" class="segment" :class="{'is-active': props.renderMode === RENDER_STUDIO}"
 					:aria-pressed="props.renderMode === RENDER_STUDIO"
-					:title="t('Lit walls, image-based environment, filmic tone mapping')"
+					title="Lit walls, image-based environment, filmic tone mapping"
 					@click="emit('set-render-mode', RENDER_STUDIO)">
-					{{ t('Studio') }}
+					Studio
 				</button>
 				<button
 					type="button" class="segment" :class="{'is-active': props.renderMode !== RENDER_STUDIO}"
 					:aria-pressed="props.renderMode !== RENDER_STUDIO"
-					:title="t('The unlit look this app shipped with through 1.0.0')"
+					title="The unlit look this app shipped with through 1.0.0"
 					@click="emit('set-render-mode', RENDER_CLASSIC)">
-					{{ t('Classic') }}
+					Classic
 				</button>
 			</div>
 		</div>
