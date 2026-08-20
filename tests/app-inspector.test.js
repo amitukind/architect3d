@@ -30,6 +30,7 @@ import OpeningInspector from '../src/app/inspector/OpeningInspector.vue';
 import StairInspector from '../src/app/inspector/StairInspector.vue';
 import StructureInspector from '../src/app/inspector/StructureInspector.vue';
 import App from '../src/app/App.vue';
+import {markTourSeen} from '../src/app/composables/useTour.js';
 
 import textures from '../src/catalog/textures.json';
 import materials from '../src/catalog/materials.json';
@@ -55,6 +56,12 @@ let pointerApis;
 beforeEach(() =>
 {
 	resetAll();
+	// This suite is not a first visit (RM-014 L2). A fresh jsdom has an empty
+	// `localStorage`, so every mount here would otherwise be offered the tour and
+	// its popover would be the first `[role="dialog"]` any query finds. The tour
+	// has its own suites; marking it seen is what a browser profile that has
+	// mounted the application twenty-five times would already have done.
+	markTourSeen();
 	document.body.innerHTML = '';
 	window.innerWidth = 1024;
 	window.innerHeight = 768;

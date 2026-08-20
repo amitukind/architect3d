@@ -14,6 +14,7 @@ import LevelSwitcher from './components/LevelSwitcher.vue';
 import SceneOverlay from './components/SceneOverlay.vue';
 import CatalogDrawer from './components/CatalogDrawer.vue';
 import ImportModelDialog from './components/ImportModelDialog.vue';
+import TourGuide from './components/TourGuide.vue';
 import ShortcutsDialog from './components/ShortcutsDialog.vue';
 import ProjectLibrary from './components/ProjectLibrary.vue';
 import ShareDialog from './components/ShareDialog.vue';
@@ -31,6 +32,8 @@ import {useProjects} from './composables/useProjects.js';
 import {useTemplates} from './composables/useTemplates.js';
 import {useShare} from './composables/useShare.js';
 import {useModelImport} from './composables/useModelImport.js';
+import {useTour} from './composables/useTour.js';
+import {helpUrl} from './tour/help.js';
 import {useOffline} from './composables/useOffline.js';
 import {useCatalog} from './composables/useCatalog.js';
 import {useDisplayUnit, syncDisplayUnit} from './composables/useDisplayUnit.js';
@@ -93,6 +96,7 @@ const catalog = useCatalog(store, selection.placementContext);
 const display = useDisplayUnit(store);
 const theme = useTheme(store);
 const workspace = useLayout();
+const tour = useTour(workspace);
 const history = useHistory(store);
 const zoom = useZoom2D(store);
 const levels = useLevels(store);
@@ -121,6 +125,14 @@ const renderMode = ref(renderProfile.mode);
 // tab and can be unmounted when a new viewer is built, and the stored eye height
 // has to reach that viewer either way (RM-011 H3).
 useWalkthrough(store);
+
+/**
+ * Where the help pages are for this deployment.
+ *
+ * Computed once rather than per render: the base is fixed at build time, and a
+ * link that changed between renders would be a bug rather than a feature.
+ */
+const help = helpUrl();
 
 const walkthrough = computed(() => camera.mode.value === MODE_WALKTHROUGH);
 const exterior = computed(() => camera.mode.value === MODE_EXTERIOR);
@@ -281,9 +293,16 @@ async function openShared()
 		history.reset();
 		markSaved();
 		frameDesign();
+		// Deliberately no tour. Somebody who arrived on a link came to look at a
+		// design, not to be introduced to a drawing tool they cannot draw in -
+		// the shared view is read-only until they keep a copy (RM-013 K2).
 		return;
 	}
-	offerDraft();
+	// Last, and after the draft has been offered, because a recovered draft is the
+	// loudest possible evidence that this browser has been used before - and the
+	// application is the thing that knows, not the storage (RM-014 L2).
+	const draft = await offerDraft();
+	tour.offer(draft || projects.projects.value.length > 0);
 }
 
 /**
@@ -329,12 +348,13 @@ async function adoptShared()
 	}
 }
 
+/** @returns {Promise<boolean>} whether a draft was found. */
 async function offerDraft()
 {
 	const draft = await readDraft(Date.now());
 	if (!draft)
 	{
-		return;
+		return false;
 	}
 
 	const message = draft.recovery === RECOVERY_LOST_TAIL
@@ -355,6 +375,7 @@ async function offerDraft()
 			},
 		},
 	});
+	return true;
 }
 
 /**
@@ -921,6 +942,7 @@ useShortcuts(() => bindings.value);
 	<TooltipProvider :delay-duration="260" :skip-delay-duration="240">
 		<div id="app-shell" class="flex h-screen w-screen flex-col overflow-hidden bg-ground text-ink">
 			<TopBar
+				:help-url="help"
 				:layout="workspace.layout.value"
 				:theme="theme.theme.value"
 				:unit="display.unit.value"
@@ -943,6 +965,7 @@ useShortcuts(() => bindings.value);
 				@save-panorama="io.savePanorama"
 				@save-plan-png="io.savePlanPNG"
 				@print-plan="io.printPlan"
+				@start-tour="tour.start"
 				@undo="undo"
 				@redo="redo"
 				@set-layout="workspace.setLayout"
@@ -1006,6 +1029,7 @@ useShortcuts(() => bindings.value);
 								:spacing="zoom.spacing.value"
 								:spacings="zoom.gridSpacings"
 								:mode="editor.mode.value"
+								:walls="stats.walls.value"
 								:angle-snap="editor.angleSnap.value"
 								:draw-target="editor.drawTarget.value"
 								:unit="display.unit.value"
@@ -1084,6 +1108,17 @@ useShortcuts(() => bindings.value);
 			@add-item="onAddItem"
 			@prefetch-item="assets.prefetchItem"
 			@import-model="importOpen = true" />
+
+		<TourGuide
+			:open="tour.open.value"
+			:step="tour.step.value"
+			:index="tour.index.value"
+			:total="tour.total"
+			:first="tour.first.value"
+			:last="tour.last.value"
+			@next="tour.next"
+			@back="tour.back"
+			@skip="tour.skip" />
 
 		<ImportModelDialog
 			v-model:open="importOpen"

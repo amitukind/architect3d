@@ -50,6 +50,7 @@
 		"icons": "node tools/render-icons.mjs",
 		"icons:check": "node tools/render-icons.mjs --check",
 		"offline:check": "node tools/check-offline.mjs",
+		"help:check": "node tools/check-help.mjs",
 		"templates": "node tools/make-templates.mjs",
 		"templates:check": "node tools/make-templates.mjs --check",
 		"catalog": "node tools/split-catalog.mjs",

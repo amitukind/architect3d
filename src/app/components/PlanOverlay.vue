@@ -38,6 +38,15 @@ const props = defineProps({
 		required: true,
 	},
 	mode: {type: Number, required: true},
+	/**
+	 * How many walls the current storey has (RM-014 L2).
+	 *
+	 * Only ever compared with zero. A plan with nothing on it is the one state
+	 * where the application has no idea what a person is looking at and neither
+	 * do they, and it is reachable in one gesture - delete the four walls it
+	 * starts with.
+	 */
+	walls: {type: Number, default: 0},
 	angleSnap: {type: Boolean, default: false},
 	drawTarget: {
 		/**
@@ -141,6 +150,18 @@ function commitTyped(place)
 </script>
 
 <template>
+	<!-- The empty plan, which nothing used to say anything about. Above the
+	     controls rather than inside them, because it is about the whole surface. -->
+	<div
+		v-if="props.walls === 0" data-testid="empty-plan"
+		class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-6">
+		<p class="max-w-[36ch] text-center text-[13px] leading-relaxed text-ink-faint">
+			<strong class="block text-ink">Nothing drawn yet</strong>
+			Press <kbd>W</kbd> and drag to draw a wall, or <kbd>R</kbd> to draw a whole room at once.
+			<kbd>Ctrl</kbd>+<kbd>Z</kbd> brings back anything you deleted.
+		</p>
+	</div>
+
 	<div class="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-2 p-3">
 		<div class="glass pointer-events-auto flex items-center gap-0.5 p-1">
 			<AppTip label="Zoom out" keys="-" side="top" :delay="0">

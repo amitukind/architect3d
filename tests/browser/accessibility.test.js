@@ -35,6 +35,7 @@ import axe from 'axe-core';
 
 import App from '../../src/app/App.vue';
 import {LAYOUT_PLAN, LAYOUT_SPLIT, LAYOUT_VIEW} from '../../src/app/composables/useLayout.js';
+import {markTourSeen} from '../../src/app/composables/useTour.js';
 
 /** The two drawing surfaces, which have no text alternative worth inventing. */
 const EXCLUDED = [['#floorplanner-canvas'], ['#viewer']];
@@ -68,6 +69,10 @@ async function analyse()
 beforeEach(async () =>
 {
 	window.localStorage.clear();
+	// A cleared store is a first visit, so every mount here would open the tour
+	// (RM-014 L2). Its own case below turns it back on deliberately; the rest of
+	// this file is about the shell without it.
+	markTourSeen();
 	const root = document.createElement('div');
 	root.id = 'app-root';
 	document.body.appendChild(root);
@@ -117,6 +122,24 @@ describe('the application is accessible', () =>
 		);
 		const found = summarise(results.violations);
 		expect(found, `unnamed controls:\n  ${found.join('\n  ')}`).toEqual([]);
+	});
+
+	it('stays accessible with the first-run tour open, on every step', async () =>
+	{
+		// A popover over a non-modal shell is exactly where a focus scope goes
+		// wrong - RM-013 K2 found that once already with the credits dialog over
+		// the catalog drawer - and the tour is the first thing a new person sees.
+		const tour = wrapper.vm.$.setupState.tour;
+		tour.start();
+		for (let step = 0; step < tour.total; step++)
+		{
+			await nextTick();
+			await new Promise((resolve) => setTimeout(resolve, 260));
+			const found = await analyse();
+			expect(found, `axe violations on tour step ${step + 1}:\n  ${found.join('\n  ')}`).toEqual([]);
+			if (step < tour.total - 1) { tour.next(); }
+		}
+		tour.skip();
 	});
 
 	it('keeps the catalog drawer accessible when it is open', async () =>

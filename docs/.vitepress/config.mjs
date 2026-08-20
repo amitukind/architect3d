@@ -40,6 +40,11 @@ export default defineConfig({
 
 	themeConfig: {
 		nav: [
+			// First, and deliberately: RM-014 Z-7 found five pages in this site and
+			// every one of them written for somebody integrating the library. The
+			// people who arrive here from the application itself are not those
+			// people, and the first nav entry is now theirs.
+			{text: 'Using the planner', link: '/using/'},
 			{text: 'Guide', link: '/getting-started'},
 			{text: 'Architecture', link: '/architecture'},
 			{text: 'Reference', items: [
@@ -51,7 +56,16 @@ export default defineConfig({
 
 		sidebar: [
 			{
-				text: 'Guide',
+				text: 'Using the planner',
+				items: [
+					{text: 'Using the planner', link: '/using/'},
+					{text: 'Drawing a plan', link: '/using/drawing'},
+					{text: 'Furnishing a room', link: '/using/furnishing'},
+					{text: 'Keeping and sharing', link: '/using/keeping'},
+				],
+			},
+			{
+				text: 'Building with the library',
 				items: [
 					{text: 'Getting started', link: '/getting-started'},
 					{text: 'Architecture', link: '/architecture'},

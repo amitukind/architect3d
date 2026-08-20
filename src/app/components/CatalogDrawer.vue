@@ -170,6 +170,39 @@ function matches(item, needle)
 		|| (item.tags || []).some((tag) => tag === needle);
 }
 
+/**
+ * Why there is nothing to show, said in the terms the person is in (RM-014 L2).
+ *
+ * This block used to be one line - `Nothing matches "{{ query }}"` - and with a
+ * shortlist selected and no query it read <em>Nothing matches ""</em>, which is
+ * both untrue and unhelpful. An empty state is where somebody is most likely to
+ * be lost, so it is the one place a message has to know which emptiness it is.
+ */
+const emptyReason = computed(function ()
+{
+	if (query.value.trim())
+	{
+		return `Nothing matches “${query.value.trim()}”.`;
+	}
+	if (activeList.value === 'favourites')
+	{
+		// "Starred", because that is what the chip above says. An empty state that
+		// renames the thing it is about is the second way to lose somebody.
+		return 'Nothing starred yet. The star on any tile keeps it here, so the six things you '
+			+ 'use in every room are one click away.';
+	}
+	if (activeList.value === 'recent')
+	{
+		return 'Nothing here yet from what you have placed. Recent items appear once the kit '
+			+ 'they came from has loaded.';
+	}
+	if (activeRoom.value)
+	{
+		return `Nothing filed under ${activeRoom.value} in what has loaded so far.`;
+	}
+	return 'Nothing to show here.';
+});
+
 /** The room chips, with what each would show, so an empty one can be dimmed. */
 const roomCounts = computed(function ()
 {
@@ -383,8 +416,10 @@ watch(() => props.open, async function (open)
 					<p v-if="loading && !results.length" class="py-8 text-center text-ink-faint">
 						Fetching the catalog…
 					</p>
-					<p v-else-if="!results.length" class="py-8 text-center text-ink-faint">
-						Nothing matches “{{ query }}”.
+					<p
+						v-else-if="!results.length" data-testid="catalog-empty"
+						class="mx-auto max-w-[34ch] py-8 text-center leading-relaxed text-ink-faint">
+						{{ emptyReason }}
 					</p>
 
 					<ul v-else class="grid grid-cols-2 gap-2">

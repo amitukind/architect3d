@@ -30,6 +30,7 @@ import {nextTick} from 'vue';
 import {flushPromises, mount} from '@vue/test-utils';
 
 import App from '../src/app/App.vue';
+import {markTourSeen} from '../src/app/composables/useTour.js';
 import {Main} from '../src/scripts/three/main.js';
 import {floorplannerModes} from '../src/scripts/floorplanner/floorplanner_view.js';
 import {Dimensioning} from '../src/scripts/blueprint.js';
@@ -89,10 +90,18 @@ function realLeaks()
  * `localStorage` is cleared first: useLayout and useTheme both persist, and a
  * test that left the workspace in split mode would otherwise decide the boot
  * state of the next one.
+ *
+ * And then the tour is marked seen, in that order (RM-014 L2). A cleared store
+ * is a first visit by definition, so every mount here would be offered the tour
+ * and its popover would be the first `[role="dialog"]` any query in this file
+ * finds - a few ticks after the mount, which is worse than immediately. The
+ * tour has its own suites; this is what a browser profile that has mounted the
+ * application twenty-five times would already have recorded.
  */
 async function mountApp()
 {
 	window.localStorage.clear();
+	markTourSeen();
 	const wrapper = mount(App, {attachTo: document.body});
 	await nextTick();
 	return wrapper;

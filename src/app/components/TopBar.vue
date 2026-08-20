@@ -4,7 +4,7 @@ import {PopoverRoot, PopoverTrigger, PopoverPortal, PopoverContent} from 'reka-u
 import {
 	FilePlus2, FolderOpen, Save, Undo2, Redo2, Box, Share2, Printer, Camera, Globe,
 	Image as ImageIcon, LibraryBig, Link2, Package,
-	Moon, Sun, Keyboard, PanelRight, ChevronDown, Ruler,
+	Moon, Sun, Keyboard, PanelRight, ChevronDown, Ruler, CircleQuestionMark, Compass, BookOpen,
 } from '@lucide/vue';
 
 import AppTip from './AppTip.vue';
@@ -36,6 +36,14 @@ import {THEME_DARK} from '../composables/useTheme.js';
  */
 
 const props = defineProps({
+	/**
+	 * Where the help pages are, resolved against this deployment's base.
+	 *
+	 * A prop rather than an import, because the base is a deployment fact and a
+	 * top bar should not know one. `src/app/tour/help.js` computes it and
+	 * `tools/check-help.mjs` checks that what it points at exists.
+	 */
+	helpUrl: {type: String, required: true},
 	layout: {type: String, required: true},
 	theme: {type: String, required: true},
 	unit: {type: String, required: true},
@@ -76,7 +84,7 @@ const emit = defineEmits([
 	'new-design', 'open-design', 'save-design', 'save-mesh', 'save-gltf', 'save-bundle',
 	'save-photo', 'save-panorama', 'save-plan-svg', 'save-plan-png', 'print-plan',
 	'undo', 'redo', 'set-layout', 'set-unit', 'toggle-theme',
-	'toggle-inspector', 'show-shortcuts', 'show-library', 'show-share',
+	'toggle-inspector', 'show-shortcuts', 'show-library', 'show-share', 'start-tour',
 ]);
 
 /**
@@ -125,7 +133,7 @@ function onUnitChange(event)
 </script>
 
 <template>
-	<header class="relative z-[300] flex h-12 flex-none items-center gap-1 border-b border-line bg-surface px-2.5">
+	<header id="top-bar" class="relative z-[300] flex h-12 flex-none items-center gap-1 border-b border-line bg-surface px-2.5">
 		<!-- identity -->
 		<div class="mr-1 flex items-center gap-2 pr-2">
 			<span class="grid h-6 w-6 place-items-center rounded-md bg-accent text-accent-ink">
@@ -283,6 +291,33 @@ function onUnitChange(event)
 					<Keyboard :size="15" />
 				</button>
 			</AppTip>
+
+			<!-- The tour's last step points here, so somebody who skipped it can
+			     find it again. That is the whole reason it is a visible control and
+			     not only something that happens on a first boot (RM-014 L2). -->
+			<PopoverRoot>
+				<PopoverTrigger as-child>
+					<button id="help-button" type="button" class="btn btn-icon" title="Help">
+						<CircleQuestionMark :size="15" />
+					</button>
+				</PopoverTrigger>
+				<PopoverPortal>
+					<PopoverContent
+						side="bottom" align="end" :side-offset="6"
+						class="a3d-pop z-[600] w-56 rounded-panel border border-line bg-overlay p-1 shadow-float">
+						<p class="eyebrow px-2 py-1.5">Help</p>
+						<button type="button" class="btn w-full justify-start" @click="emit('start-tour')">
+							<Compass :size="15" /> Take the tour
+						</button>
+						<a class="btn w-full justify-start" :href="props.helpUrl" target="_blank" rel="noopener noreferrer">
+							<BookOpen :size="15" /> How to use this
+						</a>
+						<button type="button" class="btn w-full justify-start" @click="emit('show-shortcuts')">
+							<Keyboard :size="15" /> Keyboard shortcuts
+						</button>
+					</PopoverContent>
+				</PopoverPortal>
+			</PopoverRoot>
 			<AppTip :label="props.inspectorOpen ? 'Hide inspector' : 'Show inspector'" keys="mod+.">
 				<button
 					type="button" class="btn btn-icon" :class="{'is-active': props.inspectorOpen}"

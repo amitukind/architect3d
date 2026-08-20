@@ -151,6 +151,43 @@ export function installPointerApis(window)
  *
  * @returns {{instances: Array, trigger: Function, liveCount: Function, restore: Function}}
  */
+/**
+ * jsdom has no `IntersectionObserver`, and Reka's popovers need one.
+ *
+ * Added by RM-014 L2, which is the first suite to mount a `PopoverRoot` under
+ * jsdom: Floating UI's auto-update watches the anchor with one, and without it
+ * the component throws on mount rather than degrading. Nothing here is
+ * asserted on - the observer never fires, which is the honest behaviour for a
+ * layout engine that never lays anything out.
+ *
+ * @param {*} window
+ * @returns {{restore: Function}}
+ */
+export function installIntersectionObserver(window)
+{
+	const original = window.IntersectionObserver;
+
+	class TestIntersectionObserver
+	{
+		constructor(callback) {this.callback = callback;}
+		observe() {}
+		unobserve() {}
+		disconnect() {}
+		takeRecords() {return [];}
+	}
+
+	window.IntersectionObserver = TestIntersectionObserver;
+	globalThis.IntersectionObserver = TestIntersectionObserver;
+
+	return {
+		restore()
+		{
+			window.IntersectionObserver = original;
+			globalThis.IntersectionObserver = original;
+		},
+	};
+}
+
 export function installResizeObserver(window)
 {
 	const original = window.ResizeObserver;
