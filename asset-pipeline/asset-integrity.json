@@ -577,6 +577,14 @@
 		"rooms/thumbnails/thumbnail_light_fine_wood.jpg": "sha256-wulpRdruK9mG2VwY3RWtpY0KeSR8OxGpGFZOUjf2EL0=",
 		"rooms/thumbnails/thumbnail_marbletiles.jpg": "sha256-VSB3yAbsTmLrgYveQS6eoRejANxnRHuao22IDUcYlzw=",
 		"rooms/thumbnails/thumbnail_wallmap.png": "sha256-o0Wx0kT+q6qSpDlSBaVA6K3xTqcPeCD/CmcaankuKJ4=",
-		"rooms/thumbnails/thumbnail_wallmap_yellow.png": "sha256-oJHN6x+/NI5NwquZMwIsCs7s+Q705gmm8fntfxmCWgw="
+		"rooms/thumbnails/thumbnail_wallmap_yellow.png": "sha256-oJHN6x+/NI5NwquZMwIsCs7s+Q705gmm8fntfxmCWgw=",
+		"templates/duplex.blueprint3d": "sha256-9eB5xNYd4HpN41NVjwry0GMW5ly7/4RdW+AWDPwBXIg=",
+		"templates/manifest.json": "sha256-+vGcu5ycJQlip/dMJjxq5lcjpZR8helD+Rof054To34=",
+		"templates/one-bedroom.blueprint3d": "sha256-m2+RQ6wiaYwEB7E3zHYHMEBdaM6GWYFStD+uSnBhZQA=",
+		"templates/sample-studio.blueprint3d": "sha256-2mOjjcOUdfxgpVNK7l5on203nbYbEowIFX20V5VNNb8=",
+		"templates/sample-two-bedroom.blueprint3d": "sha256-HGbq3aFpefV3wM8OdBiQUQYP0o6wXNEy5OaUCyobWGI=",
+		"templates/studio.blueprint3d": "sha256-t7t0SRDilRMRcaJJ12OUu/TgvGdvqeYvAkD762v3Y/Y=",
+		"templates/three-bedroom.blueprint3d": "sha256-26EDKPzkvWhg97LDH0OxxmVP/8dIW/vWeYwXyyB99mY=",
+		"templates/two-bedroom.blueprint3d": "sha256-jrKGpeaikHpX0yy86tbsnPxQocCqzSuXoGOcfcrrRgU="
 	}
 }

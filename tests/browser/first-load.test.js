@@ -38,6 +38,8 @@ import {mount} from '@vue/test-utils';
 import App from '../../src/app/App.vue';
 import materials from '../../src/catalog/materials.json';
 import {PACKS, loadCatalogPacks, resetCatalogPacks} from '../../src/app/composables/useCatalog.js';
+import {TEMPLATE_MANIFEST_URL, loadTemplateManifest, resetTemplates}
+	from '../../src/app/composables/useTemplates.js';
 
 let wrapper;
 
@@ -57,6 +59,7 @@ beforeEach(async () =>
 	// below would measure whether this file's cases ran in order rather than what
 	// a boot does.
 	resetCatalogPacks();
+	resetTemplates();
 	performance.clearResourceTimings();
 	wrapper = mount(App, {attachTo: document.body});
 	await nextTick();
@@ -165,5 +168,52 @@ describe('M-43 - a boot fetches no pack', () =>
 
 		const packs = fetched().filter((path) => path.includes('/catalog/'));
 		expect(packs.length).toBe(4);
+	});
+});
+
+/**
+ * M-47 - a boot fetches no starter plan (RM-013 K1, finding Y-5).
+ *
+ * The same sentence M-43 makes about packs, about a different directory, and
+ * for the same reason: whether content is in the payload is not a question a
+ * file listing can answer. Five distinct furnished plans gzip to 4,050 bytes
+ * against 9,849 of `first-load` headroom - they FIT, which is exactly why an
+ * assertion is needed. A build that bundled them and one that fetched them look
+ * the same on disk and both stay inside the budget; the difference is whether
+ * every visitor downloads a studio flat they never asked to see.
+ *
+ * The shelf is behind a click, unlike the catalog drawer, whose first screen J1
+ * had to keep bundled - so a boot should not even fetch the manifest.
+ */
+describe('M-47 - a boot fetches no starter plan', () =>
+{
+	it('asks for no template file at all', () =>
+	{
+		const templates = fetched().filter((path) => path.includes('/templates/'));
+		expect(templates, `a boot fetched ${templates.length} template files:\n  ${templates.join('\n  ')}`)
+			.toEqual([]);
+	});
+
+	it('does not even fetch the manifest, because nothing shows before a click', () =>
+	{
+		const asked = new Set(fetched());
+		expect(asked.has(`/${TEMPLATE_MANIFEST_URL}`) || asked.has(TEMPLATE_MANIFEST_URL)).toBe(false);
+	});
+
+	it('fetches them when they are asked for, and once', async () =>
+	{
+		const entries = await loadTemplateManifest();
+		const first = fetched().filter((path) => path.includes('/templates/')).length;
+		await loadTemplateManifest();
+		const second = fetched().filter((path) => path.includes('/templates/')).length;
+
+		// Five starter plans and two furnished samples, from one fetch that is
+		// memoised for the life of the page.
+		expect(entries.map((entry) => entry.id)).toEqual([
+			'studio', 'one-bedroom', 'two-bedroom', 'three-bedroom', 'duplex',
+			'sample-studio', 'sample-two-bedroom',
+		]);
+		expect(first).toBe(1);
+		expect(second).toBe(1);
 	});
 });

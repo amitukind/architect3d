@@ -2521,6 +2521,38 @@
 		"rooms/thumbnails/thumbnail_wallmap_yellow.png": {
 			"bytes": 1005,
 			"kind": "thumbnail"
+		},
+		"templates/duplex.blueprint3d": {
+			"bytes": 8491,
+			"kind": "document"
+		},
+		"templates/manifest.json": {
+			"bytes": 1766,
+			"kind": "document"
+		},
+		"templates/one-bedroom.blueprint3d": {
+			"bytes": 5057,
+			"kind": "document"
+		},
+		"templates/sample-studio.blueprint3d": {
+			"bytes": 7479,
+			"kind": "document"
+		},
+		"templates/sample-two-bedroom.blueprint3d": {
+			"bytes": 10895,
+			"kind": "document"
+		},
+		"templates/studio.blueprint3d": {
+			"bytes": 4101,
+			"kind": "document"
+		},
+		"templates/three-bedroom.blueprint3d": {
+			"bytes": 7501,
+			"kind": "document"
+		},
+		"templates/two-bedroom.blueprint3d": {
+			"bytes": 6538,
+			"kind": "document"
 		}
 	}
 }

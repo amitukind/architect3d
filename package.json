@@ -47,6 +47,8 @@
 		"parity": "node tools/capture-parity.mjs",
 		"manifest": "node tools/make-asset-manifest.mjs",
 		"manifest:check": "node tools/make-asset-manifest.mjs --check",
+		"templates": "node tools/make-templates.mjs",
+		"templates:check": "node tools/make-templates.mjs --check",
 		"catalog": "node tools/split-catalog.mjs",
 		"catalog:check": "node tools/split-catalog.mjs --check",
 		"catalog:cost": "node tools/catalog-cost.mjs",

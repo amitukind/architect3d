@@ -875,6 +875,23 @@
 			"limit": 26250000,
 			"measured": 20999541
 		},
+		"templates": {
+			"limit": 9220,
+			"measured": 8774,
+			"note": [
+				"RM-013 K1, the fourteenth line. Seven starter plans and their manifest,",
+				"gzipped, served from public/templates/ and fetched only when somebody opens",
+				"the shelf. Finding Y-5 is why they are out here: five distinct furnished",
+				"plans gzip to 4,050 bytes against 9,849 of first-load headroom, so they fit",
+				"and would take 41% of the thinnest line in this file for content most",
+				"visitors never open.",
+				"",
+				"Set at the first measurement with the usual ~5% headroom. It is deliberately",
+				"tight, because the failure mode this line exists to catch is a shelf of seven",
+				"quietly becoming a shelf of seventy - and the right response to that is a",
+				"raise with a reason, not a number nobody noticed moving."
+			]
+		},
 		"first-load": {
 			"limit": 421400,
 			"measured": 411551

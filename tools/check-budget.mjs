@@ -517,6 +517,30 @@ function catalogBundledBytes()
  *
  * @returns {?number} Gzipped bytes.
  */
+/**
+ * What the starter plans cost, once somebody asks for them (RM-013 K1, Y-5).
+ *
+ * The fourteenth line, and the same shape as `catalog-packs` above: content
+ * that is deliberately NOT in the payload still costs somebody a download, and
+ * a number nobody watches is how a shelf of seven becomes a shelf of seventy.
+ *
+ * Gzipped, because the manifest and the documents are served as text and every
+ * host on earth compresses those. Y-5 measured five distinct furnished plans at
+ * 4,050 gzipped bytes against 9,849 of `first-load` headroom, which is the
+ * arithmetic that put them out here rather than in the bundle.
+ */
+function templateBytes()
+{
+	const dir = 'public/templates';
+	if (!existsSync(dir))
+	{
+		return null;
+	}
+	return readdirSync(dir)
+		.filter((name) => extname(name) === '.json' || name.endsWith('.blueprint3d'))
+		.reduce((sum, name) => sum + gzipSync(readFileSync(join(dir, name)), {level: 9}).length, 0);
+}
+
 function catalogPackBytes()
 {
 	const dir = 'public/catalog';
@@ -768,6 +792,11 @@ const MEASUREMENTS = [
 	// first open. See catalogPackBytes.
 	{key: 'catalog-packs', label: 'Catalog packs (gzip)', needs: null,
 		measure: () => catalogPackBytes()},
+	// The fourteenth, added by RM-013 K1 for the same reason the thirteenth
+	// exists: the starter plans are out of the bundle on Y-5's arithmetic, and
+	// what leaves the payload still has to be counted somewhere.
+	{key: 'templates', label: 'Starter plans (gzip)', needs: null,
+		measure: () => templateBytes()},
 	// The eleventh line, added by RM-011 H1 (M-43). Every other entry here asks
 	// what something weighs; this one asks what a person waits for.
 	{key: 'first-load', label: 'First load (gzip)', needs: 'build:demo',
