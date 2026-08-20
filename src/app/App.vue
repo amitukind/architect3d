@@ -417,11 +417,25 @@ function applyLayoutToCamera(next)
 	// blocking the layout change on a network fetch would leave the workspace
 	// mid-transition with nothing on screen.
 	store.ensureViewer();
-	// Except when the exterior view asked for the layout in the first place
-	// (RM-010 G3). `toggleExterior` sets LAYOUT_VIEW and then frames the
-	// building; without this the watcher fires in between and `showDesign()`
-	// puts the mode straight back, so the button lit up and nothing moved.
-	if (camera.mode.value === MODE_EXTERIOR)
+	// Except when the camera asked for this layout in the first place.
+	//
+	// RM-010 G3 wrote this guard for the exterior view: `toggleExterior` sets
+	// LAYOUT_VIEW and then frames the building, and without it the watcher fires
+	// in between and `showDesign()` puts the mode straight back, so the button
+	// lit up and nothing moved.
+	//
+	// It was written for one of the two modes that arrange their own layout, and
+	// RM-016 N2 found the other one broken in exactly the way that paragraph
+	// describes. Traced from the default layout: `showWalkthrough` sets
+	// `walkthrough`, the mode watcher below moves the layout to VIEW, this
+	// watcher then runs and calls `showDesign()`. So the first press of Walk
+	// through from the plan-only layout - which is the layout everybody starts
+	// in - left a person in the orbit view, and a second press worked, because by
+	// then the layout was already VIEW and nothing re-entered here.
+	//
+	// The guard is about the class rather than the instance now: a camera mode
+	// that carries its own layout is not a camera mode this watcher may override.
+	if (camera.mode.value === MODE_EXTERIOR || camera.mode.value === MODE_WALKTHROUGH)
 	{
 		return;
 	}

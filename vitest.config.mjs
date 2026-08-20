@@ -242,10 +242,77 @@ export default defineConfig({
 				// floorplanner six, and every one of them is called by the suite that
 				// arrived with it. Lines and statements gained fractions (87.35 ->
 				// 87.78, 87.33 -> 87.77) and stay where they are.
-				lines: 87,
-				statements: 87,
-				branches: 79,
-				functions: 86,
+				//
+				// RM-016 N2 moved all four, and the sprint's whole subject was where
+				// they were NOT: 89.07 lines, 89.00 statements, 80.88 branches, 87.66
+				// functions. Three suites arrived - the starter-plan shelf, the export
+				// verbs' refusals, and the buttons and keys of App.vue - and between
+				// them they took the three thinnest files in the tree from 37.3, 39.2
+				// and 27.3 % branch coverage to 64.5, 70.0 and 84.1.
+				lines: 89,
+				statements: 89,
+				branches: 80,
+				functions: 87,
+
+				/**
+				 * A floor per directory (RM-016 N2, M-57, finding AB-4).
+				 *
+				 * ## What one number over an unequal tree measures
+				 *
+				 * The biggest part of it. `src/scripts` is two thirds of the 13,636
+				 * statements here, and it has been well covered since the
+				 * characterization suites of RM-002 - so the four figures above have
+				 * been describing the library and calling it the tree. AB-4 measured
+				 * what that hid: `src/scripts/model` at 87.5 % branch coverage beside
+				 * `App.vue` at 37.3, `useDesignIO` at 39.2 and `useTemplates` at 27.3.
+				 * Every covered statement in `App.vue` could have disappeared and the
+				 * global figure would have fallen 0.99 points, which is inside the
+				 * headroom the floor already had: the build would have stayed green
+				 * while the boot went untested.
+				 *
+				 * The three files it named are the boot, the export verbs and the
+				 * starter-plan shelf - which is to say, very nearly a description of
+				 * somebody's first ten minutes.
+				 *
+				 * ## How these are set, and what they are not
+				 *
+				 * Each is the largest multiple of five STRICTLY BELOW the first
+				 * measurement - the same never-lowered contract the four above have
+				 * and have never once broken, with the margin stated rather than
+				 * hoped for. Five rather than one because a directory is a smaller
+				 * sample than a tree and moves further on one merged file; strictly
+				 * below because two of these measured exactly 75.00 and 90.00, and a
+				 * floor a green build sits precisely on is a red mark somebody learns
+				 * to re-run rather than read. RM-016 N1 learned that about a
+				 * Lighthouse floor four days ago; this is the same rule.
+				 *
+				 * They are floors per DIRECTORY and not per file. A per-file floor is
+				 * a number nobody can move without touching every file in a refactor,
+				 * and `perFile: true` above would apply the global four that way,
+				 * which is not what is wanted here. A directory that genuinely cannot
+				 * be covered gets an `exclude` entry with a reason, which is what this
+				 * file has asked for since RM-002 rather than a lowered number.
+				 *
+				 * Branches only, deliberately. It is the lowest of the four
+				 * everywhere, it is the one that distinguishes "this line ran" from
+				 * "this decision was tested", and four numbers per directory would be
+				 * sixty-eight numbers nobody reads.
+				 */
+				'src/app/*.{js,vue}': {branches: 60},
+				'src/app/components/**': {branches: 80},
+				'src/app/composables/**': {branches: 70},
+				'src/app/import/**': {branches: 90},
+				'src/app/inspector/**': {branches: 80},
+				'src/app/offline/**': {branches: 90},
+				'src/app/persistence/**': {branches: 80},
+				'src/app/share/**': {branches: 85},
+				'src/app/tour/**': {branches: 85},
+				'src/scripts/*.js': {branches: 85},
+				'src/scripts/core/**': {branches: 85},
+				'src/scripts/floorplanner/**': {branches: 75},
+				'src/scripts/items/**': {branches: 75},
+				'src/scripts/model/**': {branches: 85},
+				'src/scripts/three/**': {branches: 70},
 			},
 		},
 	},

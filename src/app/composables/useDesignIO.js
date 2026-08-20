@@ -321,17 +321,51 @@ export function useDesignIO(store, options)
 		}
 	}
 
+	/**
+	 * The two verbs that read the document straight out, and the guard RM-016 N2
+	 * gave them.
+	 *
+	 * Every other verb in this file declines with a sentence when the thing it
+	 * needs is absent - "There is no plan view to export", "There is no 3D view
+	 * to photograph". These two dereferenced `store.model.value` unconditionally
+	 * and threw a TypeError instead, which N2 found by writing the case that
+	 * asserts the family behaves the same way.
+	 *
+	 * It is a defensive guard rather than a bug fix: the menu that carries these
+	 * lives inside the component tree that owns the store, so the model is
+	 * non-null whenever the button exists. What is worth having is the
+	 * consistency - a person who reaches one of these in a state nobody
+	 * anticipated gets the same sentence the neighbouring verb would give them,
+	 * rather than a stack trace in a console they are not looking at.
+	 *
+	 * @returns {?Object} The model, or null having already said so.
+	 */
+	function documentOr(refusal)
+	{
+		var model = store.model.value;
+		if (!model)
+		{
+			fail(refusal);
+			return null;
+		}
+		return model;
+	}
+
 	function saveDesign()
 	{
+		var model = documentOr('There is no design to save.');
+		if (!model) { return; }
 		var name = `${fileNameFor(documentName.value)}.blueprint3d`;
-		download(store.model.value.exportSerialized(), name, 'text/plain');
+		download(model.exportSerialized(), name, 'text/plain');
 		toasts.success(`Saved ${name}`);
 	}
 
 	function saveMesh()
 	{
+		var model = documentOr('There is no design to export.');
+		if (!model) { return; }
 		var name = `${fileNameFor(documentName.value)}.obj`;
-		download(store.model.value.exportMeshAsObj(), name, 'text/plain');
+		download(model.exportMeshAsObj(), name, 'text/plain');
 		toasts.success(`Exported ${name}`);
 	}
 

@@ -31,7 +31,7 @@ import {createBlueprintStore} from '../src/app/composables/useBlueprint.js';
 import {useSelection, SELECTION_ITEM, SELECTION_WALL, SELECTION_FLOOR, SELECTION_CORNER_2D} from '../src/app/composables/useSelection.js';
 import {useCameraViews, MODE_FLOORPLAN, MODE_DESIGN, MODE_WALKTHROUGH} from '../src/app/composables/useCameraViews.js';
 import {useFloorplannerMode} from '../src/app/composables/useFloorplannerMode.js';
-import {useDesignIO} from '../src/app/composables/useDesignIO.js';
+import {useDesignIO, fileNameFor} from '../src/app/composables/useDesignIO.js';
 import {useWalkthrough} from '../src/app/composables/useWalkthrough.js';
 import {useCatalog, loadCatalogDetail, loadCatalogPacks} from '../src/app/composables/useCatalog.js';
 import {diskFetch, loadCatalogFromDisk, resetCatalogPacks} from './helpers/catalog.js';
@@ -1119,6 +1119,200 @@ describe('useDesignIO', () =>
 
 		expect(downloads).toHaveLength(0);
 		expect(io.lastError.value).toContain('nothing on the plan');
+	});
+
+	/**
+	 * Every way an export can decline, and every one of them is a first-session
+	 * path (RM-016 N2, finding AB-4).
+	 *
+	 * AB-4 measured this file at 39.2 % branch coverage and named why it matters:
+	 * these are the export verbs, they are what somebody reaches for in the first
+	 * ten minutes, and the untested half of them is the half that says no. A
+	 * browser that will not encode a PNG, a plan with nothing drawn on it, a
+	 * document that will not parse, a print view the browser refuses to open -
+	 * each one is a sentence a person reads, and until now not one of those
+	 * sentences had ever been produced by a test.
+	 *
+	 * They are grouped rather than scattered because they share a shape: the verb
+	 * declines, `lastError` says why in words somebody could act on, and nothing
+	 * is downloaded. The third clause is the one that would go unnoticed - a verb
+	 * that both fails and downloads an empty file is worse than one that only
+	 * fails.
+	 */
+	describe('when an export cannot happen', () =>
+	{
+		it('says there is no plan to export, rather than exporting nothing', () =>
+		{
+			store.unmount();
+
+			io.savePlanSVG(50);
+			io.savePlanPNG(1200);
+			io.printPlan(50);
+
+			expect(downloads).toEqual([]);
+			expect(io.lastError.value).toContain('no plan view');
+		});
+
+		it('says there is no design to write, rather than throwing (RM-016 N2)', () =>
+		{
+			// Written to assert that the two verbs which read the document straight
+			// out behave like their neighbours, and they did not: both dereferenced
+			// the model unconditionally and threw a TypeError. Defensive rather than
+			// a live bug - the menu lives inside the tree that owns the store - but
+			// a family of eight verbs where six say a sentence and two throw is a
+			// family with a hole in it.
+			store.unmount();
+
+			expect(() => io.saveDesign()).not.toThrow();
+			expect(io.lastError.value).toBe('There is no design to save.');
+			expect(() => io.saveMesh()).not.toThrow();
+			expect(io.lastError.value).toBe('There is no design to export.');
+			expect(downloads).toEqual([]);
+		});
+
+		it('says there is nothing drawn yet, which is not the same thing', () =>
+		{
+			// A plan view that exists over a floorplan with nothing on it. The
+			// distinction matters to the person reading it: one is a broken
+			// application and the other is an empty page.
+			blueprint.model.floorplan.reset();
+
+			io.savePlanPNG(1200);
+
+			expect(downloads).toEqual([]);
+			expect(io.lastError.value).toContain('nothing on the plan');
+		});
+
+		it('says so when the browser will not encode the plan as a PNG', async () =>
+		{
+			io.newDesign();
+			const original = window.HTMLCanvasElement.prototype.toBlob;
+			// jsdom has no encoder, so this is the honest simulation of a browser
+			// that cannot produce one - a canvas over the memory limit, or a
+			// tainted one.
+			window.HTMLCanvasElement.prototype.toBlob = function (callback) {callback(null);};
+			try
+			{
+				io.savePlanPNG(1200);
+				await nextTick();
+				expect(downloads).toEqual([]);
+				expect(io.lastError.value).toContain('could not encode the image');
+			}
+			finally
+			{
+				window.HTMLCanvasElement.prototype.toBlob = original;
+			}
+		});
+
+		it('says so when the browser will not open a print view', () =>
+		{
+			io.newDesign();
+			// An iframe whose contentDocument is null: a sandboxed frame, or a
+			// popup-blocked one. The frame must not be left in the document either,
+			// which is the half of this branch a message alone would not check.
+			const before = document.querySelectorAll('iframe').length;
+			const original = Object.getOwnPropertyDescriptor(
+				window.HTMLIFrameElement.prototype, 'contentDocument');
+			Object.defineProperty(window.HTMLIFrameElement.prototype, 'contentDocument',
+				{configurable: true, get: () => null});
+			try
+			{
+				io.printPlan(50);
+				expect(io.lastError.value).toContain('would not open a print view');
+				expect(document.querySelectorAll('iframe').length).toBe(before);
+			}
+			finally
+			{
+				if (original) { Object.defineProperty(window.HTMLIFrameElement.prototype, 'contentDocument', original); }
+			}
+		});
+
+		it('does nothing at all when no file was picked', async () =>
+		{
+			// The cancel button on the file dialog. Not an error: nothing was asked
+			// for, so nothing is said.
+			io.newDesign();
+			const before = blueprint.model.floorplan.getCorners().length;
+
+			await io.openDesign(null);
+
+			expect(io.lastError.value).toBeNull();
+			expect(blueprint.model.floorplan.getCorners().length).toBe(before);
+		});
+
+		it('names the file and the first problem when a document will not parse', async () =>
+		{
+			const before = blueprint.model.floorplan.getCorners().length;
+
+			await io.openDesign(new window.File(['{"floorplan":{"corners":"not an object"}}'],
+				'broken.blueprint3d', {type: 'application/json'}));
+
+			expect(io.lastError.value).toContain('Could not open broken.blueprint3d');
+			// RM-003 A1's guarantee: a refused load changes nothing on screen.
+			expect(blueprint.model.floorplan.getCorners().length).toBe(before);
+		});
+
+		it('names the file when it cannot be read at all', async () =>
+		{
+			// A file handle whose bytes have gone - the file was moved or deleted
+			// between the dialog and the read, which is a real thing on every
+			// desktop and impossible to distinguish from a disk error here.
+			const original = window.FileReader.prototype.readAsText;
+			window.FileReader.prototype.readAsText = function ()
+			{
+				setTimeout(() => this.onerror && this.onerror(new Event('error')), 0);
+			};
+			try
+			{
+				await io.openDesign(new window.File(['{}'], 'gone.blueprint3d'));
+				expect(io.lastError.value).toContain('Could not open gone.blueprint3d');
+			}
+			finally
+			{
+				window.FileReader.prototype.readAsText = original;
+			}
+		});
+
+		it('opens a file it can read but cannot fully vouch for, and says which', async () =>
+		{
+			// A document declaring units this build does not know. It opens - the
+			// coordinates are read as centimetres - and the warning is worth saying
+			// out loud, because the consequence is a plan at the wrong scale, which
+			// looks like a bug in the application rather than a property of the file.
+			const design = JSON.parse(DEFAULT_DESIGN);
+			design.floorplan.units = 'furlongs';
+
+			await io.openDesign(new window.File([JSON.stringify(design)], 'odd.blueprint3d'));
+
+			expect(io.lastError.value).toBeNull();
+			expect(blueprint.model.floorplan.getCorners().length).toBeGreaterThan(0);
+		});
+	});
+
+	/**
+	 * The name a download gets, which is the one piece of this a person sees
+	 * before they see the file.
+	 */
+	describe('the download name', () =>
+	{
+		it('keeps what somebody typed, and takes out only what a filesystem refuses', () =>
+		{
+			// Not a slug. `Loft conversion` is the file somebody wants.
+			expect(fileNameFor('Loft conversion')).toBe('Loft conversion');
+			expect(fileNameFor('kitchen/bath: v2?')).toBe('kitchen bath v2');
+			expect(fileNameFor('a\tb\u0001c')).toBe('a b c');
+		});
+
+		it('never produces a hidden file, and never produces an empty one', () =>
+		{
+			// A leading dot would hide the download on two of the three platforms.
+			expect(fileNameFor('.hidden')).toBe('hidden');
+			expect(fileNameFor('...')).toBe('design');
+			expect(fileNameFor('   ')).toBe('design');
+			expect(fileNameFor('')).toBe('design');
+			expect(fileNameFor(null)).toBe('design');
+			expect(fileNameFor(undefined)).toBe('design');
+		});
 	});
 
 	it('resolves the glTF export from the event, and removes its listener', async () =>
