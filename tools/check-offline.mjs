@@ -71,9 +71,28 @@ const TYPES = {
  */
 function serve()
 {
+	/**
+	 * What a redeploy changed, by path.
+	 *
+	 * The second acceptance clause - *a deploy invalidates the cache* - cannot be
+	 * checked by rebuilding mid-run, so the server is given an overlay instead.
+	 * Serving different bytes at the same URL is exactly what a deploy does to a
+	 * browser, and it is the case the whole caching design has to survive.
+	 *
+	 * @type {Map<string, {body: string, type: string}>}
+	 */
+	const deployed = new Map();
+
 	const server = createServer((request, response) =>
 	{
 		const path = decodeURIComponent((request.url || '/').split('?')[0]);
+		const override = deployed.get(path === '/' ? '/index.html' : path);
+		if (override)
+		{
+			response.writeHead(200, {'content-type': override.type, 'cache-control': 'no-store'});
+			response.end(override.body);
+			return;
+		}
 		const rel = normalize(path === '/' ? '/index.html' : path).replace(/^(\.\.[/\\])+/, '');
 		const file = join(DIST, rel);
 		if (!file.startsWith(DIST) || !existsSync(file) || !statSync(file).isFile())
@@ -95,6 +114,7 @@ function serve()
 			const {port} = /** @type {*} */ (server.address());
 			resolve({
 				origin: `http://127.0.0.1:${port}`,
+				deploy: (path, body, type) => deployed.set(path, {body, type}),
 				close: () => new Promise((done) => server.close(() => done(undefined))),
 			});
 		});
@@ -204,7 +224,38 @@ async function main()
 			paths.forEach((path) => console.log(`             ${path}`));
 		}
 
+		// ---- the second clause: a deploy is not shadowed by the cache ---------
+		//
+		// The document is network-first precisely so this holds. What is asserted
+		// is both halves of it: that an online reload after a deploy shows the new
+		// build, and that the CACHED copy was replaced too - a version that is
+		// picked up online and reverts the next time somebody is offline would be
+		// the worse of the two failures, because nothing would ever report it.
+		await context.setOffline(false);
+		const banner = '<script>window.__deployed = "the second build";</script>';
+		site.deploy('/index.html', readFileSync(join(DIST, 'index.html'), 'utf8')
+			.replace('</head>', `${banner}</head>`), TYPES['.html']);
+
+		await page.reload({waitUntil: 'load'});
+		await page.waitForTimeout(1500);
+		const online = await page.evaluate(() => window.__deployed || null);
+
+		await context.setOffline(true);
+		await page.reload({waitUntil: 'load'});
+		await page.waitForTimeout(1500);
+		const afterwards = await page.evaluate(() => ({
+			deployed: window.__deployed || null,
+			shell: Boolean(document.querySelector('#app-shell')),
+		}));
+		console.log(`  deploy   online sees "${online}", offline afterwards sees "${afterwards.deployed}"`);
+
 		const problems = [];
+		if (online !== 'the second build') {problems.push('a redeploy was shadowed by the cached document');}
+		if (afterwards.deployed !== 'the second build')
+		{
+			problems.push('the cached document was not replaced by the redeploy');
+		}
+		if (!afterwards.shell) {problems.push('the redeployed shell did not render offline');}
 		if (!second.shell) {problems.push('the shell did not render offline');}
 		if (!second.canvas) {problems.push('there is no plan canvas offline');}
 		if (second.tools < 6) {problems.push(`only ${second.tools} tools rendered offline`);}
@@ -217,6 +268,7 @@ async function main()
 		else
 		{
 			console.log('\n  ✓ a second load with the network disabled reaches an editable plan.');
+			console.log('  ✓ a deploy is picked up online, and replaces what offline will serve.');
 		}
 	}
 	finally

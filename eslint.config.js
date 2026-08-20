@@ -274,6 +274,7 @@ export default [
 				PointerEvent: 'readonly',
 				// Node's own too, and used on both sides of the seam here.
 				URL: 'readonly',
+				window: 'readonly',
 			},
 		},
 	},
