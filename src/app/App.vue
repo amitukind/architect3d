@@ -14,6 +14,7 @@ import LevelSwitcher from './components/LevelSwitcher.vue';
 import SceneOverlay from './components/SceneOverlay.vue';
 import CatalogDrawer from './components/CatalogDrawer.vue';
 import ShortcutsDialog from './components/ShortcutsDialog.vue';
+import ProjectLibrary from './components/ProjectLibrary.vue';
 import ToastStack from './components/ToastStack.vue';
 import InspectorPanel from './inspector/InspectorPanel.vue';
 
@@ -23,6 +24,8 @@ import {useCameraViews, MODE_WALKTHROUGH, MODE_EXTERIOR} from './composables/use
 import {useWalkthrough} from './composables/useWalkthrough.js';
 import {useFloorplannerMode} from './composables/useFloorplannerMode.js';
 import {useDesignIO} from './composables/useDesignIO.js';
+import {useProjects} from './composables/useProjects.js';
+import {useTemplates} from './composables/useTemplates.js';
 import {useCatalog} from './composables/useCatalog.js';
 import {useDisplayUnit, syncDisplayUnit} from './composables/useDisplayUnit.js';
 import {useTheme, applyTheme} from './composables/useTheme.js';
@@ -72,6 +75,8 @@ const selection = useSelection(store);
 const camera = useCameraViews(store);
 const editor = useFloorplannerMode(store);
 const io = useDesignIO(store);
+const projects = useProjects(store, io);
+const templates = useTemplates(projects);
 const catalog = useCatalog(store, selection.placementContext);
 const display = useDisplayUnit(store);
 const theme = useTheme(store);
@@ -94,6 +99,7 @@ const floorplanRef = ref(null);
 const viewportRef = ref(null);
 const catalogOpen = ref(false);
 const shortcutsOpen = ref(false);
+const libraryOpen = ref(false);
 const inspectorTab = ref('settings');
 const renderMode = ref(renderProfile.mode);
 
@@ -423,6 +429,10 @@ function onNewDesign()
 	history.reset();
 	frameDesign();
 	clearDraft();
+	// A blank design belongs to nobody: the next save makes a record rather than
+	// overwriting whatever was open a moment ago (RM-013 K1).
+	projects.detach();
+	markSaved();
 }
 
 async function onOpenDesign(file)
@@ -430,6 +440,94 @@ async function onOpenDesign(file)
 	await io.openDesign(file);
 	history.reset();
 	frameDesign();
+	markSaved();
+	// A file off a disk is not a record either, but it does have a name worth
+	// keeping - the seven exports read it, and a save will record it.
+	projects.detach();
+	if (file && file.name)
+	{
+		io.documentName.value = file.name.replace(/\.blueprint3d$/i, '');
+	}
+}
+
+/**
+ * Open the library, and fetch the shelf the first time (RM-013 K1, Y-5).
+ *
+ * The manifest is fetched here rather than at boot, which is what M-47 asserts:
+ * nothing about the starter plans is visible before this click, so nothing about
+ * them should be in the payload or in the boot's requests.
+ */
+function openLibrary()
+{
+	libraryOpen.value = true;
+	projects.refresh();
+	templates.load();
+}
+
+/** @param {string} id */
+async function onOpenProject(id)
+{
+	if (await projects.open(id))
+	{
+		history.reset();
+		markSaved();
+		frameDesign();
+		libraryOpen.value = false;
+	}
+}
+
+/** @param {Object} entry A template manifest row. */
+async function onStartTemplate(entry)
+{
+	if (await templates.start(entry))
+	{
+		history.reset();
+		savedDepth.value = history.depth.value;
+		// A starter plan is not a saved design: it is on screen and unkept, which
+		// is what `adopt` already said and what the dot in the bar shows.
+		projects.dirty.value = true;
+		frameDesign();
+		clearDraft();
+		libraryOpen.value = false;
+		toasts.success(`Started from ${entry.name}`);
+	}
+}
+
+/**
+ * What "unsaved changes" means (RM-013 K1).
+ *
+ * The history stack, not the model's change events. `useHistory` commits one
+ * entry per edit and `history.reset()` runs after every load, so its depth is
+ * already the number of edits since this design arrived - which is the
+ * question - and it gets undo right for nothing: undoing back to the depth a
+ * save happened at leaves nothing to save, which is what every editor does.
+ *
+ * The alternative was to listen to the same model events `useAutosave` does,
+ * and it is worse: a design with furniture fires ITEM_LOADED once per item as
+ * the files arrive, so a project would go dirty a second after being opened
+ * without anybody touching it.
+ */
+const savedDepth = ref(0);
+
+function markSaved()
+{
+	savedDepth.value = history.depth.value;
+	projects.dirty.value = false;
+}
+
+watch(history.depth, function (depth)
+{
+	projects.dirty.value = depth !== savedDepth.value;
+});
+
+async function onSaveProject()
+{
+	// A design nobody has kept yet is named after whatever put it on screen - a
+	// template, an opened file - and that name is the one to offer.
+	if (await projects.save(projects.current.value ? {} : {name: io.documentName.value}))
+	{
+		markSaved();
+	}
 }
 
 function undo()
@@ -523,6 +621,7 @@ const bindings = computed(() => /** @type {Array<import('./composables/useShortc
 	// --- document ---
 	{group: 'Document', keys: 'mod+n', label: 'New layout', run: onNewDesign},
 	{group: 'Document', keys: 'mod+s', label: 'Save layout', run: io.saveDesign},
+	{group: 'Document', keys: 'mod+shift+o', label: 'Designs', run: openLibrary},
 	{group: 'Document', keys: 'mod+z', label: 'Undo', run: undo, enabled: () => history.canUndo.value},
 	{group: 'Document', keys: 'mod+shift+z', label: 'Redo', run: redo, enabled: () => history.canRedo.value},
 	// Windows and Linux editors also bind Ctrl+Y. Harmless on Apple platforms,
@@ -635,6 +734,8 @@ useShortcuts(() => bindings.value);
 				:exporting="io.busy.value"
 				:inspector-open="workspace.inspectorOpen.value"
 				:saved-at="autosave.savedAt.value"
+				:project-name="projects.name.value"
+				:project-dirty="projects.dirty.value"
 				@new-design="onNewDesign"
 				@open-design="onOpenDesign"
 				@save-design="io.saveDesign"
@@ -651,7 +752,8 @@ useShortcuts(() => bindings.value);
 				@set-unit="display.setUnit"
 				@toggle-theme="theme.toggleTheme"
 				@toggle-inspector="workspace.toggleInspector"
-				@show-shortcuts="shortcutsOpen = true" />
+				@show-shortcuts="shortcutsOpen = true"
+				@show-library="openLibrary" />
 
 			<div class="flex min-h-0 flex-1">
 				<ToolRail
@@ -770,6 +872,22 @@ useShortcuts(() => bindings.value);
 			@prefetch-item="assets.prefetchItem" />
 
 		<ShortcutsDialog v-model:open="shortcutsOpen" :bindings="bindings" />
+
+		<ProjectLibrary
+			v-model:open="libraryOpen"
+			:projects="projects.projects.value"
+			:templates="templates.entries.value"
+			:current="projects.current.value"
+			:dirty="projects.dirty.value"
+			:busy="projects.busy.value"
+			:available="projects.available.value"
+			:templates-error="templates.error.value"
+			@open-project="onOpenProject"
+			@rename-project="projects.rename"
+			@duplicate-project="projects.duplicate"
+			@delete-project="projects.remove"
+			@start-template="onStartTemplate"
+			@save-current="onSaveProject" />
 
 		<ToastStack />
 	</TooltipProvider>

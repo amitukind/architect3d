@@ -150,6 +150,22 @@ export default defineConfig({
 				// functions. Branches and functions each crossed a whole number and
 				// are raised; lines and statements gained fractions and stay.
 				//
+				// RM-013 K1 moves functions 84 -> 85 and nothing else. Measured
+				// 86.72 statements, 86.69 lines, 77.50 branches, 85.06 functions.
+				//
+				// Functions is the one that crossed a whole number, which is what a
+				// sprint made of new modules does: a repository, two composables and a
+				// tool are mostly functions, and every one of them is called by the
+				// suites that came with them. Lines and statements gained fractions
+				// (86.61 -> 86.69, 86.62 -> 86.72) and stay where they are.
+				//
+				// Branches went the other way, 77.70 -> 77.50, and it is recorded
+				// rather than smoothed over: the new code has refusal paths that only
+				// a browser produces - a WebP encoder that is absent, a quota that is
+				// reached - and the fake IDBFactory reaches several but not all of
+				// them. The floor is unmoved because a floor is not a measurement,
+				// and 77.50 is still above it.
+				//
 				// RM-012 J2 and J4 move all four, by more than any single change has:
 				// 79 -> 86 lines, 79 -> 86 statements, 68 -> 77 branches, 78 -> 84
 				// functions. Ten tasks and 63 new tests, and the gap had been left
@@ -160,7 +176,7 @@ export default defineConfig({
 				lines: 86,
 				statements: 86,
 				branches: 77,
-				functions: 84,
+				functions: 85,
 			},
 		},
 	},

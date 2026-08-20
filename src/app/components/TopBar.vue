@@ -3,7 +3,7 @@
 import {PopoverRoot, PopoverTrigger, PopoverPortal, PopoverContent} from 'reka-ui';
 import {
 	FilePlus2, FolderOpen, Save, Undo2, Redo2, Box, Share2, Printer, Camera, Globe,
-	Image as ImageIcon,
+	Image as ImageIcon, LibraryBig,
 	Moon, Sun, Keyboard, PanelRight, ChevronDown, Ruler,
 } from '@lucide/vue';
 
@@ -48,6 +48,13 @@ const props = defineProps({
 		type: Array,
 		required: true,
 	},
+	/** The open project's name, or null for a design nobody has kept (RM-013 K1). */
+	projectName: {
+		/** @type {import('vue').PropType<?string>} */
+		type: String,
+		default: null,
+	},
+	projectDirty: {type: Boolean, default: false},
 	canUndo: {type: Boolean, default: false},
 	canRedo: {type: Boolean, default: false},
 	exporting: {type: Boolean, default: false},
@@ -69,7 +76,7 @@ const emit = defineEmits([
 	'new-design', 'open-design', 'save-design', 'save-mesh', 'save-gltf',
 	'save-photo', 'save-panorama', 'save-plan-svg', 'save-plan-png', 'print-plan',
 	'undo', 'redo', 'set-layout', 'set-unit', 'toggle-theme',
-	'toggle-inspector', 'show-shortcuts',
+	'toggle-inspector', 'show-shortcuts', 'show-library',
 ]);
 
 /**
@@ -125,6 +132,18 @@ function onUnitChange(event)
 				<Ruler :size="14" :stroke-width="2.2" />
 			</span>
 			<span class="hidden text-[13px] font-semibold tracking-tight sm:inline">Architect<span class="text-accent">3D</span></span>
+			<!--
+				What am I working on (RM-013 K1). Before the library there was nothing
+				to say here, because there was one design and it had no name; now the
+				answer is a record or the absence of one, and the dot is the only place
+				the application admits to unsaved work outside the library dialog.
+			-->
+			<span
+				v-if="props.projectName" class="hidden min-w-0 max-w-[220px] items-center gap-1.5 border-l border-line pl-2 lg:flex"
+				:title="props.projectDirty ? `${props.projectName} — unsaved changes` : props.projectName">
+				<span class="truncate text-[12px] text-ink-soft">{{ props.projectName }}</span>
+				<span v-if="props.projectDirty" class="h-1.5 w-1.5 flex-none rounded-full bg-accent" aria-label="Unsaved changes" />
+			</span>
 		</div>
 
 		<!-- document -->
@@ -143,6 +162,11 @@ function onUnitChange(event)
 			<AppTip label="Save layout" keys="mod+s">
 				<button type="button" class="btn btn-icon" title="Save layout" @click="emit('save-design')">
 					<Save :size="15" />
+				</button>
+			</AppTip>
+			<AppTip label="Designs" keys="mod+shift+o">
+				<button type="button" class="btn btn-icon" title="Designs" @click="emit('show-library')">
+					<LibraryBig :size="15" />
 				</button>
 			</AppTip>
 

@@ -664,3 +664,42 @@ describe('lifecycle', () =>
 		expect(document.querySelectorAll('#inspector')).toHaveLength(0);
 	});
 });
+
+/**
+ * The library, reachable from the shell (RM-013 K1).
+ *
+ * The dialog itself is pinned in `tests/project-library-ui.test.js` and the
+ * store beneath it in two more files. What is asserted here is only what the
+ * shell owes it: a way in, and the fact that opening it does not fetch the
+ * starter plans until somebody asks - which is M-47's headless half, since the
+ * browser tier is where the resource timings are read.
+ */
+describe('the project library', () =>
+{
+	it('has a way in from the top bar', async () =>
+	{
+		const wrapper = await mountApp();
+
+		expect(byTitle(wrapper, 'Designs')).toBeTruthy();
+		expect(document.querySelector('[role="dialog"]')).toBeNull();
+
+		await byTitle(wrapper, 'Designs').trigger('click');
+		await nextTick();
+
+		const dialog = document.querySelector('[role="dialog"]');
+		expect(dialog).not.toBeNull();
+		expect(dialog.textContent).toContain('has not been kept yet');
+		wrapper.unmount();
+	});
+
+	it('is in the shortcuts sheet, so it is discoverable', async () =>
+	{
+		const wrapper = await mountApp();
+
+		await byTitle(wrapper, 'Keyboard shortcuts').trigger('click');
+		await nextTick();
+
+		expect(document.body.textContent).toContain('Designs');
+		wrapper.unmount();
+	});
+});
