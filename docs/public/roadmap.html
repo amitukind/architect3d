@@ -289,6 +289,12 @@ footer .credit a:hover{text-decoration:underline}
   <a href="#cat-findings">54 · Decision log</a>
   <a href="#cat-sprints">55 · Sprints J1&ndash;J4</a>
   <a href="#cat-risks">56 · Risks &amp; compatibility</a>
+
+  <div class="toc-head mono" style="margin-top:22px">PROGRAMME K RM-013</div>
+  <a href="#projprog">57 · Executive summary</a>
+  <a href="#proj-findings">58 · Decision log</a>
+  <a href="#proj-sprints">59 · Sprints K1&ndash;K3</a>
+  <a href="#proj-risks">60 · Risks &amp; compatibility</a>
 </nav>
 
 <main>
@@ -5691,6 +5697,256 @@ this.roofPlane = this.buildRoofVaryingHeight();</pre></div>
   <h3>What must not change</h3>
   <p>The <strong>save format</strong> stays readable by any build that reads 2.0.0: a room category, a licence and an imported-model reference are all additive, written only where they exist, so a design nobody has touched re-saves byte-identical &mdash; M-26's rule, now on its seventh programme. The <strong>one-way arrow</strong> holds: catalog metadata is plain data, and <code>src/scripts</code> must not learn to import the app's index any more than it imports the material catalog today. <strong><code>item_type</code> stays append-only</strong>, which is why moving the twelve wall segments is a re-categorisation rather than a renumbering. The <strong>preserved polygon predicates</strong> are repaired in this programme and nowhere earlier, under a flag, with the ledger and the characterization tests moving in the same commit &mdash; X-5 makes that cheaper, not optional. <strong>Placement stays permissive</strong>: a warning, never a refusal. And <strong>no budget moves down</strong> &mdash; two are expected to move up in J2 with the decision that justifies them recorded beside the number, one is added in J1, and <code>first-load</code> is the one line this programme must not spend, because it is the only one that measures what a person waits for.</p>
 </section>
+
+<header class="sheet">
+  <div class="sheet-body">
+    <div class="eyebrow">PROGRAMME K &middot; DRAWING N&ordm; RM-013</div>
+    <h1>A design with no name, and a picture that costs more than it</h1>
+    <p class="lede">RM-007 calls programme K <em>&ldquo;many designs, starter plans, a link to send &mdash; and none of it behind a login, because there is no login&rdquo;</em> and prices it at 3.5 weeks. Eight measurements against the tree first, and three of them change the shape of K1. <strong>A design cannot carry its own name</strong>: four unknown top-level keys parse with zero errors, zero warnings and are then dropped by <code>DesignDocument</code>, so a name written into a file reaches the disk and dies on load &mdash; silently, which is worse than a rejection. <strong>The thumbnail is the expensive half of a project</strong>: a 300&nbsp;px plan is 17,372 bytes as a PNG against a furnished three-bedroom design of 8,518, and WebP is a third of that. And <strong>the plan export draws the view's floorplan, not the one it is handed</strong> &mdash; measured, 15 paths where 30 belong &mdash; which has never mattered because the two arguments have always been the same object, and K1 is the first caller for which they would not be. Three sprints, 3.5 weeks, and the total does not move.</p>
+  </div>
+  <div class="titleblock">
+    <div><div class="tb-k">PROJECT</div><div class="tb-v">architect3d</div></div>
+    <div><div class="tb-k">PARENT</div><div class="tb-v">RM-007 rev B &middot; programme K</div></div>
+    <div><div class="tb-k">BRANCH</div><div class="tb-v">amit @ 2879133</div></div>
+    <div><div class="tb-k">SCOPE</div><div class="tb-v">3 sprints &middot; 3.5 wk</div></div>
+    <div><div class="tb-k">DATE</div><div class="tb-v">2026-08-20</div></div>
+    <div><div class="tb-k">REV</div><div class="tb-v">A &middot; proposed</div></div>
+  </div>
+</header>
+
+<section id="projprog">
+  <div class="sec-eyebrow">&sect; 57 &middot; EXECUTIVE SUMMARY</div>
+  <h2>What measuring one design at a time changed about many</h2>
+  <p class="sec-sub">Eight measurements against the tree at <code>2879133</code>, every one of them run: two in headless Chromium, four against the library headless, one against the fake <code>IDBFactory</code> the suite already owns, one a grep. Three re-shape K1, one makes K2 cheaper, and two remove work from the plan rather than adding it.</p>
+
+  <div class="stats">
+    <div class="stat"><div class="v">0 errors</div><div class="k">a design carrying <code>name</code>, <code>id</code>, <code>createdAt</code> and <code>modifiedAt</code>. All four are then dropped on load</div></div>
+    <div class="stat"><div class="v">17,372 B</div><div class="k">a 300&nbsp;px plan thumbnail as PNG, against 8,518&nbsp;B for the furnished design it depicts. WebP is 5,958</div></div>
+    <div class="stat"><div class="v">15 of 30</div><div class="k">paths in a sheet exported from a view that does not hold the floorplan it was passed. Nothing warned</div></div>
+    <div class="stat"><div class="v">4,050 B</div><div class="k">five starter plans gzipped into the bundle &mdash; 41&nbsp;% of what <code>first-load</code> has left</div></div>
+    <div class="stat"><div class="v">3.00 GiB</div><div class="k">quota measured in Chromium, against the one slot the application stores in it</div></div>
+    <div class="stat"><div class="v">3,086 chars</div><div class="k">a 120-item house gzipped into a URL fragment. K2 needs no server and no library</div></div>
+  </div>
+
+  <p><strong>The programme survives its own measurement and one sprint gets cheaper.</strong> RM-007 gap Q-6 reads <em>&ldquo;one design at a time: no library, no thumbnails, no starter plans&rdquo;</em>, and every clause of it is true. What the measurement adds is which of the three is actually the work. It is not the store &mdash; <code>src/app/persistence/draft_repository.js</code> has spoken IndexedDB since RM-003 A5, its interface is already two implementations wide, and Chromium offers this origin <strong>3,221,225,472 bytes</strong> against the roughly 14&nbsp;KB a project costs. It is not the application's document handling either: the single-design assumption lives in <strong>five places</strong>, one of which is a single line. It is the two things nobody has had to answer yet &mdash; what identifies a design, and what a picture of one costs.</p>
+
+  <p><strong>The identity finding is the sharp one, because the failure is silent.</strong> A saved design's top-level keys are <code>floorplan</code> and <code>items</code>, plus <code>levels</code>, <code>roof</code> and <code>sun</code> where they exist. Adding four more and running the real validator returns <strong><code>ok: true</code>, no errors and no warnings</strong> &mdash; and <code>DesignDocument</code>'s constructor then reads seven fields, none of which is one of the four. So the document format will accept a name, transport a name, and lose it on the way in, with no diagnostic anywhere. That is not a bug to fix in K1: it is the reason a project's identity must live <em>beside</em> the document rather than in it, which is also what keeps M-26's rule intact on its eighth programme &mdash; a design nobody has touched re-saves byte-identical.</p>
+
+  <p><strong>The thumbnail finding re-prices the sprint's second half.</strong> Rendered for real in Chromium rather than reasoned about: the same three-bedroom plan at 300&nbsp;px is <strong>17,372 bytes as PNG, 11,624 as JPEG and 5,958 as WebP</strong>. PNG is the format every other thumbnail in this project uses and it is the wrong one here, for a reason RM-012 already measured from the other side &mdash; a supersampled line drawing is mostly part-covered edge pixels, and each is a colour the palette has not seen. The same render also returned a <strong>300&nbsp;&times;&nbsp;333 canvas for an 1180&nbsp;&times;&nbsp;860 landscape plan</strong>, because <code>fitProjection</code> is building a sheet: portrait, with a title block and a 56.7&nbsp;px margin at 19&nbsp;% of the width. Correct for paper and wrong for a tile. K1 needs a thumbnail mode, not the sheet it already has.</p>
+
+  <p><strong>And the store cannot be extended the obvious way.</strong> A <code>projects</code> object store inside <code>architect3d</code> requires the database at version 2, and A5 wrote a deliberate refusal for exactly that case. Run in both directions: a build at version 1 against a store at version 2 gets <code>{ok: false, reason: "version"}</code>, <code>read()</code> of <code>null</code>, and <code>stats().kind === "indexeddb-unsupported-version"</code> &mdash; <strong>autosave off for the session, permanently, by design</strong>. A build at version 2 against a store at version 1 upgrades cleanly. So the bump is one-way and it is the draft that pays for it. A second <em>database</em> costs nothing and the two have independent lifetimes anyway, which is what K1 will do.</p>
+</section>
+
+<section id="proj-findings">
+  <div class="sec-eyebrow">&sect; 58 &middot; DECISION LOG</div>
+  <h2>Eight findings, and two of them remove work</h2>
+  <p class="sec-sub">Each row was produced against <code>2879133</code>. Where a byte count is quoted it was produced by compressing something; where a browser figure is quoted it came out of Chromium; where a refusal is quoted the repository was made to refuse.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>N&ordm;</th><th>Finding</th><th>Severity</th><th>Method</th><th>Sprint</th></tr></thead>
+    <tbody>
+      <tr><td style="white-space:nowrap">Y-1</td><td>One slot at version 1, and the version bump is one-way &mdash; a <code>projects</code> store in the same database costs every rollback its draft</td><td><span class="chip crit">shapes K1</span></td><td>the repository run against a v2 store, and a v2 open against a v1 store</td><td>K1</td></tr>
+      <tr><td style="white-space:nowrap">Y-2</td><td>A design cannot carry its own name. Four unknown keys parse clean and are dropped on load, silently</td><td><span class="chip crit">shapes K1</span></td><td><code>DesignDocument.parse</code> on an augmented document; its fields read back</td><td>K1</td></tr>
+      <tr><td style="white-space:nowrap">Y-3</td><td>A sheet is framed by the floorplan you pass and drawn from the one the view holds. Nothing reconciles them</td><td><span class="chip crit">library bug</span></td><td>a view bound to one plan exported against another; paths counted</td><td>K1</td></tr>
+      <tr><td style="white-space:nowrap">Y-4</td><td>The thumbnail costs more than the design. PNG 17,372&nbsp;B against WebP 5,958, and the sheet is the wrong shape for a tile</td><td><span class="chip warn">shapes K1</span></td><td>rendered at three widths in Chromium and encoded three ways</td><td>K1</td></tr>
+      <tr><td style="white-space:nowrap">Y-5</td><td>Five starter plans in the bundle are 4,050 gzipped bytes &mdash; 41&nbsp;% of <code>first-load</code>'s remaining headroom</td><td><span class="chip warn">med</span></td><td>five distinct plans built, serialized and gzipped; <code>budget.json</code> read</td><td>K1</td></tr>
+      <tr><td style="white-space:nowrap">Y-6</td><td>3.00 GiB of quota against one slot in use. K1 owes a count and a delete button, not a quota manager</td><td><span class="chip ok">cheaper</span></td><td><code>navigator.storage.estimate()</code> and <code>indexedDB.databases()</code> in Chromium</td><td>K1</td></tr>
+      <tr><td style="white-space:nowrap">Y-7</td><td>A 120-item house is a 3,086-character fragment. K2 needs no server, no shortener and no library</td><td><span class="chip ok">cheaper</span></td><td>four designs gzipped and brotlied, then base64url'd</td><td>K2</td></tr>
+      <tr><td style="white-space:nowrap">Y-8</td><td>The single-design assumption is five places, and every export filename is a constant</td><td><span class="chip">low</span></td><td><code>src/app</code> grepped for the boot path and the seven download names</td><td>K1</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Y-1 &middot; One slot, and a bump nobody can walk back <span class="chip crit">shapes K1</span> <span class="chip acc">measured</span></h3>
+  <p><code>draft_repository.js</code> owns one database, <code>architect3d</code>, at <code>STORE_VERSION = 1</code>, with one object store <code>drafts</code> keyed on <code>id</code>, and it writes exactly one record: <code>DRAFT_ID = 'current'</code>. Its own comment calls that <em>&ldquo;deliberately not a recent-files list&rdquo;</em>, and the reasoning is still right &mdash; a crash recovery is not a document model. What K1 adds is the document model, and the question is where to put it.</p>
+  <p>The obvious answer is a second object store in the same database, and object stores are created only inside <code>onupgradeneeded</code>, so that means version 2. A5 wrote a rule for that case and this measurement is that rule being read back:</p>
+  <div class="tw"><table>
+    <thead><tr><th>Build</th><th>Store</th><th><code>put()</code></th><th><code>read()</code></th><th><code>stats().kind</code></th></tr></thead>
+    <tbody>
+      <tr><td>version 1</td><td>at version 2</td><td><code>{ok: false, reason: "version"}</code></td><td><code>null</code></td><td><code>indexeddb-unsupported-version</code></td></tr>
+      <tr><td>version 2</td><td>at version 1</td><td colspan="3"><code>onupgradeneeded</code> fires &mdash; a clean upgrade, nothing lost</td></tr>
+    </tbody>
+  </table></div>
+  <p><strong>The bump is one-way, and it is the draft that pays.</strong> <code>useAutosave</code> treats a version refusal as permanent for the session &mdash; <em>&ldquo;the stored draft was written by a newer version of this app, and has been left alone&rdquo;</em> &mdash; which is correct behaviour and exactly the wrong price to pay for a feature the user has not opened yet. Anybody who tries K1 and goes back to a build without it loses autosave until they clear their storage.</p>
+  <p>A second <em>database</em> costs nothing. <code>architect3d-projects</code> at version 1 leaves <code>architect3d</code> at version 1, so a rollback is a rollback: the library goes quiet and the draft still works. The two stores also have genuinely independent lifetimes &mdash; a draft is one slot that is constantly overwritten and expires after seven days, a project is a named record that expires never &mdash; so sharing a version number would have coupled two schemas that have no reason to move together. The interface is already the right shape to copy: <code>kind</code>, a refusal as a result rather than an exception, and a <code>--check</code>-able <code>stats()</code>.</p>
+
+  <h3>Y-2 &middot; The document will take a name and lose it <span class="chip crit">shapes K1</span> <span class="chip acc">measured</span></h3>
+  <p>A saved design's top-level keys are <code>floorplan</code> and <code>items</code>. <code>levels</code>, <code>roof</code> and <code>sun</code> join them conditionally, which is M-26's additive rule and the reason a pre-G1 design still re-saves byte-identical. <code>DEFAULT_DESIGN</code> &mdash; the one starter plan this application has &mdash; is <strong>1,678 bytes raw, 435 gzipped</strong>.</p>
+  <p>The same document with <code>name</code>, <code>id</code>, <code>createdAt</code> and <code>modifiedAt</code> added was put through <code>DesignDocument.parse</code>:</p>
+  <div class="tw"><table>
+    <thead><tr><th>Input</th><th class="num">ok</th><th class="num">Errors</th><th class="num">Warnings</th><th>Fields kept</th></tr></thead>
+    <tbody>
+      <tr><td>a design plus four identity keys</td><td class="num">true</td><td class="num">0</td><td class="num">0</td><td><code>floorplan, items, levels, roof, sun, version, units</code></td></tr>
+    </tbody>
+  </table></div>
+  <p><strong>Accepted, then dropped, with nothing said.</strong> The validator has no notion of an unknown top-level key &mdash; which is the right default for a format that grows additively, and is what let <code>levels</code>, <code>roof</code> and <code>sun</code> each arrive without breaking a reader. But it means the failure mode for identity-in-the-file is not a rejection anybody would notice; it is a name that survives the save, survives the disk, and is gone the moment somebody opens it.</p>
+  <p>So the decision is made for K1 rather than by it: <strong>a project's identity lives beside the document.</strong> The record carries the name, the timestamps and the thumbnail; the <code>.blueprint3d</code> string inside it is exactly what <code>exportSerialized</code> produces today, unchanged, and a file exported out of the library is a file any build can open. Teaching the model a <code>name</code> field is a save-format change on the eighth programme in a row that has not needed one, and it would buy nothing the record does not already give.</p>
+  <p>The visible half of the same finding is smaller and free. Every download this application produces is named by a constant &mdash; <code>design.blueprint3d</code>, <code>design.obj</code>, <code>design.gltf</code>, <code>plan-1-{scale}.svg</code>, <code>plan.png</code>, <code>view.png</code>, <code>panorama.png</code>. Seven exports, one name each, no matter what is in them. A project with a name fixes all seven in one place, and it is the cheapest thing in the sprint.</p>
+
+  <h3>Y-3 &middot; The sheet draws the view's plan, not the one it was handed <span class="chip crit">library bug</span> <span class="chip acc">measured</span></h3>
+  <p><code>exportPlanSVG(view, floorplan, options)</code> and <code>renderPlanToCanvas(view, floorplan, canvas, options)</code> each take a view and a floorplan, and reconcile them nowhere. <code>planBounds(floorplan)</code> sizes and scales the sheet; <code>view.renderTo(...)</code> then draws whatever floorplan the view was constructed with. RM-008 E4's note explains why the drawing goes through the view &mdash; <em>&ldquo;the export is not a second implementation of the plan, it is this one pointed somewhere else&rdquo;</em> &mdash; and that reasoning is sound. What was never stated is that the second argument is therefore only a bounds source.</p>
+  <p>Measured by pairing them wrongly on purpose &mdash; a <code>Floorplanner2D</code> bound to a 400&nbsp;&times;&nbsp;300 room, asked to export an 1180&nbsp;&times;&nbsp;860 flat:</p>
+  <div class="tw"><table>
+    <thead><tr><th>View holds</th><th>Passed</th><th class="num">SVG bytes</th><th class="num">Paths</th><th>What came out</th></tr></thead>
+    <tbody>
+      <tr><td>the small room</td><td>the small room</td><td class="num">3,986</td><td class="num">15</td><td>correct</td></tr>
+      <tr><td>the small room</td><td><strong>the flat</strong></td><td class="num">3,988</td><td class="num">15</td><td>the small room's drawing, at the flat's scale, under the flat's title block</td></tr>
+      <tr><td>the flat</td><td>the flat</td><td class="num">7,202</td><td class="num">30</td><td>correct</td></tr>
+    </tbody>
+  </table></div>
+  <p>Two bytes apart from the correct small sheet and three and a half thousand from the correct large one &mdash; a plausible-looking document that is wrong about its own subject, produced with no warning. It has never fired because the only caller is <code>useDesignIO</code>, which reads both out of the same store in the same expression. <strong>K1 is the first caller for which they would differ</strong>, because a library of thumbnails is by definition a set of designs that are not the one on screen.</p>
+  <p>Two things follow, and they are separate. The library gets the repair &mdash; one argument, or two that are checked &mdash; because an API that silently produces a wrong document on a wrong call is worth an hour whoever calls it next. And K1 gets the constraint regardless of the repair: <strong>a thumbnail is captured while its design is open</strong>, because the alternative is loading a design into a live view to photograph it, which is the whole cost of opening it. Save writes the picture; the grid reads it.</p>
+
+  <h3>Y-4 &middot; The picture costs more than the design <span class="chip warn">shapes K1</span> <span class="chip acc">measured</span></h3>
+  <p>An 1180&nbsp;&times;&nbsp;860 three-bedroom plan rendered through <code>renderPlanToCanvas</code> in Chromium at three widths, and each canvas encoded three ways by the browser itself:</p>
+  <div class="tw"><table>
+    <thead><tr><th class="num">Width</th><th>Canvas</th><th class="num">PNG</th><th class="num">WebP q85</th><th class="num">JPEG q82</th><th class="num">WebP as a data URL</th></tr></thead>
+    <tbody>
+      <tr><td class="num">200</td><td>200&nbsp;&times;&nbsp;260</td><td class="num">11,685</td><td class="num">4,430</td><td class="num">7,489</td><td class="num">5,931 chars</td></tr>
+      <tr><td class="num">300</td><td>300&nbsp;&times;&nbsp;333</td><td class="num">17,372</td><td class="num"><strong>5,958</strong></td><td class="num">11,624</td><td class="num">7,967 chars</td></tr>
+      <tr><td class="num">480</td><td>480&nbsp;&times;&nbsp;464</td><td class="num">22,433</td><td class="num">6,842</td><td class="num">16,033</td><td class="num">9,147 chars</td></tr>
+    </tbody>
+  </table></div>
+  <p><strong>The design it depicts is 8,518 bytes.</strong> So at 300&nbsp;px the PNG is more than twice the document, the WebP is less than three quarters of it, and the format choice is a 3&times; difference on the larger half of every record the library stores. PNG is what all 168 catalog thumbnails are and it is the wrong answer here &mdash; not because PNG is bad at line art, but because this line art is antialiased at tile size, so the sheet is mostly part-covered edge pixels and each one is a colour the palette has not seen. RM-012's thumbnail tool measured the same effect from the other direction when it chose 2&times; supersampling over 3&times;.</p>
+  <p>The other number in that table is the aspect. <strong>An 1180&nbsp;&times;&nbsp;860 landscape plan came back as a 300&nbsp;&times;&nbsp;333 portrait canvas</strong>, because <code>fitProjection</code> is building a sheet: a page-shaped frame with a title block along the bottom and a <code>chromeInset</code> of 56.7&nbsp;px, which at 300&nbsp;px wide is 19&nbsp;% of the width on each side. Correct for something that gets printed; wrong for a grid, where the tiles must share an aspect and the title block renders as an illegible smudge. K1 therefore wants a thumbnail projection beside the sheet projection &mdash; same drawing code, no title block, a fixed aspect and a small margin &mdash; rather than a smaller sheet.</p>
+
+  <h3>Y-5 &middot; Five starter plans, and 41&nbsp;% of what first-load has left <span class="chip warn">med</span> <span class="chip acc">measured</span></h3>
+  <p>RM-007 names five: studio, one-, two- and three-bedroom, duplex. Five distinct plans of those shapes were built, closed, updated and serialized through <code>saveFloorplan</code>, each also with fourteen furniture records in the shape <code>savedItems</code> writes:</p>
+  <div class="tw"><table>
+    <thead><tr><th>Plan</th><th class="num">Corners</th><th class="num">Walls</th><th class="num">Bare</th><th class="num">Bare, gz</th><th class="num">Furnished</th><th class="num">Furnished, gz</th></tr></thead>
+    <tbody>
+      <tr><td>studio</td><td class="num">7</td><td class="num">6</td><td class="num">2,931</td><td class="num">672</td><td class="num">6,490</td><td class="num">990</td></tr>
+      <tr><td>one-bedroom</td><td class="num">11</td><td class="num">8</td><td class="num">3,965</td><td class="num">843</td><td class="num">7,524</td><td class="num">1,162</td></tr>
+      <tr><td>two-bedroom</td><td class="num">13</td><td class="num">9</td><td class="num">4,487</td><td class="num">940</td><td class="num">8,046</td><td class="num">1,261</td></tr>
+      <tr><td>three-bedroom</td><td class="num">14</td><td class="num">10</td><td class="num">4,931</td><td class="num">985</td><td class="num">8,518</td><td class="num">1,308</td></tr>
+      <tr><td>duplex</td><td class="num">13</td><td class="num">10</td><td class="num">4,861</td><td class="num">973</td><td class="num">8,420</td><td class="num">1,296</td></tr>
+      <tr><td><strong>all five, one module</strong></td><td class="num">&mdash;</td><td class="num">&mdash;</td><td class="num">23,677</td><td class="num">3,321</td><td class="num">44,020</td><td class="num"><strong>4,050</strong></td></tr>
+    </tbody>
+  </table></div>
+  <p><code>first-load</code> is at <strong>411,551 measured against a 421,400 limit &mdash; 9,849 bytes of headroom</strong>, still the thinnest line in <code>budget.json</code> at 2.3&nbsp;%. So the five <em>fit</em>, and that is the honest reading: this is not a wall, it is a 41&nbsp;% bite out of the last thin margin, taken for content most visitors never open, on a set that is open-ended &mdash; the templates are five and the samples are however many get drawn.</p>
+  <p>It is X-3's argument arriving one programme later, and the answer is the one J1 and J2 already built: <strong>a manifest and a fetch</strong>. Templates live under <code>public/</code>, the bundle carries their names and nothing else, and M-43's resource assertion is extended to say that a boot fetches no template &mdash; the same sentence, about a different directory. That also settles what a &ldquo;sample design&rdquo; may weigh: nothing, until somebody clicks it.</p>
+
+  <h3>Y-6 &middot; Three gigabytes, against one slot <span class="chip ok">cheaper</span> <span class="chip acc">measured</span></h3>
+  <p><code>navigator.storage.estimate()</code> in Chromium on a cold profile: <strong>quota 3,221,225,472 bytes &mdash; 3.00 GiB</strong> &mdash; usage 0, and <code>indexedDB.databases()</code> empty. Against the 5&nbsp;MiB Web Storage cap that RM-003 A5 was written to escape, this is the escape working.</p>
+  <p>At Y-4's WebP thumbnail and Y-5's furnished three-bedroom, a project record is about <strong>14,500 bytes</strong>, so the quota holds them on the order of two hundred thousand. Whatever eventually limits this library, it is not the store, and K1 should not pretend otherwise: <strong>no pruning policy, no LRU, no size cap, no quota manager.</strong> What it owes a person is a count, a delete, and the refusal path A5 already wrote for the day a browser says no anyway &mdash; which is a real day, because private browsing and embedded webviews both produce it and the localStorage fallback cannot hold a library at all. That case gets a sentence in the UI, not a mechanism.</p>
+
+  <h3>Y-7 &middot; A house fits in a link <span class="chip ok">cheaper</span> <span class="chip acc">measured</span></h3>
+  <p>K2's first clause is <em>&ldquo;a compressed design in the URL&rdquo;</em>, and the thing worth knowing before that sprint is whether it needs a backend. The same three-bedroom plan at four furniture counts, compressed and encoded the way a fragment would carry it:</p>
+  <div class="tw"><table>
+    <thead><tr><th class="num">Items</th><th class="num">Design</th><th class="num">gzip -9</th><th class="num">brotli q11</th><th class="num">base64url of the gzip</th></tr></thead>
+    <tbody>
+      <tr><td class="num">0</td><td class="num">4,036</td><td class="num">861</td><td class="num">777</td><td class="num">1,148 chars</td></tr>
+      <tr><td class="num">14</td><td class="num">7,385</td><td class="num">1,167</td><td class="num">1,011</td><td class="num">1,556 chars</td></tr>
+      <tr><td class="num">40</td><td class="num">13,664</td><td class="num">1,453</td><td class="num">1,188</td><td class="num">1,938 chars</td></tr>
+      <tr><td class="num">120</td><td class="num">33,044</td><td class="num">2,314</td><td class="num">1,605</td><td class="num"><strong>3,086 chars</strong></td></tr>
+    </tbody>
+  </table></div>
+  <p>A design compresses to about 7&nbsp;% of itself, because it is repetitive JSON with long stable key names and UUID corners. <strong>A 120-item house is a 3,086-character link</strong>, and <code>CompressionStream('gzip')</code> is in every browser this project targets, so K2 needs no compression library, no shortener and no server. Worth measuring now rather than in five weeks, because a server is the one thing that would have contradicted the programme's own objective &mdash; <em>&ldquo;none of it behind a login, because there is no login&rdquo;</em>.</p>
+
+  <h3>Y-8 &middot; Five places assume one design <span class="chip">low</span> <span class="chip acc">measured</span></h3>
+  <p>Grepped rather than guessed. The boot path is <code>App.vue</code>'s <code>onMounted</code> calling <code>io.newDesign()</code>, then <code>history.reset()</code>, then <code>offerDraft()</code>; the New action calls <code>io.newDesign()</code> and <code>clearDraft()</code>; <code>useDesignIO.newDesign</code> is one statement, <code>loadSerialized(DEFAULT_DESIGN)</code>; and <code>useAutosave</code> holds a module-level repository so that <code>readDraft</code> can run before anything is mounted. That is the whole of it.</p>
+  <p><strong>Five places, one of them a single line.</strong> A project library is not a rewrite of this application's document handling, because there is barely any document handling to rewrite &mdash; the same shape X-6 found for selection and X-7 found for imported models, and the third time in one programme's worth of measurement that the expensive-sounding part is the cheap one. What K1 spends its time on is the two things above it: what a project record is, and what its picture costs.</p>
+</section>
+
+<section id="proj-sprints">
+  <div class="sec-eyebrow">&sect; 59 &middot; SPRINTS K1&ndash;K3</div>
+  <h2>Three and a half weeks, and the total does not move</h2>
+  <p class="sec-sub">RM-007 priced this programme at 3.5 weeks in three sprints and none of the three changes length. What changes is what K1 builds first, where it puts it, and one library repair it inherits on the way past.</p>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">K1</span>
+      <h3>A design becomes a thing with a name</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip crit">Y-1</span><span class="chip crit">Y-2</span><span class="chip crit">Y-3</span><span class="chip warn">Y-4</span><span class="chip warn">Y-5</span><span class="chip">1.5 wk</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Many designs, each with a name, a picture and a date &mdash; and a shelf of starter plans to begin from, none of which arrives before somebody asks for it.</p>
+    <ul>
+      <li><strong>A second database, not a second store</strong> (Y-1). <code>architect3d-projects</code> at version 1, so <code>architect3d</code> stays at version 1 and a rollback keeps its draft. Same interface shape as <code>draft_repository</code>: a <code>kind</code>, a refusal that is a result rather than an exception, and a <code>stats()</code> worth asserting on.</li>
+      <li><strong>Identity lives beside the document</strong> (Y-2). A record is an id, a name, two timestamps, a thumbnail and the <code>.blueprint3d</code> string exactly as <code>exportSerialized</code> writes it. Nothing is added to the save format, because the format would accept it and lose it.</li>
+      <li><strong>A thumbnail projection beside the sheet projection</strong> (Y-4). No title block, one aspect, a small margin, WebP with a PNG fallback for a browser that will not encode it. Captured on save, because Y-3 says a sheet drawn from a view that does not hold the design is a document that lies.</li>
+      <li><strong>And the repair that finding earns</strong> (Y-3). <code>exportPlanSVG</code> and <code>renderPlanToCanvas</code> stop accepting a view and a floorplan that disagree. An hour, and it is the last hour anybody spends on it.</li>
+      <li><strong>The library itself</strong>: a grid of tiles, open, rename, duplicate, delete, a count and a date. No pruning and no quota manager (Y-6) &mdash; but the refusal path is real, because a browser that will not store gets a sentence rather than a broken grid.</li>
+      <li><strong>Templates and samples, fetched</strong> (Y-5). Studio, one-, two- and three-bedroom, duplex, on a manifest under <code>public/</code>. The bundle carries their names and nothing else.</li>
+      <li><strong>The name reaches the seven exports</strong> (Y-2). <code>design.blueprint3d</code> becomes the project's name, and so do the other six.</li>
+    </ul>
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE</div>
+      <ul>
+        <li><strong>M-47 (new)</strong>: a boot fetches no template &mdash; asserted in the browser tier off <code>performance.getEntriesByType('resource')</code>, the same sentence M-43 makes about packs, about a different directory</li>
+        <li><strong>M-48 (new)</strong>: a project round-trips &mdash; write, list, open, rename, duplicate, delete &mdash; against the real IndexedDB in Chromium and against the fake <code>IDBFactory</code> headless, which is how A5's repository is already tested at both tiers</li>
+        <li><strong>The draft store stays at version 1</strong>, asserted: a build that has never heard of projects still reads its draft after the library has been used</li>
+        <li>Every template opens through <code>loadDocument</code> with zero errors and zero warnings, and a design saved out of the library is byte-identical to the same design saved before it &mdash; M-26, on its eighth programme</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">K2</span>
+      <h3>A link, and a way to look without touching</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip ok">Y-7</span><span class="chip">1 wk</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> Send somebody a design without sending them a file, and let them look at it without being able to break it.</p>
+    <ul>
+      <li><strong>The design in the fragment</strong> (Y-7). <code>CompressionStream('gzip')</code> and base64url &mdash; 3,086 characters for a 120-item house, measured. No server, no shortener, no library.</li>
+      <li><strong>A read-only mode</strong>: the viewport and the plan, no tools, no inspector edits, and an offer to copy it into the library rather than a silent switch into editing.</li>
+      <li><strong>A <code>.zip</code> bundle carrying custom assets</strong>, which is J3's problem seen from the export side. RM-012 X-7 already recorded that the two share one answer; whichever ships first writes it.</li>
+    </ul>
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE</div>
+      <ul>
+        <li>A design round-trips through a fragment and re-serializes byte-identical</li>
+        <li>A link too long for a browser is refused with the size in the message, not truncated</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sprint">
+    <div class="sprint-head">
+      <span class="sprint-no">K3</span>
+      <h3>Still there with the network off</h3>
+      <div class="meta"><span class="chip acc">proposed</span><span class="chip">1 wk</span></div>
+    </div>
+    <p class="goal"><strong>Objective.</strong> The shell boots from cache, assets join the cache as they are used, and the browser is allowed to offer an install.</p>
+    <ul>
+      <li><strong>A service worker</strong> over the built shell, with the catalog packs and models cached on use rather than precached &mdash; <code>public/</code> is 19.35&nbsp;MB and precaching it would be a worse first visit in exchange for a better second one.</li>
+      <li><strong>An install prompt</strong>, offered rather than nagged.</li>
+      <li><strong>The draft and the library are already offline</strong>, which is what makes this a shell problem rather than a data one.</li>
+    </ul>
+    <div class="gate">
+      <div class="g-head">ACCEPTANCE</div>
+      <ul>
+        <li>A second load with the network disabled reaches an editable plan</li>
+        <li>A deploy invalidates the cache &mdash; asserted, because a stale shell against a new asset tree is the failure mode this feature has</li>
+      </ul>
+    </div>
+  </div>
+
+  <p style="margin-top:16px">Three and a half weeks, unchanged from RM-007: <strong>1.5 + 1 + 1</strong>. Y-3's repair is inside K1's 1.5 rather than beside it, and Y-6 and Y-7 each removed something the sprints would otherwise have had to build &mdash; a quota policy and a compression dependency &mdash; which is what paid for it.</p>
+</section>
+
+<section id="proj-risks">
+  <div class="sec-eyebrow">&sect; 60 &middot; RISKS &amp; COMPATIBILITY</div>
+  <h2>What could go wrong, and what must not change</h2>
+
+  <div class="tw"><table>
+    <thead><tr><th>Risk</th><th>Sprint</th><th>What is done about it</th></tr></thead>
+    <tbody>
+      <tr><td>The project store is added to <code>architect3d</code> and every rollback loses its draft</td><td>K1</td><td>Y-1 measured the refusal in both directions. A separate database at version 1, and an acceptance clause that a build without K1 still reads its draft after the library has been used</td></tr>
+      <tr><td>A name is put in the save format, and a design opened elsewhere comes back unnamed</td><td>K1</td><td>Y-2 measured the drop: <code>ok: true</code>, no warnings, four keys gone. The record carries identity; the document is untouched, which is also M-26</td></tr>
+      <tr><td>A thumbnail is rendered from whatever view happens to be mounted, and the grid fills with pictures of the wrong plan</td><td>K1</td><td>Y-3 is the measurement that says this is possible and silent. The capture happens on save, and the two export functions stop accepting arguments that disagree</td></tr>
+      <tr><td>Thumbnails as PNG, and thirty projects weigh half a megabyte</td><td>K1</td><td>Y-4 priced all three formats in Chromium. WebP, with a PNG fallback, and the record's size is part of what <code>stats()</code> reports</td></tr>
+      <tr><td>Templates go in the bundle because they are small, and <code>first-load</code> loses 41&nbsp;% of its margin</td><td>K1</td><td>M-47 is a resource assertion, not a size limit: a boot that fetches a template fails the suite. The same instrument M-43 has used against packs since RM-011</td></tr>
+      <tr><td>A browser that refuses IndexedDB shows an empty library and no explanation</td><td>K1</td><td>The refusal is a result, not an exception &mdash; A5's rule, reused. The localStorage fallback cannot hold a library, and saying so is the correct behaviour rather than a degraded one</td></tr>
+      <tr><td>A shared link outgrows what a browser will take</td><td>K2</td><td>Y-7's table is the size curve. The refusal states the length; it does not truncate a design into a plausible, broken one</td></tr>
+      <tr><td>A service worker serves a stale shell against a redeployed asset tree</td><td>K3</td><td>Cache invalidation on deploy is an acceptance clause rather than an implementation detail, because it is this feature's whole failure mode</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>What must not change</h3>
+  <p>The <strong>save format</strong> stays exactly what it is. This is the first programme in eight that adds no key to it at all, and Y-2 is the reason: the format would have taken one silently and dropped it. A design exported from the library is byte-identical to the same design exported before the library existed, and that is M-26's rule holding by doing nothing rather than by being careful.</p>
+  <p>The <strong>draft</strong> keeps working, at version 1, with its seven-day expiry and its one slot. A project library does not replace autosave &mdash; a named project is something a person decided to keep, and a draft is what protects them between those decisions. <code>useAutosave</code>'s own note has said so since A5 and it is still right.</p>
+  <p>And <strong><code>first-load</code> does not move.</strong> It has been the thinnest line in the budget since RM-011 added it, it has now caught two features before they were written &mdash; X-3's metadata and Y-5's templates &mdash; and the correct outcome for a programme about content nobody has asked for yet is that the number is the same afterwards.</p>
+</section>
 <footer>
   <p><strong>Method &mdash; RM-004.</strong> Three measurements against the working tree at <code>3cf1c24</code> on branch <code>amit</code>, all of them produced by running something rather than by reading code. <em>The payload</em> &mdash; every one of the 370 manifest entries read and gzipped at level 9, and every <code>.glb</code> walked chunk by chunk, splitting the BIN into buffer views an accessor points at, views an image points at, and the remainder, then a census of accessor <code>componentType</code> per attribute semantic and of index width against each primitive's <code>POSITION</code> count. <em>Wall identity</em> &mdash; three fixtures loaded, censused, round-tripped through <code>saveFloorplan()</code> and <code>loadFloorplan()</code> and intersected, plus a constructed two-walls-one-pair case run through the same round trip. <em>The type ledger</em> &mdash; <code>npx vue-tsc --noEmit --checkJs</code>, bucketed by area, by error code and by file. <strong>What was not run:</strong> no codec. Draco, meshopt and KTX2 are named throughout and none has been executed against this catalog, which is why M-12 carries no target and why B1's first task is the trial rather than its conclusion. Two repository inaccuracies were found and are recorded in §21 G-3 rather than fixed, since this is a planning pass: <code>tsconfig.json</code>'s SFC subtotal disagrees with the tree <em>and</em> with its own itemisation.</p>
   <p><strong>Sources &mdash; RM-004.</strong> <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_mesh_quantization/README.md">KHR_mesh_quantization</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_draco_mesh_compression/README.md">KHR_draco_mesh_compression</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Vendor/EXT_meshopt_compression/README.md">EXT_meshopt_compression</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_texture_basisu/README.md">KHR_texture_basisu</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/specification/2.0/README.md#binary-gltf-layout">glTF 2.0 &mdash; Binary glTF layout</a> &middot; <a href="https://threejs.org/docs/#examples/en/loaders/DRACOLoader">three.js &mdash; DRACOLoader</a> &middot; <a href="https://threejs.org/docs/#examples/en/loaders/KTX2Loader">three.js &mdash; KTX2Loader</a> &middot; <a href="https://www.typescriptlang.org/tsconfig/#checkJs">TypeScript &mdash; checkJs</a></p>
@@ -5713,8 +5969,9 @@ this.roofPlane = this.buildRoofVaryingHeight();</pre></div>
   <p><strong>Sources &mdash; RM-009.</strong> <a href="https://kenney.nl/assets/furniture-kit">Kenney &mdash; Furniture Kit (CC0)</a> &middot; <a href="https://threejs.org/docs/#api/en/extras/core/Shape">three.js &mdash; Shape</a> &middot; <a href="https://threejs.org/docs/#api/en/geometries/ShapeGeometry">three.js &mdash; ShapeGeometry</a> &middot; <a href="https://github.com/KhronosGroup/glTF/blob/main/specification/2.0/README.md">glTF 2.0 specification</a></p>
   <p><strong>Sources &mdash; RM-008.</strong> <a href="https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D">MDN &mdash; CanvasRenderingContext2D</a> &middot; <a href="https://www.w3.org/TR/SVG2/">W3C &mdash; SVG 2</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame">MDN &mdash; requestAnimationFrame</a></p>
   <p><strong>Sources &mdash; RM-007.</strong> <a href="https://www.coohom.com/case/floor-planner">Coohom &mdash; Floor Planner</a> &middot; <a href="https://www.sweethome3d.com/features.jsp">Sweet Home 3D &mdash; Features</a> &middot; <a href="https://kenney.nl/assets/furniture-kit">Kenney &mdash; Furniture Kit (CC0)</a> &middot; <a href="https://polyhaven.com/">Poly Haven (CC0)</a> &middot; <a href="https://ambientcg.com/">ambientCG (CC0)</a> &middot; <a href="https://quaternius.com/">Quaternius (CC0)</a> &middot; <a href="https://threejs.org/docs/">three.js documentation</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API">MDN &mdash; Service Worker API</a> &middot; <a href="https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API">MDN &mdash; IndexedDB</a></p>
+  <p><strong>Method &mdash; RM-013.</strong> Eight measurements against the working tree at <code>2879133</code> on branch <code>amit</code>, all of them produced by running something. <em>The store</em> &mdash; <code>IndexedDbDraftRepository</code> pointed at the suite's own fake <code>IDBFactory</code> pre-set to version 2, then <code>put</code>, <code>read</code> and <code>stats</code> called and their returns printed; and the opposite direction opened at version 2 against a factory at version 1 with the upgrade event observed. <em>The identity</em> &mdash; <code>DEFAULT_DESIGN</code> parsed for its top-level keys, then the same document with <code>name</code>, <code>id</code>, <code>createdAt</code> and <code>modifiedAt</code> added put through the real <code>DesignDocument.parse</code> and the constructed document's own fields enumerated. <em>The sheet</em> &mdash; a <code>Floorplanner2D</code> built on a 400&nbsp;&times;&nbsp;300 room and a second on an 1180&nbsp;&times;&nbsp;860 flat, then <code>exportPlanSVG</code> called in all three pairings under jsdom and the <code>&lt;path&gt;</code> elements counted in each. <em>The thumbnail</em> &mdash; <code>renderPlanToCanvas</code> run in headless Chromium at 200, 300 and 480&nbsp;px and each canvas handed to <code>toBlob</code> as PNG, WebP q85 and JPEG q82, with the byte counts taken off the blobs rather than estimated. <em>The starter plans</em> &mdash; five distinct floorplans built with <code>newCorner</code> and <code>newWall</code>, closed, updated, serialized through <code>saveFloorplan</code> with fourteen item records each, and gzipped at level 9. <em>The quota</em> &mdash; <code>navigator.storage.estimate()</code> and <code>indexedDB.databases()</code> read in Chromium on a cold profile. <em>The link</em> &mdash; the same designs at four furniture counts through gzip -9 and brotli q11, then base64url encoded and the characters counted. <em>The footprint</em> &mdash; <code>src/app</code> grepped for the boot path and for every <code>download</code> filename. <strong>What was not run:</strong> no service worker and no <code>.zip</code>, so nothing above prices K3 or K2's bundle beyond the fragment arithmetic.</p>
   <p><strong>Method &mdash; RM-011.</strong> Eleven measurements against the working tree at <code>385aa88</code> on branch <code>amit</code>, five of them run in headless Chromium against the library as the dev server serves it, and none of them quoted from a specification. <em>The materials</em> &mdash; the three-storey fixture loaded into a viewer and every mesh in the scene traversed for its material's class and for which of eight map slots is set, run once per render profile, which is how &ldquo;the walls are unlit&rdquo; became a table rather than a reading of a docblock. <em>The surface record</em> &mdash; <code>Wall</code>, <code>Room</code> and <code>Floorplan</code> read for what a texture is, the fixture round-tripped, and the pickable surfaces counted per storey. <em>The budgets</em> &mdash; limits and last measurements taken from <code>tools/budget.json</code>, headroom subtracted, and every projection computed as image count times the measured mean of this tree's <em>own</em> encoded files: 36,182 B over the ten <code>.ktx2</code> and 110,732 B over the nine the oracle refused, with VRAM through <code>check-budget.mjs</code>'s own texels&nbsp;&times;&nbsp;4/3 formula. <em>The scene's real cost</em> &mdash; <code>renderer.info.memory</code> read in Chromium after a settled render, for the unfurnished house and for a twenty-item design. <em>The frame</em> &mdash; twenty frames timed after five warm ones at 1024&nbsp;&times;&nbsp;768 under SwiftShader, both profiles, both designs. <em>The first load</em> &mdash; the demo build's four entry files gzipped at level 9, then a boot's <code>performance.getEntriesByType('resource')</code> read to find what is fetched after them. <em>The shadow filter</em> &mdash; <code>renderer.shadowMap.type</code> read back after boot and compared with what <code>main.js</code> assigns. <em>The rest</em> &mdash; catalog keys counted over all 168 entries, <code>which ktx toktx basisu</code>, and the tree grepped for a cube camera. <strong>What was not run:</strong> no encoder, again, and this time it is the finding rather than the caveat &mdash; <code>ktx</code>, <code>toktx</code> and <code>basisu</code> are all absent from this machine, exactly as they were when RM-004 B1 said so, which is why W-6 reasons from the refusal ledger RM-006 measured rather than from a new encode, and why H1's first task is the trial. No material was authored and no light was moved, so every figure about H1's and H2's own output is a projection from this tree's numbers. <strong>Two repository inaccuracies were found and are recorded rather than fixed</strong>, since this is a planning pass: <code>three/main.js:301</code> assigns a shadow filter three no longer implements and silently downgrades (W-8), and RM-007 assigns wall collision to both H3 and J4 (W-11). Both are H2's and H3's to clear. <strong>Two of this document set's own metrics are corrected here:</strong> M-28, which passes at 12.9&times; its target, and the instrument behind <code>texture-vram</code>, which measures a tree the programme is about to stop resembling.</p>
-  <p>architect3d &middot; Delivery &amp; precision program RM-004 rev A &middot; <strong>delivered</strong>, all five sprints &middot; residual program RM-005 rev A &middot; <strong>delivered</strong>, both sprints &middot; correction program RM-006 rev A &middot; <strong>delivered</strong> &middot; product roadmap RM-007 rev B &middot; <strong>proposed</strong>, eight programmes, 42 weeks &middot; programme E RM-008 rev A &middot; <strong>delivered</strong>, all four sprints &middot; programme F RM-009 rev A &middot; <strong>delivered</strong>, three sprints, complete &middot; programme G RM-010 rev A &middot; <strong>delivered</strong>, three sprints, complete &middot; programme H RM-011 rev A &middot; <strong>delivered</strong>, three sprints, complete &middot; programme J RM-012 rev A &middot; <strong>J1, J2 and J4 delivered</strong>, J3 to come &middot; successor to hardening program RM-003</p>
+  <p>architect3d &middot; Delivery &amp; precision program RM-004 rev A &middot; <strong>delivered</strong>, all five sprints &middot; residual program RM-005 rev A &middot; <strong>delivered</strong>, both sprints &middot; correction program RM-006 rev A &middot; <strong>delivered</strong> &middot; product roadmap RM-007 rev B &middot; <strong>proposed</strong>, eight programmes, 42 weeks &middot; programme E RM-008 rev A &middot; <strong>delivered</strong>, all four sprints &middot; programme F RM-009 rev A &middot; <strong>delivered</strong>, three sprints, complete &middot; programme G RM-010 rev A &middot; <strong>delivered</strong>, three sprints, complete &middot; programme H RM-011 rev A &middot; <strong>delivered</strong>, three sprints, complete &middot; programme J RM-012 rev A &middot; <strong>J1, J2 and J4 delivered</strong>, J3 to come &middot; programme K RM-013 rev A &middot; <strong>proposed</strong>, three sprints, 3.5 weeks &middot; successor to hardening program RM-003</p>
   <p class="credit">Created by <a href="https://amitukind.com" target="_blank" rel="noopener noreferrer">Amit Verma</a></p>
 </footer>
 
