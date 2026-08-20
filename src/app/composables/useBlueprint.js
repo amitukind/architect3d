@@ -2,6 +2,7 @@
 import {inject, provide, markRaw, shallowRef} from 'vue';
 import {BlueprintJS} from '../../scripts/blueprint.js';
 import {assetResolver} from './useAssets.js';
+import {modelStore} from '../import/model_store.js';
 
 /**
  * Owns the one BlueprintJS instance and its lifetime.
@@ -85,6 +86,12 @@ export function createBlueprintStore()
 			// so a viewer mounted before the fetch lands still loads everything, and
 			// picks up the indirection when it arrives.
 			assets: assetResolver(),
+			// Bytes for models nobody's deployment ships (RM-012 J3). Module-level
+			// like the resolver, and for a sharper version of the same reason: this
+			// object is handed in at every mount, and a layout change unmounts the
+			// viewer - a store that lived on the runtime would take somebody's
+			// imported models with it every time they moved a panel.
+			localModels: modelStore(),
 		}));
 
 		instance.value = blueprint;

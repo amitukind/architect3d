@@ -29,13 +29,19 @@ import {writeZip, readZip} from './zip.js';
  * external textures, and it cannot arise for the imports J3 will actually
  * produce: a person picks one file, and one file is self-contained.
  *
- * ## Reading is half a feature until J3, and says so
+ * ## Reading was half a feature until J3, and now is not
  *
- * A bundle's design is read here and now. Its carried assets are not, because
- * there is nowhere to put them - RM-012 X-7 measured exactly this: *"J3 needs a
- * store"*. So a bundle that carries assets is opened, its design is loaded, and
- * the reader reports what it could not place by name. Dropping them silently
- * would be the one outcome worse than not reading them.
+ * K2 shipped this reader able to open a bundle's design and only *name* what it
+ * carried, because there was nowhere to put a model - RM-012 X-7 had measured
+ * exactly that: *"J3 needs a store"*. J3 built the store, and nothing in this
+ * file changed to meet it except that `readBundle` now hands the carried bytes
+ * back instead of only their names.
+ *
+ * That is what X-7 meant by the two sharing one answer, and it is worth being
+ * precise about which half was the reusable one. The rule - *carry what the
+ * recipient will not have, decided against their own manifest* - needed no
+ * amendment at all: an imported model is in nobody's manifest, so the existing
+ * `has()` test routes it to `carried` without being told that imports exist.
  */
 
 /** The design, always at this name, so any zip tool shows it first. */
@@ -191,7 +197,7 @@ export async function buildBundle(design, options)
  *
  * @param {Uint8Array<ArrayBuffer>} bytes
  * @returns {Promise<{ok: boolean, design: ?string, manifest: ?Object,
- *          carried: Array<string>, reason: ?string}>}
+ *          carried: Array<string>, assets: Map<string, Uint8Array>, reason: ?string}>}
  */
 export async function readBundle(bytes)
 {
@@ -203,14 +209,14 @@ export async function readBundle(bytes)
 	}
 	catch (error)
 	{
-		return {ok: false, design: null, manifest: null, carried: [],
+		return {ok: false, design: null, manifest: null, carried: [], assets: new Map(),
 			reason: (error instanceof Error) ? error.message : 'that file could not be read'};
 	}
 
 	var body = files.get(DESIGN_ENTRY);
 	if (!body)
 	{
-		return {ok: false, design: null, manifest: null, carried: [],
+		return {ok: false, design: null, manifest: null, carried: [], assets: new Map(),
 			reason: `that archive has no ${DESIGN_ENTRY} in it`};
 	}
 
@@ -224,17 +230,24 @@ export async function readBundle(bytes)
 	}
 	if (manifest && manifest.version > BUNDLE_VERSION)
 	{
-		return {ok: false, design: null, manifest: manifest, carried: [],
+		return {ok: false, design: null, manifest: manifest, carried: [], assets: new Map(),
 			reason: 'that bundle was written by a newer version of this app'};
 	}
 
-	// Named, not loaded. There is nowhere to put an imported model until J3
-	// builds one, and a reader that dropped them silently would hand somebody a
-	// design with holes in it and no way to know why.
-	var carried = [...files.keys()]
+	// Handed back under their logical names, which is what the design refers to
+	// them by. `carried` stays a list of names because it is what a caller with
+	// nowhere to put them reports, and this reader has no business assuming its
+	// caller has a store - the two `.zip` readers in this project are the
+	// application, which does, and the suite, which does not.
+	/** @type {Map<string, Uint8Array>} */
+	var assets = new Map();
+	[...files.keys()]
 		.filter(function (name) {return name.indexOf(ASSET_PREFIX) === 0;})
-		.map(function (name) {return name.slice(ASSET_PREFIX.length);});
+		.forEach(function (name)
+		{
+			assets.set(name.slice(ASSET_PREFIX.length), /** @type {Uint8Array} */(files.get(name)));
+		});
 
 	return {ok: true, design: new TextDecoder().decode(body), manifest: manifest,
-		carried: carried, reason: null};
+		carried: [...assets.keys()], assets: assets, reason: null};
 }

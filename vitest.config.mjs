@@ -200,6 +200,24 @@ export default defineConfig({
 				// them. The floor is unmoved because a floor is not a measurement,
 				// and 77.50 is still above it.
 				//
+				// RM-012 J3 moves lines and statements 86 -> 87. Measured 87.29 lines,
+				// 87.28 statements, 78.71 branches, 85.63 functions.
+				//
+				// Worth recording where it came from, because it is not only the 104
+				// new tests. A third of this sprint is refusal paths - a format
+				// nothing reads, a store a browser withholds, bytes that are not what
+				// the design named - and every one of them is reachable from a test
+				// only because the suite's fake `IDBFactory` was made to behave like a
+				// real store: it structured-clones instead of JSON round-tripping, it
+				// rolls a transaction back on abort, and it weighs an `ArrayBuffer` by
+				// its bytes. Before those three repairs the quota refusal in
+				// `model_repository.js` was not reachable at all, because a model
+				// weighed two bytes.
+				//
+				// Branches gained 78.22 -> 78.71 and functions 85.17 -> 85.63; both
+				// stay, because rounding down is what makes these floors rather than
+				// targets.
+				//
 				// RM-012 J2 and J4 move all four, by more than any single change has:
 				// 79 -> 86 lines, 79 -> 86 statements, 68 -> 77 branches, 78 -> 84
 				// functions. Ten tasks and 63 new tests, and the gap had been left
@@ -207,8 +225,8 @@ export default defineConfig({
 				// fraction and rounding down is what keeps these floors rather than
 				// targets. Measured 86.61 / 86.62 / 77.77 / 84.45; rounded down, as
 				// always.
-				lines: 86,
-				statements: 86,
+				lines: 87,
+				statements: 87,
 				branches: 78,
 				functions: 85,
 			},

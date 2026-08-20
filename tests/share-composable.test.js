@@ -12,13 +12,22 @@ import {effectScope} from 'vue';
 import {deflateRawSync, inflateRawSync} from 'node:zlib';
 
 import {Main} from '../src/scripts/three/main.js';
+import {EVENT_ITEM_LOADED} from '../src/scripts/core/events.js';
+import {AssetManifest} from '../src/scripts/core/asset_manifest.js';
+import {assetResolver} from '../src/app/composables/useAssets.js';
 import {floorplannerModes} from '../src/scripts/floorplanner/floorplanner_view.js';
 import {createBlueprintStore} from '../src/app/composables/useBlueprint.js';
 import {useDesignIO} from '../src/app/composables/useDesignIO.js';
 import {useProjects, setProjectRepository} from '../src/app/composables/useProjects.js';
 import {useShare} from '../src/app/composables/useShare.js';
+import {useModelImport} from '../src/app/composables/useModelImport.js';
+import {IndexedDbModelRepository} from '../src/app/persistence/model_repository.js';
+import {modelStore, setModelRepository} from '../src/app/import/model_store.js';
 import {encodeDesign, LINK_KEY} from '../src/app/share/design_link.js';
 import {IndexedDbProjectRepository} from '../src/app/persistence/project_repository.js';
+
+import {readFileSync} from 'node:fs';
+import {join} from 'node:path';
 
 import {resetAll} from './helpers/harness.js';
 import {installCanvas2D, installPointerApis, installResizeObserver} from './helpers/dom.js';
@@ -64,6 +73,7 @@ let elements;
 let io;
 let projects;
 let share;
+let models;
 
 function buildDom()
 {
@@ -95,6 +105,7 @@ beforeEach(() =>
 	pointerApis = installPointerApis(window);
 	Main.setRendererFactory(() => createRendererStub(renderers));
 	setProjectRepository(new IndexedDbProjectRepository({factory: createFakeIndexedDb()}));
+	setModelRepository(new IndexedDbModelRepository({factory: createFakeIndexedDb()}));
 
 	scope = effectScope();
 	store = run(() => createBlueprintStore());
@@ -102,7 +113,8 @@ beforeEach(() =>
 	store.mount({floorplannerElement: elements.canvas, threeElement: elements.viewer});
 	io = run(() => useDesignIO(store));
 	projects = run(() => useProjects(store, io));
-	share = run(() => useShare(store, projects, io));
+	models = run(() => useModelImport(store));
+	share = run(() => useShare(store, projects, io, models));
 	io.newDesign();
 	window.history.replaceState(null, '', window.location.pathname);
 });
@@ -112,6 +124,9 @@ afterEach(() =>
 	store.unmount();
 	scope.stop();
 	setProjectRepository(null);
+	setModelRepository(null);
+	// The resolver is module-level and one case installs a manifest into it.
+	assetResolver().setManifest(null);
 	Main.setRendererFactory(null);
 	pointerApis.restore();
 	observer.restore();
@@ -208,6 +223,135 @@ describe('a bundle, through the composable', () =>
 		expect(await share.openBundle(new TextEncoder().encode('not a zip'))).toBe(false);
 
 		expect(store.model.value.exportSerialized()).toBe(before);
+	});
+});
+
+/**
+ * The half X-7 said the two sprints would share, now that both exist.
+ *
+ * K2's rule was *carry what the recipient will not have, decided against their
+ * own manifest*, and it shipped with an empty answer because everything a
+ * design could name was in every build. An imported model is in nobody's
+ * manifest, so the rule picks it up with nothing added to it - which is what
+ * these cases check, rather than checking that a new branch was written.
+ */
+describe('an imported model, through a bundle', () =>
+{
+	/** @returns {Uint8Array} */
+	function bearBytes()
+	{
+		const buffer = readFileSync(join(process.cwd(), 'public/models/gltf/bear.glb'));
+		const copy = new Uint8Array(buffer.byteLength);
+		copy.set(buffer);
+		return copy;
+	}
+
+	/** Import the file and place it, then hand back its record. */
+	async function importBear()
+	{
+		await models.refresh();
+		expect(await models.choose(new File([bearBytes()], 'bear.glb'))).toBe(true);
+		const scene = store.model.value.scene;
+		// Awaited: `place` returns when the load STARTS, and a bundle made before
+		// the item joins the scene is a bundle of an empty design.
+		const arrived = new Promise((resolve) =>
+		{
+			const done = () => {scene.removeEventListener(EVENT_ITEM_LOADED, done); resolve();};
+			scene.addEventListener(EVENT_ITEM_LOADED, done);
+		});
+		expect(await models.place({up: 'z', unit: 'm', longest: 0})).toBe(true);
+		await arrived;
+		return models.stored.value[0];
+	}
+
+	/** Resolves when the next item load settles, however it settles. */
+	function settled()
+	{
+		const scene = store.model.value.scene;
+		return new Promise((resolve) =>
+		{
+			const done = (event) =>
+			{
+				scene.removeEventListener(EVENT_ITEM_LOADED, done);
+				resolve(event.item);
+			};
+			scene.addEventListener(EVENT_ITEM_LOADED, done);
+		});
+	}
+
+	it('is the one thing a bundle has ever had to carry', async () =>
+	{
+		// A manifest, so `has()` means what it means in a real build: the
+		// recipient's own statement about what their application ships.
+		const parsed = AssetManifest.parse({
+			version: 1,
+			assets: {'rooms/textures/wallmap.png': {url: 'rooms/textures/wallmap.png', bytes: 1, kind: 'texture'}},
+		});
+		expect(parsed.ok).toBe(true);
+		assetResolver().setManifest(parsed.manifest);
+
+		const record = await importBear();
+		const built = await share.makeBundle();
+
+		// Nothing in `design_bundle.js` was told that imports exist. The rule K2
+		// shipped routes this here on its own, because the recipient's manifest
+		// does not declare it and every other name it does.
+		expect(built.manifest.carried).toEqual([record.name]);
+		expect(built.manifest.expected).toEqual(['rooms/textures/wallmap.png']);
+		expect(built.manifest.missing).toEqual([]);
+	});
+
+	it('arrives on a computer that has never seen it, and the item is there', async () =>
+	{
+		const record = await importBear();
+		const built = await share.makeBundle();
+
+		// The recipient: same application, empty store, no memory of the file.
+		await modelStore().forgetAll();
+		io.newDesign();
+		expect(modelStore().has(record.name)).toBe(false);
+
+		const arriving = settled();
+		expect(await share.openBundle(built.bytes)).toBe(true);
+		expect(await arriving).not.toBeNull();
+
+		expect(modelStore().has(record.name)).toBe(true);
+		const design = JSON.parse(store.model.value.exportSerialized());
+		const item = design.items.filter((row) => row.model_url === record.name)[0];
+		expect(item).toBeTruthy();
+		// The axis chosen at import travelled in the document rather than in the
+		// store, which is why it survives a trip to somebody who has neither.
+		expect(item.local).toEqual({id: record.id, file: 'bear.glb', up: 'z'});
+		// And nothing reports it missing, because it was stored before the design
+		// loaded - `Scene` asks `has()` while it is placing each item.
+		expect(models.audit(store.model.value.exportSerialized()).missing).toEqual([]);
+	});
+
+	it('refuses a carried file whose bytes are not what the design named', async () =>
+	{
+		const record = await importBear();
+		const built = await share.makeBundle();
+		await modelStore().forgetAll();
+		io.newDesign();
+
+		// Repack the bundle with a different file under the same name. Content
+		// addressing is what makes this detectable at all: the id in the document
+		// is the digest of the bytes the design was made with.
+		const zip = await import('../src/app/share/zip.js');
+		const files = await zip.readZip(built.bytes);
+		files.set(`assets/${record.name}`, new TextEncoder().encode('not that model'));
+		const tampered = await zip.writeZip([...files.entries()]
+			.map(([name, bytes]) => ({name: name, bytes: bytes})));
+
+		const arriving = settled();
+		expect(await share.openBundle(tampered)).toBe(true);
+		// The item is refused rather than built from bytes nobody vouched for.
+		expect(await arriving).toBeNull();
+		expect(modelStore().has(record.name)).toBe(false);
+		// And the design still opened. "A design that loses one item must lose
+		// nothing else" is the rule for a missing model; a wrong one is the same
+		// rule with a stronger reason.
+		expect(store.model.value.floorplan.getCorners().length).toBe(4);
 	});
 });
 

@@ -156,9 +156,21 @@ export function fileNameFor(name)
 
 /**
  * @param {import('./useBlueprint.js').BlueprintStore} store
+ * @param {Object} [options]
+ * @param {function(string): void} [options.afterLoad] Called with the document
+ *        every time one is successfully loaded, whichever route it came in by
+ *        (RM-012 J3).
+ *
+ *        A hook rather than a call at each site, because there are five sites -
+ *        a file, a project, a template, a shared link and a `.zip` bundle - and
+ *        a design's imported models have to be reported the same way in all
+ *        five. Something one of them forgot to do would be a design silently
+ *        missing an item, which is the exact failure J3's second acceptance
+ *        clause is written against.
  */
-export function useDesignIO(store)
+export function useDesignIO(store, options)
 {
+	var settings = options || {};
 	var busy = ref(false);
 	/**
 	 * What the exports are called (RM-013 K1, finding Y-2).
@@ -188,6 +200,17 @@ export function useDesignIO(store)
 		if (error)
 		{
 			console.error(error);
+		}
+	}
+
+	/**
+	 * @param {string} text The document that just loaded.
+	 */
+	function loaded(text)
+	{
+		if (settings.afterLoad)
+		{
+			settings.afterLoad(text);
 		}
 	}
 
@@ -248,6 +271,7 @@ export function useDesignIO(store)
 				fail(`Could not open ${label || 'that design'}: ${firstProblem(result)}`, null);
 				return false;
 			}
+			loaded(text);
 			return true;
 		}
 		catch (error)
@@ -279,6 +303,7 @@ export function useDesignIO(store)
 				fail(`Could not open ${file.name}: ${firstProblem(result)}`, null);
 				return;
 			}
+			loaded(text);
 			if (result.warnings.length)
 			{
 				// A file this build can open but cannot fully vouch for - an unknown

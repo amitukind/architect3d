@@ -13,6 +13,7 @@ import PlanOverlay from './components/PlanOverlay.vue';
 import LevelSwitcher from './components/LevelSwitcher.vue';
 import SceneOverlay from './components/SceneOverlay.vue';
 import CatalogDrawer from './components/CatalogDrawer.vue';
+import ImportModelDialog from './components/ImportModelDialog.vue';
 import ShortcutsDialog from './components/ShortcutsDialog.vue';
 import ProjectLibrary from './components/ProjectLibrary.vue';
 import ShareDialog from './components/ShareDialog.vue';
@@ -29,6 +30,7 @@ import {useDesignIO, fileNameFor} from './composables/useDesignIO.js';
 import {useProjects} from './composables/useProjects.js';
 import {useTemplates} from './composables/useTemplates.js';
 import {useShare} from './composables/useShare.js';
+import {useModelImport} from './composables/useModelImport.js';
 import {useOffline} from './composables/useOffline.js';
 import {useCatalog} from './composables/useCatalog.js';
 import {useDisplayUnit, syncDisplayUnit} from './composables/useDisplayUnit.js';
@@ -78,10 +80,14 @@ const store = provideBlueprint();
 const selection = useSelection(store);
 const camera = useCameraViews(store);
 const editor = useFloorplannerMode(store);
-const io = useDesignIO(store);
+const models = useModelImport(store);
+// The one hook every load route runs through, so a design's imported models are
+// reported the same way whether it came from a file, a project, a template, a
+// link or a bundle (RM-012 J3).
+const io = useDesignIO(store, {afterLoad: (text) => models.reportMissing(text)});
 const projects = useProjects(store, io);
 const templates = useTemplates(projects);
-const share = useShare(store, projects, io);
+const share = useShare(store, projects, io, models);
 const offline = useOffline();
 const catalog = useCatalog(store, selection.placementContext);
 const display = useDisplayUnit(store);
@@ -107,6 +113,7 @@ const catalogOpen = ref(false);
 const shortcutsOpen = ref(false);
 const libraryOpen = ref(false);
 const shareOpen = ref(false);
+const importOpen = ref(false);
 const inspectorTab = ref('settings');
 const renderMode = ref(renderProfile.mode);
 
@@ -263,6 +270,12 @@ function goOffline()
  */
 async function openShared()
 {
+	// Before anything loads a design, and awaited rather than fired off. The
+	// index is what `Scene` asks whether a name is an import, so a design that
+	// arrived first would report every one of its models missing and then load
+	// none of them (RM-012 J3). It is one `getAll` of a few hundred bytes a
+	// model, because the bytes are in a separate object store.
+	await models.refresh();
 	if (await share.openFromHash())
 	{
 		history.reset();
@@ -489,6 +502,33 @@ function onPlanPointerMove(event)
 	// on the canvas before App constructs the library, so the target is current
 	// rather than one event stale, the same ordering the readout above relies on.
 	editor.refreshDrawTarget();
+}
+
+/**
+ * Place an imported model, and close the dialog behind it (RM-012 J3).
+ *
+ * The dialog closes on success only. A refusal - no room in the store, a
+ * browser that withholds it - leaves the decision on screen with the reason
+ * under it, because the alternative is a dialog that vanishes and a toast that
+ * explains why something the person can no longer see did not happen.
+ *
+ * @param {Object} decision
+ */
+async function onPlaceModel(decision)
+{
+	if (await models.place(decision))
+	{
+		importOpen.value = false;
+	}
+}
+
+/** @param {Object} record One row of the imported shelf. */
+function onPlaceStoredModel(record)
+{
+	if (models.placeStored(record))
+	{
+		importOpen.value = false;
+	}
 }
 
 function onAddItem(entry)
@@ -1042,7 +1082,25 @@ useShortcuts(() => bindings.value);
 			:promised="catalog.promised.value"
 			:placement="selection.placementContext.value"
 			@add-item="onAddItem"
-			@prefetch-item="assets.prefetchItem" />
+			@prefetch-item="assets.prefetchItem"
+			@import-model="importOpen = true" />
+
+		<ImportModelDialog
+			v-model:open="importOpen"
+			:pending="models.pending.value"
+			:stored="models.stored.value"
+			:busy="models.busy.value"
+			:refusal="models.refusal.value"
+			:available="models.available.value"
+			:accept="models.ACCEPT"
+			:limit="models.MAX_MODEL_BYTES"
+			:units="models.UNITS"
+			:preview="models.preview"
+			@choose="models.choose"
+			@cancel="models.cancel"
+			@place="onPlaceModel"
+			@place-stored="onPlaceStoredModel"
+			@forget="models.forget" />
 
 		<ShortcutsDialog v-model:open="shortcutsOpen" :bindings="bindings" />
 

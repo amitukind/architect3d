@@ -2,7 +2,7 @@
 // @ts-check
 import {computed, nextTick, ref, watch} from 'vue';
 import {DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose} from 'reka-ui';
-import {Scale, Search, X, Plus, Star} from '@lucide/vue';
+import {Scale, Search, X, Plus, Star, Upload} from '@lucide/vue';
 import CatalogCredits from './CatalogCredits.vue';
 import {PACKS, loadCatalogDetail, loadCatalogPacks, ROOMS} from '../composables/useCatalog.js';
 import {useCatalogBrowse} from '../composables/useCatalogBrowse.js';
@@ -76,7 +76,7 @@ const props = defineProps({
 	promised: {type: Number, default: 0},
 });
 
-const emit = defineEmits(['update:open', 'add-item', 'prefetch-item']);
+const emit = defineEmits(['update:open', 'add-item', 'prefetch-item', 'import-model']);
 
 const query = ref('');
 /** @type {import('vue').Ref<?string>} The room filter, or null for all. */
@@ -438,6 +438,11 @@ watch(() => props.open, async function (open)
 						Items land on the last floor or wall you clicked in 3D. The panel stays open —
 						<kbd>Esc</kbd> to close.
 					</span>
+					<button
+						type="button" class="btn h-6 flex-none gap-1 px-2 text-[11px]"
+						@click="emit('import-model')">
+						<Upload :size="11" /> Your own models
+					</button>
 					<button
 						type="button" class="btn h-6 flex-none gap-1 px-2 text-[11px]"
 						@click="creditsOpen = true">

@@ -69,7 +69,7 @@ function bundleCode()
  *        read-only by becoming a project, which is the only way out.
  * @param {Object} io The `useDesignIO` instance, for loading and for the name.
  */
-export function useShare(store, projects, io)
+export function useShare(store, projects, io, models)
 {
 	var toasts = useToasts();
 	/** Whether this session is looking at somebody else's design. */
@@ -277,6 +277,20 @@ export function useShare(store, projects, io)
 				{
 					try
 					{
+						// The store before the network (RM-012 J3). An imported model
+						// has no URL to fetch - that is the whole of what X-7 found J3
+						// short of - so a bundle carrying one reads it out of the same
+						// store the viewer loads it from. Nothing above this line knows
+						// imports exist: `has()` is the recipient's manifest, and a
+						// model in nobody's manifest was already routed here.
+						if (models)
+						{
+							var own = await models.read(url);
+							if (own)
+							{
+								return new Uint8Array(own);
+							}
+						}
 						var at = resolver.resolve(url);
 						var response = await fetch(at.url || url);
 						if (!response || !response.ok)
@@ -319,18 +333,70 @@ export function useShare(store, projects, io)
 			toasts.error('That bundle could not be opened.', {detail: read.reason});
 			return false;
 		}
+		// Adopted BEFORE the design loads, and the order is the feature. `Scene`
+		// asks the store whether a name is an import at the moment it places the
+		// item, so a bundle that loaded first and stored second would report every
+		// model it had just brought as missing (RM-012 J3).
+		var taken = await adoptCarried(read);
 		if (!io.loadDesign(read.design, 'that bundle'))
 		{
 			return false;
 		}
 		projects.detach();
 		io.documentName.value = (read.manifest && read.manifest.name) || 'design';
-		if (read.carried.length)
+		if (taken.stored)
 		{
-			toasts.error(`${read.carried.length} model(s) in that bundle could not be placed.`,
-				{detail: `This build cannot store imported models yet: ${read.carried.join(', ')}`});
+			toasts.success(taken.stored === 1
+				? '1 model came with that bundle and is now stored here.'
+				: `${taken.stored} models came with that bundle and are now stored here.`);
+		}
+		if (taken.rejected.length)
+		{
+			// A carried file whose bytes do not hash to the id the design names.
+			// Content addressing is what makes this checkable at all, and refusing
+			// by name is the only honest thing to do with it: the alternative is
+			// storing bytes under a name that is a lie about them.
+			toasts.error(`${taken.rejected.length} file(s) in that bundle did not match the design.`,
+				{detail: taken.rejected.join(', ')});
 		}
 		return true;
+	}
+
+	/**
+	 * Store what a bundle brought, checking it is what the design asked for.
+	 *
+	 * @param {Object} read A `readBundle` result.
+	 * @returns {Promise<{stored: number, rejected: Array<string>}>}
+	 */
+	async function adoptCarried(read)
+	{
+		var stored = 0;
+		/** @type {Array<string>} */
+		var rejected = [];
+		if (!models || !read.assets || !read.assets.size)
+		{
+			return {stored: stored, rejected: rejected};
+		}
+		var wanted = models.audit(read.design).wanted;
+		for (var i = 0; i < wanted.length; i++)
+		{
+			var ref = wanted[i];
+			var carried = read.assets.get(ref.url);
+			if (!carried)
+			{
+				continue;
+			}
+			var bytes = carried.buffer.slice(carried.byteOffset, carried.byteOffset + carried.byteLength);
+			if (await models.adopt(ref, bytes))
+			{
+				stored += 1;
+			}
+			else
+			{
+				rejected.push(ref.file);
+			}
+		}
+		return {stored: stored, rejected: rejected};
 	}
 
 	return {

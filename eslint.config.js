@@ -101,6 +101,12 @@ export default [
 				self: 'readonly',
 				caches: 'readonly',
 				Request: 'readonly',
+				// RM-012 J3. An imported model is stored under the digest of its own
+				// bytes, so a name can never come to mean different bytes and the
+				// same file imported twice is one record. `crypto.subtle` is the
+				// whole of it; `src/app/import/model_file.js` says why there is no
+				// fallback for a browser that has no secure context.
+				crypto: 'readonly',
 			},
 		},
 		rules: {
@@ -319,6 +325,17 @@ export default [
 				// rather than through the module under test.
 				TextEncoder: 'readonly',
 				TextDecoder: 'readonly',
+				// RM-012 J3. The IndexedDB fake stores records the way a real one
+				// does - a structured clone - because the model store holds
+				// `ArrayBuffer`s and JSON renders one as `{}`. Node's own since 17.
+				structuredClone: 'readonly',
+				// And what a file picker hands over, which the import suite has to
+				// build to drive one. jsdom's, in the suites that opt into it.
+				File: 'readonly',
+				Event: 'readonly',
+				// And the digest an imported model is keyed on, which the suite
+				// computes directly to check that the store agreed with it.
+				crypto: 'readonly',
 			},
 		},
 		rules: {
