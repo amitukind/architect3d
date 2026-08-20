@@ -279,6 +279,29 @@ describe('the frame budget (RM-008 T-4)', () =>
 	 * so 0.79 ms is the worst case anyone will hit. The gate is 2 ms - 2.5x that
 	 * - so it fails on a regression rather than on noise, and it is checked here
 	 * because this tier is the one with a real canvas and a real rasteriser.
+	 *
+	 * ## RM-015 M2 ran AA-4's conditional here, and it fired
+	 *
+	 * AA-4 measured this pass at 0.825 ms for 144 walls, 0.985 for 196 - the size
+	 * RM-007 asks M2 to build a cached static layer for - and 1.96 for 400 walls
+	 * with no furniture, and concluded the cache was not wrong but early. It made
+	 * the cache conditional rather than scheduled: raise this fixture to where the
+	 * pass is under pressure, and let this gate decide.
+	 *
+	 * M2 raised it to a 10x10 grid - 404 walls and the same 150 items - and
+	 * measured **2.165 ms against the 2 ms gate**. So the answer is that the cache
+	 * IS needed, and it is needed at roughly 400 walls rather than at the 200 the
+	 * sprint was written for. The fixture is back at 36 rooms because a failing
+	 * test is not a finding, it is a broken suite; the finding is the number, and
+	 * it is recorded in RM-015's landing block as the outstanding half of M2.
+	 *
+	 * Two things from that run are kept. The wall-only probe said 1.51 ms warm at
+	 * 400 walls and would have concluded the opposite - **the 150 footprints are
+	 * what push it over**, which is worth knowing before anybody optimises walls.
+	 * And the warm-up below is five blocks rather than one draw, because the same
+	 * fixture measured 1.995, 1.73, 1.615, 1.51, 1.51 cold-to-warm: a single warm
+	 * draw leaves the timing on the settling curve, where this gate would pass or
+	 * fail on JIT rather than on anything in the repository.
 	 */
 	it('draws a large furnished plan inside 2 ms', () =>
 	{
@@ -314,7 +337,14 @@ describe('the frame budget (RM-008 T-4)', () =>
 		expect(model.floorplan.itemProjection).toHaveLength(150);
 		expect(model.floorplan.getWalls().length).toBeGreaterThanOrEqual(100);
 
-		planner.view.draw();
+		// Five blocks of warm-up, not one draw. See the note above: the same pass
+		// measured 1.995, 1.73, 1.615, 1.51, 1.51 cold-to-warm, so one warm draw
+		// leaves the timing on the settling curve.
+		for (let warm = 0; warm < 5; warm++)
+		{
+			for (let run = 0; run < 20; run++) { planner.view.draw(); }
+		}
+
 		const started = performance.now();
 		for (let run = 0; run < 20; run++)
 		{

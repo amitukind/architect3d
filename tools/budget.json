@@ -858,12 +858,39 @@
 		"grew 529,092 B for 49 net items - 10,798 B each - against a catalog mean of",
 		"27,995 at the time. Which is the arithmetic the ceiling was raised on,",
 		"coming in at 39 % of the price it was budgeted at.",
-		""
+		"",
+		"",
+		"RM-015 M2 RAISES lib-esm-gzip, 83,000 -> 88,000, and most of the reason is not",
+		"M2. The line breached at 83,119 measured, and attributing that took building",
+		"the library at HEAD as well as with the change:",
+		"",
+		"  recorded here      78,999   what budget.json said",
+		"  built at M1        82,312   the same library, before this sprint touched it",
+		"  built with M2      83,119   measured twice, deterministic",
+		"",
+		"So M2's batching is +807 gzipped and the other +3,313 was already in the tree",
+		"and had never been recorded. It is RM-014 L4's: the plan cursor, the two",
+		"reduced-motion helpers in core/dom.js and the OrbitControls change all landed",
+		"in src/scripts, and every budget:update since ran after `npm run build:demo`",
+		"and not after `npm run build`.",
+		"",
+		"THAT IS THE HAZARD WORTH WRITING DOWN. `budget:update` measures whatever is on",
+		"disk. Twelve of these fourteen lines are refreshed by build:demo; lib-esm-gzip",
+		"and lib-iife-gzip need `npm run build`, and if it has not been run they are",
+		"silently re-recorded at their old values rather than reported as missing. CI",
+		"runs both builds so the LIMIT is always enforced honestly - what drifted was",
+		"the `measured` column, which is what everybody reads to see the headroom.",
+		"Refresh with both builds, or the number beside the limit is a fossil.",
+		"",
+		"The new limit carries 5.5 % headroom, which is the convention the first",
+		"measurement set. lib-iife-gzip moved the same way, 294,575 -> 298,608, and is",
+		"left alone: it has 2.7 % of its own limit still free and a limit that does not",
+		"need to move does not move."
 	],
 	"budgets": {
 		"demo-js-gzip": {
 			"limit": 439800,
-			"measured": 429300
+			"measured": 430029
 		},
 		"demo-css-gzip": {
 			"limit": 10000,
@@ -871,19 +898,19 @@
 		},
 		"demo-total": {
 			"limit": 29985000,
-			"measured": 20809944
+			"measured": 20830894
 		},
 		"lib-iife-gzip": {
 			"limit": 307000,
-			"measured": 294575
+			"measured": 298608
 		},
 		"public-total": {
 			"limit": 16770000,
 			"measured": 11631295
 		},
 		"lib-esm-gzip": {
-			"limit": 83000,
-			"measured": 78999
+			"limit": 88000,
+			"measured": 83310
 		},
 		"public-largest": {
 			"limit": 330000,
@@ -920,7 +947,7 @@
 		},
 		"first-load": {
 			"limit": 441700,
-			"measured": 431665
+			"measured": 432414
 		},
 		"catalog-bundled": {
 			"limit": 2600,

@@ -1,7 +1,7 @@
 // @ts-check
 import {EventDispatcher, RepeatWrapping, BufferAttribute, Vector2, Vector3, MeshBasicMaterial, MeshStandardMaterial, FrontSide, DoubleSide, BackSide, Shape, Path, ShapeGeometry, Mesh, SRGBColorSpace} from 'three';
 import {Utils} from '../core/utils.js';
-import {triangleFanGeometry} from '../core/geometry_builders.js';
+import {fanBatchGeometry, triangleFanGeometry} from '../core/geometry_builders.js';
 import {EVENT_REDRAW, EVENT_CAMERA_MOVED, EVENT_CAMERA_ACTIVE_STATUS} from '../core/events.js';
 import {isStudio} from '../core/render_profile.js';
 import {acquireTexture, releaseTexture} from './texture_cache.js';
@@ -123,6 +123,46 @@ export class Edge extends EventDispatcher
 		// factor varies across the texture.
 		this.lightMap.colorSpace = SRGBColorSpace;
 
+		/**
+		 * Whether something else draws this edge's base plane (RM-015 M2, AA-3).
+		 *
+		 * `basePlanes` is the one thing an Edge owns that `updateVisibility` never
+		 * touches - the comment where it is pushed says so: *"put into basePlanes
+		 * since this is always visible"*. Always visible and always the same flat
+		 * colour is exactly the geometry that can share a mesh with every other
+		 * edge's, and {@link Floorplan3D} batches them into one.
+		 *
+		 * The plane is still BUILT here and still owned here, which is deliberate:
+		 * `tests/geometry-rewrites.test.js` pins its geometry against a frozen r98
+		 * golden, and the batch consumes what this builds rather than replacing it.
+		 * What the flag changes is only whether it is added to the scene on its own.
+		 *
+		 * @type {boolean}
+		 */
+		this.baseBatched = false;
+		/**
+		 * The two side fillers as one mesh (RM-015 M2, finding AA-3).
+		 *
+		 * A wall face's two side fillers are the same colour, the same material and
+		 * the same four-point shape, and `updateVisibility` fades them together
+		 * because it fades everything in `planes` together. Same material, same
+		 * visibility, so they can be the same mesh - and at 144 walls that is 288
+		 * draw calls becoming 144.
+		 *
+		 * Both originals stay in `planes` and are NOT added to the scene. That is
+		 * not tidiness: `tests/geometry-rewrites.test.js` pins `planes` at five
+		 * entries against frozen r98 goldens, and it pins the geometry at each
+		 * index. Repacking the array would fail a parity test that cannot be
+		 * regenerated, so the array keeps its shape and only what reaches the scene
+		 * changes. They share one material with this mesh, which is what makes the
+		 * fade still work: `updateVisibility` mutates `plane.material.opacity`, and
+		 * this holds the very same material object.
+		 *
+		 * @type {?Mesh}
+		 */
+		this.sideBatch = null;
+		/** @type {Set<Object>} Planes the batch draws, so addToScene skips them. */
+		this.batchedPlanes = new Set();
 		this.fillerColor = 0xdddddd;
 		this.sideColor = 0xcccccc;
 		this.baseColor = 0xdddddd;
@@ -213,6 +253,12 @@ export class Edge extends EventDispatcher
 			scope.scene.remove(plane);
 		});
 		scope.resources.releaseAll();
+		if (scope.sideBatch)
+		{
+			scope.scene.remove(scope.sideBatch);
+			scope.sideBatch = null;
+		}
+		scope.batchedPlanes = new Set();
 		scope.planes = [];
 		scope.basePlanes = [];
 		scope.phantomPlanes = [];
@@ -222,11 +268,23 @@ export class Edge extends EventDispatcher
 	{
 		var scope = this;
 		this.planes.forEach((plane) => {
+			if (scope.batchedPlanes.has(plane)) { return; }
 			scope.scene.add(plane);
 		});
-		this.basePlanes.forEach((plane) => {
-			scope.scene.add(plane);
-		});
+		if (this.sideBatch)
+		{
+			this.scene.add(this.sideBatch);
+		}
+		// Skipped when the floorplan has batched them (RM-015 M2). `removeFromScene`
+		// is deliberately NOT symmetric about this: removing an object that is not
+		// in the scene is a no-op, and a flag that changed between the two calls
+		// would otherwise strand a plane in the scene forever.
+		if (!this.baseBatched)
+		{
+			this.basePlanes.forEach((plane) => {
+				scope.scene.add(plane);
+			});
+		}
 		this.phantomPlanes.forEach((plane) => {
 			scope.scene.add(plane);
 		});
@@ -495,8 +553,24 @@ export class Edge extends EventDispatcher
 		}
 
 		// sides
-		this.planes.push(this.resources.registerObject(this.buildSideFillter(this.edge.interiorStart(), this.edge.exteriorStart(), extStartCorner.elevation, this.sideColor)));
-		this.planes.push(this.resources.registerObject(this.buildSideFillter(this.edge.interiorEnd(), this.edge.exteriorEnd(), extEndCorner.elevation, this.sideColor)));
+		//
+		// One material for both, and one mesh drawing both (RM-015 M2). The two
+		// meshes below still exist and still carry the geometry the r98 goldens
+		// pin; `addToScene` adds the batch in their place.
+		var sideMaterial = this.makeFillerMaterial(this.sideColor, DoubleSide);
+		this.resources.register(sideMaterial);
+		var startPoints = this.sideFillerPoints(this.edge.interiorStart(), this.edge.exteriorStart(), extStartCorner.elevation);
+		var endPoints = this.sideFillerPoints(this.edge.interiorEnd(), this.edge.exteriorEnd(), extEndCorner.elevation);
+
+		var startFiller = this.resources.registerObject(this.buildSideFillter(this.edge.interiorStart(), this.edge.exteriorStart(), extStartCorner.elevation, this.sideColor, sideMaterial));
+		var endFiller = this.resources.registerObject(this.buildSideFillter(this.edge.interiorEnd(), this.edge.exteriorEnd(), extEndCorner.elevation, this.sideColor, sideMaterial));
+		this.planes.push(startFiller);
+		this.planes.push(endFiller);
+
+		this.sideBatch = this.resources.registerObject(
+			new Mesh(fanBatchGeometry([startPoints, endPoints]), sideMaterial));
+		this.sideBatch.name = 'wall-sides';
+		this.batchedPlanes = new Set([startFiller, endFiller]);
 	}
 
 	// start, end have x and y attributes (i.e. corners)
@@ -652,15 +726,30 @@ export class Edge extends EventDispatcher
 		});
 	}
 
-	buildSideFillter(p1, p2, height, color)
+	/**
+	 * @param {Object} p1
+	 * @param {Object} p2
+	 * @param {number} height
+	 * @param {number} color
+	 * @param {Object} [shared] A material to use instead of making one. The two
+	 * side fillers of a face pass the same one so that {@link Edge#sideBatch} can
+	 * draw both and still receive the opacity `updateVisibility` writes.
+	 */
+	buildSideFillter(p1, p2, height, color, shared)
 	{
-		var points = [this.toVec3(p1), this.toVec3(p2), this.toVec3(p2, height), this.toVec3(p1, height) ];
+		var points = this.sideFillerPoints(p1, p2, height);
 
 		var geometry = triangleFanGeometry(points);
 
-		var fillerMaterial = this.makeFillerMaterial(color, DoubleSide);
+		var fillerMaterial = shared || this.makeFillerMaterial(color, DoubleSide);
 		var filler = new Mesh(geometry, fillerMaterial);
 		return filler;
+	}
+
+	/** The four corners of a side filler, shared by the mesh and the batch. */
+	sideFillerPoints(p1, p2, height)
+	{
+		return [this.toVec3(p1), this.toVec3(p2), this.toVec3(p2, height), this.toVec3(p1, height)];
 	}
 
 	buildFillerVaryingHeights(edge, side, color)
