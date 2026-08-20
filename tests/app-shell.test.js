@@ -703,3 +703,73 @@ describe('the project library', () =>
 		wrapper.unmount();
 	});
 });
+
+/**
+ * Sharing, reachable from the shell (RM-013 K2).
+ *
+ * The codec and the dialog are pinned in their own files. What is asserted here
+ * is the shell's part: that there is a way in, that pressing it produces a real
+ * link, and that a `.zip` and a `.blueprint3d` arrive through one control.
+ *
+ * The link is real because `CompressionStream` is a Node global and reaches
+ * this environment - which the first version of this test assumed the opposite
+ * of, and asserted the no-compression sentence that jsdom turned out not to
+ * need. Worth knowing: the unavailable path is reached by deleting the global,
+ * which is what `tests/design-link.test.js` does, not by being under jsdom.
+ */
+describe('sharing a link', () =>
+{
+	it('has a way in from the top bar', async () =>
+	{
+		const wrapper = await mountApp();
+
+		expect(byTitle(wrapper, 'Share a link')).toBeTruthy();
+		expect(document.querySelector('[role="dialog"]')).toBeNull();
+
+		await byTitle(wrapper, 'Share a link').trigger('click');
+		await flushPromises();
+		await nextTick();
+
+		const dialog = document.querySelector('[role="dialog"]');
+		expect(dialog).not.toBeNull();
+		expect(dialog.textContent).toContain('The whole design travels in the link');
+
+		// The encode is a stream, so it settles a few ticks after the click.
+		for (let i = 0; i < 8; i++)
+		{
+			await flushPromises();
+			await nextTick();
+		}
+		const field = dialog.querySelector('input[aria-label="Shareable link"]');
+		expect(field).not.toBeNull();
+		expect(field.value).toContain('#d=1');
+		expect(dialog.textContent).toMatch(/\d+ of 8,000 characters/);
+		wrapper.unmount();
+	});
+
+	it('offers a bundle beside the other exports', async () =>
+	{
+		const wrapper = await mountApp();
+
+		const exportButton = byTitle(wrapper, 'Export');
+		expect(exportButton).toBeTruthy();
+		await exportButton.trigger('click');
+		await nextTick();
+
+		expect(document.body.textContent).toContain('Bundle (.zip)');
+		wrapper.unmount();
+	});
+
+	it('accepts a .zip through the same control as a design', async () =>
+	{
+		const wrapper = await mountApp();
+
+		// One intention, one control: the file itself declares which of the two it
+		// is, and making somebody pick the right button for that is the interface
+		// asking them to do the computer's job.
+		const input = wrapper.find('input[type="file"]');
+		expect(input.attributes('accept')).toContain('.zip');
+		expect(input.attributes('accept')).toContain('.blueprint3d');
+		wrapper.unmount();
+	});
+});

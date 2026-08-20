@@ -183,6 +183,34 @@ describe('receiving one', () =>
 	});
 });
 
+describe('a bundle, through the composable', () =>
+{
+	it('carries nothing when the recipient has everything, and reads back', async () =>
+	{
+		const built = await share.makeBundle();
+
+		expect(built).not.toBeNull();
+		// The boot design references `rooms/textures/wallmap.png`, which is in the
+		// asset manifest of any build that ships it - so nothing has to travel.
+		expect(built.manifest.format).toBe('architect3d-bundle');
+		expect(built.manifest.carried).toEqual([]);
+
+		// And the round trip puts it back on screen.
+		io.newDesign();
+		expect(await share.openBundle(built.bytes)).toBe(true);
+		expect(projects.current.value).toBeNull();
+	});
+
+	it('refuses something that is not a bundle, without touching the design', async () =>
+	{
+		const before = store.model.value.exportSerialized();
+
+		expect(await share.openBundle(new TextEncoder().encode('not a zip'))).toBe(false);
+
+		expect(store.model.value.exportSerialized()).toBe(before);
+	});
+});
+
 describe('the only way out is a copy', () =>
 {
 	it('keeps it as a project, stops viewing, and clears the URL', async () =>

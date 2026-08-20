@@ -150,6 +150,24 @@ export default defineConfig({
 				// functions. Branches and functions each crossed a whole number and
 				// are raised; lines and statements gained fractions and stay.
 				//
+				// RM-013 K2 is the second sprint where the ratchet BIT rather than
+				// moved, and it bit on exactly the right thing. The link codec, the
+				// zip container, the read-only state and two new components landed at
+				// 84.44 functions and 76.83 branches - under both floors, and under
+				// the functions floor K1 had raised one sprint earlier.
+				//
+				// The floors did not come down. What the failure pointed at was two
+				// components with no test at all - `ShareDialog` and `ViewerBanner`,
+				// at 21 % and 0 % - and a bundle path exercised only in the browser
+				// tier, which this measurement cannot see. Twenty-three tests later:
+				// 86.89 statements, 86.88 lines, 78.12 branches, 85.18 functions.
+				//
+				// Branches crossed a whole number and is raised 77 -> 78. The other
+				// three gained fractions and stay. It is worth recording that
+				// branches went DOWN to 76.83 before it went up: a sprint of refusal
+				// paths adds branches faster than a sprint of tests covers them, and
+				// the floor is what makes the second half happen.
+				//
 				// RM-013 K1 moves functions 84 -> 85 and nothing else. Measured
 				// 86.72 statements, 86.69 lines, 77.50 branches, 85.06 functions.
 				//
@@ -175,7 +193,7 @@ export default defineConfig({
 				// always.
 				lines: 86,
 				statements: 86,
-				branches: 77,
+				branches: 78,
 				functions: 85,
 			},
 		},
