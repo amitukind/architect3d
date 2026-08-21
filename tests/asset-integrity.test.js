@@ -47,6 +47,7 @@ import {readFileSync, readdirSync, existsSync, statSync, mkdtempSync, copyFileSy
 import {fileURLToPath} from 'node:url';
 import {dirname, join, sep, basename} from 'node:path';
 import {tmpdir} from 'node:os';
+import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {sceneVram, textureVram} from '../tools/check-budget.mjs';
 import {resolveModelUrl} from '../src/scripts/core/legacy_models.js';
@@ -187,6 +188,36 @@ describe('saved designs still resolve', () =>
 			expect(WITHDRAWN[name].length, `${name} needs a reason, not a label`).toBeGreaterThan(80);
 			expect(WITHDRAWN[name]).toContain('RM-012 J2');
 		});
+	});
+
+	it('and does not keep the authoring source of what it withdrew', () =>
+	{
+		// RM-020 S-12. The case above looks in `public/`, which is where a shipped
+		// model lives - and that is precisely why it missed this. J2 deleted the
+		// two files whose licence nobody could establish and left three `.blend`
+		// files sitting in `asset-pipeline/`:
+		//
+		//   SimpleCabinet_GLTF.blend        the authoring source of the withdrawn
+		//                                   SimpleCabinet.glb, carrying exactly its
+		//                                   node, mesh and material names - Cabinet1,
+		//                                   Cabinet1_Door_L/R, Countertop1,
+		//                                   HandleLeft/Right, Body/Door/Handle
+		//   legacy-json/SimpleCabinet.blend an earlier revision of the same asset
+		//   test_gltf_models.blend          20.8 MB, named in `sources.json` nowhere
+		//                                   at all, so with no licence even claimed
+		//
+		// 21.95 MB of the exact material J2 decided a deploy could not carry, kept
+		// in the checkout from RM-012 to RM-020 because the assertion was pointed at
+		// the directory the DERIVED file had been deleted from. A blind audit then
+		// filed all three as stale build artifacts - the right answer for the wrong
+		// reason, which is why the reason is written here.
+		//
+		// Stated as "no `.blend` is tracked" rather than per name, because the
+		// per-name form is the shape that just failed: it can only refuse the files
+		// somebody already thought to list.
+		const tracked = execFileSync('git', ['ls-files', '*.blend'], {cwd: ROOT, encoding: 'utf8'})
+			.split('\n').filter(Boolean);
+		expect(tracked, `authoring sources nobody can license:\n  ${tracked.join('\n  ')}`).toEqual([]);
 	});
 
 	it('nothing under rooms/textures was renamed by the compression pass', () =>

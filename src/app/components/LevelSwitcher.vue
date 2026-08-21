@@ -1,7 +1,7 @@
 <script setup>
+// @ts-check
 import {injectLevels} from '../composables/useLevels.js';
 import {injectCameraViews} from '../composables/useCameraViews.js';
-// @ts-check
 import {Layers, Plus, Trash2, Eye, EyeOff} from '@lucide/vue';
 import AppTip from './AppTip.vue';
 import {Dimensioning} from '../../scripts/blueprint.js';

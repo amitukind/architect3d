@@ -1,8 +1,8 @@
 <script setup>
+// @ts-check
 import {injectFloorplannerMode} from '../composables/useFloorplannerMode.js';
 import {injectZoom2D} from '../composables/useZoom2D.js';
 import {injectPlanStats} from '../composables/usePlanStats.js';
-// @ts-check
 import {computed, ref} from 'vue';
 import {PopoverRoot, PopoverTrigger, PopoverPortal, PopoverContent} from 'reka-ui';
 import {ZoomIn, ZoomOut, Maximize2, Crosshair, Grid3x3, Magnet, Triangle, ChevronDown} from '@lucide/vue';

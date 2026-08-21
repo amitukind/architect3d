@@ -1,9 +1,9 @@
 <script setup>
+// @ts-check
 import {injectLayout} from '../composables/useLayout.js';
 import {injectDisplayUnit} from '../composables/useDisplayUnit.js';
 import {injectHistory} from '../composables/useHistory.js';
 import {injectDesignIO} from '../composables/useDesignIO.js';
-// @ts-check
 import {PopoverRoot, PopoverTrigger, PopoverPortal, PopoverContent} from 'reka-ui';
 import {
 	FilePlus2, FolderOpen, Save, Undo2, Redo2, Box, Share2, Printer, Camera, Globe,
@@ -305,7 +305,7 @@ function onUnitChange(event)
 			<select
 				class="field-input num h-7 w-[104px] text-left" aria-label="Display unit"
 				:value="display.unit.value" @change="onUnitChange">
-				<option v-for="entry in display.unit.values" :key="entry.value" :value="entry.value">{{ entry.label }}</option>
+				<option v-for="entry in display.units" :key="entry.value" :value="entry.value">{{ entry.label }}</option>
 			</select>
 
 			<AppTip :label="props.theme === THEME_DARK ? 'Light theme' : 'Dark theme'">

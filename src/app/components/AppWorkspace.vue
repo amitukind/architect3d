@@ -1,6 +1,6 @@
 <script setup>
-import {injectLayout} from '../composables/useLayout.js';
 // @ts-check
+import {injectLayout} from '../composables/useLayout.js';
 import {computed, onBeforeUnmount, ref} from 'vue';
 import {LAYOUT_PLAN, LAYOUT_SPLIT, LAYOUT_VIEW} from '../composables/useLayout.js';
 

@@ -34,6 +34,7 @@ import {markTourSeen} from '../src/app/composables/useTour.js';
 import {floorplannerModes} from '../src/scripts/floorplanner/floorplanner_view.js';
 import {Dimensioning} from '../src/scripts/blueprint.js';
 import {loadCatalogDetail} from '../src/app/composables/useCatalog.js';
+import {UNITS} from '../src/app/composables/useDisplayUnit.js';
 import {installCatalogFetch, resetCatalogPacks} from './helpers/catalog.js';
 import catalog from '../src/catalog/catalog.json';
 import openings from '../src/catalog/openings.json';
@@ -280,6 +281,34 @@ describe('App boot', () =>
 		// parity scenario P10 is reachable without the console. It lives on the
 		// tool rail now rather than the bottom bar.
 		expect(railButton(wrapper, 'Walk through')).toBeTruthy();
+
+		wrapper.unmount();
+	});
+});
+
+describe('the display-unit control', () =>
+{
+	it('offers every unit the composable defines', async () =>
+	{
+		// RM-020 S-12. This existed as a prop and became an injection in S-5, and
+		// the conversion turned `props.units` into `display.unit.values` - a
+		// prefix match on `props.unit` that left a trailing `s`. `display.unit` is
+		// a ref, `.values` is undefined, and `v-for` over undefined renders
+		// nothing, so the control shipped as a select with no options in it.
+		//
+		// Nothing failed. The pragma that would have made `vue-tsc` report it had
+		// been pushed off line 1 of the script block by the same commit's import
+		// insertion, and no test mounted the top bar. Both holes are closed - the
+		// pragma position is asserted in type-coverage.test.js - and this is the
+		// half that checks the control rather than the annotation, because a
+		// dropdown can also empty out for reasons a type checker cannot see.
+		const wrapper = await mountApp();
+
+		const select = wrapper.get('select[aria-label="Display unit"]');
+		const options = select.findAll('option');
+		expect(options.length).toBe(UNITS.length);
+		expect(options.map((option) => option.attributes('value'))).toEqual(UNITS.map((unit) => unit.value));
+		expect(options.every((option) => option.text().length > 0)).toBe(true);
 
 		wrapper.unmount();
 	});

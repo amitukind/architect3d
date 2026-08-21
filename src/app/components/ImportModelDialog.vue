@@ -1,6 +1,6 @@
 <script setup>
-import {injectModelImport} from '../composables/useModelImport.js';
 // @ts-check
+import {injectModelImport} from '../composables/useModelImport.js';
 import {computed, ref, watch} from 'vue';
 import {DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose} from 'reka-ui';
 import {X, Upload, Trash2, Plus, RotateCw} from '@lucide/vue';

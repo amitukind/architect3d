@@ -203,9 +203,9 @@ src/app/       the Vue 3 application built on it
 src/catalog/   the item palette, the texture list and the material library, as JSON
 public/        assets the running app loads (models, textures, thumbnails)
 asset-pipeline/ inputs and records that are not served: the 25 pre-migration
-               three.js JSON models the .glb files were converted from, the
-               .blend authoring files, and the conversion report
-tests/         1,647 headless tests; see tests/README.md
+               three.js JSON models the .glb files were converted from with
+               their textures, and the reports each pipeline pass wrote
+tests/         2,748 headless tests; see tests/README.md
 tools/         one-off and migration tooling (conversion, goldens, parity)
 docs/          this documentation site
 ```

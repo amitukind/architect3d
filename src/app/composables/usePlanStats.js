@@ -166,6 +166,15 @@ export function providePlanStats(store)
  * Throws rather than returning null: a component that reached for this and did
  * not get it is mounted outside the application shell, and every symptom of
  * that is more confusing than the message.
+ *
+ * The annotation is load-bearing, not decoration. `PLANSTATS_KEY` is a plain
+ * `Symbol` rather than an `InjectionKey<T>`, so `inject(key, null)` infers `null`
+ * and the guard below narrows that to `never` - which type-checks here and makes
+ * every property access on the result an error in the component. RM-020 S-12
+ * found eleven such errors reported against `PlanOverlay.vue` and `StatusBar.vue`
+ * and none against the twelve composables `createInjection` serves, which carry
+ * this line.
+ * @returns {ReturnType<typeof usePlanStats>}
  */
 export function injectPlanStats()
 {

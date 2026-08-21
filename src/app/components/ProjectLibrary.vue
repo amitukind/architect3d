@@ -1,6 +1,6 @@
 <script setup>
-import {injectProjects} from '../composables/useProjects.js';
 // @ts-check
+import {injectProjects} from '../composables/useProjects.js';
 import {computed, nextTick, ref, watch} from 'vue';
 import {DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose} from 'reka-ui';
 import {X, Copy, Trash2, Pencil, FilePlus2, LayoutGrid, Check} from '@lucide/vue';

@@ -1,6 +1,6 @@
 <script setup>
-import {injectShare} from '../composables/useShare.js';
 // @ts-check
+import {injectShare} from '../composables/useShare.js';
 import {ref, watch} from 'vue';
 import {DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose} from 'reka-ui';
 import {X, Copy, Link2} from '@lucide/vue';

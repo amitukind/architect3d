@@ -1,6 +1,6 @@
 <script setup>
-import {injectCameraViews} from '../composables/useCameraViews.js';
 // @ts-check
+import {injectCameraViews} from '../composables/useCameraViews.js';
 import {Camera, Grid2x2, Sparkles, Lock, LockOpen} from '@lucide/vue';
 
 import AppTip from './AppTip.vue';

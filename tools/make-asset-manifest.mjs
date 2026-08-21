@@ -226,6 +226,28 @@ function sriHash(bytes)
  * The rule for adding one: it must be a decision somebody took with a reason
  * that outlives them, not an asset that got tidied. Anything that merely moved
  * belongs in `RETIRED` above, where it keeps resolving.
+ *
+ * ## WITHDRAWING THE FILE IS NOT WITHDRAWING THE ASSET (RM-020 S-12)
+ *
+ * J2's reason was that a deploy should not carry a file nobody can license. It
+ * deleted the two `.glb`/`.gltf` files and stopped there, and for eight
+ * programmes the repository went on tracking 21.95 MB of `.blend` beside them -
+ * `SimpleCabinet_GLTF.blend`, whose node, mesh and material names are exactly
+ * the withdrawn `SimpleCabinet.glb`'s; an earlier revision of it under
+ * `legacy-json/`; and a 20.8 MB scene that `src/catalog/sources.json` does not
+ * mention at all, so with no licence even claimed for it.
+ *
+ * Nothing hid them. `tests/asset-integrity.test.js` asserted that a withdrawn
+ * name "is really gone" and looked only in `public/`, which is where the
+ * derived file had been - so the check passed while the original sat one
+ * directory away. The test now also asserts that the repository tracks no
+ * `.blend` at all, stated that way rather than per name because a per-name list
+ * can only refuse the files somebody already thought of, which is the shape
+ * that failed here.
+ *
+ * The deletion costs nothing an auditor needs: `git rm` leaves every blob in
+ * history, so the evidence behind J1's `unknown` is still recoverable, and the
+ * reasons below are what a reader finds first.
  */
 export const WITHDRAWN = {
 	'models/gltf/SimpleCabinet.glb':

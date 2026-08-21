@@ -73,6 +73,14 @@ export function useFloorplannerMode(store)
 	 * library dispatches nothing for it - deliberately, since RM-002 R-05 spent a
 	 * sprint taking work out of that handler. `useZoom2D` reads the library the
 	 * same way for the same reason.
+	 *
+	 * Annotated because `shallowRef(null)` on its own infers `ShallowRef<null>`,
+	 * and a consumer that guards the value before reading it narrows that to
+	 * `never` - which is how `PlanOverlay.vue` came to report `.length` and
+	 * `.angle` as errors on a ref holding exactly those two fields. The shape is
+	 * `Floorplanner.drawTarget()`'s documented return, spelled rather than
+	 * imported because the class is reached through `blueprint.js`.
+	 * @type {import('vue').ShallowRef<?{length: number, angle: number, x: number, y: number}>}
 	 */
 	var drawTarget = shallowRef(null);
 

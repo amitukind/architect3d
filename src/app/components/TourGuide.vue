@@ -1,6 +1,6 @@
 <script setup>
-import {injectTour} from '../composables/useTour.js';
 // @ts-check
+import {injectTour} from '../composables/useTour.js';
 import {computed, ref, watch, onBeforeUnmount, onMounted, nextTick} from 'vue';
 import {PopoverRoot, PopoverAnchor, PopoverPortal, PopoverContent} from 'reka-ui';
 import {X} from '@lucide/vue';

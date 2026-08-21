@@ -1,9 +1,9 @@
 <script setup>
+// @ts-check
 import {injectFloorplannerMode} from '../composables/useFloorplannerMode.js';
 import {injectLayout} from '../composables/useLayout.js';
 import {injectPlanStats} from '../composables/usePlanStats.js';
 import {injectZoom2D} from '../composables/useZoom2D.js';
-// @ts-check
 import {computed} from 'vue';
 import {Dimensioning, floorplannerModes} from '../../scripts/blueprint.js';
 import {LAYOUT_PLAN} from '../composables/useLayout.js';

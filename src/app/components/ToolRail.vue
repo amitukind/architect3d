@@ -1,8 +1,8 @@
 <script setup>
+// @ts-check
 import {injectFloorplannerMode} from '../composables/useFloorplannerMode.js';
 import {injectLayout} from '../composables/useLayout.js';
 import {injectItemActions} from '../composables/useItemActions.js';
-// @ts-check
 import {computed} from 'vue';
 import {
 	MousePointer2, PencilRuler, RectangleHorizontal, Eraser, Sofa, Footprints,
