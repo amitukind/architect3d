@@ -273,20 +273,25 @@ export class BlueprintCore
 		}
 		this.detachViewer();
 
-		// The bandwidth half of abandoning a load (see DesignRuntime.dispose).
-		// Unconditional, because these are the fetches THIS document started
-		// through its own LoadingManager, whoever owns the runtime.
+		// Both halves of letting the document go, under one guard.
+		//
+		// They were two, and the second tested `this.model` alone while its own
+		// first statement reads `this.model.scene` - so it never covered the
+		// precondition it needed, and a model without a scene would have thrown
+		// rather than been skipped. One guard is both correct and one branch
+		// cheaper, which matters on a file whose branch floor has no slack.
+		//
+		// Ordering inside it is deliberate and unchanged. `abortPendingLoads` is
+		// the bandwidth half of abandoning a load (see DesignRuntime.dispose) and
+		// runs whoever owns the runtime, because these are the fetches THIS
+		// document started through its own LoadingManager. The release runs after
+		// `detachViewer()` above: the viewer's own dispose tears down every Floor
+		// and Edge, and those hold the borrowed references to exactly the meshes
+		// released here - so releasing first would leave the projection detaching
+		// planes it had already given back.
 		if (this.model && this.model.scene)
 		{
 			this.model.scene.abortPendingLoads();
-		}
-
-		// After detachViewer(), deliberately. The viewer's own dispose tears down
-		// every Floor and Edge, and those hold the borrowed references to exactly
-		// the meshes released below - so releasing first would leave the projection
-		// detaching planes it had already given back.
-		if (this.model)
-		{
 			this.model.scene.releaseItemResources();
 			this.model.floorplan.releaseResources();
 		}

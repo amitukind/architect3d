@@ -254,7 +254,7 @@ footer a{color:var(--accent)}
 <section id="gates">
   <div class="sec-k mono">&sect; 03</div>
   <h2>What actually gates</h2>
-  <p class="sub">Fourteen checks run without anybody asking. Seventeen more exist as commands, and this is the first document to say which is which.</p>
+  <p class="sub">Fifteen checks run without anybody asking &mdash; fourteen until RM-020 AC-6 added one. Seventeen more exist as commands, and this is the first document to say which is which.</p>
 
   <p>The design principle has not changed and is still right: <strong>Actions minutes are the constrained resource</strong>, so cheap high-yield checks run on the machine that made the change and only what genuinely needs a runner is paid for. What follows is what is wired up, read out of <code>lint-staged.config.mjs</code> and <code>.github/workflows/</code> rather than from any previous description of them.</p>
 
@@ -284,6 +284,7 @@ footer a{color:var(--accent)}
       <tr><td><code>npm run deploy:check</code></td><td>That every path the built document names exists in the assembled tree. Every other gate runs before assembly and none of them resolves a URL</td></tr>
       <tr><td><code>npm run lighthouse:check</code></td><td>The only threshold in this repository that this repository did not define</td></tr>
       <tr><td><code>npm audit --audit-level=low</code></td><td>Zero advisories, and that the one dependency override is still needed and still enough</td></tr>
+      <tr><td><code>npm run counts:check</code></td><td>That the counts this document publishes are the tree's. <code>vitest list</code> collects both tiers without running either, and the coverage half is read from the summary <code>test:coverage</code> has just written &mdash; which is why it sits after it. Added because the test count drifted in four consecutive commits and the coverage figure beside it was a sprint stale</td></tr>
     </tbody>
   </table></div>
 
@@ -323,7 +324,7 @@ footer a{color:var(--accent)}
 
   <div class="big">
     <div><div class="v">3,000</div><div class="l">tests &mdash; 2,749 headless, 267 in a browser</div></div>
-    <div><div class="v">89.17&thinsp;%</div><div class="l">statements covered, 12,202 of 13,683</div></div>
+    <div><div class="v">89.24&thinsp;%</div><div class="l">statements covered, 12,266 of 13,744</div></div>
     <div><div class="v">274&thinsp;KB</div><div class="l">gzipped first load</div></div>
     <div><div class="v">95 / 62</div><div class="l">Lighthouse desktop / mobile</div></div>
   </div>
@@ -368,7 +369,7 @@ footer a{color:var(--accent)}
       <tr><td>Catalog packs, gzipped</td><td class="n">11.4 KB</td><td class="n">48.8 KB</td><td class="n">76.7&thinsp;%</td></tr>
     </tbody>
   </table></div>
-  <p><strong>Two of these are worth reading twice.</strong> <em>Demo JS</em> at 1.0&nbsp;% is 4,581 bytes from its ceiling and has moved 23 bytes in three sprints &mdash; tight, but not eroding. <em>Published package</em> is 10,451,791 bytes of which <strong>66.7&nbsp;% is two source maps</strong>; dropping them from the <code>files</code> allowlist is a one-line change worth 6.97 MB, and it is a decision nobody has made rather than an oversight.</p>
+  <p><strong>Two of these are worth reading twice.</strong> <em>Demo JS</em> at 1.0&nbsp;% is 4,581 bytes from its ceiling and has moved 23 bytes in three sprints &mdash; tight, but not eroding. <em>Published package</em> was 10,451,791 bytes of which <strong>66.7&nbsp;% was two source maps</strong>, and that was recorded here as a decision nobody had made rather than an oversight. <strong>RM-020 AC-7 made it</strong>: the IIFE map is no longer emitted, the ESM one stays, and the line reads 5,190,342. It also now has <strong>52.7&nbsp;% headroom</strong>, which is AB-5&rsquo;s finding pointed at a different row &mdash; a ceiling that far above what it measures has stopped being able to catch anything. The limit was deliberately not lowered in the same pass; limits move by hand, with a reason.</p>
 
   <h3>What the tree holds</h3>
   <div class="tw"><table>
@@ -430,7 +431,7 @@ footer a{color:var(--accent)}
       <h3 class="card-h">Nobody has opened it <span class="tag crit">M-51</span></h3>
       <p>This application has never been used by anybody who is not holding this repository. There is no hosting account, so <code>deploy.yml</code> and <code>publish.yml</code> are built and waiting on two Cloudflare secrets.</p>
       <p><strong>DEFERRED ON PURPOSE, 2026-08-21.</strong> Asked and answered rather than left drifting: hosting waits until somebody actually needs to open the thing. Nothing in the tree is blocked by it, it is not engineering work &mdash; an account and two secrets &mdash; and the first deploy is what answers the three questions below, so answering them earlier buys nothing while there are no users. This is a decision with a date on it, not an item nobody got to.</p>
-      <p><strong>And the sentence above used to overstate it.</strong> For eight drawings this card said the deploy workflow, its checks <em>and its Lighthouse floor</em> were all waiting on a credential. The floor is not waiting: <code>lighthouse:check</code> is <strong>gate eighteen</strong> and it runs on every CI run, against the assembled tree served over HTTP from localhost &mdash; byte-for-byte what would be uploaded. <code>deploy:check</code> gates there too, on the same tree. What the deploy job adds is the same analysis pointed at the published URL, and that one was deliberately built to <em>report without gating</em>. So the bar is already applied to the exact bytes; it is a lab measurement rather than a field one.</p>
+      <p><strong>And the sentence above used to overstate it.</strong> For eight drawings this card said the deploy workflow, its checks <em>and its Lighthouse floor</em> were all waiting on a credential. The floor is not waiting: <code>lighthouse:check</code> <strong>runs on every CI run</strong>, against the assembled tree served over HTTP from localhost &mdash; byte-for-byte what would be uploaded. <code>deploy:check</code> gates there too, on the same tree. What the deploy job adds is the same analysis pointed at the published URL, and that one was deliberately built to <em>report without gating</em>. So the bar is already applied to the exact bytes; it is a lab measurement rather than a field one.</p>
       <p><strong>What is genuinely unverified</strong>, and what the first deploy is for:</p>
       <ul>
         <li><strong>Response headers.</strong> Every budget line here is a gzipped figure, and no host has ever confirmed it serves gzip or brotli with the cache headers those numbers assume. The cheapest thing a first deploy would falsify.</li>
@@ -472,7 +473,7 @@ footer a{color:var(--accent)}
     </div>
   </div>
 
-  <p>Two more things are true and are not tasks. <strong>Four floors are within two units of red</strong>, two of them at zero &mdash; visible on every CI run rather than discovered by a red build. And <strong>the source maps in the published package</strong> are 66.7&nbsp;% of it, waiting on somebody to decide whether a consumer should get readable stack traces at that price.</p>
+  <p>Two more things are true and are not tasks. <strong>Four floors are within two units of red</strong>, two of them at zero &mdash; visible on every CI run rather than discovered by a red build. The source-map question that used to sit beside it is <strong>answered</strong>: see AC-7 in &sect;&nbsp;04. Two of those four floors also moved &mdash; <code>src/scripts/*.js</code> branches went 19/22 to 18/20 when a redundant guard merged, off zero and onto 90&nbsp;%.</p>
 </section>
 
 <section id="audit">
@@ -621,7 +622,7 @@ footer a{color:var(--accent)}
     <tbody>
       <tr>
         <td><strong>&ldquo;Nineteen gates&rdquo;</strong>, in every landing note for four programmes</td>
-        <td>The nineteen were never listed anywhere, so nobody could check them. Counted from the triggers: <strong>3 in the pre-commit hook, 10 in CI, 1 in the browser job</strong> &mdash; fourteen. Seventeen further <code>*:check</code> commands exist and <strong>nothing runs them</strong>. They are useful, and they are not gates. &sect;&nbsp;03 lists all of it</td>
+        <td>The nineteen were never listed anywhere, so nobody could check them. Counted from the triggers: <strong>3 in the pre-commit hook, 10 in CI, 1 in the browser job</strong> &mdash; fourteen. Fifteen since AC-6 put <code>counts:check</code> in CI; &sect;&nbsp;03 is the live count and this row is what the recount found. Seventeen further <code>*:check</code> commands exist and <strong>nothing runs them</strong>. They are useful, and they are not gates. &sect;&nbsp;03 lists all of it</td>
       </tr>
       <tr>
         <td><strong>&ldquo;Tier 3 &middot; scheduled &amp; on demand &mdash; weekly&rdquo;</strong>: a parity grid, Lighthouse against the deployed site, and Dependabot grouped weekly</td>

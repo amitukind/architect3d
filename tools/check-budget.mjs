@@ -744,6 +744,13 @@ function firstLoadPayload()
  * defensible trade - a consumer debugging through this library gets readable
  * stack traces - and it is a trade somebody should make on purpose.
  *
+ * RM-020 AC-7 made it: the IIFE map is no longer emitted and the ESM map stays.
+ * This line reads **5,190,342 across 249 files** now, and the tarball a consumer
+ * actually downloads went 2,685,194 -> 1,491,868. Worth keeping the two figures
+ * apart, because this one overstates the saving: maps compress about 4.5x, so
+ * the 66.7 % of the unpacked tree above was 62.6 % of the download. See the
+ * long note in tools/budget.json and the block in vite.config.mjs for the trade.
+ *
  * @returns {?number}
  */
 function packageBytes()

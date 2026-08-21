@@ -95,6 +95,21 @@ jobs:
         # where the work happens.
         run: npm run test:coverage
 
+      - name: Published counts
+        # RM-020 AC-6. The roadmap quotes how many tests there are in four places
+        # and what statement coverage is in a fifth, and every one of them used to
+        # be maintained by somebody retyping it. The test count drifted in four
+        # consecutive commits and the coverage figure was a whole sprint stale.
+        #
+        # `vitest list` collects both tiers without running either - about
+        # thirteen seconds for 3,016 tests and no browser launched - and the
+        # coverage half is read from the summary the step above has just written,
+        # which is why this runs here and not before it.
+        #
+        # Same rule the type ledger got after drifting five times: a number is
+        # either produced by a command or checked by one.
+        run: npm run counts:check
+
       - name: Lint
         # Blocking since S1 (ESLint 10 flat config). Two rules new to ESLint 10
         # are set to 'warn' in eslint.config.js rather than silenced - see the
@@ -138,8 +153,13 @@ jobs:
           npm run deploy:check
 
       - name: Lighthouse
-        # RM-015 M3, gate eighteen, and the only number in this repository that
-        # this repository did not define. Every budget line and every coverage
+        # RM-015 M3, and the only number in this repository that
+        # this repository did not define. (This comment used to call itself "gate
+        # eighteen", a label from the era when the roadmap claimed nineteen gates
+        # and none of them were listed. The audited count was fourteen and is
+        # fifteen since AC-6; ordinals here were never maintained, so it no longer
+        # claims one.)
+        # Every budget line and every coverage
         # floor is a threshold we chose over a quantity we chose; a Lighthouse
         # performance score weights five metrics the way somebody else weights
         # them, and it can fall while all fourteen budget lines improve. That is

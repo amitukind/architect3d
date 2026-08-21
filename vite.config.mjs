@@ -131,7 +131,44 @@ export default defineConfig(({mode}) => {
 					formats: ['iife'],
 					fileName: () => 'bp3djs.js',
 				},
-				sourcemap: true,
+				/**
+				 * No source map for the IIFE, decided on purpose (RM-020 AC-7).
+				 *
+				 * `check-budget.mjs` added `package-unpacked` and found 66.7 % of the
+				 * published package was two source maps, then said in as many words
+				 * that shipping them "is a trade somebody should make on purpose"
+				 * and that nobody ever had. This is that decision, taken on what a
+				 * consumer actually downloads rather than on the unpacked figure the
+				 * ceiling watches - maps are JSON and compress about 4.5x, so the
+				 * headline number overstates the cost by a lot:
+				 *
+				 *     packed tarball          2,685,194 B
+				 *       bp3djs.js.map           1,206,691   45 %   <- this one
+				 *       architect3d.js.map        473,833   18 %   kept
+				 *       everything else         1,004,670   37 %
+				 *
+				 * Dropping this one alone takes a consumer's install from 2.69 MB to
+				 * about 1.48 MB and leaves the ESM build - the bundler path, and the
+				 * normal one - fully debuggable for a third of the bytes.
+				 *
+				 * IT IS A REAL TRADE AND NOT A FREE SAVING. The note below justifies
+				 * minifying this bundle partly on the grounds that the map keeps it
+				 * debuggable, and that half is now gone: a stack trace through
+				 * `bp3djs.js` names minified symbols. What makes it the right way
+				 * round is who each artifact is for. This one is the drop-in for a
+				 * plain `<script>` tag; the ESM entry with its map is what anybody
+				 * with a build step gets, and `src/scripts` ships in the package
+				 * either way.
+				 *
+				 * `false` rather than dropping the file from `files`: the bundle
+				 * carries a `//# sourceMappingURL` comment, so shipping the code
+				 * without the map would turn every devtools open into a 404. Not
+				 * emitting it removes both.
+				 *
+				 * Reversible, and cheapest to reverse now - this package has never
+				 * been published, so no consumer has ever depended on the file.
+				 */
+				sourcemap: false,
 				// three r98 is large and not tree-shakeable; the warning is noise.
 				chunkSizeWarningLimit: 5000,
 				/**
@@ -147,8 +184,10 @@ export default defineConfig(({mode}) => {
 				 * a CDN will ever see. Minified it is **220.8 KB**, a 52.4% cut, and
 				 * `lib-iife-gzip` came DOWN from 459 KB to 233 KB to match.
 				 *
-				 * Nothing about the source changes, and `sourcemap: true` above is
-				 * what keeps it debuggable. Verified rather than assumed: the
+				 * Nothing about the source changes. This used to add "and
+				 * `sourcemap: true` above is what keeps it debuggable"; AC-7 turned
+				 * that off and the sentence with it, for the reasons in the block
+				 * above. Verified rather than assumed: the
 				 * minified bundle parses, exposes all 170 exports, and its
 				 * `DesignRuntime` still holds the module-level configuration,
 				 * dimensioning and render profile by identity.

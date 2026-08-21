@@ -205,7 +205,7 @@ public/        assets the running app loads (models, textures, thumbnails)
 asset-pipeline/ inputs and records that are not served: the 25 pre-migration
                three.js JSON models the .glb files were converted from with
                their textures, and the reports each pipeline pass wrote
-tests/         2,749 headless tests; see tests/README.md
+tests/         the headless suite; see tests/README.md
 tools/         one-off and migration tooling (conversion, goldens, parity)
 docs/          this documentation site
 ```

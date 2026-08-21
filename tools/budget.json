@@ -48,10 +48,10 @@
 		"drawer fetches all four packs, and what it should protect is that first open. On",
 		"the 1.6 Mbps link Lighthouse throttles to - the slowest network this project",
 		"measures anything on - 50,000 gzipped bytes is 244 ms. That is a ceiling tied to",
-		"an experience rather than to last year\u0027s measurement, it leaves room for roughly",
+		"an experience rather than to last year's measurement, it leaves room for roughly",
 		"930 rows, and it hands the decision about how large the catalog should be back to",
-		"whoever curates it: past 50,000 the answer stops being \u0027the index is too big\u0027 and",
-		"becomes \u0027the drawer takes a quarter of a second\u0027, which is a sentence somebody can",
+		"whoever curates it: past 50,000 the answer stops being 'the index is too big' and",
+		"becomes 'the drawer takes a quarter of a second', which is a sentence somebody can",
 		"actually argue with. `public-total` is the binding constraint again, at 608 models,",
 		"which is the right ordering: the bytes people download should be what limits the",
 		"catalog, not the listing of them.",
@@ -1005,28 +1005,57 @@
 		"and one somebody should make deliberately. Dropping the two .map entries from",
 		"`files` would take this line to 3,482,742 - a 66.7 % cut - and is a one-line",
 		"change whenever that decision is made.",
+		"",
+		"  THE DECISION WAS MADE, RM-020 AC-7: the IIFE map goes, the ESM map stays.",
+		"  Taken on what a CONSUMER DOWNLOADS rather than on the unpacked figure this",
+		"  line watches, because maps are JSON and compress about 4.5x - so 66.7 % of",
+		"  the tree was only 62.6 % of the tarball, and the actionable half of that",
+		"  was one file:",
+		"",
+		"    packed tarball          2,685,194 B",
+		"      bp3djs.js.map           1,206,691   45 %   dropped",
+		"      architect3d.js.map        473,833   18 %   kept",
+		"      everything else         1,004,670   37 %",
+		"",
+		"  Measured after: the tarball is 1,491,868 and the unpacked tree 5,190,342,",
+		"  so an install fell 44.4 % and this line 10,451,791 -> 5,190,342. Not the",
+		"  66.7 % the paragraph above predicted, because that arithmetic dropped BOTH",
+		"  maps and this dropped one - the ESM map is the bundler path's, it is a",
+		"  third of the bytes, and a library that cannot be debugged anywhere is a",
+		"  worse trade than one that cannot be debugged from a script tag.",
+		"",
+		"  Turned off at the source in vite.config.mjs rather than removed from",
+		"  `files`: the bundle carries a sourceMappingURL comment, so shipping the",
+		"  code without the map would 404 every devtools open. See the block there",
+		"  for what it costs - a stack through bp3djs.js now names minified symbols.",
+		"",
+		"  AND THIS LINE NOW HAS 52.7 % HEADROOM, which is AB-5's finding pointed at",
+		"  a different row: a ceiling that far above what it measures has stopped",
+		"  being able to catch anything. The limit was deliberately NOT lowered here",
+		"  - limits move by hand, with a reason, and this one is left for whoever",
+		"  decides what the published package should be allowed to weigh.",
 		""
 	],
 	"budgets": {
 		"demo-js-gzip": {
 			"limit": 439800,
-			"measured": 435163
+			"measured": 435518
 		},
 		"demo-css-gzip": {
 			"limit": 10000,
-			"measured": 8116
+			"measured": 8138
 		},
 		"demo-total": {
 			"limit": 29985000,
-			"measured": 20859173
+			"measured": 20910462
 		},
 		"package-unpacked": {
 			"limit": 10970000,
-			"measured": 10451791
+			"measured": 5190342
 		},
 		"lib-iife-gzip": {
 			"limit": 307000,
-			"measured": 299416
+			"measured": 299716
 		},
 		"public-total": {
 			"limit": 16770000,
@@ -1034,7 +1063,7 @@
 		},
 		"lib-esm-gzip": {
 			"limit": 88000,
-			"measured": 83223
+			"measured": 83907
 		},
 		"public-largest": {
 			"limit": 330000,
@@ -1071,7 +1100,7 @@
 		},
 		"first-load": {
 			"limit": 294000,
-			"measured": 280079
+			"measured": 280850
 		},
 		"catalog-bundled": {
 			"limit": 2600,
