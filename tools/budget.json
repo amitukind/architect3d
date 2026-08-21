@@ -1032,8 +1032,11 @@
 		"  AND THIS LINE NOW HAS 52.7 % HEADROOM, which is AB-5's finding pointed at",
 		"  a different row: a ceiling that far above what it measures has stopped",
 		"  being able to catch anything. The limit was deliberately NOT lowered here",
-		"  - limits move by hand, with a reason, and this one is left for whoever",
-		"  decides what the published package should be allowed to weigh.",
+		"  - limits move by hand, with a reason. Put to the owner and LEFT AS IT IS,",
+		"  2026-08-21: the headroom is known and the line is kept as a ceiling rather",
+		"  than retuned to what the package happens to weigh today. Recorded so the",
+		"  next reader finds a decision here instead of an open question, which is",
+		"  the whole reason the 608 above went four programmes without being caught.",
 		""
 	],
 	"budgets": {
