@@ -1,9 +1,10 @@
 # Test suite
 
-The safety net for the Vue 3 + Vite + three 0.185 migration described in
-[`docs/roadmap.html`](../docs/roadmap.html). Before S0 this repository had no
-tests at all; everything here exists so that later sprints can prove they
-changed nothing they did not intend to change.
+The safety net for the Vue 3 + Vite + three 0.185 migration, and for the
+eighteen programmes since. Before it there were no tests at all; everything
+here exists so that a change can prove it changed nothing it did not intend
+to. What the suites gate, and what they do not, is in
+[the state of the build](../docs/public/roadmap.html).
 
 Two kinds of test live here, and the distinction matters when one fails:
 

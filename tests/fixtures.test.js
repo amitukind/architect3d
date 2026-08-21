@@ -2,8 +2,9 @@
  * The frozen baseline fixtures must stay loadable, and must keep meaning what
  * they meant when S0 captured them.
  *
- * These files are the reference inputs for every later sprint's parity check
- * (roadmap docs/roadmap.html, section 07). Without a test they could rot
+ * These files are the reference inputs for every later sprint's parity check,
+ * captured from a toolchain that no longer exists and therefore not
+ * regenerable - see `npm run parity`. Without a test they could rot
  * silently: a change to the load path, the room finder, or the unit handling
  * would only surface much later, in a sprint that would then be blamed for it.
  *

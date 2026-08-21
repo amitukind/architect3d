@@ -53,7 +53,7 @@ export default defineConfig({
 				{text: 'Save file format', link: '/save-format'},
 				{text: 'Events', link: '/events'},
 			]},
-			{text: 'Migration roadmap', link: '/roadmap.html', target: '_blank'},
+			{text: 'State of the build', link: '/roadmap.html', target: '_blank'},
 		],
 
 		sidebar: [

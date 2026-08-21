@@ -3,10 +3,10 @@
  *
  * findRooms is the semantic centre of the data layer: it walks the planar
  * straight-line graph of corners/walls, keeps the tightest cycles, drops
- * duplicates and drops clockwise loops. The roadmap (docs/roadmap.html, S0)
- * freezes it as-is for the Vue3/three-0.185 migration, so everything below
- * records what the algorithm DOES TODAY - including its quirks - rather than
- * what a textbook room finder would do.
+ * duplicates and drops clockwise loops. It was frozen as-is for the
+ * Vue 3 / three 0.185 migration, so everything below records what the
+ * algorithm DOES TODAY - including its quirks - rather than what a textbook
+ * room finder would do. A failure here is a signal to re-check the change.
  *
  * Coordinates are in cm, y grows DOWNWARD on the 2D canvas.
  *

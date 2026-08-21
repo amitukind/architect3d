@@ -397,7 +397,8 @@ describe('a compressed texture shared between surfaces (RM-005 C1)', () =>
 
 		// One, not two. If this is ever 2, `texture_cache`'s clone-a-master design
 		// buys nothing for compressed textures and the honest answer for the
-		// remaining room textures is a different one - see roadmap section 27, N-2.
+		// remaining room textures is a different one: share the master rather
+		// than clone it, and pay for a per-surface transform some other way.
 		expect(uploaded, 'two clones of one compressed texture cost two GPU uploads').toBe(1);
 
 		scene.traverse((object) =>

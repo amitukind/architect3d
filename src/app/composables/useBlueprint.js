@@ -26,7 +26,7 @@ import {modelStore} from '../import/model_store.js';
  * So: `shallowRef` for the slots (we want the *reference* to be reactive, not
  * its contents) and `markRaw` on the instance (so it stays raw even if some
  * future caller drops it into a `reactive()`). Nothing in this app puts a
- * library object into a deep ref. See docs/roadmap.html section 04.
+ * library object into a deep ref, and app-shell.test.js asserts it.
  *
  * UI updates come from the library's own events, exactly as the dat.GUI
  * `updateDisplay()` dance did - minus the dance.

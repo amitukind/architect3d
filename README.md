@@ -96,8 +96,9 @@ pixels read back, the 3D view is composited through a real WebGL2 context, and
 axe-core runs over the booted application. The coverage floor, the budget limits and
 the set of type-checked files are all committed and all ratchets — extend them
 when a change earns it, and never relax one to make a build pass. The full gate
-ladder, including the browser-based tier that is not built yet, is
-[RM-002 §13](./docs/public/roadmap.html).
+ladder — what runs on commit, what runs in CI, and the seventeen `:check`
+commands nothing triggers — is in
+[the state of the build](./docs/public/roadmap.html).
 
 ### Types
 
@@ -179,7 +180,7 @@ Types are generated from the JSDoc and ship with the package.
 | [Architecture](./docs/architecture.md) | How the layers fit together, and where they meet |
 | [Save file format](./docs/save-format.md) | Every field in a `.blueprint3d` file, and how an older one is read |
 | [Events](./docs/events.md) | What fires, from where, carrying what |
-| [Migration roadmap](./docs/public/roadmap.html) | The ten-sprint plan, and what each sprint delivered |
+| [State of the build](./docs/public/roadmap.html) | What this is, how it is built, what measures it, and what is open |
 
 The sources are Markdown under [`docs/`](./docs); `npm run docs` serves them
 locally, and the deploy publishes them at `/docs` once there is a deploy.
@@ -246,8 +247,8 @@ interface is built with Tailwind CSS 4, [Reka UI](https://reka-ui.com/), lucide
 and VueUse, and all four are **devDependencies** — the published package is
 `src/scripts` alone, which imports none of them and ships no CSS.
 
-See [CHANGELOG.md](./CHANGELOG.md) for what changed, and the
-[migration roadmap](./docs/public/roadmap.html)
+See [CHANGELOG.md](./CHANGELOG.md) for what changed, and
+[the state of the build](./docs/public/roadmap.html)
 for why.
 
 

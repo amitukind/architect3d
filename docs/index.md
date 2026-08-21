@@ -33,10 +33,11 @@ models, change wall and floor textures, and walk through the result in first
 person.
 
 It descends from [blueprint3d](https://github.com/furnishup/blueprint3d), and
-was rebuilt over ten sprints (S0–S9) from rollup + Babel + jQuery + three r98
-onto Vite + Vue 3 + three 0.185. The plan those sprints followed, and what each
-one actually delivered, is in the
-[migration roadmap](./roadmap.html){target="_blank"}.
+was rebuilt from rollup + Babel + jQuery + three r98 onto Vite + Vue 3 +
+three 0.185, and has been developed against measured drawings ever since. What
+it is today — the layers, what gates it, every current number, and what is
+still open — is in
+[the state of the build](./roadmap.html){target="_blank"}.
 
 ## Where to start
 
