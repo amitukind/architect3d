@@ -1,4 +1,5 @@
 <script setup>
+import {injectTour} from '../composables/useTour.js';
 // @ts-check
 import {computed, ref, watch, onBeforeUnmount, onMounted, nextTick} from 'vue';
 import {PopoverRoot, PopoverAnchor, PopoverPortal, PopoverContent} from 'reka-ui';
@@ -29,17 +30,13 @@ import {X} from '@lucide/vue';
  * so a rectangle read on the same tick is the rectangle the pane is leaving.
  */
 
-const props = defineProps({
-	open: {type: Boolean, default: false},
-	/** The current step, from `useTour`. */
-	step: {type: Object, default: null},
-	index: {type: Number, default: 0},
-	total: {type: Number, default: 0},
-	first: {type: Boolean, default: true},
-	last: {type: Boolean, default: false},
-});
-
-const emit = defineEmits(['next', 'back', 'skip']);
+/**
+ * The whole of `useTour`, injected (RM-020 S-5).
+ *
+ * Every one of this component's six props and three events was that composable
+ * relayed through `App.vue`. There is nothing here the shell decides.
+ */
+const tour = injectTour();
 
 /** The element the current step points at. @type {import('vue').Ref<?HTMLElement>} */
 const anchor = ref(null);
@@ -52,8 +49,8 @@ let timer = null;
 /** Find the step's element and measure it. */
 function locate()
 {
-	const step = props.step;
-	if (!props.open || !step)
+	const step = tour.step.value;
+	if (!tour.open.value || !step)
 	{
 		anchor.value = null;
 		rect.value = null;
@@ -72,7 +69,7 @@ function locateSettled()
 	timer = setTimeout(() => {locate(); timer = null;}, SETTLE_MS);
 }
 
-watch(() => [props.open, props.step], () => {nextTick(locateSettled);}, {immediate: true});
+watch(() => [tour.open.value, tour.step.value], () => {nextTick(locateSettled);}, {immediate: true});
 
 onMounted(() => {window.addEventListener('resize', locate);});
 onBeforeUnmount(() =>
@@ -104,42 +101,42 @@ function onOpenChange(value)
 {
 	// Reka reports Escape and an outside click through the same channel, and both
 	// mean the same thing here.
-	if (!value) { emit('skip'); }
+	if (!value) { tour.skip(); }
 }
 </script>
 
 <template>
-	<PopoverRoot :open="props.open && Boolean(anchor)" @update:open="onOpenChange">
+	<PopoverRoot :open="tour.open.value && Boolean(anchor)" @update:open="onOpenChange">
 		<PopoverAnchor :reference="anchor || undefined" />
 		<PopoverPortal>
 			<PopoverContent
-				:side="props.step ? props.step.side : 'right'" :side-offset="10" :collision-padding="12"
+				:side="tour.step.value ? tour.step.value.side : 'right'" :side-offset="10" :collision-padding="12"
 				data-testid="tour-card"
 				class="a3d-pop z-[620] w-[320px] max-w-[calc(100vw-2rem)] rounded-panel border border-line bg-surface p-3.5 shadow-float focus:outline-none"
 				@open-auto-focus.prevent>
 				<div class="flex items-start gap-2">
-					<p class="eyebrow flex-1">Step {{ props.index + 1 }} of {{ props.total }}</p>
+					<p class="eyebrow flex-1">Step {{ tour.index.value + 1 }} of {{ tour.total }}</p>
 					<button
 						type="button" class="btn btn-icon -mr-1 -mt-1 h-6 w-6" aria-label="Skip the tour"
-						@click="emit('skip')">
+						@click="tour.skip()">
 						<X :size="13" />
 					</button>
 				</div>
-				<h2 class="mt-1 text-[14px] font-semibold text-ink">{{ props.step ? props.step.title : '' }}</h2>
-				<p class="mt-1 text-[12px] leading-relaxed text-ink-soft">{{ props.step ? props.step.body : '' }}</p>
+				<h2 class="mt-1 text-[14px] font-semibold text-ink">{{ tour.step.value ? tour.step.value.title : '' }}</h2>
+				<p class="mt-1 text-[12px] leading-relaxed text-ink-soft">{{ tour.step.value ? tour.step.value.body : '' }}</p>
 
 				<div class="mt-3 flex items-center gap-1.5">
 					<div class="flex flex-1 gap-1" aria-hidden="true">
 						<span
-							v-for="n in props.total" :key="n"
+							v-for="n in tour.total" :key="n"
 							class="h-1 w-4 rounded-full"
-							:class="n === props.index + 1 ? 'bg-accent' : 'bg-line'" />
+							:class="n === tour.index.value + 1 ? 'bg-accent' : 'bg-line'" />
 					</div>
-					<button v-if="!props.first" type="button" class="btn h-7 px-2 text-[12px]" @click="emit('back')">
+					<button v-if="!tour.first.value" type="button" class="btn h-7 px-2 text-[12px]" @click="tour.back()">
 						Back
 					</button>
-					<button type="button" class="btn btn-primary h-7 px-2.5 text-[12px]" @click="emit('next')">
-						{{ props.last ? 'Start drawing' : 'Next' }}
+					<button type="button" class="btn btn-primary h-7 px-2.5 text-[12px]" @click="tour.next()">
+						{{ tour.last.value ? 'Start drawing' : 'Next' }}
 					</button>
 				</div>
 			</PopoverContent>
@@ -149,7 +146,7 @@ function onOpenChange(value)
 	<!-- Outside the popover's portal: it is a mark on the page, not part of the
 	     card, and it must not join the card's focus scope. -->
 	<div
-		v-if="props.open && located" data-testid="tour-ring" aria-hidden="true"
+		v-if="tour.open.value && located" data-testid="tour-ring" aria-hidden="true"
 		class="pointer-events-none fixed z-[610] rounded-md outline outline-2 outline-offset-2 outline-accent"
 		:style="ringStyle" />
 </template>

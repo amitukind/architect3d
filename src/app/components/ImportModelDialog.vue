@@ -1,4 +1,5 @@
 <script setup>
+import {injectModelImport} from '../composables/useModelImport.js';
 // @ts-check
 import {computed, ref, watch} from 'vue';
 import {DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose} from 'reka-ui';
@@ -37,44 +38,24 @@ import {Dimensioning} from '../../scripts/blueprint.js';
  * `scale_x/y/z`, and both round-trip today.
  */
 
+/**
+ * The import composable, whole, rather than ten of its parts (RM-020 S-5).
+ *
+ * This component took twelve bindings from `useModelImport` and sent five back
+ * as events - the entire composable, relayed through `App.vue` a field at a
+ * time. It reaches for it directly now.
+ *
+ * `open` stays a v-model: whether a dialog is showing is the shell's business,
+ * not the import's. `place` and `place-stored` stay events for the same reason -
+ * placing a model needs the selection and the history stack, which this
+ * composable does not have.
+ */
+const models = injectModelImport();
+
 const props = defineProps({
 	open: {type: Boolean, default: false},
-	/** The file awaiting a decision, from `useModelImport`. */
-	pending: {type: Object, default: null},
-	/** Every model this browser has stored. */
-	stored: {
-		/** @type {import('vue').PropType<Array<import('../persistence/model_repository.js').ModelRecord>>} */
-		type: Array,
-		default: () => [],
-	},
-	busy: {type: Boolean, default: false},
-	refusal: {
-		/** @type {import('vue').PropType<?string>} */
-		type: String,
-		default: null,
-	},
-	available: {type: Boolean, default: true},
-	accept: {type: String, default: '.glb,.gltf,.obj'},
-	limit: {type: Number, default: 33554432},
-	units: {
-		/** @type {import('vue').PropType<Array<{id: string, label: string, cm: number}>>} */
-		type: Array,
-		default: () => [],
-	},
-	/**
-	 * What a decision would make the model, in centimetres.
-	 *
-	 * A function prop rather than arithmetic repeated here, for the reason
-	 * `ShareDialog.copy` is one: the answer has to come back, and this one comes
-	 * back on every keystroke. The composable owns the sum; this draws it.
-	 */
-	preview: {
-		type: /** @type {import('vue').PropType<function(Object): {scale: number, size: Array<number>}>} */ (Function),
-		required: true,
-	},
 });
-
-const emit = defineEmits(['update:open', 'choose', 'place', 'cancel', 'place-stored', 'forget']);
+const emit = defineEmits(['update:open', 'place', 'place-stored']);
 
 /** @type {import('vue').Ref<string>} */
 const unit = ref('m');
@@ -86,7 +67,7 @@ const longest = ref('');
 // A new file is a new decision. Anything a previous import chose is a worse
 // default than the specification's, except the axis of a file that has been
 // imported before - the store already knows which way that one stands up.
-watch(() => props.pending, function (next)
+watch(() => models.pending.value, function (next)
 {
 	unit.value = 'm';
 	longest.value = '';
@@ -94,13 +75,13 @@ watch(() => props.pending, function (next)
 });
 
 const decision = computed(() => ({up: up.value, unit: unit.value, longest: Number(longest.value) || 0}));
-const result = computed(() => props.pending ? props.preview(decision.value) : {scale: 0, size: [0, 0, 0]});
+const result = computed(() => models.pending.value ? models.preview(decision.value) : {scale: 0, size: [0, 0, 0]});
 
 /** The measured extent, in the units the file was authored in. */
 const authored = computed(function ()
 {
-	if (!props.pending) { return ''; }
-	return props.pending.measured.size.map((value) => round(value)).join(' × ');
+	if (!models.pending.value) { return ''; }
+	return models.pending.value.measured.size.map((value) => round(value)).join(' × ');
 });
 
 const placed = computed(() => result.value.size.map((cm) => Dimensioning.cmToMeasure(cm)).join(' × '));
@@ -124,7 +105,7 @@ function onFile(event)
 	const file = input.files && input.files[0];
 	if (file)
 	{
-		emit('choose', file);
+		models.choose(file);
 	}
 	// Cleared so that picking the same file twice fires a second change event,
 	// which is the same reason TopBar's design opener clears its own.
@@ -154,27 +135,27 @@ function onFile(event)
 				</div>
 
 				<div class="flex min-h-0 flex-col gap-3 overflow-y-auto p-4">
-					<p v-if="!props.available" class="rounded-panel border border-line bg-overlay p-3 text-[12px] text-ink-soft">
+					<p v-if="!models.available.value" class="rounded-panel border border-line bg-overlay p-3 text-[12px] text-ink-soft">
 						This browser cannot store imported models. Private browsing and some embedded browsers
 						withhold the storage this needs; everything else in the application still works.
 					</p>
 
 					<!-- The decision. -->
-					<template v-else-if="props.pending">
+					<template v-else-if="models.pending.value">
 						<div class="rounded-panel border border-line bg-overlay p-3">
-							<p class="text-[12px] font-medium text-ink">{{ props.pending.file }}</p>
+							<p class="text-[12px] font-medium text-ink">{{ models.pending.value.file }}</p>
 							<p class="text-[11px] text-ink-faint">
-								{{ megabytes(props.pending.size) }} &middot; {{ props.pending.format }} &middot;
+								{{ megabytes(models.pending.value.size) }} &middot; {{ models.pending.value.format }} &middot;
 								{{ authored }} in the units it was authored in
 							</p>
-							<p v-if="props.pending.known" class="mt-1 text-[11px] text-ink-faint">
+							<p v-if="models.pending.value.known" class="mt-1 text-[11px] text-ink-faint">
 								This file is already stored &mdash; placing it again costs nothing.
 							</p>
 							<p
-								v-if="props.pending.external && props.pending.external.length"
+								v-if="models.pending.value.external && models.pending.value.external.length"
 								data-testid="import-external" class="mt-1 text-[11px] text-danger">
-								{{ props.pending.external.length }} file(s) this model needs are not inside it, so it
-								will arrive untextured: {{ props.pending.external.join(', ') }}. Re-export it with the
+								{{ models.pending.value.external.length }} file(s) this model needs are not inside it, so it
+								will arrive untextured: {{ models.pending.value.external.join(', ') }}. Re-export it with the
 								textures embedded to fix that.
 							</p>
 						</div>
@@ -184,7 +165,7 @@ function onFile(event)
 							<select
 								v-model="unit" :disabled="Number(longest) > 0" aria-label="Authored unit"
 								class="rounded-md border border-line bg-overlay px-2 py-1.5 text-[12px] disabled:opacity-50">
-								<option v-for="entry in props.units" :key="entry.id" :value="entry.id">{{ entry.label }}</option>
+								<option v-for="entry in models.UNITS" :key="entry.id" :value="entry.id">{{ entry.label }}</option>
 							</select>
 						</label>
 
@@ -222,12 +203,12 @@ function onFile(event)
 							<span class="text-ink-faint"> (width × height × depth)</span>
 						</p>
 
-						<p v-if="props.refusal" class="text-[12px] text-danger">{{ props.refusal }}</p>
+						<p v-if="models.refusal.value" class="text-[12px] text-danger">{{ models.refusal.value }}</p>
 
 						<div class="flex gap-1.5">
-							<button type="button" class="btn" :disabled="props.busy" @click="emit('cancel')">Cancel</button>
+							<button type="button" class="btn" :disabled="models.busy.value" @click="models.cancel()">Cancel</button>
 							<button
-								type="button" class="btn btn-primary gap-1.5" :disabled="props.busy"
+								type="button" class="btn btn-primary gap-1.5" :disabled="models.busy.value"
 								@click="emit('place', decision)">
 								<Plus :size="14" />
 								Place it
@@ -241,21 +222,21 @@ function onFile(event)
 							<Upload :size="16" />
 							<span>
 								<strong class="text-ink">Choose a model</strong>
-								&mdash; .glb, .gltf or .obj, up to {{ Math.round(props.limit / 1048576) }} MB
+								&mdash; .glb, .gltf or .obj, up to {{ Math.round(models.MAX_MODEL_BYTES / 1048576) }} MB
 							</span>
-							<input type="file" :accept="props.accept" aria-label="Choose a model" @change="onFile">
+							<input type="file" :accept="models.ACCEPT" aria-label="Choose a model" @change="onFile">
 						</label>
 
-						<p v-if="props.refusal" class="text-[12px] text-danger">{{ props.refusal }}</p>
+						<p v-if="models.refusal.value" class="text-[12px] text-danger">{{ models.refusal.value }}</p>
 
-						<p v-if="!props.stored.length" class="text-[12px] text-ink-faint">
+						<p v-if="!models.stored.value.length" class="text-[12px] text-ink-faint">
 							Nothing imported yet. A model you import here stays in this browser and can be placed as
 							often as you like.
 						</p>
 
 						<ul v-else class="flex flex-col gap-1" data-testid="imported-list">
 							<li
-								v-for="record in props.stored" :key="record.id"
+								v-for="record in models.stored.value" :key="record.id"
 								class="flex items-center gap-2 rounded-md border border-line bg-overlay px-2 py-1.5">
 								<span class="min-w-0 flex-1">
 									<span class="block truncate text-[12px] text-ink">{{ record.file }}</span>
@@ -271,7 +252,7 @@ function onFile(event)
 								</button>
 								<button
 									type="button" class="btn btn-icon" :aria-label="`Remove ${record.file}`"
-									@click="emit('forget', record.id)">
+									@click="models.forget(record.id)">
 									<Trash2 :size="14" />
 								</button>
 							</li>

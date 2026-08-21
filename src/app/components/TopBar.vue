@@ -1,4 +1,8 @@
 <script setup>
+import {injectLayout} from '../composables/useLayout.js';
+import {injectDisplayUnit} from '../composables/useDisplayUnit.js';
+import {injectHistory} from '../composables/useHistory.js';
+import {injectDesignIO} from '../composables/useDesignIO.js';
 // @ts-check
 import {PopoverRoot, PopoverTrigger, PopoverPortal, PopoverContent} from 'reka-ui';
 import {
@@ -35,6 +39,28 @@ import {THEME_DARK} from '../composables/useTheme.js';
  * in the same place regardless of how wide the window is.
  */
 
+/**
+ * Four composables, injected (RM-020 S-5).
+ *
+ * This element carried twelve props and twenty-one events in `App.vue`, more
+ * than any other, and most of them were a composable's own state going out and
+ * the composable's own method coming back. `useLayout`, `useDisplayUnit`,
+ * `useHistory` and `useDesignIO` are read directly now.
+ *
+ * What is still a prop or an event is what the *shell* owns, and the split is
+ * worth stating because it is the whole point of the exercise:
+ *
+ *   helpUrl        a deployment fact; a top bar should not know the base
+ *   theme          two bindings, and `useTheme` has no other consumer
+ *   projectName    read off `useProjects`, which the library dialog owns
+ *   new/open, the two save flows that need more than one composable, and the
+ *   four dialogs this bar opens - all of them the shell's to coordinate
+ */
+const workspace = injectLayout();
+const display = injectDisplayUnit();
+const history = injectHistory();
+const io = injectDesignIO();
+
 const props = defineProps({
 	/**
 	 * Where the help pages are, resolved against this deployment's base.
@@ -44,18 +70,7 @@ const props = defineProps({
 	 * `tools/check-help.mjs` checks that what it points at exists.
 	 */
 	helpUrl: {type: String, required: true},
-	layout: {type: String, required: true},
 	theme: {type: String, required: true},
-	unit: {type: String, required: true},
-	units: {
-		/**
-		 * Typed so the template can read `.value` and `.label` off each entry.
-		 *
-		 * @type {import('vue').PropType<Array<import('../composables/useDisplayUnit.js').UnitChoice>>}
-		 */
-		type: Array,
-		required: true,
-	},
 	/** The open project's name, or null for a design nobody has kept (RM-013 K1). */
 	projectName: {
 		/** @type {import('vue').PropType<?string>} */
@@ -63,10 +78,6 @@ const props = defineProps({
 		default: null,
 	},
 	projectDirty: {type: Boolean, default: false},
-	canUndo: {type: Boolean, default: false},
-	canRedo: {type: Boolean, default: false},
-	exporting: {type: Boolean, default: false},
-	inspectorOpen: {type: Boolean, default: true},
 	savedAt: {
 		/**
 		 * `type: X` with `default: null` still infers `X | undefined` - the default
@@ -81,10 +92,8 @@ const props = defineProps({
 });
 
 const emit = defineEmits([
-	'new-design', 'open-design', 'save-design', 'save-mesh', 'save-gltf', 'save-bundle',
-	'save-photo', 'save-panorama', 'save-plan-svg', 'save-plan-png', 'print-plan',
-	'undo', 'redo', 'set-layout', 'set-unit', 'toggle-theme',
-	'toggle-inspector', 'show-shortcuts', 'show-library', 'show-share', 'start-tour',
+	'new-design', 'open-design', 'save-bundle', 'undo', 'redo', 'toggle-theme',
+	'show-shortcuts', 'show-library', 'show-share', 'start-tour',
 ]);
 
 /**
@@ -128,7 +137,7 @@ function savedLabel(stamp)
 function onUnitChange(event)
 {
 	const select = /** @type {HTMLSelectElement} */ (event.target);
-	emit('set-unit', select.value);
+	display.setUnit(select.value);
 }
 </script>
 
@@ -187,7 +196,7 @@ function onUnitChange(event)
 				</label>
 			</AppTip>
 			<AppTip label="Save layout" keys="mod+s">
-				<button type="button" class="btn btn-icon" title="Save layout" @click="emit('save-design')">
+				<button type="button" class="btn btn-icon" title="Save layout" @click="io.saveDesign()">
 					<Save :size="15" />
 				</button>
 			</AppTip>
@@ -214,14 +223,14 @@ function onUnitChange(event)
 						side="bottom" align="start" :side-offset="6"
 						class="a3d-pop z-[600] w-56 rounded-panel border border-line bg-overlay p-1 shadow-float">
 						<p class="eyebrow px-2 py-1.5">Export the model</p>
-						<button type="button" class="btn w-full justify-start" @click="emit('save-mesh')">
+						<button type="button" class="btn w-full justify-start" @click="io.saveMesh()">
 							<Box :size="15" /> Wavefront OBJ
 						</button>
 						<button
-							type="button" class="btn w-full justify-start" :disabled="props.exporting"
-							@click="emit('save-gltf')">
+							type="button" class="btn w-full justify-start" :disabled="io.busy.value"
+							@click="io.saveGLTF()">
 							<Share2 :size="15" />
-							{{ props.exporting ? 'Exporting glTF…' : 'glTF 2.0' }}
+							{{ io.busy.value ? 'Exporting glTF…' : 'glTF 2.0' }}
 						</button>
 
 						<button type="button" class="btn w-full justify-start" @click="emit('save-bundle')">
@@ -229,10 +238,10 @@ function onUnitChange(event)
 						</button>
 
 						<p class="eyebrow px-2 py-1.5">Export the view</p>
-						<button type="button" class="btn w-full justify-start" @click="emit('save-photo', 2)">
+						<button type="button" class="btn w-full justify-start" @click="io.savePhoto(2)">
 							<Camera :size="15" /> Photo, 2&times; resolution
 						</button>
-						<button type="button" class="btn w-full justify-start" @click="emit('save-panorama', 4096)">
+						<button type="button" class="btn w-full justify-start" @click="io.savePanorama(4096)">
 							<Globe :size="15" /> 360&deg; panorama, from the walk
 						</button>
 
@@ -240,13 +249,13 @@ function onUnitChange(event)
 						<button
 							v-for="ratio in PLAN_SCALES" :key="ratio"
 							type="button" class="btn w-full justify-start"
-							@click="emit('save-plan-svg', ratio)">
+							@click="io.savePlanSVG(ratio)">
 							<Ruler :size="15" /> SVG at 1:{{ ratio }}
 						</button>
-						<button type="button" class="btn w-full justify-start" @click="emit('save-plan-png', 2400)">
+						<button type="button" class="btn w-full justify-start" @click="io.savePlanPNG(2400)">
 							<ImageIcon :size="15" /> PNG, 2400&nbsp;px wide
 						</button>
-						<button type="button" class="btn w-full justify-start" @click="emit('print-plan', 100)">
+						<button type="button" class="btn w-full justify-start" @click="io.printPlan(100)">
 							<Printer :size="15" /> Print at 1:100&hellip;
 						</button>
 					</PopoverContent>
@@ -261,14 +270,14 @@ function onUnitChange(event)
 			<AppTip label="Undo" keys="mod+z">
 				<button
 					type="button" class="btn btn-icon" title="Undo"
-					:disabled="!props.canUndo" @click="emit('undo')">
+					:disabled="!history.canUndo.value" @click="emit('undo')">
 					<Undo2 :size="15" />
 				</button>
 			</AppTip>
 			<AppTip label="Redo" keys="mod+shift+z">
 				<button
 					type="button" class="btn btn-icon" title="Redo"
-					:disabled="!props.canRedo" @click="emit('redo')">
+					:disabled="!history.canRedo.value" @click="emit('redo')">
 					<Redo2 :size="15" />
 				</button>
 			</AppTip>
@@ -279,10 +288,10 @@ function onUnitChange(event)
 			<div class="segmented pointer-events-auto" role="group" aria-label="Workspace layout">
 				<button
 					v-for="entry in LAYOUTS" :key="entry.id" type="button"
-					class="segment" :class="{'is-active': props.layout === entry.id}"
-					:aria-pressed="props.layout === entry.id"
+					class="segment" :class="{'is-active': workspace.layout.value === entry.id}"
+					:aria-pressed="workspace.layout.value === entry.id"
 					:title="`${entry.title} (${entry.key})`"
-					@click="emit('set-layout', entry.id)">
+					@click="workspace.setLayout(entry.id)">
 					{{ entry.label }}
 				</button>
 			</div>
@@ -295,8 +304,8 @@ function onUnitChange(event)
 
 			<select
 				class="field-input num h-7 w-[104px] text-left" aria-label="Display unit"
-				:value="props.unit" @change="onUnitChange">
-				<option v-for="entry in props.units" :key="entry.value" :value="entry.value">{{ entry.label }}</option>
+				:value="display.unit.value" @change="onUnitChange">
+				<option v-for="entry in display.unit.values" :key="entry.value" :value="entry.value">{{ entry.label }}</option>
 			</select>
 
 			<AppTip :label="props.theme === THEME_DARK ? 'Light theme' : 'Dark theme'">
@@ -337,10 +346,10 @@ function onUnitChange(event)
 					</PopoverContent>
 				</PopoverPortal>
 			</PopoverRoot>
-			<AppTip :label="props.inspectorOpen ? 'Hide inspector' : 'Show inspector'" keys="mod+.">
+			<AppTip :label="workspace.inspectorOpen.value ? 'Hide inspector' : 'Show inspector'" keys="mod+.">
 				<button
-					type="button" class="btn btn-icon" :class="{'is-active': props.inspectorOpen}"
-					title="Toggle inspector" @click="emit('toggle-inspector')">
+					type="button" class="btn btn-icon" :class="{'is-active': workspace.inspectorOpen.value}"
+					title="Toggle inspector" @click="workspace.toggleInspector()">
 					<PanelRight :size="15" />
 				</button>
 			</AppTip>

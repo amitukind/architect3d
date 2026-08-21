@@ -1,4 +1,6 @@
 <script setup>
+import {injectLevels} from '../composables/useLevels.js';
+import {injectCameraViews} from '../composables/useCameraViews.js';
 // @ts-check
 import {Layers, Plus, Trash2, Eye, EyeOff} from '@lucide/vue';
 import AppTip from './AppTip.vue';
@@ -22,18 +24,23 @@ import {Dimensioning} from '../../scripts/blueprint.js';
  * two opens, stacks and re-saves the same either way.
  */
 
-const props = defineProps({
-	levels: {
-		/** @type {import('vue').PropType<Array<{index: number, name: string, height: number, base: number, active: boolean}>>} */
-		type: Array,
-		required: true,
-	},
-	unit: {type: String, default: ''},
-	/** Whether the 3D view is showing every storey (RM-010 G3). */
-	allStoreys: {type: Boolean, default: true},
-});
+/**
+ * The storeys and the camera's whole-building toggle, injected (RM-020 S-5).
+ *
+ * Six of this component's seven bindings were `useLevels` and `useCameraViews`
+ * relayed through `App.vue`, including a `remove` that had to be written as
+ * `levels.remove(levels.active.value)` in the parent's template because the
+ * child had been given the list but not which one was active.
+ *
+ * `unit` stays a prop: how a height is spelled is a display setting, and
+ * `useDisplayUnit` is read by too few components to be worth a key.
+ */
+const levels = injectLevels();
+const camera = injectCameraViews();
 
-const emit = defineEmits(['set-active', 'add', 'remove', 'set-all-storeys']);
+defineProps({
+	unit: {type: String, default: ''},
+});
 
 /** A height as the display unit writes it. */
 function measure(cm)
@@ -49,42 +56,42 @@ function measure(cm)
 		</p>
 
 		<button
-			v-for="entry in [...props.levels].reverse()" :key="entry.index"
+			v-for="entry in [...levels.levels.value].reverse()" :key="entry.index"
 			type="button"
 			class="btn w-full justify-between gap-3 px-2"
 			:class="{'is-active': entry.active}"
 			:aria-pressed="entry.active"
 			:title="`${entry.name} — floor at ${measure(entry.base)}`"
-			@click="emit('set-active', entry.index)">
+			@click="levels.setActive(entry.index)">
 			<span class="truncate">{{ entry.name }}</span>
 			<span class="num text-ink-faint">{{ measure(entry.base) }}</span>
 		</button>
 
 		<div class="flex items-center gap-0.5 border-t border-line pt-1">
 			<AppTip label="Add a storey above this one">
-				<button type="button" class="btn btn-icon" title="Add a storey" @click="emit('add')">
+				<button type="button" class="btn btn-icon" title="Add a storey" @click="levels.addAbove()">
 					<Plus :size="15" />
 				</button>
 			</AppTip>
 			<AppTip label="Remove this storey and everything on it">
 				<button
 					type="button" class="btn btn-icon" title="Remove this storey"
-					:disabled="props.levels.length < 2"
-					@click="emit('remove')">
+					:disabled="levels.levels.value.length < 2"
+					@click="levels.remove(levels.active.value)">
 					<Trash2 :size="15" />
 				</button>
 			</AppTip>
 			<AppTip
-				:label="props.allStoreys
+				:label="camera.allStoreys.value
 					? 'Showing every storey in 3D'
 					: 'Showing only the storey being edited'">
 				<button
 					type="button" class="btn btn-icon ml-auto"
-					:class="{'is-active': !props.allStoreys}"
-					:aria-pressed="!props.allStoreys"
-					:title="props.allStoreys ? 'Show only this storey' : 'Show every storey'"
-					@click="emit('set-all-storeys', !props.allStoreys)">
-					<Eye v-if="props.allStoreys" :size="15" />
+					:class="{'is-active': !camera.allStoreys.value}"
+					:aria-pressed="!camera.allStoreys.value"
+					:title="camera.allStoreys.value ? 'Show only this storey' : 'Show every storey'"
+					@click="camera.setAllStoreys(!camera.allStoreys.value)">
+					<Eye v-if="camera.allStoreys.value" :size="15" />
 					<EyeOff v-else :size="15" />
 				</button>
 			</AppTip>

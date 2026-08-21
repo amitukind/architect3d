@@ -89,3 +89,58 @@ describe('M-62 - the advisory position', () =>
 		expect(policy).toMatch(/security\/advisories\/new/);
 	});
 });
+
+/**
+ * The toolchain's one deliberately-held-back dependency (RM-020 S-8).
+ *
+ * TypeScript 7 is the Go rewrite. It is stable, it is much faster, and this
+ * project cannot use it: `vue-tsc` resolves `typescript/lib/tsc`, a subpath the
+ * restructured package no longer exports, so `npm run typecheck` does not run at
+ * all under it - measured at vue-tsc 3.3.9 and again at 3.3.11. With 29 single
+ * file components, losing the template checker is disqualifying.
+ *
+ * `tsconfig.json` has said so since before the audit that "found" it, which is
+ * the reason these two cases exist rather than a third attempt at the upgrade.
+ * The note names an unblocking condition - TypeScript 7.1 restoring the stable
+ * programmatic API - and a note naming a condition is exactly the shape this
+ * repository has been caught by before: the type ledger drifted five times while
+ * a comment asked people to keep it honest. Prose is not a mechanism.
+ *
+ * So the pin and the reason are tied together. Move the dependency without
+ * moving the note, or the other way round, and this fails and says which.
+ */
+describe('RM-020 S-8 - TypeScript is held at 6 on purpose', () =>
+{
+	/**
+	 * The note under tsconfig's `"//"` key. JSONC, so whole-line comments come
+	 * out first - the same read `tests/type-coverage.test.js` does for the type
+	 * ledger, and for the same reason: there is one copy of these facts and it
+	 * is the one the compiler reads.
+	 */
+	function tsconfigNote()
+	{
+		const jsonc = readFileSync('tsconfig.json', 'utf8')
+			.split('\n')
+			.filter((line) => !/^\s*\/\//.test(line))
+			.join('\n');
+		return JSON.parse(jsonc)['//'].join('\n');
+	}
+
+	it('pins the major that the tsconfig note explains', () =>
+	{
+		const pinned = manifest.devDependencies.typescript;
+		const note = tsconfigNote();
+		const claimed = /WHY typescript (\d+) AND NOT (\d+)/.exec(note);
+
+		expect(claimed, 'tsconfig.json still explains which major is pinned').not.toBeNull();
+		expect(pinned, 'the pin matches the major the note defends').toBe(`^${claimed[1]}.0.3`);
+		expect(note).toContain('vue-tsc');
+	});
+
+	it('names what would unblock it, so the pin is not permanent by default', () =>
+	{
+		const note = tsconfigNote();
+		// A held-back dependency with no stated exit is just a stale one.
+		expect(note).toMatch(/Revisit when 7\.1/);
+	});
+});

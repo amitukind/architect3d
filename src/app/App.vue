@@ -24,26 +24,26 @@ import InspectorPanel from './inspector/InspectorPanel.vue';
 
 import {provideBlueprint} from './composables/useBlueprint.js';
 import {useSelection, SELECTION_ITEM, SELECTION_DIMENSION, SELECTION_ANNOTATION} from './composables/useSelection.js';
-import {useCameraViews, MODE_WALKTHROUGH, MODE_EXTERIOR} from './composables/useCameraViews.js';
+import {provideCameraViews, MODE_WALKTHROUGH, MODE_EXTERIOR} from './composables/useCameraViews.js';
 import {useWalkthrough} from './composables/useWalkthrough.js';
-import {useFloorplannerMode} from './composables/useFloorplannerMode.js';
-import {useDesignIO, fileNameFor} from './composables/useDesignIO.js';
-import {useProjects} from './composables/useProjects.js';
+import {provideFloorplannerMode} from './composables/useFloorplannerMode.js';
+import {provideDesignIO, fileNameFor} from './composables/useDesignIO.js';
+import {provideProjects} from './composables/useProjects.js';
 import {useTemplates} from './composables/useTemplates.js';
-import {useShare} from './composables/useShare.js';
-import {useModelImport} from './composables/useModelImport.js';
-import {useTour} from './composables/useTour.js';
+import {provideShare} from './composables/useShare.js';
+import {provideModelImport} from './composables/useModelImport.js';
+import {provideTour} from './composables/useTour.js';
 import {helpUrl} from './tour/help.js';
 import {useOffline} from './composables/useOffline.js';
 import {useCatalog} from './composables/useCatalog.js';
-import {useDisplayUnit, syncDisplayUnit} from './composables/useDisplayUnit.js';
+import {provideDisplayUnit, syncDisplayUnit} from './composables/useDisplayUnit.js';
 import {useTheme, applyTheme} from './composables/useTheme.js';
-import {useLayout, LAYOUT_PLAN, LAYOUT_SPLIT, LAYOUT_VIEW} from './composables/useLayout.js';
-import {useHistory} from './composables/useHistory.js';
+import {provideLayout, LAYOUT_PLAN, LAYOUT_SPLIT, LAYOUT_VIEW} from './composables/useLayout.js';
+import {provideHistory} from './composables/useHistory.js';
 import {provideZoom2D} from './composables/useZoom2D.js';
-import {useLevels} from './composables/useLevels.js';
+import {provideLevels} from './composables/useLevels.js';
 import {providePlanStats} from './composables/usePlanStats.js';
-import {useItemActions} from './composables/useItemActions.js';
+import {provideItemActions} from './composables/useItemActions.js';
 import {useAutosave, readDraft, clearDraft, RECOVERY_LOST_TAIL} from './composables/useAutosave.js';
 import {useAssets, applyAssetBaseFromQuery} from './composables/useAssets.js';
 import {useToasts} from './composables/useToasts.js';
@@ -81,27 +81,27 @@ import {renderProfile} from '../scripts/blueprint.js';
 
 const store = provideBlueprint();
 const selection = useSelection(store);
-const camera = useCameraViews(store);
-const editor = useFloorplannerMode(store);
-const models = useModelImport(store);
+const camera = provideCameraViews(store);
+const editor = provideFloorplannerMode(store);
+const models = provideModelImport(store);
 // The one hook every load route runs through, so a design's imported models are
 // reported the same way whether it came from a file, a project, a template, a
 // link or a bundle (RM-012 J3).
-const io = useDesignIO(store, {afterLoad: (text) => models.reportMissing(text)});
-const projects = useProjects(store, io);
+const io = provideDesignIO(store, {afterLoad: (text) => models.reportMissing(text)});
+const projects = provideProjects(store, io);
 const templates = useTemplates(projects);
-const share = useShare(store, projects, io, models);
+const share = provideShare(store, projects, io, models);
 const offline = useOffline();
 const catalog = useCatalog(store, selection.placementContext);
-const display = useDisplayUnit(store);
+const display = provideDisplayUnit(store);
 const theme = useTheme(store);
-const workspace = useLayout();
-const tour = useTour(workspace);
-const history = useHistory(store);
+const workspace = provideLayout();
+const tour = provideTour(workspace);
+const history = provideHistory(store);
 const zoom = provideZoom2D(store);
-const levels = useLevels(store);
+const levels = provideLevels(store);
 const stats = providePlanStats(store);
-const items = useItemActions(store, selection, history);
+const items = provideItemActions(store, selection, history);
 const autosave = useAutosave(store);
 const assets = useAssets();
 const toasts = useToasts();
@@ -1086,35 +1086,17 @@ useShortcuts(() => bindings.value);
 			>Skip to the plan</a>
 			<TopBar
 				:help-url="help"
-				:layout="workspace.layout.value"
 				:theme="theme.theme.value"
-				:unit="display.unit.value"
-				:units="display.units"
-				:can-undo="history.canUndo.value"
-				:can-redo="history.canRedo.value"
-				:exporting="io.busy.value"
-				:inspector-open="workspace.inspectorOpen.value"
 				:saved-at="autosave.savedAt.value"
 				:project-name="projects.name.value"
 				:project-dirty="projects.dirty.value"
 				@new-design="onNewDesign"
 				@open-design="onOpenDesign"
-				@save-design="io.saveDesign"
-				@save-mesh="io.saveMesh"
-				@save-gltf="io.saveGLTF"
 				@save-bundle="onSaveBundle"
-				@save-plan-svg="io.savePlanSVG"
-				@save-photo="io.savePhoto"
-				@save-panorama="io.savePanorama"
-				@save-plan-png="io.savePlanPNG"
-				@print-plan="io.printPlan"
 				@start-tour="tour.start"
 				@undo="undo"
 				@redo="redo"
-				@set-layout="workspace.setLayout"
-				@set-unit="display.setUnit"
 				@toggle-theme="theme.toggleTheme"
-				@toggle-inspector="workspace.toggleInspector"
 				@show-shortcuts="shortcutsOpen = true"
 				@show-library="openLibrary"
 				@show-share="openShare" />
@@ -1128,24 +1110,15 @@ useShortcuts(() => bindings.value);
 			<div class="flex min-h-0 flex-1">
 				<ToolRail
 					v-if="!share.viewing.value"
-					:mode="editor.mode.value"
-					:layout="workspace.layout.value"
-					:can-act-on-item="items.canActOnItem.value"
 					:catalog-open="catalogOpen"
 					:walkthrough="walkthrough"
 					:exterior="exterior"
-					@set-mode="editor.setMode"
 					@open-catalog="toggleCatalog"
-					@duplicate-item="items.duplicateSelected"
-					@delete-item="items.deleteSelected"
 					@toggle-walkthrough="toggleWalkthrough"
 					@toggle-exterior="toggleExterior"
 					@open-backdrop="openBackdropSettings" />
 
-				<AppWorkspace
-					:layout="workspace.layout.value"
-					:split-ratio="workspace.splitRatio.value"
-					@update:split-ratio="workspace.setSplitRatio">
+				<AppWorkspace>
 					<template #plan>
 						<FloorplannerView
 							ref="floorplanRef"
@@ -1157,25 +1130,12 @@ useShortcuts(() => bindings.value);
 							<div
 								v-if="levels.enabled.value"
 								class="pointer-events-none absolute right-3 top-3 z-20 w-44">
-								<LevelSwitcher
-									:levels="levels.levels.value"
-									:unit="display.unit.value"
-									:all-storeys="camera.allStoreys.value"
-									@set-active="levels.setActive"
-									@add="levels.addAbove"
-									@remove="levels.remove(levels.active.value)"
-									@set-all-storeys="camera.setAllStoreys" />
+								<LevelSwitcher :unit="display.unit.value" />
 							</div>
 							<!-- Zoom and the plan counts are injected, not passed
 							     (RM-020 S-5): fourteen of this element's bindings were
 							     one composable being handed over a value at a time. -->
-							<PlanOverlay
-								:mode="editor.mode.value"
-								:angle-snap="editor.angleSnap.value"
-								:draw-target="editor.drawTarget.value"
-								:unit="display.unit.value"
-								@set-angle-snap="editor.setAngleSnap"
-								@set-draw-target="editor.applyDrawTarget" />
+							<PlanOverlay :unit="display.unit.value" />
 						</FloorplannerView>
 					</template>
 
@@ -1199,15 +1159,7 @@ useShortcuts(() => bindings.value);
 
 							<SceneOverlay
 								v-show="!walkthrough"
-								:active-view="camera.activeView.value"
-								:orthographic="camera.orthographic.value"
-								:wireframe="camera.wireframe.value"
-								:view-locked="camera.viewLocked.value"
 								:render-mode="renderMode"
-								@switch-view="camera.switchView"
-								@toggle-orthographic="camera.setOrthographic(!camera.orthographic.value)"
-								@toggle-wireframe="camera.setWireframe(!camera.wireframe.value)"
-								@toggle-lock="camera.setViewLocked(!camera.viewLocked.value)"
 								@set-render-mode="setRenderMode" />
 
 							<div
@@ -1239,9 +1191,7 @@ useShortcuts(() => bindings.value);
 					@changed="history.commit" />
 			</div>
 
-			<StatusBar
-				:mode="editor.mode.value"
-				:layout="workspace.layout.value" />
+			<StatusBar />
 		</div>
 
 		<CatalogDrawer
@@ -1253,60 +1203,24 @@ useShortcuts(() => bindings.value);
 			@prefetch-item="assets.prefetchItem"
 			@import-model="importOpen = true" />
 
-		<TourGuide
-			:open="tour.open.value"
-			:step="tour.step.value"
-			:index="tour.index.value"
-			:total="tour.total"
-			:first="tour.first.value"
-			:last="tour.last.value"
-			@next="tour.next"
-			@back="tour.back"
-			@skip="tour.skip" />
+		<TourGuide />
 
 		<ImportModelDialog
 			v-model:open="importOpen"
-			:pending="models.pending.value"
-			:stored="models.stored.value"
-			:busy="models.busy.value"
-			:refusal="models.refusal.value"
-			:available="models.available.value"
-			:accept="models.ACCEPT"
-			:limit="models.MAX_MODEL_BYTES"
-			:units="models.UNITS"
-			:preview="models.preview"
-			@choose="models.choose"
-			@cancel="models.cancel"
 			@place="onPlaceModel"
-			@place-stored="onPlaceStoredModel"
-			@forget="models.forget" />
+			@place-stored="onPlaceStoredModel" />
 
 		<ShortcutsDialog v-model:open="shortcutsOpen" :bindings="bindings" />
 
 		<ShareDialog
 			v-model:open="shareOpen"
-			:link="share.link.value"
-			:chars="share.chars.value"
-			:limit="share.MAX_LINK_CHARS"
-			:refusal="share.refusal.value"
-			:busy="share.busy.value"
-			:available="share.available.value"
-			:copy="share.copyLink"
 			@save-file="io.saveDesign" />
 
 		<ProjectLibrary
 			v-model:open="libraryOpen"
-			:projects="projects.projects.value"
 			:templates="templates.entries.value"
-			:current="projects.current.value"
-			:dirty="projects.dirty.value"
-			:busy="projects.busy.value"
-			:available="projects.available.value"
 			:templates-error="templates.error.value"
 			@open-project="onOpenProject"
-			@rename-project="projects.rename"
-			@duplicate-project="projects.duplicate"
-			@delete-project="projects.remove"
 			@start-template="onStartTemplate"
 			@save-current="onSaveProject" />
 

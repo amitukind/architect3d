@@ -9,10 +9,11 @@
  * because a viewer with no explanation reads as a broken editor.
  */
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {nextTick} from 'vue';
+import {nextTick, ref} from 'vue';
 import {mount} from '@vue/test-utils';
 
 import ShareDialog from '../src/app/components/ShareDialog.vue';
+import {SHARE_KEY} from '../src/app/composables/useShare.js';
 import ViewerBanner from '../src/app/components/ViewerBanner.vue';
 
 const LINK = 'https://example.test/#d=1AbCdEf';
@@ -31,13 +32,25 @@ function buttonBy(label)
 /** Mount the dialog and wait for its portal, like the library suite does. */
 async function open(props)
 {
+	// `useShare` is injected since RM-020 S-5. `open()` still takes the same
+	// object every case here passes; the keys land on the composable now, with
+	// `limit` under the name it has there.
+	const given = props || {};
+	const share = {
+		link: ref(given.link === undefined ? LINK : given.link),
+		chars: ref(given.chars === undefined ? LINK.length : given.chars),
+		MAX_LINK_CHARS: given.limit === undefined ? 8000 : given.limit,
+		refusal: ref(given.refusal === undefined ? null : given.refusal),
+		busy: ref(Boolean(given.busy)),
+		available: ref(given.available === undefined ? true : given.available),
+		copyLink: given.copy || (async () => true),
+	};
 	const mounted = mount(ShareDialog, {
 		attachTo: document.body,
-		props: Object.assign({
-			open: true, link: LINK, chars: LINK.length, limit: 8000,
-			copy: async () => true,
-		}, props || {}),
+		global: {provide: {[SHARE_KEY]: share}},
+		props: {open: true},
 	});
+	mounted.share = share;
 	await nextTick();
 	await nextTick();
 	return mounted;

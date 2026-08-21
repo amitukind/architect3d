@@ -19,7 +19,9 @@ import TourGuide from '../src/app/components/TourGuide.vue';
 import CatalogDrawer from '../src/app/components/CatalogDrawer.vue';
 import PlanOverlay from '../src/app/components/PlanOverlay.vue';
 import {ZOOM_2D_KEY} from '../src/app/composables/useZoom2D.js';
+import {TOUR_KEY} from '../src/app/composables/useTour.js';
 import {PLAN_STATS_KEY} from '../src/app/composables/usePlanStats.js';
+import {FLOORPLANNER_MODE_KEY} from '../src/app/composables/useFloorplannerMode.js';
 import {TOUR_STEPS} from '../src/app/tour/steps.js';
 import {floorplannerModes} from '../src/scripts/floorplanner/floorplanner_view.js';
 import {noteUsed} from '../src/app/composables/useCatalogBrowse.js';
@@ -52,13 +54,22 @@ async function showStep(index, extra)
 {
 	const step = TOUR_STEPS[index];
 	anchor(step.anchor.replace('#', ''));
+	// `useTour` is injected since RM-020 S-5, so what used to be six props is
+	// now the composable's shape. The three navigation calls are recorded, since
+	// two cases assert that a button reaches them.
+	const calls = {next: [], back: [], skip: []};
+	const tour = Object.assign({
+		open: ref(true), step: ref(step), index: ref(index),
+		total: TOUR_STEPS.length,
+		first: ref(index === 0), last: ref(index === TOUR_STEPS.length - 1),
+		next() {calls.next.push(1);}, back() {calls.back.push(1);}, skip() {calls.skip.push(1);},
+	}, extra || {});
 	const wrapper = mount(TourGuide, {
 		attachTo: document.body,
-		props: Object.assign({
-			open: true, step, index, total: TOUR_STEPS.length,
-			first: index === 0, last: index === TOUR_STEPS.length - 1,
-		}, extra || {}),
+		global: {provide: {[TOUR_KEY]: tour}},
 	});
+	wrapper.tour = tour;
+	wrapper.calls = calls;
 	await nextTick();
 	await nextTick();
 	await nextTick();
@@ -134,9 +145,10 @@ describe('the tour card', () =>
 		buttonBy('Back').click();
 		buttonBy('Skip the tour').click();
 		await nextTick();
-		expect(wrapper.emitted('next')).toHaveLength(1);
-		expect(wrapper.emitted('back')).toHaveLength(1);
-		expect(wrapper.emitted('skip')).toHaveLength(1);
+		// Direct calls on the injected composable since RM-020 S-5, not events.
+		expect(wrapper.calls.next).toHaveLength(1);
+		expect(wrapper.calls.back).toHaveLength(1);
+		expect(wrapper.calls.skip).toHaveLength(1);
 	});
 
 	it('rings the element it is pointing at, measured rather than styled onto it', async () =>
@@ -158,7 +170,11 @@ describe('the tour card', () =>
 		// element simply is not created.
 		wrapper = mount(TourGuide, {
 			attachTo: document.body,
-			props: {open: true, step: TOUR_STEPS[0], index: 0, total: TOUR_STEPS.length, first: true, last: false},
+			global: {provide: {[TOUR_KEY]: {
+				open: ref(true), step: ref(TOUR_STEPS[0]), index: ref(0),
+				total: TOUR_STEPS.length, first: ref(true), last: ref(false),
+				next() {}, back() {}, skip() {},
+			}}},
 		});
 		await nextTick();
 		await nextTick();
@@ -171,7 +187,11 @@ describe('the tour card', () =>
 		anchor('tool-rail');
 		wrapper = mount(TourGuide, {
 			attachTo: document.body,
-			props: {open: false, step: TOUR_STEPS[1], index: 1, total: TOUR_STEPS.length, first: false, last: false},
+			global: {provide: {[TOUR_KEY]: {
+				open: ref(false), step: ref(TOUR_STEPS[1]), index: ref(1),
+				total: TOUR_STEPS.length, first: ref(false), last: ref(false),
+				next() {}, back() {}, skip() {},
+			}}},
 		});
 		await nextTick();
 		expect(card()).toBeNull();
@@ -249,9 +269,13 @@ describe('an empty plan', () =>
 		// mounted on its own supplies them the way the shell does. Only the two
 		// values this case is about need to be real; the rest is the shape
 		// `PlanOverlay` reads.
-		const mounted = inProvider(PlanOverlay, {
-			mode: floorplannerModes.MOVE, unit: 'm',
-		}, {
+		const mounted = inProvider(PlanOverlay, {unit: 'm'}, {
+			[FLOORPLANNER_MODE_KEY]: {
+				mode: ref(floorplannerModes.MOVE),
+				angleSnap: ref(false),
+				drawTarget: ref(null),
+				setAngleSnap() {}, applyDrawTarget() {},
+			},
 			[ZOOM_2D_KEY]: {
 				percent: ref(100), canZoomIn: ref(true), canZoomOut: ref(true),
 				snap: ref(false), spacing: ref(25),

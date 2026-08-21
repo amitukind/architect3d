@@ -494,8 +494,8 @@ footer a{color:var(--accent)}
       <tr>
         <td class="n"><strong>S-8</strong></td>
         <td><code>package.json</code></td>
-        <td><strong>TypeScript was a major version behind</strong> at <code>^6.0.3</code> against 7.x stable, and a caret cannot cross a major. Everything else was already current. <strong>Attempted and reverted:</strong> <code>vue-tsc</code> resolves <code>typescript/lib/tsc</code>, which TypeScript 7 no longer exports - the gate does not run at all under it, at 3.3.9 or at 3.3.11. Blocked upstream, not here; <code>vue-tsc</code> did move to 3.3.11 on the way past</td>
-        <td><span class="tag warn">blocked</span></td>
+        <td><strong>The finding was weaker than it read.</strong> It reported a major-version lag as though nobody had looked; <code>tsconfig.json</code> has carried a paragraph headed <em>WHY typescript 6 AND NOT 7</em> since before the audit, naming the cause and the unblocking condition. The audit had not read it. <strong>The block is real and was re-measured:</strong> <code>vue-tsc</code> resolves <code>typescript/lib/tsc</code>, a subpath TypeScript 7's restructured package does not export, so <code>npm run typecheck</code> fails before checking anything &mdash; at 3.3.9 and again at 3.3.11, the latest. 7.1 is dev builds only. What S-8 delivered instead: the pin and its reason are now <strong>tied together by two tests</strong>, because a note asking to be revisited is the shape this repository has already been caught by five times</td>
+        <td><span class="tag warn">blocked upstream</span></td>
       </tr>
       <tr>
         <td class="n"><strong>S-9</strong></td>
@@ -518,7 +518,7 @@ footer a{color:var(--accent)}
       <tr>
         <td class="n"><strong>S-12</strong></td>
         <td><code>asset-pipeline/</code></td>
-        <td><strong>61 MB tracked in git</strong> for a one-time migration: a 20 MB <code>.blend</code>, 12 MB of <code>legacy-json/</code> sources, against JSON reports the tools actually read. <em>Not acted on</em> &mdash; deleting the only copy of source assets is the owner&rsquo;s call, and removing them from the working tree would not shrink history anyway</td>
+        <td><strong>Two of this finding&rsquo;s numbers were wrong.</strong> It said 61 MB tracked; <strong>33.4 MB is tracked</strong>, and the other 27.6 MB is <code>.material-source</code>, a fetch cache that is already ignored. And the removal buys less than it sounds: <code>.git</code> is <strong>127 MB</strong> and a <code>git rm</code> leaves every blob in history, so a clone costs exactly what it did &mdash; the gain is checkout size, not download. What is genuinely spent is 32.5 MB: <code>legacy-json/</code> (45 files, every one with its converted <code>.glb</code> shipped and <code>conversion-report.json</code> retaining the audit trail) and two unreferenced <code>.blend</code> files. <code>thumbnails/</code> and the JSON reports are read by the tools; the Kenney licence and attribution stay regardless</td>
         <td><span class="tag crit">owner&rsquo;s call</span></td>
       </tr>
       <tr>
@@ -540,7 +540,7 @@ footer a{color:var(--accent)}
   <div class="note">
     <div class="h mono">WHAT THE FIXES CHANGED, AND WHAT THEY DID NOT</div>
     <p><strong>Eleven fixed, one blocked upstream, one the owner&rsquo;s, one withdrawn as wrong.</strong> Two of them changed behaviour rather than tidying it, and both are worth knowing about. S-1 means a torn-down design now gives its meshes back &mdash; the data still serializes, which is the half the old note was right to protect. S-3 means the library&rsquo;s <code>spin: true</code> default now actually rotates the model, which it has not done for as long as the render loop has been on demand; the application calls <code>stopSpin()</code> at boot and is unaffected, but an embedder on the defaults will see a difference. Neither costs a frame while nothing is happening: <code>update()</code> reports no change on a settled scene, and the idle-frames assertion holds it there.</p>
-    <p>S-5 is the one deliberately left part-done. Two composables of twenty-two are injected rather than drilled &mdash; the two that three components shared &mdash; which took 13 props and 7 emits out of <code>App.vue</code>. Converting the other twenty is a refactor of the application&rsquo;s composition root and does not belong in the same pass as a leak fix and a render-loop change, where a regression would be that much harder to attribute.</p>
+    <p>S-5 was deliberately left part-done in the first pass &mdash; two composables of twenty-two &mdash; and finished in a second, on its own, which is what a refactor of the composition root deserved. Fourteen are injected now and eight remain props by the same rule that selected the fourteen: a component taking one or two values from a composable is not being drilled through. <code>App.vue</code> went 92 props and 72 events to <strong>28 and 32</strong>. Both tiers stayed green throughout; what the conversion cost was six test files, each of which had been mounting a component with props it no longer takes.</p>
     <p>And one finding was produced <em>by</em> the fixing rather than by the audit: <strong>S-15</strong>, below.</p>
   </div>
 

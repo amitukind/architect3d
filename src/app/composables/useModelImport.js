@@ -6,6 +6,7 @@ import {ACCEPT, DEFAULT_UNIT, MAX_MODEL_BYTES, externalRefsIn, fingerprint, fitS
 	formatOf, extensionOf, importsAvailable, localNameFor, orientedSize, refuseFile,
 	unitScaleFor, UNITS} from '../import/model_file.js';
 import {useToasts} from './useToasts.js';
+import {createInjection} from './injection.js';
 
 /**
  * Bring your own model (RM-012 J3).
@@ -408,4 +409,31 @@ function describeRefusal(reason)
 		return 'This browser withholds the storage imported models need.';
 	}
 	return 'The browser refused the write.';
+}
+
+/**
+ * `useModelImport` as an injection (RM-020 S-5). See `injection.js` for the pattern and
+ * why twelve of the twenty-two composables use it.
+ */
+const injection = createInjection('ModelImport');
+
+/** The key, for a component mounted outside the shell - a test, or another host. */
+export const MODEL_IMPORT_KEY = injection.key;
+
+/**
+ * Build it and make it available to every descendant.
+ * @returns {ReturnType<typeof useModelImport>}
+ */
+export function provideModelImport(store)
+{
+	return injection.put(useModelImport(store));
+}
+
+/**
+ * Take it from an ancestor that called `provideModelImport`.
+ * @returns {ReturnType<typeof useModelImport>}
+ */
+export function injectModelImport()
+{
+	return injection.take();
 }

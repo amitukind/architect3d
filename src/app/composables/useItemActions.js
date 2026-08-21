@@ -3,6 +3,7 @@ import {computed, ref} from 'vue';
 import {Vector3} from 'three';
 import {metadataFromRecord} from '../../scripts/blueprint.js';
 import {SELECTION_ITEM} from './useSelection.js';
+import {createInjection} from './injection.js';
 
 /**
  * Delete and duplicate, for the selected furniture item.
@@ -471,4 +472,31 @@ export function useItemActions(store, selection, history)
 		copySelected, pasteClipboard, clipboard, canPaste, mirrorSelected,
 		alignSelected, distributeSelected, groupSelected, ungroupSelected,
 	};
+}
+
+/**
+ * `useItemActions` as an injection (RM-020 S-5). See `injection.js` for the pattern and
+ * why twelve of the twenty-two composables use it.
+ */
+const injection = createInjection('ItemActions');
+
+/** The key, for a component mounted outside the shell - a test, or another host. */
+export const ITEM_ACTIONS_KEY = injection.key;
+
+/**
+ * Build it and make it available to every descendant.
+ * @returns {ReturnType<typeof useItemActions>}
+ */
+export function provideItemActions(store, selection, history)
+{
+	return injection.put(useItemActions(store, selection, history));
+}
+
+/**
+ * Take it from an ancestor that called `provideItemActions`.
+ * @returns {ReturnType<typeof useItemActions>}
+ */
+export function injectItemActions()
+{
+	return injection.take();
 }

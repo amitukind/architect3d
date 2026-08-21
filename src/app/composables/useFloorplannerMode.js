@@ -1,6 +1,7 @@
 // @ts-check
 import {onScopeDispose, ref, shallowRef, watch} from 'vue';
 import {EVENT_MODE_RESET, floorplannerModes} from '../../scripts/blueprint.js';
+import {createInjection} from './injection.js';
 
 /**
  * The 2D editor's current mode, tracked from the library rather than from the
@@ -176,4 +177,31 @@ export function useFloorplannerMode(store)
 	});
 
 	return {mode, setMode, angleSnap, setAngleSnap, drawTarget, refreshDrawTarget, applyDrawTarget};
+}
+
+/**
+ * `useFloorplannerMode` as an injection (RM-020 S-5). See `injection.js` for the pattern and
+ * why twelve of the twenty-two composables use it.
+ */
+const injection = createInjection('FloorplannerMode');
+
+/** The key, for a component mounted outside the shell - a test, or another host. */
+export const FLOORPLANNER_MODE_KEY = injection.key;
+
+/**
+ * Build it and make it available to every descendant.
+ * @returns {ReturnType<typeof useFloorplannerMode>}
+ */
+export function provideFloorplannerMode(store)
+{
+	return injection.put(useFloorplannerMode(store));
+}
+
+/**
+ * Take it from an ancestor that called `provideFloorplannerMode`.
+ * @returns {ReturnType<typeof useFloorplannerMode>}
+ */
+export function injectFloorplannerMode()
+{
+	return injection.take();
 }

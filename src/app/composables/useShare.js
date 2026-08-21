@@ -4,6 +4,7 @@ import {encodeDesign, decodeDesign, payloadFromHash, linkFor, linksAvailable,
 	LINK_KEY, MAX_LINK_CHARS} from '../share/design_link.js';
 import {assetResolver} from './useAssets.js';
 import {useToasts} from './useToasts.js';
+import {createInjection} from './injection.js';
 
 /**
  * Send a design to somebody, and receive one (RM-013 K2).
@@ -424,4 +425,31 @@ function describeLinkFailure(why)
 		return 'This browser cannot read compressed links.';
 	}
 	return 'The link looks incomplete - it may have been broken across two lines.';
+}
+
+/**
+ * `useShare` as an injection (RM-020 S-5). See `injection.js` for the pattern and
+ * why twelve of the twenty-two composables use it.
+ */
+const injection = createInjection('Share');
+
+/** The key, for a component mounted outside the shell - a test, or another host. */
+export const SHARE_KEY = injection.key;
+
+/**
+ * Build it and make it available to every descendant.
+ * @returns {ReturnType<typeof useShare>}
+ */
+export function provideShare(store, projects, io, models)
+{
+	return injection.put(useShare(store, projects, io, models));
+}
+
+/**
+ * Take it from an ancestor that called `provideShare`.
+ * @returns {ReturnType<typeof useShare>}
+ */
+export function injectShare()
+{
+	return injection.take();
 }

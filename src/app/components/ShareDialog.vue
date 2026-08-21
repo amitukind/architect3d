@@ -1,4 +1,5 @@
 <script setup>
+import {injectShare} from '../composables/useShare.js';
 // @ts-check
 import {ref, watch} from 'vue';
 import {DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose} from 'reka-ui';
@@ -24,38 +25,18 @@ import {X, Copy, Link2} from '@lucide/vue';
  * always works: Save layout.
  */
 
+/**
+ * `useShare`, injected (RM-020 S-5).
+ *
+ * Six values and the `copy` callback were this composable relayed through
+ * `App.vue`. `open` stays a v-model - a dialog's visibility is the shell's -
+ * and `save-file` stays an event, because saving a design is `useDesignIO`'s
+ * job and not this dialog's to reach for.
+ */
+const share = injectShare();
+
 const props = defineProps({
 	open: {type: Boolean, default: false},
-	link: {
-		/** @type {import('vue').PropType<?string>} */
-		type: String,
-		default: null,
-	},
-	chars: {type: Number, default: 0},
-	limit: {type: Number, default: 8000},
-	refusal: {
-		/** @type {import('vue').PropType<?string>} */
-		type: String,
-		default: null,
-	},
-	busy: {type: Boolean, default: false},
-	available: {type: Boolean, default: true},
-	/**
-	 * Put the link on the clipboard, and say whether it worked.
-	 *
-	 * A function prop rather than an emit, because the answer has to come back:
-	 * `emit` returns nothing in Vue 3, so a button wired that way could only ever
-	 * report what it attempted. The distinction matters here - a browser
-	 * declining the clipboard is an ordinary outcome with its own behaviour.
-	 *
-	 */
-	copy: {
-		// A cast rather than an annotation: `PropType<F>` for a function type wants
-		// the constructor asserted into it, which the `type:` line cannot express
-		// on its own.
-		type: /** @type {import('vue').PropType<function(): Promise<boolean>>} */ (Function),
-		required: true,
-	},
 });
 
 const emit = defineEmits(['update:open', 'save-file']);
@@ -77,7 +58,7 @@ watch(() => props.open, function (isOpen)
 
 async function onCopy()
 {
-	copied.value = await props.copy() === true;
+	copied.value = await share.copyLink() === true;
 	if (!copied.value && field.value)
 	{
 		// The browser said no. Select the text, which is the next thing a person
@@ -129,29 +110,29 @@ function selectAll(event)
 				</div>
 
 				<div class="flex flex-col gap-3 p-4">
-					<p v-if="!props.available" class="rounded-panel border border-line bg-overlay p-3 text-[12px] text-ink-soft">
+					<p v-if="!share.available.value" class="rounded-panel border border-line bg-overlay p-3 text-[12px] text-ink-soft">
 						This browser cannot compress a design into a link.
 						<button type="button" class="link" @click="emit('save-file')">Save it as a file</button> instead.
 					</p>
 
-					<template v-else-if="props.refusal === 'too-long'">
+					<template v-else-if="share.refusal.value === 'too-long'">
 						<p class="rounded-panel border border-line bg-overlay p-3 text-[12px] text-ink-soft">
-							This design is <strong class="text-ink">{{ props.chars.toLocaleString() }}</strong> characters
-							compressed, and links hold <strong class="text-ink">{{ props.limit.toLocaleString() }}</strong>.
+							This design is <strong class="text-ink">{{ share.chars.value.toLocaleString() }}</strong> characters
+							compressed, and links hold <strong class="text-ink">{{ share.MAX_LINK_CHARS.toLocaleString() }}</strong>.
 							Longer ones survive some inboxes and not others, so this one goes as a file.
 						</p>
 						<button type="button" class="btn self-start" @click="emit('save-file')">Save layout instead</button>
 					</template>
 
-					<template v-else-if="props.link">
+					<template v-else-if="share.link.value">
 						<label class="flex flex-col gap-1">
 							<span class="eyebrow">Link</span>
 							<span class="flex gap-1.5">
 								<input
-									ref="field" :value="props.link" readonly aria-label="Shareable link"
+									ref="field" :value="share.link.value" readonly aria-label="Shareable link"
 									class="min-w-0 flex-1 rounded-md border border-line bg-overlay px-2 py-1.5 font-mono text-[11px]"
 									@focus="selectAll">
-								<button type="button" class="btn flex-none gap-1.5" :disabled="props.busy" @click="onCopy">
+								<button type="button" class="btn flex-none gap-1.5" :disabled="share.busy.value" @click="onCopy">
 									<Copy :size="14" />
 									{{ copied ? 'Copied' : 'Copy' }}
 								</button>
@@ -159,7 +140,7 @@ function selectAll(event)
 						</label>
 						<p class="text-[11px] text-ink-faint">
 							<Link2 :size="12" class="inline align-[-2px]" />
-							{{ props.chars.toLocaleString() }} of {{ props.limit.toLocaleString() }} characters.
+							{{ share.chars.value.toLocaleString() }} of {{ share.MAX_LINK_CHARS.toLocaleString() }} characters.
 							Whoever opens it sees the design and can keep a copy; yours is unaffected.
 						</p>
 					</template>

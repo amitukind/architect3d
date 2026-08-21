@@ -4,6 +4,7 @@ import {renderPlanThumbnail} from '../../scripts/blueprint.js';
 import {createProjectRepository, cleanName, copyName, projectId, REASON_UNAVAILABLE}
 	from '../persistence/project_repository.js';
 import {useToasts} from './useToasts.js';
+import {createInjection} from './injection.js';
 
 /**
  * Many designs, each with a name (RM-013 K1, gap Q-6).
@@ -452,4 +453,31 @@ function describeRefusal(why)
 		return 'The library was written by a newer version of this app, and has been left alone.';
 	}
 	return 'The browser refused.';
+}
+
+/**
+ * `useProjects` as an injection (RM-020 S-5). See `injection.js` for the pattern and
+ * why twelve of the twenty-two composables use it.
+ */
+const injection = createInjection('Projects');
+
+/** The key, for a component mounted outside the shell - a test, or another host. */
+export const PROJECTS_KEY = injection.key;
+
+/**
+ * Build it and make it available to every descendant.
+ * @returns {ReturnType<typeof useProjects>}
+ */
+export function provideProjects(store, io)
+{
+	return injection.put(useProjects(store, io));
+}
+
+/**
+ * Take it from an ancestor that called `provideProjects`.
+ * @returns {ReturnType<typeof useProjects>}
+ */
+export function injectProjects()
+{
+	return injection.take();
 }

@@ -1,4 +1,5 @@
 <script setup>
+import {injectLayout} from '../composables/useLayout.js';
 // @ts-check
 import {computed, onBeforeUnmount, ref} from 'vue';
 import {LAYOUT_PLAN, LAYOUT_SPLIT, LAYOUT_VIEW} from '../composables/useLayout.js';
@@ -34,32 +35,34 @@ import {LAYOUT_PLAN, LAYOUT_SPLIT, LAYOUT_VIEW} from '../composables/useLayout.j
  * motion turns it off entirely, globally, in app.css.
  */
 
-const props = defineProps({
-	layout: {type: String, required: true},
-	/** Fraction of the width given to the plan in split mode. */
-	splitRatio: {type: Number, default: 0.5},
-});
+/**
+ * The layout, injected (RM-020 S-5).
+ *
+ * All three of this component's bindings were `useLayout`, and one of them was
+ * a v-model relaying the split ratio back to the composable that owns it.
+ */
+const workspace = injectLayout();
 
-const emit = defineEmits(['update:splitRatio']);
+
 
 /** @type {import('vue').Ref<?HTMLElement>} The split container, null until mount. */
 const container = ref(null);
 const dragging = ref(false);
 
-const isSplit = computed(() => props.layout === LAYOUT_SPLIT);
+const isSplit = computed(() => workspace.layout.value === LAYOUT_SPLIT);
 
 /** Fraction of the width the plan occupies, per layout. */
 const planFraction = computed(function ()
 {
-	if (props.layout === LAYOUT_PLAN)
+	if (workspace.layout.value === LAYOUT_PLAN)
 	{
 		return 1;
 	}
-	if (props.layout === LAYOUT_VIEW)
+	if (workspace.layout.value === LAYOUT_VIEW)
 	{
 		return 0;
 	}
-	return props.splitRatio;
+	return workspace.splitRatio.value;
 });
 
 /**
@@ -76,11 +79,11 @@ const DIVIDER = 5;
 /** @type {import('vue').ComputedRef<import('vue').CSSProperties>} */
 const planStyle = computed(function ()
 {
-	if (props.layout === LAYOUT_PLAN)
+	if (workspace.layout.value === LAYOUT_PLAN)
 	{
 		return {width: '100%', opacity: 1};
 	}
-	if (props.layout === LAYOUT_VIEW)
+	if (workspace.layout.value === LAYOUT_VIEW)
 	{
 		return {width: '100%', opacity: 0, pointerEvents: 'none'};
 	}
@@ -90,11 +93,11 @@ const planStyle = computed(function ()
 /** @type {import('vue').ComputedRef<import('vue').CSSProperties>} */
 const viewStyle = computed(function ()
 {
-	if (props.layout === LAYOUT_VIEW)
+	if (workspace.layout.value === LAYOUT_VIEW)
 	{
 		return {width: '100%', opacity: 1};
 	}
-	if (props.layout === LAYOUT_PLAN)
+	if (workspace.layout.value === LAYOUT_PLAN)
 	{
 		return {width: '100%', opacity: 0, pointerEvents: 'none'};
 	}
@@ -127,7 +130,7 @@ function onPointerMove(event)
 	{
 		return;
 	}
-	emit('update:splitRatio', (event.clientX - box.left) / box.width);
+	workspace.setSplitRatio((event.clientX - box.left) / box.width);
 }
 
 function onPointerUp(event)
@@ -149,17 +152,17 @@ function onKeydown(event)
 	if (event.key === 'ArrowLeft')
 	{
 		event.preventDefault();
-		emit('update:splitRatio', props.splitRatio - 0.02);
+		workspace.setSplitRatio(workspace.splitRatio.value - 0.02);
 	}
 	else if (event.key === 'ArrowRight')
 	{
 		event.preventDefault();
-		emit('update:splitRatio', props.splitRatio + 0.02);
+		workspace.setSplitRatio(workspace.splitRatio.value + 0.02);
 	}
 	else if (event.key === 'Home')
 	{
 		event.preventDefault();
-		emit('update:splitRatio', 0.5);
+		workspace.setSplitRatio(0.5);
 	}
 }
 

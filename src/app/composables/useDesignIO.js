@@ -4,6 +4,7 @@ import {EVENT_GLTF_READY} from '../../scripts/blueprint.js';
 import {exportPlanSVG, renderPlanToCanvas} from '../../scripts/blueprint.js';
 import {DEFAULT_DESIGN} from '../designs/default-design.js';
 import {useToasts} from './useToasts.js';
+import {createInjection} from './injection.js';
 
 /**
  * New / open / save, for all four formats the demo offered.
@@ -674,4 +675,31 @@ export function useDesignIO(store, options)
 		// and so has nothing else in here to go through. One download helper, and
 		// the note at the top of this file is why there is only one.
 		download};
+}
+
+/**
+ * `useDesignIO` as an injection (RM-020 S-5). See `injection.js` for the pattern and
+ * why twelve of the twenty-two composables use it.
+ */
+const injection = createInjection('DesignIO');
+
+/** The key, for a component mounted outside the shell - a test, or another host. */
+export const DESIGN_I_O_KEY = injection.key;
+
+/**
+ * Build it and make it available to every descendant.
+ * @returns {ReturnType<typeof useDesignIO>}
+ */
+export function provideDesignIO(store, options)
+{
+	return injection.put(useDesignIO(store, options));
+}
+
+/**
+ * Take it from an ancestor that called `provideDesignIO`.
+ * @returns {ReturnType<typeof useDesignIO>}
+ */
+export function injectDesignIO()
+{
+	return injection.take();
 }

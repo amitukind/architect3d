@@ -1,6 +1,7 @@
 // @ts-check
 import {computed, ref} from 'vue';
 import {TOUR_STEPS, TOUR_VERSION} from '../tour/steps.js';
+import {createInjection} from './injection.js';
 
 /**
  * The first five minutes (RM-014 L2, finding Z-7).
@@ -241,4 +242,31 @@ export function useTour(workspace)
 	}
 
 	return {open, index, step, steps, total, first, last, start, next, back, finish, skip, offer};
+}
+
+/**
+ * `useTour` as an injection (RM-020 S-5). See `injection.js` for the pattern and
+ * why twelve of the twenty-two composables use it.
+ */
+const injection = createInjection('Tour');
+
+/** The key, for a component mounted outside the shell - a test, or another host. */
+export const TOUR_KEY = injection.key;
+
+/**
+ * Build it and make it available to every descendant.
+ * @returns {ReturnType<typeof useTour>}
+ */
+export function provideTour(workspace)
+{
+	return injection.put(useTour(workspace));
+}
+
+/**
+ * Take it from an ancestor that called `provideTour`.
+ * @returns {ReturnType<typeof useTour>}
+ */
+export function injectTour()
+{
+	return injection.take();
 }

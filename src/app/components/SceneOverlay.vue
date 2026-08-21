@@ -1,4 +1,5 @@
 <script setup>
+import {injectCameraViews} from '../composables/useCameraViews.js';
 // @ts-check
 import {Camera, Grid2x2, Sparkles, Lock, LockOpen} from '@lucide/vue';
 
@@ -23,49 +24,52 @@ import {RENDER_STUDIO, RENDER_CLASSIC} from '../../scripts/blueprint.js';
  * output at all.
  */
 
+/**
+ * The camera composable, injected (RM-020 S-5).
+ *
+ * Four of this component's props and four of its events were `useCameraViews`
+ * relayed through `App.vue`, including three toggles that existed only to send
+ * back the negation of a value it had just been handed. `renderMode` stays a
+ * prop: it belongs to the shell's render-profile switch, not to the camera.
+ */
+const camera = injectCameraViews();
+
 const props = defineProps({
-	activeView: {type: String, required: true},
-	orthographic: {type: Boolean, default: false},
-	wireframe: {type: Boolean, default: false},
-	viewLocked: {type: Boolean, default: false},
-	renderMode: {type: String, default: RENDER_STUDIO},
+	renderMode: {type: String, default: ''},
 });
 
-const emit = defineEmits([
-	'switch-view', 'toggle-orthographic', 'toggle-wireframe',
-	'toggle-lock', 'set-render-mode',
-]);
+const emit = defineEmits(['set-render-mode']);
 </script>
 
 <template>
 	<div class="pointer-events-none absolute inset-y-0 right-0 z-20 flex flex-col items-end justify-start gap-2 p-3">
 		<div class="glass pointer-events-auto p-1">
-			<ViewCube :active-view="props.activeView" @switch-view="emit('switch-view', $event)" />
+			<ViewCube :active-view="camera.activeView.value" @switch-view="camera.switchView($event)" />
 		</div>
 
 		<div class="glass pointer-events-auto flex flex-col gap-0.5 p-1">
-			<AppTip :label="props.orthographic ? 'Perspective camera' : 'Orthographic camera'" keys="o" side="left" :delay="0">
+			<AppTip :label="camera.orthographic.value ? 'Perspective camera' : 'Orthographic camera'" keys="o" side="left" :delay="0">
 				<button
-					type="button" class="btn btn-icon" :class="{'is-active': props.orthographic}"
-					:aria-pressed="props.orthographic" title="Switch camera ortho/perspective"
-					@click="emit('toggle-orthographic')">
+					type="button" class="btn btn-icon" :class="{'is-active': camera.orthographic.value}"
+					:aria-pressed="camera.orthographic.value" title="Switch camera ortho/perspective"
+					@click="camera.setOrthographic(!camera.orthographic.value)">
 					<Camera :size="15" />
 				</button>
 			</AppTip>
 			<AppTip label="Wireframe" keys="g" side="left" :delay="0">
 				<button
-					type="button" class="btn btn-icon" :class="{'is-active': props.wireframe}"
-					:aria-pressed="props.wireframe" title="Switch wireframe mode"
-					@click="emit('toggle-wireframe')">
+					type="button" class="btn btn-icon" :class="{'is-active': camera.wireframe.value}"
+					:aria-pressed="camera.wireframe.value" title="Switch wireframe mode"
+					@click="camera.setWireframe(!camera.wireframe.value)">
 					<Grid2x2 :size="15" />
 				</button>
 			</AppTip>
-			<AppTip :label="props.viewLocked ? 'Unlock orbit' : 'Lock orbit'" side="left" :delay="0">
+			<AppTip :label="camera.viewLocked.value ? 'Unlock orbit' : 'Lock orbit'" side="left" :delay="0">
 				<button
-					type="button" class="btn btn-icon" :class="{'is-active': props.viewLocked}"
-					:aria-pressed="props.viewLocked" title="Lock camera rotation"
-					@click="emit('toggle-lock')">
-					<Lock v-if="props.viewLocked" :size="15" />
+					type="button" class="btn btn-icon" :class="{'is-active': camera.viewLocked.value}"
+					:aria-pressed="camera.viewLocked.value" title="Lock camera rotation"
+					@click="camera.setViewLocked(!camera.viewLocked.value)">
+					<Lock v-if="camera.viewLocked.value" :size="15" />
 					<LockOpen v-else :size="15" />
 				</button>
 			</AppTip>

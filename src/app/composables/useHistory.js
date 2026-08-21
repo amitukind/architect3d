@@ -4,6 +4,7 @@ import {EVENT_UPDATED, EVENT_LOADED} from '../../scripts/blueprint.js';
 import {EVENT_ANNOTATIONS_CHANGED} from '../../scripts/blueprint.js';
 import {EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED, EVENT_ITEM_MOVE_FINISH} from '../../scripts/blueprint.js';
 import {REASON_UNDO} from '../../scripts/blueprint.js';
+import {createInjection} from './injection.js';
 
 /**
  * Undo and redo.
@@ -461,4 +462,31 @@ export function useHistory(store)
 	}
 
 	return {canUndo, canRedo, depth, commit, undo, redo, reset, stats};
+}
+
+/**
+ * `useHistory` as an injection (RM-020 S-5). See `injection.js` for the pattern and
+ * why twelve of the twenty-two composables use it.
+ */
+const injection = createInjection('History');
+
+/** The key, for a component mounted outside the shell - a test, or another host. */
+export const HISTORY_KEY = injection.key;
+
+/**
+ * Build it and make it available to every descendant.
+ * @returns {ReturnType<typeof useHistory>}
+ */
+export function provideHistory(store)
+{
+	return injection.put(useHistory(store));
+}
+
+/**
+ * Take it from an ancestor that called `provideHistory`.
+ * @returns {ReturnType<typeof useHistory>}
+ */
+export function injectHistory()
+{
+	return injection.take();
 }

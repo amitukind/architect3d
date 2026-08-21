@@ -2,6 +2,7 @@
 import {ref} from 'vue';
 import {Configuration, configDimUnit} from '../../scripts/blueprint.js';
 import {dimFeetAndInch, dimInch, dimCentiMeter, dimMilliMeter, dimMeter} from '../../scripts/blueprint.js';
+import {createInjection} from './injection.js';
 
 /**
  * The active display unit, as something Vue can watch.
@@ -80,4 +81,31 @@ export function useDisplayUnit(store)
 	}
 
 	return {unit, units: UNITS, setUnit};
+}
+
+/**
+ * `useDisplayUnit` as an injection (RM-020 S-5). See `injection.js` for the pattern and
+ * why twelve of the twenty-two composables use it.
+ */
+const injection = createInjection('DisplayUnit');
+
+/** The key, for a component mounted outside the shell - a test, or another host. */
+export const DISPLAY_UNIT_KEY = injection.key;
+
+/**
+ * Build it and make it available to every descendant.
+ * @returns {ReturnType<typeof useDisplayUnit>}
+ */
+export function provideDisplayUnit(store)
+{
+	return injection.put(useDisplayUnit(store));
+}
+
+/**
+ * Take it from an ancestor that called `provideDisplayUnit`.
+ * @returns {ReturnType<typeof useDisplayUnit>}
+ */
+export function injectDisplayUnit()
+{
+	return injection.take();
 }

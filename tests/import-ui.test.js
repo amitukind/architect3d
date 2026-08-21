@@ -9,10 +9,11 @@
  * when the answer does.
  */
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
-import {nextTick} from 'vue';
+import {nextTick, ref} from 'vue';
 import {mount} from '@vue/test-utils';
 
 import ImportModelDialog from '../src/app/components/ImportModelDialog.vue';
+import {MODEL_IMPORT_KEY} from '../src/app/composables/useModelImport.js';
 import {UNITS, fitScaleFor, orientedSize, unitScaleFor} from '../src/app/import/model_file.js';
 
 /** A pending file, shaped the way `useModelImport.choose` produces one. */
@@ -57,12 +58,51 @@ function buttonBy(label)
 		.find((node) => node.getAttribute('aria-label') === label || node.textContent.trim() === label);
 }
 
-async function open(props)
+/**
+ * The dialog reads `useModelImport` through injection since RM-020 S-5.
+ *
+ * `open()` still takes the same object every case here already passed - what
+ * used to be props are now the composable's own fields, so the mapping happens
+ * once here rather than at sixteen call sites. `limit` and `units` keep their
+ * old names on the way in and land on `MAX_MODEL_BYTES` and `UNITS`, which is
+ * what the composable calls them.
+ */
+function importStub(state)
 {
+	var given = state || {};
+	var calls = {choose: [], cancel: [], forget: []};
+	function record(name)
+	{
+		return function () {calls[name].push([].slice.call(arguments));};
+	}
+	return {
+		calls: calls,
+		pending: ref(given.pending === undefined ? null : given.pending),
+		stored: ref(given.stored || []),
+		busy: ref(Boolean(given.busy)),
+		refusal: ref(given.refusal === undefined ? null : given.refusal),
+		available: ref(given.available === undefined ? true : given.available),
+		ACCEPT: given.accept || '.glb,.gltf,.obj',
+		MAX_MODEL_BYTES: given.limit === undefined ? 33554432 : given.limit,
+		UNITS: given.units || UNITS,
+		preview: given.preview || preview,
+		choose: given.choose || record('choose'),
+		cancel: given.cancel || record('cancel'),
+		forget: given.forget || record('forget'),
+	};
+}
+
+async function open(state)
+{
+	const models = importStub(state);
 	const mounted = mount(ImportModelDialog, {
 		attachTo: document.body,
-		props: Object.assign({open: true, units: UNITS, preview: preview}, props || {}),
+		global: {provide: {[MODEL_IMPORT_KEY]: models}},
+		props: {open: true},
 	});
+	// Hung off the wrapper so a case can assert the composable was reached; three
+	// of these used to check an emitted event that is now a direct call.
+	mounted.models = models;
 	await nextTick();
 	await nextTick();
 	return mounted;
@@ -106,7 +146,7 @@ describe('the shelf', () =>
 		buttonBy('Remove lamp.obj').click();
 		await nextTick();
 		expect(wrapper.emitted('place-stored')[0][0].id).toBe('aaa');
-		expect(wrapper.emitted('forget')[0][0]).toBe('bbb');
+		expect(wrapper.models.calls.forget[0][0]).toBe('bbb');
 	});
 
 	it('states the limit where the file is chosen, not after', async () =>
@@ -131,7 +171,7 @@ describe('the shelf', () =>
 		Object.defineProperty(input, 'files', {value: [file], configurable: true});
 		input.dispatchEvent(new Event('change'));
 		await nextTick();
-		expect(wrapper.emitted('choose')[0][0]).toBe(file);
+		expect(wrapper.models.calls.choose[0][0]).toBe(file);
 		expect(input.value).toBe('');
 	});
 });
@@ -196,7 +236,7 @@ describe('the decision', () =>
 		wrapper = await open({pending: PENDING});
 		buttonBy('Cancel').click();
 		await nextTick();
-		expect(wrapper.emitted('cancel')).toHaveLength(1);
+		expect(wrapper.models.calls.cancel).toHaveLength(1);
 	});
 
 	it('starts a second file at the specification\'s defaults, not the last answer', async () =>
@@ -208,7 +248,8 @@ describe('the decision', () =>
 		field.dispatchEvent(new Event('input'));
 		await nextTick();
 
-		await wrapper.setProps({pending: Object.assign({}, PENDING, {id: 'other', file: 'sofa.glb'})});
+		wrapper.models.pending.value = Object.assign({}, PENDING, {id: 'other', file: 'sofa.glb'});
+		await nextTick();
 		await nextTick();
 		expect(buttonBy('Y is up').getAttribute('aria-pressed')).toBe('true');
 		expect(panel().querySelector('input[type="number"]').value).toBe('');
@@ -218,7 +259,8 @@ describe('the decision', () =>
 	it('opens a file it has seen before at the axis it stood up at last time', async () =>
 	{
 		wrapper = await open({pending: PENDING});
-		await wrapper.setProps({pending: Object.assign({}, PENDING, {known: STORED[1]})});
+		wrapper.models.pending.value = Object.assign({}, PENDING, {known: STORED[1]});
+		await nextTick();
 		await nextTick();
 		expect(buttonBy('Z is up').getAttribute('aria-pressed')).toBe('true');
 		expect(panel().textContent).toContain('already stored');
@@ -229,8 +271,9 @@ describe('the decision', () =>
 		wrapper = await open({pending: PENDING});
 		expect(panel().querySelector('[data-testid="import-external"]')).toBeNull();
 
-		await wrapper.setProps({pending: Object.assign({}, PENDING,
-			{external: ['textures/white_wood.ktx2']})});
+		wrapper.models.pending.value = Object.assign({}, PENDING,
+			{external: ['textures/white_wood.ktx2']});
+		await nextTick();
 		await nextTick();
 		const note = panel().querySelector('[data-testid="import-external"]');
 		expect(note.textContent).toContain('textures/white_wood.ktx2');

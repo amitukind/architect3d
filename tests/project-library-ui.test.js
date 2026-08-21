@@ -10,10 +10,11 @@
  * `window.prompt` - which the application turned off deliberately.
  */
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
-import {nextTick} from 'vue';
+import {nextTick, ref} from 'vue';
 import {mount} from '@vue/test-utils';
 
 import ProjectLibrary from '../src/app/components/ProjectLibrary.vue';
+import {PROJECTS_KEY} from '../src/app/composables/useProjects.js';
 
 const CARD = {
 	id: 'a', name: 'Loft conversion', createdAt: 1_700_000_000_000,
@@ -34,10 +35,33 @@ const TEMPLATE = {
  */
 async function open(props)
 {
+	// The saved-project half of the dialog reads `useProjects` through injection
+	// since RM-020 S-5; the template half is still props. `open()` keeps taking
+	// one object and routes each key to whichever side now owns it, so the cases
+	// below did not have to change. The three mutations are recorded, because
+	// four of them assert a button reached the composable.
+	const given = props || {};
+	const calls = {rename: [], duplicate: [], remove: []};
+	const projects = {
+		projects: ref(given.projects || [CARD]),
+		current: ref(given.current === undefined ? null : given.current),
+		dirty: ref(Boolean(given.dirty)),
+		busy: ref(Boolean(given.busy)),
+		available: ref(given.available === undefined ? true : given.available),
+		rename(...args) {calls.rename.push(args);},
+		duplicate(...args) {calls.duplicate.push(args);},
+		remove(...args) {calls.remove.push(args);},
+	};
 	const mounted = mount(ProjectLibrary, {
 		attachTo: document.body,
-		props: Object.assign({open: true, projects: [CARD], templates: [TEMPLATE]}, props || {}),
+		global: {provide: {[PROJECTS_KEY]: projects}},
+		props: {
+			open: true,
+			templates: given.templates === undefined ? [TEMPLATE] : given.templates,
+			templatesError: given.templatesError,
+		},
 	});
+	mounted.calls = calls;
 	await nextTick();
 	await nextTick();
 	return mounted;
@@ -125,7 +149,7 @@ describe('rename and delete happen on the tile', () =>
 		field.dispatchEvent(new window.KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
 		await wrapper.vm.$nextTick();
 
-		expect(wrapper.emitted('rename-project')).toEqual([['a', 'Galley kitchen']]);
+		expect(wrapper.calls.rename).toEqual([['a', 'Galley kitchen']]);
 	});
 
 	it('abandons the rename on Escape, and emits nothing', async () =>
@@ -140,7 +164,7 @@ describe('rename and delete happen on the tile', () =>
 		field.dispatchEvent(new window.KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
 		await wrapper.vm.$nextTick();
 
-		expect(wrapper.emitted('rename-project')).toBeUndefined();
+		expect(wrapper.calls.rename).toHaveLength(0);
 		expect(panel().querySelector('input[aria-label="Design name"]')).toBeNull();
 	});
 
@@ -157,12 +181,12 @@ describe('rename and delete happen on the tile', () =>
 		await wrapper.vm.$nextTick();
 
 		expect(panel().textContent).toContain('Delete this?');
-		expect(wrapper.emitted('delete-project')).toBeUndefined();
+		expect(wrapper.calls.remove).toHaveLength(0);
 
 		await buttonBy('Delete').dispatchEvent(new window.MouseEvent('click', {bubbles: true}));
 		await wrapper.vm.$nextTick();
 
-		expect(wrapper.emitted('delete-project')).toEqual([['a']]);
+		expect(wrapper.calls.remove).toEqual([['a']]);
 	});
 
 	it('lets the question be cancelled', async () =>
@@ -174,7 +198,7 @@ describe('rename and delete happen on the tile', () =>
 		await buttonBy('Cancel').dispatchEvent(new window.MouseEvent('click', {bubbles: true}));
 		await wrapper.vm.$nextTick();
 
-		expect(wrapper.emitted('delete-project')).toBeUndefined();
+		expect(wrapper.calls.remove).toHaveLength(0);
 		expect(panel().textContent).not.toContain('Delete this?');
 	});
 });

@@ -1,4 +1,5 @@
 <script setup>
+import {injectFloorplannerMode} from '../composables/useFloorplannerMode.js';
 import {injectZoom2D} from '../composables/useZoom2D.js';
 import {injectPlanStats} from '../composables/usePlanStats.js';
 // @ts-check
@@ -36,32 +37,13 @@ import {floorplannerModes, Dimensioning} from '../../scripts/blueprint.js';
 const zoom = injectZoom2D();
 const stats = injectPlanStats();
 
+const editor = injectFloorplannerMode();
+
 const props = defineProps({
-	mode: {type: Number, required: true},
-	/**
-	 * How many walls the current storey has (RM-014 L2).
-	 *
-	 * Only ever compared with zero. A plan with nothing on it is the one state
-	 * where the application has no idea what a person is looking at and neither
-	 * do they, and it is reachable in one gesture - delete the four walls it
-	 * starts with.
-	 */
-	walls: {type: Number, default: 0},
-	angleSnap: {type: Boolean, default: false},
-	drawTarget: {
-		/**
-		 * The wall being drawn, or null when none is (RM-008 E2). Shape is
-		 * `Floorplanner2D.drawTarget()`'s, in centimetres and degrees.
-		 *
-		 * @type {import('vue').PropType<?{length: number, angle: number}>}
-		 */
-		type: Object,
-		default: null,
-	},
 	unit: {type: String, default: ''},
 });
 
-const emit = defineEmits(['set-angle-snap', 'set-draw-target']);
+
 
 /**
  * The typed half of "draw to a number" (RM-008 E2).
@@ -77,16 +59,16 @@ const typedLength = ref('');
 const typedAngle = ref('');
 const editing = ref('');
 
-const drawing = computed(() => props.drawTarget !== null);
+const drawing = computed(() => editor.drawTarget.value !== null);
 
 /** What each field shows: what was typed while focused, the live value if not. */
 const lengthShown = computed(() => (editing.value === 'length')
 	? typedLength.value
-	: (props.drawTarget ? round(Dimensioning.cmToMeasureRaw(props.drawTarget.length)) : ''));
+	: (editor.drawTarget.value ? round(Dimensioning.cmToMeasureRaw(editor.drawTarget.value.length)) : ''));
 
 const angleShown = computed(() => (editing.value === 'angle')
 	? typedAngle.value
-	: (props.drawTarget ? round(props.drawTarget.angle) : ''));
+	: (editor.drawTarget.value ? round(editor.drawTarget.value.angle) : ''));
 
 /** Two decimals is finer than anybody draws and shorter than a float prints. */
 function round(value)
@@ -137,7 +119,7 @@ function commitTyped(place)
 {
 	const length = Dimensioning.cmFromMeasureRaw(Number(typedLength.value));
 	const angle = Number(typedAngle.value);
-	emit('set-draw-target', {
+	editor.applyDrawTarget({
 		length: isFinite(length) ? length : null,
 		angle: isFinite(angle) ? angle : null,
 		place: place === true,
@@ -209,9 +191,9 @@ function commitTyped(place)
 
 			<AppTip label="Snap the drawing angle to 15°" side="top" :delay="0">
 				<button
-					type="button" class="btn btn-icon" :class="{'is-active': props.angleSnap}"
-					:aria-pressed="props.angleSnap" title="Snap the drawing angle to 15 degrees"
-					@click="emit('set-angle-snap', !props.angleSnap)">
+					type="button" class="btn btn-icon" :class="{'is-active': editor.angleSnap.value}"
+					:aria-pressed="editor.angleSnap.value" title="Snap the drawing angle to 15 degrees"
+					@click="editor.setAngleSnap(!editor.angleSnap.value)">
 					<Triangle :size="15" />
 				</button>
 			</AppTip>
@@ -250,7 +232,7 @@ function commitTyped(place)
 	<!-- Drawing is the one mode with a rule you cannot discover by trying, so it
 	     gets a persistent notice rather than only the status-bar hint. -->
 	<div
-		v-show="props.mode === floorplannerModes.DRAW && !drawing"
+		v-show="editor.mode.value === floorplannerModes.DRAW && !drawing"
 		class="btn-hint pointer-events-none absolute left-1/2 top-3 z-20 -translate-x-1/2 rounded-lg border border-line bg-overlay/90 px-3 py-1.5 text-[11px] shadow-float backdrop-blur">
 		Click to place corners · <kbd>Shift</kbd> to snap to the grid · <kbd>Esc</kbd> to finish
 	</div>

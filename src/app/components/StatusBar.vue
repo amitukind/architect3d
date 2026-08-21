@@ -1,4 +1,6 @@
 <script setup>
+import {injectFloorplannerMode} from '../composables/useFloorplannerMode.js';
+import {injectLayout} from '../composables/useLayout.js';
 import {injectPlanStats} from '../composables/usePlanStats.js';
 import {injectZoom2D} from '../composables/useZoom2D.js';
 // @ts-check
@@ -39,11 +41,8 @@ import {LAYOUT_PLAN} from '../composables/useLayout.js';
 const stats = injectPlanStats();
 const zoom = injectZoom2D();
 
-const props = defineProps({
-	mode: {type: Number, required: true},
-	layout: {type: String, required: true},
-	unitLabel: {type: String, default: ''},
-});
+const editor = injectFloorplannerMode();
+const workspace = injectLayout();
 
 /**
  * What the active tool is waiting for.
@@ -53,11 +52,11 @@ const props = defineProps({
  */
 const hint = computed(function ()
 {
-	if (props.layout !== LAYOUT_PLAN && props.layout !== 'split')
+	if (workspace.layout.value !== LAYOUT_PLAN && workspace.layout.value !== 'split')
 	{
 		return 'Drag to orbit · scroll to zoom · click an item to select it';
 	}
-	switch (props.mode)
+	switch (editor.mode.value)
 	{
 	case floorplannerModes.DRAW:
 		return 'Click to place corners · hold Shift to snap · Esc to finish';

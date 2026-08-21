@@ -2,6 +2,7 @@
 import {onScopeDispose, ref, watch} from 'vue';
 import {EVENT_FPS_EXIT} from '../../scripts/blueprint.js';
 import {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY, VIEW_EXTERIOR} from '../../scripts/blueprint.js';
+import {createInjection} from './injection.js';
 
 /**
  * Which pane is showing, and everything the 3D camera can be told to do.
@@ -270,4 +271,31 @@ export function useCameraViews(store)
 		switchView, setOrthographic, setWireframe, setViewLocked, setAllStoreys,
 		setClipping, resetClipping,
 	};
+}
+
+/**
+ * `useCameraViews` as an injection (RM-020 S-5). See `injection.js` for the pattern and
+ * why twelve of the twenty-two composables use it.
+ */
+const injection = createInjection('CameraViews');
+
+/** The key, for a component mounted outside the shell - a test, or another host. */
+export const CAMERA_VIEWS_KEY = injection.key;
+
+/**
+ * Build it and make it available to every descendant.
+ * @returns {ReturnType<typeof useCameraViews>}
+ */
+export function provideCameraViews(store)
+{
+	return injection.put(useCameraViews(store));
+}
+
+/**
+ * Take it from an ancestor that called `provideCameraViews`.
+ * @returns {ReturnType<typeof useCameraViews>}
+ */
+export function injectCameraViews()
+{
+	return injection.take();
 }

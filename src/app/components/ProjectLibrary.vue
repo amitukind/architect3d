@@ -1,4 +1,5 @@
 <script setup>
+import {injectProjects} from '../composables/useProjects.js';
 // @ts-check
 import {computed, nextTick, ref, watch} from 'vue';
 import {DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose} from 'reka-ui';
@@ -34,26 +35,27 @@ import {X, Copy, Trash2, Pencil, FilePlus2, LayoutGrid, Check} from '@lucide/vue
  * where they are not, rather than a broken-image glyph.
  */
 
+/**
+ * `useProjects`, injected (RM-020 S-5).
+ *
+ * The saved-project half of this dialog - the list, which one is current,
+ * whether it is dirty, whether the store is even available, and the three
+ * mutations - was that composable relayed a field at a time.
+ *
+ * The template half stays props. `useTemplates` is built from `useProjects` in
+ * the shell and is read by nothing else, so injecting it would add a key for a
+ * single consumer. Opening, starting and saving stay events for the reason they
+ * always did: each one needs the document, and this dialog does not have it.
+ */
+const projects = injectProjects();
+
 const props = defineProps({
 	open: {type: Boolean, default: false},
-	projects: {
-		/** @type {import('vue').PropType<Array<Object>>} */
-		type: Array,
-		required: true,
-	},
 	templates: {
 		/** @type {import('vue').PropType<Array<Object>>} */
 		type: Array,
 		default: () => [],
 	},
-	current: {
-		/** @type {import('vue').PropType<?Object>} */
-		type: Object,
-		default: null,
-	},
-	dirty: {type: Boolean, default: false},
-	busy: {type: Boolean, default: false},
-	available: {type: Boolean, default: true},
 	templatesError: {
 		/** @type {import('vue').PropType<?string>} */
 		type: String,
@@ -61,8 +63,7 @@ const props = defineProps({
 	},
 });
 
-const emit = defineEmits(['update:open', 'open-project', 'rename-project', 'duplicate-project',
-	'delete-project', 'start-template', 'save-current', 'tab']);
+const emit = defineEmits(['update:open', 'open-project', 'start-template', 'save-current', 'tab']);
 
 const TABS = [
 	{id: 'designs', label: 'Your designs'},
@@ -94,7 +95,7 @@ function captureField(element)
 	field.value = (element && typeof element.focus === 'function') ? element : null;
 }
 
-const empty = computed(() => props.projects.length === 0);
+const empty = computed(() => projects.projects.value.length === 0);
 
 watch(() => props.open, function (isOpen)
 {
@@ -106,7 +107,7 @@ watch(() => props.open, function (isOpen)
 	}
 	// A library nobody has saved into opens on the shelf that has something on
 	// it, which is the one useful guess this dialog gets to make.
-	tab.value = props.projects.length ? 'designs' : 'templates';
+	tab.value = projects.projects.value.length ? 'designs' : 'templates';
 	emit('tab', tab.value);
 	// Immediate, because a dialog can be mounted already open - an embedder, a
 	// test, a deep link - and one that only chose its shelf on a false-to-true
@@ -133,7 +134,7 @@ function commitRename()
 {
 	if (renaming.value && draft.value.trim())
 	{
-		emit('rename-project', renaming.value, draft.value);
+		projects.rename(renaming.value, draft.value);
 	}
 	renaming.value = null;
 }
@@ -173,9 +174,9 @@ function size(bytes)
 					<div class="min-w-0">
 						<DialogTitle class="text-[14px] font-semibold">Designs</DialogTitle>
 						<DialogDescription class="text-ink-faint">
-							<template v-if="props.current">
-								Working on <strong class="font-medium text-ink">{{ props.current.name }}</strong>
-								<span v-if="props.dirty"> &middot; unsaved changes</span>
+							<template v-if="projects.current.value">
+								Working on <strong class="font-medium text-ink">{{ projects.current.value.name }}</strong>
+								<span v-if="projects.dirty.value"> &middot; unsaved changes</span>
 							</template>
 							<template v-else>
 								This design has not been kept yet.
@@ -183,11 +184,11 @@ function size(bytes)
 						</DialogDescription>
 					</div>
 					<button
-						v-if="props.available"
-						type="button" class="btn ml-auto gap-1.5" :disabled="props.busy"
+						v-if="projects.available.value"
+						type="button" class="btn ml-auto gap-1.5" :disabled="projects.busy.value"
 						@click="emit('save-current')">
 						<Check :size="15" />
-						{{ props.current ? 'Save' : 'Keep this design' }}
+						{{ projects.current.value ? 'Save' : 'Keep this design' }}
 					</button>
 					<DialogClose as-child>
 						<button type="button" class="btn btn-icon" aria-label="Close">
@@ -203,14 +204,14 @@ function size(bytes)
 						:class="tab === entry.id ? 'border-accent text-ink' : 'border-transparent text-ink-soft'"
 						@click="tab = entry.id">
 						{{ entry.label }}
-						<span v-if="entry.id === 'designs' && props.projects.length" class="text-ink-faint">
-							{{ props.projects.length }}
+						<span v-if="entry.id === 'designs' && projects.projects.value.length" class="text-ink-faint">
+							{{ projects.projects.value.length }}
 						</span>
 					</button>
 				</div>
 
 				<div class="flex-1 overflow-y-auto p-4">
-					<p v-if="!props.available" class="rounded-panel border border-line bg-overlay p-4 text-[12px] text-ink-soft">
+					<p v-if="!projects.available.value" class="rounded-panel border border-line bg-overlay p-4 text-[12px] text-ink-soft">
 						This browser is not offering storage, so designs cannot be kept here.
 						Private browsing does this. Save to a file instead &mdash; the file works everywhere.
 					</p>
@@ -222,9 +223,9 @@ function size(bytes)
 						</p>
 						<ul v-else class="grid grid-cols-2 gap-3 sm:grid-cols-3">
 							<li
-								v-for="card in props.projects" :key="card.id"
+								v-for="card in projects.projects.value" :key="card.id"
 								class="group flex flex-col overflow-hidden rounded-panel border bg-overlay"
-								:class="props.current && props.current.id === card.id ? 'border-accent' : 'border-line'">
+								:class="projects.current.value && projects.current.value.id === card.id ? 'border-accent' : 'border-line'">
 								<button
 									type="button"
 									class="relative block aspect-[4/3] w-full bg-surface"
@@ -257,7 +258,7 @@ function size(bytes)
 									<button type="button" class="btn px-2 text-[11px]" @click="confirming = null">Cancel</button>
 									<button
 										type="button" class="btn px-2 text-[11px] text-danger"
-										@click="confirming = null; emit('delete-project', card.id)">
+										@click="confirming = null; projects.remove(card.id)">
 										Delete
 									</button>
 								</div>
@@ -269,7 +270,7 @@ function size(bytes)
 									</button>
 									<button
 										type="button" class="btn btn-icon" title="Duplicate" aria-label="Duplicate"
-										@click="emit('duplicate-project', card.id)">
+										@click="projects.duplicate(card.id)">
 										<Copy :size="14" />
 									</button>
 									<button
