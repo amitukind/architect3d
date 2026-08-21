@@ -6,6 +6,7 @@ import {disposeMaterial, disposeObject} from '../core/resource_registry.js';
 import {Utils} from '../core/utils.js';
 import {mergeMeshes} from '../core/geometry_merge.js';
 import {resolveModelUrl} from '../core/legacy_models.js';
+import {formatSupport} from '../core/texture_formats.js';
 import {ITEM_TYPE_PARAMETRIC_OPENING, ITEM_TYPE_PARAMETRIC_STAIR, ITEM_TYPE_PARAMETRIC_STRUCTURE} from '../items/factory.js';
 import {buildOpeningGeometry, normaliseOpening} from '../items/opening.js';
 import {buildStairGeometry, normaliseStair} from '../items/stair.js';
@@ -468,6 +469,22 @@ export class Scene extends EventDispatcher
 	 * cached, not the loaders: two items placed in the same tick share one
 	 * import rather than starting two.
 	 *
+	 * ## The device question is answered here, before the import (RM-018 Q1)
+	 *
+	 * `formatSupport()` is read synchronously, on this line, and handed to
+	 * `createModelLoaders`. It used to be read inside that function, which is to
+	 * say whenever the chunk above finished arriving - and because
+	 * `describeFrom` is first-caller-wins, that made the answer depend on
+	 * whether a viewer happened to attach during the download. M3 introduced
+	 * that when it made the viewer lazy; before M3 the renderer always won,
+	 * because `Main` was built in the `BlueprintJS` constructor.
+	 *
+	 * Reading it here does not restore the old guarantee - a plan-only session
+	 * that places an item before ever opening the 3D view still answers from
+	 * `probe()`, and that is now a property of what the user did rather than of
+	 * how fast a file downloaded. What it restores is that the answer is decided
+	 * at a nameable moment, which is the part a test can hold.
+	 *
 	 * @returns {Promise<import('./loaders.js').ModelLoaders>}
 	 * @private
 	 */
@@ -476,9 +493,10 @@ export class Scene extends EventDispatcher
 		if (!this._loaders)
 		{
 			var scope = this;
+			var support = formatSupport();
 			this._loaders = import('./loaders.js').then(function (module)
 			{
-				return module.createModelLoaders(scope.loadingManager, scope.runtime.assets);
+				return module.createModelLoaders(scope.loadingManager, scope.runtime.assets, support);
 			});
 		}
 		return this._loaders;

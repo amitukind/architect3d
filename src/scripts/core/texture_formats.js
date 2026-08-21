@@ -188,6 +188,25 @@ function readFrom(renderer)
  * transcoded for one format cannot be re-transcoded because a later renderer
  * reported another.
  *
+ * ## The preference is a preference, and since M3 it is not a guarantee
+ *
+ * RM-018 Q1, finding AD-3. Until RM-015 M3, `Main` was built inside the
+ * `BlueprintJS` constructor, so this ran before anything could load a model and
+ * the renderer won every time by construction. M3 put the viewer behind
+ * `attachViewer()` - which is what took a first load from 432,781 to 280,079
+ * bytes and is not being undone - and the ordering went with it. The shipped
+ * application opens on the plan; somebody who places an item before ever
+ * switching to 3D reaches `Scene._ensureLoaders` first, and `probe()` answers.
+ * That is now the ORDINARY path, not the fallback the paragraph above implies.
+ *
+ * Measured rather than assumed, in headless Chromium on SwiftShader: the probe
+ * context and a real `WebGLRenderer` report identical values on all seven
+ * fields - `tests/browser/texture-format-source.test.js`, which is also where
+ * both orders are exercised. One machine agreeing is not proof that a
+ * hybrid-graphics laptop agrees, which is the case this docblock was written
+ * about; it is the reason the preference stays documented and unenforced rather
+ * than being restored by making a viewer attach before a model can load.
+ *
  * @param {{extensions: {has: Function, get: Function}}} renderer
  */
 export function describeFrom(renderer)

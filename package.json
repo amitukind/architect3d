@@ -80,6 +80,7 @@
 		"material-trial:check": "node tools/material-trial.mjs --check",
 		"materials": "node tools/fetch-materials.mjs",
 		"materials:check": "node tools/fetch-materials.mjs --check",
+		"coverage:slack": "node tools/coverage-slack.mjs",
 		"budget": "node tools/check-budget.mjs",
 		"budget:update": "node tools/check-budget.mjs --update",
 		"lint": "eslint . --max-warnings 0",

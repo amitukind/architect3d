@@ -249,6 +249,34 @@ export default defineConfig({
 				// verbs' refusals, and the buttons and keys of App.vue - and between
 				// them they took the three thinnest files in the tree from 37.3, 39.2
 				// and 27.3 % branch coverage to 64.5, 70.0 and 84.1.
+				// RM-018 Q1 changed nothing here, and the reason is worth the space.
+				//
+				// The statements floor above is set at 89 against a measurement of
+				// 89.00, which is a slack of ZERO: 89 % of 13,636 statements is
+				// 12,136.04, so the check needs 12,137 and a green build has exactly
+				// 12,137. AD-1 found the gate failing seven times in twenty-one runs
+				// on an unchanged tree - a v8 block-coverage artefact over a module
+				// imported by a promise nothing awaited, which reported one
+				// never-executed line as covered about two runs in three. Q1 made
+				// that line genuinely execute (tests/model-loaders.test.js) and the
+				// figure is now 12,137 in ten runs out of ten.
+				//
+				// It is not raised, because nothing here earned a raise; it is not
+				// lowered, because that is what this file has refused twelve times.
+				// What it means is that the NEXT uncovered statement anybody adds
+				// turns the build red, and that is what a floor sitting on its own
+				// measurement means. `npm run coverage:slack` prints it, and the CI
+				// summary prints it on every run, so the next person meets the number
+				// before it meets them.
+				//
+				// The rule that would have prevented it is written thirty lines below
+				// and was applied in the same sprint: N2 set the per-directory floors
+				// STRICTLY BELOW their measurements, "because two of these measured
+				// exactly 75.00 and 90.00, and a floor a green build sits precisely
+				// on is a red mark somebody learns to re-run rather than read". The
+				// four global floors were rounded down instead, and rounding 89.00
+				// down is a no-op. The rule was right; it was applied to one half of
+				// the sprint.
 				lines: 89,
 				statements: 89,
 				branches: 80,
@@ -297,6 +325,30 @@ export default defineConfig({
 				 * everywhere, it is the one that distinguishes "this line ran" from
 				 * "this decision was tested", and four numbers per directory would be
 				 * sixty-eight numbers nobody reads.
+				 *
+				 * ## What these are ENFORCED at, which is not always what they say
+				 *
+				 * RM-018 Q1, finding AD-4. A percentage over a small denominator is
+				 * not the number it looks like. `src/app/tour` has ten branches;
+				 * 85 % of ten is 8.5, there is no such thing as 8.5 branches, so the
+				 * check needs nine and the floor written 85 is ENFORCED AT 90. It
+				 * sits at 9/10 today, which is a slack of zero - five points of
+				 * apparent room and one branch of real room.
+				 *
+				 * Measured at the time of writing, the four tightest:
+				 *
+				 *     src/app/tour/**        9 / 10    written 85, enforced 90, slack 0
+				 *     src/app/offline/**    64 / 70    written 90, enforced 90, slack 1
+				 *     src/scripts/*.js      18 / 20    written 85, enforced 85, slack 1
+				 *     src/app/import/**     92 / 99    written 90, enforced 90.91, slack 2
+				 *
+				 * None of them moves. They are correct floors and a tight floor is
+				 * what a ratchet is for; what was missing is that nobody could see
+				 * where they stood. `npm run coverage:slack` prints every floor's
+				 * slack in units - `covered - ceil(floor x total)` - and the CI
+				 * summary prints it beside the four percentages. Raising one of
+				 * these on a ten-branch directory means asking for 100 %, so read the
+				 * enforced column before you touch the written one.
 				 */
 				'src/app/*.{js,vue}': {branches: 60},
 				'src/app/components/**': {branches: 80},

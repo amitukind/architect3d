@@ -7,7 +7,6 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';
 import {DRACOLoader} from 'three/addons/loaders/DRACOLoader.js';
 import {KTX2Loader} from 'three/addons/loaders/KTX2Loader.js';
-import {formatSupport} from '../core/texture_formats.js';
 
 /**
  * The machinery that turns model bytes into three.js objects (RM-015 M3).
@@ -58,9 +57,14 @@ import {formatSupport} from '../core/texture_formats.js';
  *        `manager.abort()` reaches the fetches these start and nobody else's.
  * @param {import('../core/asset_resolver.js').AssetResolver} assets Where the
  *        decoder and transcoder live in this deployment.
+ * @param {?import('../core/texture_formats.js').TextureFormatSupport} [support]
+ *        What this device can decode, decided by the CALLER (RM-018 Q1). Null
+ *        where the question has no answer, which is Node and a browser without
+ *        WebGL; a `KTX2Loader` with no `workerConfig` still loads, it just has
+ *        to ask three to detect support itself.
  * @returns {ModelLoaders}
  */
-export function createModelLoaders(manager, assets)
+export function createModelLoaders(manager, assets, support)
 {
 	var gltfloader = new GLTFLoader(manager);
 	var objloader = new OBJLoader(manager);
@@ -100,13 +104,29 @@ export function createModelLoaders(manager, assets)
 	 * `workerConfig` is set from the device rather than by calling
 	 * `detectSupport(renderer)`, because a `Scene` has no renderer - it is the
 	 * model layer. `core/texture_formats.js` explains why that is the right
-	 * dependency rather than a workaround. It is asked here rather than in
-	 * `Scene`'s constructor as of M3, which also means the probe context it
-	 * opens is created on the first model load instead of on every boot.
+	 * dependency rather than a workaround.
+	 *
+	 * ## Why the caller decides, and does not merely call this later (RM-018 Q1)
+	 *
+	 * This function used to call `formatSupport()` itself. M3 had already moved
+	 * it behind a dynamic import, which meant the device question was answered
+	 * not when a model was asked for but whenever the chunk finished
+	 * downloading - and `describeFrom` is first-caller-wins, so a viewer that
+	 * attached in that window changed the answer and a viewer that attached
+	 * after it did not. The order was decided by a network fetch.
+	 *
+	 * `Scene._ensureLoaders` reads it synchronously now, at the moment something
+	 * is actually asked for, and passes it in. Two things follow. The decision
+	 * happens at a point in the program somebody can name, which is what makes
+	 * it testable; and this function became a pure function of its arguments,
+	 * which is what makes the branch below reachable from a test instead of only
+	 * from a device.
+	 *
+	 * M3's property is unchanged: nothing here is asked on a boot. The probe
+	 * context, where there is one, is still opened by the first model load.
 	 */
 	var ktx2Loader = new KTX2Loader(manager);
 	ktx2Loader.setTranscoderPath(assets.transcoderPath());
-	var support = formatSupport();
 	if (support) { ktx2Loader.workerConfig = support; }
 	gltfloader.setKTX2Loader(ktx2Loader);
 

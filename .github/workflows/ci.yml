@@ -194,6 +194,17 @@ jobs:
               echo "no coverage report produced"
             fi
             echo '```'
+            echo "### Coverage floors, and how close each one is"
+            echo '```'
+            # RM-018 Q1, finding AD-4. Four percentages say nothing about where
+            # a floor actually stands: 85 % of a ten-branch directory is 8.5,
+            # which the check rounds up to 9, so a floor written 85 is enforced
+            # at 90. This prints `covered - ceil(floor x total)` for every one
+            # of them - the units that can be lost before the build goes red -
+            # because the global statements floor sat at zero for three sprints
+            # and nothing said so.
+            npm run --silent coverage:slack || true
+            echo '```'
             echo "### Size budgets"
             echo '```'
             npm run --silent budget || true
