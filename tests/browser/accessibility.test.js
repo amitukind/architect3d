@@ -42,8 +42,8 @@ import {markTourSeen} from '../../src/app/composables/useTour.js';
 // block used, selecting a type nothing matches, leaving the inspector on its
 // settings tab and auditing that five times over. See the guard in each case.
 import {
-	SELECTION_WALL, SELECTION_FLOOR, SELECTION_CORNER_2D, SELECTION_WALL_2D,
-	SELECTION_ROOM_2D, SELECTION_DIMENSION, SELECTION_ANNOTATION,
+	SELECTION_ITEM, SELECTION_WALL, SELECTION_FLOOR, SELECTION_CORNER_2D,
+	SELECTION_WALL_2D, SELECTION_ROOM_2D, SELECTION_DIMENSION, SELECTION_ANNOTATION,
 } from '../../src/app/composables/useSelection.js';
 
 /** The two drawing surfaces, which have no text alternative worth inventing. */
@@ -252,6 +252,95 @@ function dimension(app) {return plan(app).newDimension(0, 0, 200, 0, {});}
 function annotation(app) {return plan(app).newAnnotation(100, 100, 'A note');}
 function edge(app) {return plan(app).wallEdges()[0];}
 
+/**
+ * Put something in the scene, and wait until it is really there (RM-018 Q2).
+ *
+ * The four panels below are the ones P2 could not reach, and the reason it
+ * could not was this function: an inspector for a thing needs the thing, and
+ * nothing in this suite had ever placed one. Three of the four are parametric
+ * and cost no network at all - the geometry is generated - which is why they
+ * are placed that way here rather than through the catalog. The fourth is an
+ * ordinary catalog model and does cost a fetch; it is the only one, and it is
+ * what `ItemInspector` is for.
+ *
+ * `ITEM_LOADED_EVENT` rather than a timeout: a parametric item is synchronous
+ * enough to tempt a `nextTick`, and the glTF one is not, so one shape covers
+ * both and neither races.
+ *
+ * @param {Object} app The mounted shell's setupState.
+ * @param {number} type An `ITEM_TYPE_*` from items/factory.js.
+ * @param {string} url Empty for a parametric item.
+ * @param {Object} metadata
+ * @param {?Object} [hint]
+ * @returns {Promise<?Object>} The placed item, or null if it never arrived.
+ */
+function place(app, type, url, metadata, hint)
+{
+	const scene = app.store.model.value.scene;
+	return new Promise((resolve) =>
+	{
+		const settled = (event) =>
+		{
+			if (!event.item) { return; }
+			scene.removeEventListener('ITEM_LOADED_EVENT', settled);
+			resolve(event.item);
+		};
+		scene.addEventListener('ITEM_LOADED_EVENT', settled);
+		scene.addItem(type, url, Object.assign({
+			itemName: 'subject', resizable: true, itemType: type,
+		}, metadata), null, null, null, false, hint || null);
+		setTimeout(() => resolve(null), 15000);
+	});
+}
+
+/**
+ * The four screens P2 named and did not open, each with what it needs first.
+ *
+ * `InspectorPanel` picks between these four by DUCK TYPING the selected object
+ * - `setOpening`, `setStair`, `setStructure`, and otherwise `ItemInspector` -
+ * so all four are `SELECTION_ITEM` and the panel that appears is decided by
+ * what was placed. Each case asserts which one it got, because a fixture that
+ * quietly produced the wrong item would otherwise audit `ItemInspector` four
+ * times and report four screens.
+ */
+const PLACED = [
+	{
+		name: 'opening',
+		heading: 'Door',
+		place: (app) => place(app, 10, '', {
+			format: 'parametric', opening: {kind: 'door', width: 90, height: 210},
+		}, openingHint(app)),
+	},
+	{
+		name: 'stair',
+		heading: 'Stairs',
+		place: (app) => place(app, 11, '', {
+			format: 'parametric', stair: {shape: 'straight', handrail: 'both'},
+		}),
+	},
+	{
+		name: 'structure',
+		heading: 'Column',
+		place: (app) => place(app, 12, '', {
+			format: 'parametric', structure: {kind: 'column', width: 30, depth: 30, length: 250},
+		}),
+	},
+	{
+		name: 'catalog item',
+		heading: 'Kivine',
+		place: (app) => place(app, 1, 'models/js-glb/ik-kivine_baked.glb', {
+			format: 'gltf', modelUrl: 'models/js-glb/ik-kivine_baked.glb', itemName: 'Kivine',
+		}),
+	},
+];
+
+/** An opening has to go in a wall, so it needs the edge it is cut into. */
+function openingHint(app)
+{
+	const edge = app.store.model.value.floorplan.wallEdges()[0];
+	return {position: edge.center.clone(), edge: edge};
+}
+
 /** axe over the whole document, because dialogs portal out of the shell root. */
 async function analyseDocument()
 {
@@ -288,6 +377,39 @@ describe('M-60 - the inspector panels are accessible', () =>
 		});
 	}
 
+	for (const subject of PLACED)
+	{
+		it(`has no violations with the ${subject.name} panel open`, async () =>
+		{
+			const app = wrapper.vm.$.setupState;
+			const item = await subject.place(app);
+			expect(item, `the ${subject.name} fixture placed nothing`).toBeTruthy();
+
+			app.workspace.inspectorOpen.value = true;
+			app.selection.select(SELECTION_ITEM, item);
+			await nextTick();
+			await nextTick();
+
+			expect(app.inspectorTab, `the ${subject.name} selection did not open the selection tab`)
+				.toBe('selection');
+			const heading = document.querySelector('#inspector h2.inspector-heading');
+			expect(heading, `the ${subject.name} panel rendered no heading`).toBeTruthy();
+			// Which of the four appeared is decided by duck typing on the item, so
+			// the heading is the only thing that says the fixture produced what it
+			// meant to. Each panel titles itself with what it is looking at rather
+			// than with its own name - a parametric door says "Door", a straight
+			// flight says "Stairs", a column says "Column" - and `ItemInspector`
+			// says the item's name, which is four distinct strings and therefore a
+			// usable guard. Measured by running it: the first version of this
+			// expected the component names and got all four wrong.
+			expect(heading.textContent.trim(),
+				`the ${subject.name} fixture opened the wrong panel`).toBe(subject.heading);
+
+			const found = await analyseDocument();
+			expect(found, `axe violations with the ${subject.name} panel:\n  ${found.join('\n  ')}`).toEqual([]);
+		});
+	}
+
 	it('has no violations on the settings tab, which is the one that is open at boot', async () =>
 	{
 		const app = wrapper.vm.$.setupState;
@@ -295,6 +417,18 @@ describe('M-60 - the inspector panels are accessible', () =>
 		app.inspectorTab = 'settings';
 		await nextTick();
 		await nextTick();
+
+		// And the carbon sheet with it, which is why that panel is in AUDITED
+		// rather than in NOT_YET (RM-018 Q2, finding AD-5). It renders here on
+		// `v-if="carbonSheet"` - a getter on the 2D floorplanner, so it is
+		// present whenever the plan is - and it has no heading of its own, so
+		// what identifies it is its own fields. Asserted rather than assumed:
+		// without this, moving it out of the settings tab would leave a screen
+		// silently unaudited while the count still said nineteen.
+		const labels = [...document.querySelectorAll('#inspector label')]
+			.map((node) => node.textContent.trim());
+		expect(labels, 'the carbon sheet controls are not on the settings tab')
+			.toEqual(expect.arrayContaining(['Image URL', 'Maintain proportion']));
 
 		const found = await analyseDocument();
 		expect(found, `axe violations on the settings tab:\n  ${found.join('\n  ')}`).toEqual([]);
@@ -382,16 +516,25 @@ describe('M-60 - and the count is asserted, not the list', () =>
 		'AnnotationInspector', 'SurfaceInspector', 'SettingsPanel',
 		'ShortcutsDialog', 'ShareDialog', 'ImportModelDialog', 'ProjectLibrary',
 		'CatalogDrawer', 'CatalogCredits', 'TourGuide',
+		// RM-018 Q2. The four that needed something in the scene, and the fifth
+		// that turned out to need nothing at all - `CarbonSheetPanel` renders
+		// inside `SettingsPanel` on `v-if="carbonSheet"`, which is a getter on
+		// the 2D floorplanner and is therefore always there. P2 filed it with the
+		// other four and the reason did not apply; the settings case asserts its
+		// controls now, so the claim is checked rather than written down.
+		'ItemInspector', 'OpeningInspector', 'StairInspector', 'StructureInspector',
+		'CarbonSheetPanel',
 	];
 
 	/**
-	 * The ones nothing here opens, and why - recorded rather than skipped
-	 * quietly, which is what the acceptance asked for. Each needs a parametric
-	 * item or an imported model placed in the scene first, which is a fixture
-	 * this suite does not build and P2 did not price.
+	 * The ones nothing here opens, and why.
+	 *
+	 * Empty as of RM-018 Q2, and it stays a named list rather than being deleted
+	 * because the case below asserts against it: a screen added later either
+	 * gets opened or comes back here with a reason, and either way somebody has
+	 * to decide rather than let the count drift.
 	 */
-	const NOT_YET = ['ItemInspector', 'OpeningInspector', 'StairInspector',
-		'StructureInspector', 'CarbonSheetPanel'];
+	const NOT_YET = [];
 
 	it('has a name for every screen the tree contains', () =>
 	{
@@ -406,14 +549,14 @@ describe('M-60 - and the count is asserted, not the list', () =>
 			.toEqual(accounted);
 	});
 
-	it('audits two thirds of them, and says which third it does not', () =>
+	it('audits all of them, and holds that as a ratchet', () =>
 	{
 		const screens = screenFiles();
 
 		expect(AUDITED.length + NOT_YET.length).toBe(screens.length);
-		expect(AUDITED.length).toBe(14);
-		// Five, all of them needing something placed in the scene first. Asserted
-		// as a ceiling so the number can only come down.
-		expect(NOT_YET.length).toBeLessThanOrEqual(5);
+		expect(AUDITED.length).toBe(19);
+		// Zero, and asserted as a ceiling the way the five were - so the number
+		// can only come down, and it is already down.
+		expect(NOT_YET.length).toBeLessThanOrEqual(0);
 	});
 });
