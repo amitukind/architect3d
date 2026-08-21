@@ -187,7 +187,7 @@ onBeforeUnmount(detach);
 
 		<p class="inspector-readout">
 			Floor area <strong>{{ area }}&sup2;</strong><br>
-			<span class="opacity-70">To wall centres {{ centrelineArea }}&sup2;</span>
+			<span class="text-ink-faint">To wall centres {{ centrelineArea }}&sup2;</span>
 		</p>
 
 		<p class="inspector-note">{{ ceilingNote }}</p>

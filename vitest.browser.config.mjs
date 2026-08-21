@@ -1,5 +1,6 @@
 import {defineConfig} from 'vitest/config';
 import vue from '@vitejs/plugin-vue';
+import tailwind from '@tailwindcss/vite';
 import {playwright} from '@vitest/browser-playwright';
 
 /**
@@ -57,10 +58,13 @@ import {playwright} from '@vitest/browser-playwright';
  * the loop error and fails.
  */
 export default defineConfig({
-	plugins: [vue()],
+	plugins: [vue(), tailwind()],
 	test: {
 		name: 'browser',
 		include: ['tests/browser/**/*.test.js'],
+		// The stylesheet, and nothing else - see the docblock in the file, and the
+		// note below about the setup file P6 deleted, which this is not.
+		setupFiles: ['tests/browser/setup.js'],
 		/**
 		 * Thirty seconds, against Vitest's default of five and the ten this tier
 		 * had been living on (RM-003 A0).

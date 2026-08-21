@@ -93,39 +93,39 @@ const CANVAS_PALETTES = {
 		gridMajorEvery: 4,
 
 		room: '#0a7fcc14',
-		roomHover: '#d9601a26',
+		roomHover: '#b7511626',
 		roomSelected: '#0a7fcc2e',
 
 		wall: '#aab3c0',
-		wallHover: '#d9601a',
+		wallHover: '#b75116',
 		wallSelected: '#0a7fcc',
 
 		edge: '#8b93a3',
 		edgeHover: '#ef7526',
 
 		corner: '#949db0',
-		cornerHover: '#d9601a',
+		cornerHover: '#b75116',
 		cornerSelected: '#0a7fcc',
 
 		delete: '#cf3239',
 
 		label: '#141821',
 		labelHalo: '#ffffff',
-		area: '#d9601a',
+		area: '#b75116',
 		roomName: '#141821',
 		labelFont: CANVAS_FONT,
 
-		angleGuide: '#d9601a',
+		angleGuide: '#b75116',
 		cornerAngle: '#5c6577',
 
 		originPrimary: '#0a7fcc',
-		originSecondary: '#d9601a',
+		originSecondary: '#b75116',
 
 		curveHandle: '#d8dde6',
 		curveGuide: '#0a7fcc',
 		curveGuideShadow: '#ffffff',
 		curveCasing: '#c2cad6',
-		wallControl: '#d9601a',
+		wallControl: '#b75116',
 	},
 };
 

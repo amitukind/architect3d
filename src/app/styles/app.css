@@ -63,12 +63,12 @@
 
 	--ink: #141821;
 	--ink-soft: #5c6577;
-	--ink-faint: #939cad;
+	--ink-faint: #657086;
 
-	--accent: #d9601a;
+	--accent: #b75116;
 	--accent-hi: #ef7526;
 	--accent-ink: #ffffff;
-	--accent-wash: rgb(217 96 26 / 0.10);
+	--accent-wash: rgb(183 81 22 / 0.10);
 
 	--select: #0a7fcc;
 	--select-wash: rgb(10 127 204 / 0.12);
@@ -98,7 +98,7 @@
 
 	--ink: #e7eaf0;
 	--ink-soft: #8d97a9;
-	--ink-faint: #5c6577;
+	--ink-faint: #8790a2;
 
 	--accent: #ff8a3d;
 	--accent-hi: #ffa063;
@@ -136,7 +136,7 @@
 
 		--ink: #e7eaf0;
 		--ink-soft: #8d97a9;
-		--ink-faint: #5c6577;
+		--ink-faint: #8790a2;
 
 		--accent: #ff8a3d;
 		--accent-hi: #ffa063;

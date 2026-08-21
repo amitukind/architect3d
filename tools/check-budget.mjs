@@ -725,6 +725,45 @@ function firstLoadPayload()
 	return total;
 }
 
+/**
+ * What `npm publish` would put on somebody else's disk (RM-018 Q3, AD-8).
+ *
+ * The `files` allowlist in package.json, walked and summed - which is what npm
+ * packs, so this is the published artefact measured rather than estimated. It
+ * is the one thing this repository builds that no budget line watched: the
+ * deploy tree has one, `public/` has one, both bundles have one, and the
+ * package a consumer installs had none.
+ *
+ * Measured when the line was added: **10,451,791 bytes across 250 files**, of
+ * which **6,969,049 - 66.7 % - is two source maps**. `dist/bp3djs.js.map` alone
+ * is 5.32 MB. RM-013 K3 made the same discovery about the deploy tree (36 %
+ * maps) and decided not to CACHE them; nobody has ever decided whether to
+ * SHIP them, because nothing measured it.
+ *
+ * The line is a ceiling, not a verdict on that question. Shipping maps is a
+ * defensible trade - a consumer debugging through this library gets readable
+ * stack traces - and it is a trade somebody should make on purpose.
+ *
+ * @returns {?number}
+ */
+function packageBytes()
+{
+	const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
+	let total = 0;
+	for (const entry of manifest.files.concat(['package.json']))
+	{
+		const path = entry;
+		if (!existsSync(path))
+		{
+			// A missing entry means the build has not run; the `needs` field says
+			// which one, and reporting null is how every other line says so.
+			return null;
+		}
+		total += statSync(path).isDirectory() ? treeBytes(path) : statSync(path).size;
+	}
+	return total;
+}
+
 const MEASUREMENTS = [
 	{key: 'demo-js-gzip', label: 'Demo JS (gzip)', needs: 'build:demo',
 		measure: () => gzipBytes('dist-demo/assets', ['.js'])},
@@ -732,6 +771,8 @@ const MEASUREMENTS = [
 		measure: () => gzipBytes('dist-demo/assets', ['.css'])},
 	{key: 'demo-total', label: 'Deployed tree', needs: 'build:demo',
 		measure: () => treeBytes('dist-demo')},
+	{key: 'package-unpacked', label: 'Published package', needs: 'build',
+		measure: () => packageBytes()},
 	{key: 'lib-iife-gzip', label: 'Library IIFE (gzip)', needs: 'build',
 		measure: () => gzipFile('dist/bp3djs.js')},
 	// The one budget here that guards a property rather than a size. The ESM

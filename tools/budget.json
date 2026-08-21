@@ -960,6 +960,28 @@
 		"left alone: it has 2.7 % of its own limit still free and a limit that does not",
 		"need to move does not move."
 	],
+	"note2": [
+		"RM-018 Q3 ADDED package-unpacked, and it is the first line here that measures",
+		"something this repository has never published. The deploy tree has a budget,",
+		"public/ has one, both bundles have one - and the artefact a consumer would",
+		"npm install had none, which is one of the three rows RM-002 section 13 left",
+		"open.",
+		"",
+		"First measurement: 10,451,791 bytes across 250 files, the `files` allowlist",
+		"walked and summed, which is what npm packs. Limit set at 10,970,000 - about",
+		"5 % headroom, the same rule the text bundles were set with.",
+		"",
+		"WHAT THE MEASUREMENT FOUND. 6,969,049 bytes of it - 66.7 % - is two source",
+		"maps, and dist/bp3djs.js.map alone is 5,317,926. The code is 1.44 MB. RM-013",
+		"K3 found the same shape in the deploy tree (36 % maps) and decided not to",
+		"CACHE them; nobody has ever decided whether to SHIP them, because until now",
+		"nothing measured it. The line is a ceiling, not an answer: shipping maps buys",
+		"a consumer readable stack traces through this library, which is a real trade",
+		"and one somebody should make deliberately. Dropping the two .map entries from",
+		"`files` would take this line to 3,482,742 - a 66.7 % cut - and is a one-line",
+		"change whenever that decision is made.",
+		""
+	],
 	"budgets": {
 		"demo-js-gzip": {
 			"limit": 439800,
@@ -972,6 +994,10 @@
 		"demo-total": {
 			"limit": 29985000,
 			"measured": 20859173
+		},
+		"package-unpacked": {
+			"limit": 10970000,
+			"measured": 10451791
 		},
 		"lib-iife-gzip": {
 			"limit": 307000,

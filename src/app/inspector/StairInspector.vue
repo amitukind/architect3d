@@ -156,7 +156,7 @@ watch(unit, readBack);
 		<p class="inspector-readout">
 			Climbs <strong class="num">{{ measure(height) }}</strong> over
 			<strong class="num">{{ measure(run) }}</strong><br>
-			<span class="opacity-70">{{ treads }} &times; rise, {{ treads }} &times; going</span>
+			<span class="text-ink-faint">{{ treads }} &times; rise, {{ treads }} &times; going</span>
 		</p>
 
 		<p class="inspector-note">

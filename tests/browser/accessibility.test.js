@@ -95,6 +95,9 @@ beforeEach(async () =>
 
 afterEach(() =>
 {
+	// Even if a case failed part-way through: a leaked `data-theme` would put
+	// every later case in the other palette without saying so.
+	document.documentElement.removeAttribute('data-theme');
 	wrapper.unmount();
 	document.querySelectorAll('#app-root').forEach((node) => node.remove());
 	document.body.innerHTML = '';
@@ -106,6 +109,25 @@ describe('the application is accessible', () =>
 	{
 		const found = await analyse();
 		expect(found, `axe violations:\n  ${found.join('\n  ')}`).toEqual([]);
+	});
+
+	it('has no violations in the dark palette, which is the one it boots into', async () =>
+	{
+		// `initialTheme()` returns dark unless the system says light or a choice
+		// is stored, and this runner reports light - so every case in this file
+		// has audited the palette a minority of users see. Two palettes, two sets
+		// of contrast ratios, and only one of them was ever checked (RM-018 Q3).
+		document.documentElement.setAttribute('data-theme', 'dark');
+		await nextTick();
+		// And a settle, because the palette CROSS-FADES. Sampled one tick after
+		// the attribute lands, axe reads interpolated colours and reports 14
+		// contrast failures against pairs that exist for about 200 ms and are in
+		// neither palette. Measured: the same audit 600 ms later is clean. An
+		// audit taken during a transition is an audit of a colour nobody sees.
+		await new Promise((resolve) => setTimeout(resolve, 600));
+
+		const found = await analyse();
+		expect(found, `axe violations in the dark palette:\n  ${found.join('\n  ')}`).toEqual([]);
 	});
 
 	it('has no violations in split or 3D either', async () =>

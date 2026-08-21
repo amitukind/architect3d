@@ -78,7 +78,13 @@ const groups = computed(function ()
 					</DialogClose>
 				</div>
 
-				<div class="grid flex-1 grid-cols-1 gap-x-8 gap-y-5 overflow-y-auto p-4 sm:grid-cols-2">
+				<!-- tabindex, because a region that scrolls must be reachable by
+				     keyboard: a mouse user can wheel it and a keyboard user cannot
+				     scroll what cannot take focus. axe `scrollable-region-focusable`,
+				     found in RM-018 Q3 the first time this gate ran against real CSS. -->
+				<div
+					class="grid flex-1 grid-cols-1 gap-x-8 gap-y-5 overflow-y-auto p-4 sm:grid-cols-2"
+					tabindex="0">
 					<section v-for="group in groups" :key="group.name">
 						<h3 class="eyebrow mb-2">{{ group.name }}</h3>
 						<dl class="flex flex-col gap-1.5">
