@@ -188,7 +188,7 @@ watch(() => props.selection, () => {forAllWalls.value = false; revision.value++;
 
 <template>
 	<section class="inspector-section">
-		<h3 class="inspector-heading">{{ isWall ? 'Wall surface' : 'Room surfaces' }}</h3>
+		<h2 class="inspector-heading">{{ isWall ? 'Wall surface' : 'Room surfaces' }}</h2>
 
 		<template v-if="isWall">
 			<TexturePicker
@@ -207,7 +207,7 @@ watch(() => props.selection, () => {forAllWalls.value = false; revision.value++;
 				@select="pickWallTexture" />
 		</template>
 
-		<h4 class="inspector-subheading">{{ isWall ? 'Wall material' : 'Floor material' }}</h4>
+		<h3 class="inspector-subheading">{{ isWall ? 'Wall material' : 'Floor material' }}</h3>
 		<ColorField
 			:model-value="material.color" label="Tint"
 			@update:model-value="(value) => applyMaterial({color: value})" />
@@ -228,7 +228,7 @@ watch(() => props.selection, () => {forAllWalls.value = false; revision.value++;
 			@update:model-value="(value) => applyMaterial({offsetY: value})" />
 
 		<template v-if="!isWall">
-			<h4 class="inspector-subheading">Ceiling</h4>
+			<h3 class="inspector-subheading">Ceiling</h3>
 			<ColorField
 				:model-value="ceilingTint" label="Ceiling tint"
 				@update:model-value="applyCeiling" />

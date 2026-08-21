@@ -124,7 +124,7 @@ onBeforeUnmount(detach);
 
 <template>
 	<section class="inspector-section">
-		<h3 class="inspector-heading">Dimension</h3>
+		<h2 class="inspector-heading">Dimension</h2>
 
 		<p class="inspector-readout">
 			Measures <strong>{{ length }}</strong>

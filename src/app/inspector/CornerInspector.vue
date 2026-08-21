@@ -71,7 +71,7 @@ onBeforeUnmount(detach);
 
 <template>
 	<section class="inspector-section">
-		<h3 class="inspector-heading">Corner</h3>
+		<h2 class="inspector-heading">Corner</h2>
 		<NumberField
 			label="X" :unit="unit" :model-value="values.x"
 			@update:model-value="write('x', $event)" />

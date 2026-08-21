@@ -167,7 +167,7 @@ onBeforeUnmount(detach);
 
 <template>
 	<section class="inspector-section">
-		<h3 class="inspector-heading">Room</h3>
+		<h2 class="inspector-heading">Room</h2>
 		<TextField label="Name" :model-value="name" @update:model-value="rename" />
 
 		<label class="field">

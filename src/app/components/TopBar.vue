@@ -134,6 +134,25 @@ function onUnitChange(event)
 
 <template>
 	<header id="top-bar" class="relative z-[300] flex h-12 flex-none items-center gap-1 border-b border-line bg-surface px-2.5">
+		<!--
+			The page's one level-one heading (RM-017 P2, M-60).
+
+			Visually hidden, because the application's name is rendered as the
+			wordmark below and a second copy of it in text would be chrome nobody
+			asked for. It is not a workaround - a page whose top-level heading is a
+			logo still needs the heading in the accessibility tree - and it is
+			inside the banner rather than loose in the shell, because a heading
+			outside every landmark fails `region`, which is how the first attempt
+			at this was placed and what axe said about it.
+
+			Found by pointing axe at the whole document. The six cases that existed
+			before P2 scoped to `#app-root` and could not see a page-level rule at
+			all, and the one that did scope to the document only ever ran with a
+			modal open, where axe evaluates the dialog rather than the page. So
+			this application has had no `h1` since S6, with an accessibility gate
+			running over it the whole time.
+		-->
+		<h1 class="sr-only">Architect3D</h1>
 		<!-- identity -->
 		<div class="mr-1 flex items-center gap-2 pr-2">
 			<span class="grid h-6 w-6 place-items-center rounded-md bg-accent text-accent-ink">

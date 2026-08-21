@@ -72,7 +72,7 @@ watch(unit, readBack);
 
 <template>
 	<section class="inspector-section">
-		<h3 class="inspector-heading">{{ heading }}</h3>
+		<h2 class="inspector-heading">{{ heading }}</h2>
 
 		<NumberField
 			label="Width" :unit="unit" :min="0" :step="0.01"

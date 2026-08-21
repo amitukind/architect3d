@@ -98,7 +98,7 @@ watch(unit, readBack);
 
 <template>
 	<section class="inspector-section">
-		<h3 class="inspector-heading">Stairs</h3>
+		<h2 class="inspector-heading">Stairs</h2>
 
 		<div class="field">
 			<span class="field-label">Shape</span>

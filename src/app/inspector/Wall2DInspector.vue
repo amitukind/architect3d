@@ -155,7 +155,7 @@ onBeforeUnmount(detach);
 
 <template>
 	<section class="inspector-section">
-		<h3 class="inspector-heading">Wall</h3>
+		<h2 class="inspector-heading">Wall</h2>
 
 		<div class="field">
 			<span class="field-label">Type</span>

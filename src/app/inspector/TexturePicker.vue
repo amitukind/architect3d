@@ -115,7 +115,16 @@ const groups = computed(() =>
 					:class="{'is-current': isCurrent(texture)}"
 					:aria-pressed="isCurrent(texture)" :disabled="props.disabled"
 					:title="texture.name" @click="emit('select', texture)">
-					<img :src="texture.thumbnail" :alt="texture.name" loading="lazy">
+					<!--
+						`alt=""` since RM-017 P2, M-60. The swatch sits inside a button
+						that already carries the name in text beside it, so an alt of
+						the same string makes a screen reader say "Fine Wood Fine Wood"
+						- which axe reports as `image-redundant-alt`, 22 nodes on the
+						wall list and 39 on the floor list. The image is decorative
+						*within a labelled control*: the button is the thing being
+						chosen and the span is its name.
+					-->
+					<img :src="texture.thumbnail" alt="" loading="lazy">
 					<span class="texture-name">{{ texture.name }}</span>
 				</button>
 			</div>

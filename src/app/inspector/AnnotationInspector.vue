@@ -143,7 +143,7 @@ onMounted(function ()
 
 <template>
 	<section class="inspector-section">
-		<h3 class="inspector-heading">Label</h3>
+		<h2 class="inspector-heading">Label</h2>
 
 		<div ref="firstField">
 			<TextField label="Text" :model-value="text" @update:model-value="setText" />

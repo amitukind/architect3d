@@ -156,7 +156,7 @@ onBeforeUnmount(() => {materials.value = [];});
 
 <template>
 	<section class="inspector-section">
-		<h3 class="inspector-heading">{{ name }}</h3>
+		<h2 class="inspector-heading">{{ name }}</h2>
 
 		<NumberField
 			label="Width" :unit="unit" :min="0.1" :step="0.1" :model-value="dimensions.width"
@@ -180,7 +180,7 @@ onBeforeUnmount(() => {materials.value = [];});
 			@update:model-value="setFixed" />
 
 		<template v-if="materials.length">
-			<h4 class="inspector-subheading">Materials</h4>
+			<h3 class="inspector-subheading">Materials</h3>
 			<ColorField
 				v-for="entry in materials" :key="entry.index"
 				:label="entry.label" :model-value="entry.color"
