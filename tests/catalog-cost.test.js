@@ -150,4 +150,33 @@ describe('the deploy-size decision still buys what it said (J2 task one)', () =>
 		expect(atMedian).toBeLessThan(forHigh);
 		expect(atMedian / forHigh).toBeGreaterThan(0.9);
 	});
+
+	it('and the report performs the same division, so a reader does not have to (RM-020 AC-5)', () =>
+	{
+		// The two cases above have computed this arithmetic inline since J2, and
+		// been right about it since J2. The roadmap's section 06 published a
+		// different answer for the same question - 608 more models - because it
+		// divided the headroom by 8,439, the mean of the `.glb` files alone. A
+		// catalog row is a `.glb` plus its textures plus a thumbnail, which is the
+		// `deduped` figure these tests use and the one catalog-cost.mjs exists to
+		// maintain. So the tree said 212 and the document said 608, and nothing
+		// connected them, because the correct number lived only inside a test.
+		//
+		// It is in the generated report now, and this is what stops the report and
+		// the tests from drifting apart the way the tests and the document did.
+		const capacity = REPORT.totals.capacity;
+		const headroom = BUDGET.budgets['public-total'].limit - BUDGET.budgets['public-total'].measured;
+
+		expect(capacity.limit).toBe(BUDGET.budgets['public-total'].limit);
+		expect(capacity.tree).toBe(BUDGET.budgets['public-total'].measured);
+		expect(capacity.headroom).toBe(headroom);
+		expect(capacity.rowsAtMean).toBe(Math.floor(headroom / REPORT.totals.mean));
+		expect(capacity.rowsAtMedian).toBe(Math.floor(headroom / REPORT.totals.median));
+
+		// The figure the roadmap now quotes, and the one it used to. Pinned as a
+		// range rather than a value so an ordinary pack acquisition moves it
+		// without failing, and a threefold error cannot come back.
+		expect(capacity.rowsAtMean).toBeGreaterThan(150);
+		expect(capacity.rowsAtMean).toBeLessThan(300);
+	});
 });

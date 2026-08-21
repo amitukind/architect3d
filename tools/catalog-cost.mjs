@@ -38,13 +38,14 @@
  * that says whether the mean is being carried by a tail. Today they are 27,997
  * and 11,218, so it is.
  */
-import {readFileSync, writeFileSync, existsSync, statSync} from 'node:fs';
+import {readFileSync, writeFileSync, existsSync, statSync, readdirSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {dirname, join, resolve} from 'node:path';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CATALOG = join(ROOT, 'src/catalog/catalog.json');
 const REPORT = join(ROOT, 'asset-pipeline/catalog-cost.json');
+const BUDGET = join(ROOT, 'tools/budget.json');
 const CHECK = process.argv.includes('--check');
 
 /** A `.glb`'s JSON chunk, or null for anything that is not one. */
@@ -133,11 +134,64 @@ export function catalogCost(catalog, root)
 		});
 	}
 
+/** `public-total`'s own measurement, reproduced: every file under public/, once. */
+function treeBytes(dir)
+{
+	if (!existsSync(dir)) { return null; }
+	let total = 0;
+	for (const entry of readdirSync(dir, {withFileTypes: true}))
+	{
+		const path = join(dir, entry.name);
+		total += entry.isDirectory() ? treeBytes(path) : statSync(path).size;
+	}
+	return total;
+}
+
+/**
+ * The division this file exists to protect, finally performed (RM-020 AC-5).
+ *
+ * The docblock at the top has said since M-45 that `deduped / count` is "the
+ * divisor a `public-total` raise is spent against", and for four programmes
+ * nothing divided anything: the quotient lived in prose in the roadmap instead,
+ * where it went wrong in the way prose does. §06 said 608 more models fit,
+ * derived by dividing the headroom by 8,439 - the mean of the `.glb` files
+ * ALONE. A catalog row is not a `.glb`. It is a `.glb` plus the textures it
+ * references plus a thumbnail, which is exactly the figure this tool computes
+ * and exactly why it computes it. At the real divisor the answer was a third of
+ * the published one.
+ *
+ * So the quotient is generated now, and both ends of it are recorded with it -
+ * a bare row count cannot be checked, and this project has been caught five
+ * times by a number nobody could re-derive.
+ *
+ * `mean` and `median` are both reported because they bracket the honest answer
+ * rather than competing for it. The mean is carried by a tail of 25 blueprint3d
+ * models averaging 119 KB against a Kenney row's 12 KB, so what fits depends on
+ * what is added, and a single number would have to pick a kit on the reader's
+ * behalf.
+ */
+function capacityOf(totals)
+{
+	const budget = JSON.parse(readFileSync(BUDGET, 'utf8').replace(/^\s*\/\/.*$/gm, ''));
+	const limit = budget.budgets['public-total'].limit;
+	const now = treeBytes(join(ROOT, 'public'));
+	if (now === null) { return null; }
+	const headroom = limit - now;
+	return {
+		limit: limit,
+		tree: now,
+		headroom: headroom,
+		// Floored: a row that does not fit whole does not fit.
+		rowsAtMean: Math.max(0, Math.floor(headroom / totals.mean)),
+		rowsAtMedian: Math.max(0, Math.floor(headroom / totals.median)),
+	};
+}
+
 	const sorted = items.map((row) => row.bytes).sort((a, b) => a - b);
 	const deduped = [...everything].reduce((sum, file) => sum + bytes(file), 0);
 	const naive = sorted.reduce((sum, value) => sum + value, 0);
 
-	return {
+	const result = {
 		items: items.sort((a, b) => b.bytes - a.bytes),
 		totals: {
 			count: items.length,
@@ -153,6 +207,8 @@ export function catalogCost(catalog, root)
 			largest: sorted[sorted.length - 1],
 		},
 	};
+	result.totals.capacity = capacityOf(result.totals);
+	return result;
 }
 
 function serialise(result)
@@ -162,7 +218,11 @@ function serialise(result)
 			+ 'files it names and what they weigh, with images counted once within the item. `totals.deduped` '
 			+ 'counts every file once across the whole catalog, which is what the deployed tree actually '
 			+ 'grows by and what a raise of public-total is divided into. Re-run after every pack; the tool '
-			+ 'prints the movement against the previous run before overwriting it.',
+			+ 'prints the movement against the previous run before overwriting it. `totals.capacity` performs '
+			+ 'that division against the live tree and the live public-total ceiling, so the answer to "how '
+			+ 'many more rows fit" is generated rather than quoted - see RM-020 AC-5, which found the '
+			+ 'roadmap quoting a figure three times too large because it had divided by the mean .glb '
+			+ 'instead of the mean ROW.',
 		totals: result.totals,
 		items: result.items,
 	}, null, '\t') + '\n';
@@ -181,6 +241,15 @@ function main()
 		+ ` (${((t.naive / t.deduped - 1) * 100).toFixed(1)} % of sharing to recover)`);
 	console.log(`  mean ${t.mean.toLocaleString()}   median ${t.median.toLocaleString()}`
 		+ `   p90 ${t.p90.toLocaleString()}   largest ${t.largest.toLocaleString()}`);
+
+	if (t.capacity)
+	{
+		const c = t.capacity;
+		console.log(`\n  public-total ${c.tree.toLocaleString()} / ${c.limit.toLocaleString()} B`
+			+ `  ->  ${c.headroom.toLocaleString()} B of headroom`);
+		console.log(`  room for ${c.rowsAtMean} more rows at the mean, ${c.rowsAtMedian} at the median`
+			+ `  (${t.count} today)`);
+	}
 
 	if (previous && previous.count !== undefined)
 	{

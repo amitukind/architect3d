@@ -172,7 +172,7 @@ footer a{color:var(--accent)}
     <div><dt class="mono">PROJECT</dt><dd>architect3d 3.0.1</dd></div>
     <div><dt class="mono">TREE</dt><dd class="mono">amit @ 80b13ed</dd></div>
     <div><dt class="mono">MEASURED</dt><dd>2026-08-21</dd></div>
-    <div><dt class="mono">TESTS</dt><dd>2,748 + 267</dd></div>
+    <div><dt class="mono">TESTS</dt><dd>2,749 + 267</dd></div>
     <div><dt class="mono">GATES</dt><dd>14 automatic</dd></div>
     <div><dt class="mono">OPEN</dt><dd>2 items</dd></div>
   </dl>
@@ -275,7 +275,7 @@ footer a{color:var(--accent)}
     <thead><tr><th>Step</th><th>What it is the only check for</th></tr></thead>
     <tbody>
       <tr><td><code>npm run typecheck</code></td><td>JSDoc types across 164 of 166 source files, and SFC templates against their own script blocks</td></tr>
-      <tr><td><code>npm run test:coverage</code></td><td>2,748 tests, and nineteen coverage floors. Also the one thing a bare <code>vitest run</code> reports quietly: an exception escaping a test file with every assertion green</td></tr>
+      <tr><td><code>npm run test:coverage</code></td><td>2,749 tests, and nineteen coverage floors. Also the one thing a bare <code>vitest run</code> reports quietly: an exception escaping a test file with every assertion green</td></tr>
       <tr><td><code>npm run lint</code></td><td>&mdash;</td></tr>
       <tr><td><code>npm run build</code></td><td>That the library still builds as ESM, as IIFE, and emits its types</td></tr>
       <tr><td><code>npm run build:demo</code></td><td>That a Vue template or a Tailwind token that no longer resolves fails before a deploy rather than during one</td></tr>
@@ -322,7 +322,7 @@ footer a{color:var(--accent)}
   <p class="sub">Measured on 2026-08-21 against <code>8229949</code>, on one machine, with everything else idle.</p>
 
   <div class="big">
-    <div><div class="v">3,000</div><div class="l">tests &mdash; 2,748 headless, 267 in a browser</div></div>
+    <div><div class="v">3,000</div><div class="l">tests &mdash; 2,749 headless, 267 in a browser</div></div>
     <div><div class="v">89.17&thinsp;%</div><div class="l">statements covered, 12,202 of 13,683</div></div>
     <div><div class="v">274&thinsp;KB</div><div class="l">gzipped first load</div></div>
     <div><div class="v">95 / 62</div><div class="l">Lighthouse desktop / mobile</div></div>
@@ -423,7 +423,7 @@ footer a{color:var(--accent)}
 <section id="open">
   <div class="sec-k mono">&sect; 06</div>
   <h2>What is open</h2>
-  <p class="sub">Two items. Neither is engineering work, and both are stated plainly rather than being allowed to look done.</p>
+  <p class="sub">Two items. Neither <em>decision</em> is engineering work, and both are stated plainly rather than being allowed to look done. What is engineering work is making sure the decision is taken against real numbers, and on the second item it had not been &mdash; see AC-5 below.</p>
 
   <div class="grid2">
     <div class="card">
@@ -433,8 +433,33 @@ footer a{color:var(--accent)}
     </div>
     <div class="card">
       <h3 class="card-h">How large the catalog should be <span class="tag acc">for the owner</span></h3>
-      <p>217 models today. A budget line was quietly deciding this by accident until it was re-derived from what it was actually protecting; the constraint is gone and no answer replaced it.</p>
-      <p>Room for roughly 930 rows inside the current index limit. <strong>That is a product decision, not an engineering task.</strong></p>
+      <p>217 models today. A budget line was quietly deciding this by accident until it was re-derived from what it was actually protecting; the constraint is gone and no answer replaced it. <strong>It is still a product decision, not an engineering task</strong> &mdash; but RM-020 AC-5 re-derived what the decision is being taken against, because both figures this section used to publish were wrong.</p>
+      <p><strong>What it said, and what the tree says.</strong> This section read &ldquo;room for roughly 930 rows inside the current index limit&rdquo; and, in <code>tools/budget.json</code>, &ldquo;608 more models&rdquo; of <code>public-total</code> headroom. Neither survived measurement, and they were wrong in opposite directions:</p>
+      <table>
+        <thead><tr><th>Constraint</th><th>Published</th><th>Measured</th><th>Why it differed</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>public-total</code><br><span class="tag crit">binding</span></td>
+            <td>608 more rows</td>
+            <td><strong>212 at the mean, 366 at the median</strong></td>
+            <td>608 came from dividing 5,138,705 bytes of headroom by 8,439 &mdash; the mean of the <code>.glb</code> files <em>alone</em>. A catalog row is a <code>.glb</code> plus the textures it references plus a thumbnail; that figure is <code>catalog-cost.json</code>&rsquo;s <code>deduped</code> mean, 24,128, and its median 14,013. Both ends are given because the mean is carried by a tail: 25 blueprint3d models average 119 KB against a Kenney row&rsquo;s 12 KB, so what fits depends on what is added</td>
+          </tr>
+          <tr>
+            <td><code>catalog-packs</code></td>
+            <td>930 rows total</td>
+            <td><strong>~1,630 rows total</strong></td>
+            <td>930 is 50,000 &divide; the <em>mean</em> 53.8 bytes a row. Growth is priced at the <em>marginal</em> cost, and gzip charges far less for the next row than for the average one: measured across the largest pack, 34.9&nbsp;B/row at 40 rows falling to <strong>27.1&nbsp;B/row</strong> over the last 60. Against 38,334 bytes of headroom that is ~1,414 more rows. A brand-new pack costs 812&ndash;1,030 bytes of fixed overhead on top, about 35 rows&rsquo; worth each</td>
+          </tr>
+          <tr>
+            <td>The drawer<br><span class="tag warn">unbudgeted</span></td>
+            <td>&mdash;</td>
+            <td><strong>one <code>&lt;li&gt;</code> and one <code>&lt;img&gt;</code> per row, always</strong></td>
+            <td>Nobody had measured this end. <code>CatalogDrawer.vue:426</code> renders every matching row with no virtualisation and opens unfiltered, so the row count is a DOM count: 217 today, 400 at 400, 630 at 630. In jsdom, mount goes 152&nbsp;ms &rarr; 170 &rarr; 422 at 217/630/1631 rows and a search keystroke re-renders in 12&nbsp;ms &rarr; 18 &rarr; 37. <code>loading=&quot;lazy&quot;</code> defers the image <em>fetches</em>; the elements and the layout are not deferred. The 244&nbsp;ms this ceiling was set on is the <em>download</em> of the index, which is a different cost from drawing it</td>
+          </tr>
+        </tbody>
+      </table>
+      <p><strong>So the answer, on measurement: the catalog can roughly double.</strong> <code>public-total</code> binds first, at 212&ndash;366 more rows depending on what is curated &mdash; call it 430 to 580 total. The index budget is nowhere near binding and will not be until about 1,630. The drawer would then hold 430&ndash;580 rows in the DOM, which no browser will struggle with and no budget line watches.</p>
+      <p><strong>The correct number was already in the repository.</strong> <code>tests/catalog-cost.test.js</code> has computed exactly this division since RM-012 J2 &mdash; <code>headroom / REPORT.totals.mean</code> &mdash; and has been green on 212 the whole time this section published 608. The right answer lived inside a test and the wrong one inside a document, and nothing connected them. <code>catalog-cost.mjs</code> now writes <code>totals.capacity</code> into its report, so the quotient is generated where the divisor is maintained; the table above cites it rather than re-deriving it, and a new case asserts the report and the tests agree.</p>
     </div>
   </div>
 
