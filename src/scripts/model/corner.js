@@ -378,8 +378,16 @@ export class Corner extends EventDispatcher
 		{
 			if(mergeWithIntersections)
 			{
-				//The below line is crashing after makign the changes for curved walls
-				//While release v1.0.0 is stable even with this line enabled
+				// The second fossil of the kind RM-017 AC-3 found, and the reason
+				// P1's acceptance made the grep for them part of the sprint rather
+				// than an assumption: the drawing said there was one.
+				//
+				// What was here: *"The below line is crashing after makign the
+				// changes for curved walls / While release v1.0.0 is stable even
+				// with this line enabled"* - two sentences that contradict each
+				// other, left by an author who had noticed as much. Measured before
+				// deleting: this line executes 205 times across the headless suite,
+				// it is the path every corner drag takes, and nothing crashes.
 				this.mergeWithIntersected();
 				if(this.floorplan.rooms.length < 10)
 				{

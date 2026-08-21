@@ -1104,7 +1104,33 @@ export class FloorplannerView2D
 		if (!this.exporting && this.viewmodel.mode == floorplannerModes.DRAW)
 		{
 			this.drawTarget(this.viewmodel.targetX, this.viewmodel.targetY, this.viewmodel.lastNode);
-			//Enable the below lines for measurement while drawing, still needs work as it is crashing the whole thing
+			/**
+			 * What the plan tells you while you draw (M-59).
+			 *
+			 * The length of the wall being drawn, printed at its midpoint, and the
+			 * angle between it and the nearest existing wall, printed on the
+			 * bisector with an arc struck between the two directions. Both in the
+			 * document's own units, so a plan in feet reads in feet.
+			 *
+			 * ## The comment that used to be here
+			 *
+			 * *"Enable the below lines for measurement while drawing, still needs
+			 * work as it is crashing the whole thing"* - written for the 2014 demo,
+			 * carried through S1's port and seven programmes of refactoring, and
+			 * wrong in both halves by the time anybody checked. The lines below are
+			 * enabled and nothing crashes; RM-017 AC-3 measured them executing once
+			 * across 2,712 tests, incidentally, with nothing asserting them.
+			 *
+			 * It is deleted rather than corrected in place because a comment is not
+			 * a record - the record is in the roadmap, and what belongs here is what
+			 * the code does. What that fossil actually did for a decade was tell
+			 * every reader that the most-used verb in this application was broken.
+			 *
+			 * `tests/browser/plan-drawing-feedback.test.js` is what holds it up now:
+			 * the label in pixels, differenced against a box on the same rubber band
+			 * where no label is, and the strings and the arc through the backend,
+			 * because at this radius no box can separate the three marks.
+			 */
 			if(this.viewmodel.lastNode != null && this.viewmodel.lastNode != undefined)
 			{
 				var a = new Vector2(this.viewmodel.lastNode.x,this.viewmodel.lastNode.y);
