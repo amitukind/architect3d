@@ -40,9 +40,9 @@ import {useDisplayUnit, syncDisplayUnit} from './composables/useDisplayUnit.js';
 import {useTheme, applyTheme} from './composables/useTheme.js';
 import {useLayout, LAYOUT_PLAN, LAYOUT_SPLIT, LAYOUT_VIEW} from './composables/useLayout.js';
 import {useHistory} from './composables/useHistory.js';
-import {useZoom2D} from './composables/useZoom2D.js';
+import {provideZoom2D} from './composables/useZoom2D.js';
 import {useLevels} from './composables/useLevels.js';
-import {usePlanStats} from './composables/usePlanStats.js';
+import {providePlanStats} from './composables/usePlanStats.js';
 import {useItemActions} from './composables/useItemActions.js';
 import {useAutosave, readDraft, clearDraft, RECOVERY_LOST_TAIL} from './composables/useAutosave.js';
 import {useAssets, applyAssetBaseFromQuery} from './composables/useAssets.js';
@@ -98,9 +98,9 @@ const theme = useTheme(store);
 const workspace = useLayout();
 const tour = useTour(workspace);
 const history = useHistory(store);
-const zoom = useZoom2D(store);
+const zoom = provideZoom2D(store);
 const levels = useLevels(store);
-const stats = usePlanStats(store);
+const stats = providePlanStats(store);
 const items = useItemActions(store, selection, history);
 const autosave = useAutosave(store);
 const assets = useAssets();
@@ -1166,27 +1166,16 @@ useShortcuts(() => bindings.value);
 									@remove="levels.remove(levels.active.value)"
 									@set-all-storeys="camera.setAllStoreys" />
 							</div>
+							<!-- Zoom and the plan counts are injected, not passed
+							     (RM-020 S-5): fourteen of this element's bindings were
+							     one composable being handed over a value at a time. -->
 							<PlanOverlay
-								:zoom-percent="zoom.percent.value"
-								:can-zoom-in="zoom.canZoomIn.value"
-								:can-zoom-out="zoom.canZoomOut.value"
-								:snap="zoom.snap.value"
-								:spacing="zoom.spacing.value"
-								:spacings="zoom.gridSpacings"
 								:mode="editor.mode.value"
-								:walls="stats.walls.value"
 								:angle-snap="editor.angleSnap.value"
 								:draw-target="editor.drawTarget.value"
 								:unit="display.unit.value"
-								@zoom-in="zoom.zoomIn"
-								@zoom-out="zoom.zoomOut"
-								@zoom-fit="zoom.zoomToFit"
-								@zoom-reset="zoom.resetZoom"
-								@centre="zoom.centre"
-								@set-snap="zoom.setSnap"
 								@set-angle-snap="editor.setAngleSnap"
-								@set-draw-target="editor.applyDrawTarget"
-								@set-spacing="zoom.setSpacing" />
+								@set-draw-target="editor.applyDrawTarget" />
 						</FloorplannerView>
 					</template>
 
@@ -1251,12 +1240,6 @@ useShortcuts(() => bindings.value);
 			</div>
 
 			<StatusBar
-				:rooms="stats.rooms.value"
-				:walls="stats.walls.value"
-				:items="stats.items.value"
-				:area-label="stats.areaLabel.value"
-				:cursor="stats.cursor.value"
-				:zoom="zoom.percent.value"
 				:mode="editor.mode.value"
 				:layout="workspace.layout.value" />
 		</div>

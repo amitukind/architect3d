@@ -211,21 +211,24 @@ describe('the renderer gets its memory back', () =>
 
 	it('unmounting gives back everything the viewer built', async () =>
 	{
-		// ## What "everything the viewer built" excludes, and why that is right
+		// ## Zero, and it used to be two (RM-020 S-1)
 		//
-		// Not quite zero, and the remainder is the A0 ownership boundary showing up
-		// in the measurement. Two geometries survive: `room.floorPlane` and
-		// `room.roofPlane`, the invisible hit-test meshes the MODEL owns. The view
-		// borrows them - `Floor.addToScene()` puts them in the scene, which is what
-		// gets them uploaded - and `Floor.dispose()` deliberately does not release
-		// them, because the model is still holding them and picking still needs
-		// them.
+		// What this asserted before, and explained at length, was that two
+		// geometries legitimately survive: `room.floorPlane` and `room.roofPlane`,
+		// the invisible hit-test meshes the MODEL owns. The view borrows them -
+		// `Floor.addToScene()` is what gets them uploaded - and `Floor.dispose()`
+		// deliberately does not release them, which is correct and unchanged.
 		//
-		// That is `BlueprintJS.dispose()`'s documented contract: the model is left
-		// standing so a caller can serialize it, or mount a new viewer over it. So
-		// the honest assertion is not "zero" but "nothing beyond what the model
-		// still owns", and the second half of this test proves the remainder really
-		// is the model's by disposing the model too.
+		// The part that was wrong was the next step of the reasoning: that nobody
+		// else should release them either, because `BlueprintJS.dispose()` leaves
+		// the model standing. It does leave the model standing - a caller can
+		// still serialize the design afterwards, and `resource-lifecycle.test.js`
+		// pins that - but the *meshes* are not the design, and nothing else was
+		// ever going to collect them. `useBlueprint.unmount()` nulls the model
+		// straight after, so they were unreachable as well as unreleased.
+		//
+		// So the honest assertion is the plain one after all. This case had the
+		// leak measured, at two per room, and read it as a boundary.
 		const first = mount();
 		await settle(first);
 		const renderer = rendererOf(first);
@@ -233,18 +236,17 @@ describe('the renderer gets its memory back', () =>
 		expect(withViewer.geometries).toBeGreaterThan(0);
 
 		const rooms = first.model.floorplan.getRooms();
-		const modelOwned = rooms.length * 2;
-		expect(modelOwned).toBeGreaterThan(0);
+		expect(rooms.length, 'the design has rooms whose planes could leak').toBeGreaterThan(0);
 
 		first.dispose();
 
 		// Read through the same renderer: dispose() releases the context, but the
 		// info object is a plain counter and survives to be read.
 		const after = memory(renderer);
-		expect(after.geometries).toBe(modelOwned);
+		expect(after.geometries, 'including the two per room the model owns').toBe(0);
 		expect(after.textures).toBe(0);
 
-		// And the remainder really is the model's: release the rooms and it goes.
+		// Idempotent: releasing the rooms again finds nothing left to release.
 		rooms.forEach((room) => room.dispose());
 		expect(memory(renderer).geometries).toBe(0);
 	});

@@ -887,6 +887,14 @@ describe('the OrbitControls shim', () =>
 		const {three} = mount();
 		expect(typeof three.renderer.animationLoop).toBe('function');
 		three.pauseTheRendering(false);
+		// As `useCameraViews.applyBootState` does (RM-020 S-3). Before S-3 this
+		// line would have changed nothing, because `autoRotate` was set and never
+		// advanced; now the loop advances it, so a viewer left spinning draws
+		// every frame *by design* and this case would be asserting the opposite of
+		// what it means. The library default is `spin: true` - rotate until
+		// touched - and the application stops it at boot, which is the state the
+		// render-on-demand claim is about.
+		three.stopSpin();
 
 		// Let the boot frame and anything it dirtied settle.
 		for (let i = 0; i < 5; i += 1) { three.renderer.animationLoop(); }
@@ -933,11 +941,26 @@ describe('the OrbitControls shim', () =>
 		corners.forEach((corner, i) => floorplan.newWall(corner, corners[(i + 1) % corners.length]));
 
 		three.pauseTheRendering(false);
-		for (let i = 0; i < 5; i += 1) { three.renderer.animationLoop(); }
-		const settled = three.renderer.renderCount;
+		three.stopSpin();
+		// Loop until quiescent rather than for a fixed count (RM-020 S-3). Since
+		// the loop advances the orbit controls, the damping tail after the boot
+		// recentre is real and takes a few frames to fall under three's epsilon -
+		// which is the point of S-3, and is not what this case is measuring.
+		let quiet = 0;
+		let settled = three.renderer.renderCount;
+		for (let i = 0; i < 400 && quiet < 3; i += 1)
+		{
+			three.renderer.animationLoop();
+			quiet = three.renderer.renderCount === settled ? quiet + 1 : 0;
+			settled = three.renderer.renderCount;
+		}
+		// Three consecutive quiet frames, not one: the damping tail decays through
+		// three's epsilon rather than stopping at it, so a single quiet frame can
+		// be followed by one more sub-pixel move.
+		expect(quiet, 'the viewer went quiet').toBe(3);
 		// Idle, so the count below is attributable to the drag and nothing else.
 		three.renderer.animationLoop();
-		expect(three.renderer.renderCount).toBe(settled);
+		expect(three.renderer.renderCount, 'quiescent before the drag').toBe(settled);
 
 		corners[1].move(450, 40);
 

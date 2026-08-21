@@ -123,7 +123,28 @@ export class Main extends EventDispatcher
 	constructor(model, element, canvasElement, opts)
 	{
 		super();
-		var options = {resize: true,pushHref: false,spin: true,spinSpeed: .00002,clickPan: true,canMoveFixedItems: false,renderProfile: null};
+		// Four of the seven that used to be here were never read (RM-020 S-2).
+		//
+		//   pushHref   spinSpeed   clickPan     no reader anywhere in src/
+		//   canMoveFixedItems      no reader, because Controller tested
+		//                          `item.fixed` unconditionally - so setting it
+		//                          true did nothing, which is worse than absent
+		//
+		// The first three are gone. The fourth is now wired into the two guards
+		// in `Controller.mouseDownState` that decide whether a press starts a
+		// drag, so it does what its name says; the default stays false, which is
+		// exactly the behaviour those guards had on their own.
+		// `spin` defaults false since RM-020 S-3, and that is a change of default
+		// rather than a change of behaviour. It defaulted true and did nothing,
+		// because nothing advanced the controls; making it work (see `render`)
+		// without moving the default would have turned every viewer on the
+		// defaults into one that draws a frame forever, which is the opposite of
+		// the render-on-demand property this file is built around - and a slowly
+		// revolving room is a strange default for an editor. Measured: it broke
+		// fourteen frame comparisons in tier 2, each of them a viewer nobody had
+		// touched. Ask for it and it now happens; do not ask and nothing moves,
+		// which is what every caller has actually been getting.
+		var options = {resize: true,spin: false,canMoveFixedItems: false,renderProfile: null};
 		for (var opt in options)
 		{
 			// Object.prototype.hasOwnProperty.call, not obj.hasOwnProperty. Identical for a plain object and correct for one that is not - a key literally named "hasOwnProperty" shadows the method and turns the guard into a TypeError. `opts` is supplied by the embedder, which
@@ -2086,6 +2107,26 @@ export class Main extends EventDispatcher
 		}
 
 		scope.spin();
+		// Advance the orbit controls, so the two settings that need a per-frame
+		// update actually get one (RM-020 S-3).
+		//
+		// `enableDamping` and `autoRotate` were both switched on and neither ever
+		// moved: `controls.update()` was called only at explicit camera moves -
+		// centring, a view preset, a clipping change - and never from here.
+		// three's addon calls `update()` itself while a pointer is down, which is
+		// why damping felt like it worked; what never played was the coast after
+		// release, and auto-rotate never turned at all.
+		//
+		// This does not cost render-on-demand, which is the reason it is safe to
+		// call unconditionally. three's `update()` dispatches `change` only when
+		// the camera actually moved and returns false when it did not, so a
+		// settled scene sets no dirty flag and `shouldRender()` below still
+		// declines. The idle-frames assertion in tests/viewer-lifecycle.test.js is
+		// what holds that claim down.
+		if (scope.controls)
+		{
+			scope.controls.update();
+		}
 		if(scope.firstpersonmode)
 		{
 			// No argument: the controls keep their own clock now. THREE.Clock was

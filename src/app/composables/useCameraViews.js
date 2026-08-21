@@ -58,16 +58,21 @@ export function useCameraViews(store)
 	/**
 	 * The auto-spin contract, reproduced rather than configured away.
 	 *
-	 * `Main` defaults `spin: true`, which means: rotate slowly until the user
-	 * touches the view, pause while the pointer is over it, and stop for good on
-	 * the first click. The demo then calls `stopSpin()` at boot
-	 * (build/js/app.js:896), so the app you actually see never spins.
+	 * `spin` means: rotate slowly until the user touches the view, pause while
+	 * the pointer is over it, and stop for good on the first click. The demo
+	 * called `stopSpin()` at boot (build/js/app.js:896), so the app you actually
+	 * see never spins, and this does the same.
 	 *
 	 * Passing `spin: false` at construction would look equivalent and is not.
 	 * `stopSpin()` sets `hasClicked = true`, which is also what suppresses the
 	 * hover/click resume path - so the two differ in what happens after the
 	 * first pointer event. Boot state stays byte-identical to the demo by doing
 	 * what the demo did.
+	 *
+	 * The library's own default moved from true to false at RM-020 S-3, when the
+	 * render loop started advancing the controls and the option began doing what
+	 * it says. That does not change this call: what suppresses the resume path is
+	 * `hasClicked`, and only `stopSpin()` sets it.
 	 */
 	function applyBootState(blueprint)
 	{

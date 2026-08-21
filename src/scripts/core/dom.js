@@ -146,7 +146,11 @@ export function resolveCanvas(target, description)
 }
 
 /** The query that decides whether the application is allowed to move. */
-export const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+// Module-private since RM-020 S-10: exported, and used by nothing outside
+// this file. `package.json` maps `./source/*` at the module level, so an
+// export is public surface by that route - and this was public surface
+// nobody used and no document named.
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
 /**
  * Whether this person has asked the system to stop animating things

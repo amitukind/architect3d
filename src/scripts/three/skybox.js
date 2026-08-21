@@ -54,6 +54,12 @@ const ENVIRONMENT_URL = 'rooms/textures/envs/Garden.jpg';
  * `Reflector` - the old package cannot be revived, it imports the `Math` alias
  * removed in r113.
  */
+// Stays exported, against RM-020 S-10's sweep of unused exports. This one is
+// not code that lost its callers - it is a decision, deliberately kept in a
+// form the compiler can see, and the docblock above says so. De-exporting it
+// makes it a `const` nothing reads, which lint then calls dead and the next
+// sweep deletes, taking the record with it. Seven of the eight S-10 named were
+// leftovers; this one was the exception.
 export const GROUND_REFLECTOR_ENABLED = false;
 
 export class Skybox extends EventDispatcher

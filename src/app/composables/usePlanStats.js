@@ -1,5 +1,5 @@
 // @ts-check
-import {onScopeDispose, ref, watch} from 'vue';
+import {inject, onScopeDispose, provide, ref, watch} from 'vue';
 import {EVENT_UPDATED, EVENT_LOADED, EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED} from '../../scripts/blueprint.js';
 import {Dimensioning} from '../../scripts/blueprint.js';
 
@@ -129,4 +129,50 @@ export function usePlanStats(store)
 	onScopeDispose(detach);
 
 	return {rooms, walls, corners, items, areaCm2, areaLabel, cursor, setCursor, recount};
+}
+
+/**
+ * The injection key for usePlanStats (RM-020 S-5).
+ *
+ * `App.vue` used to build this composable and push every one of its values down
+ * as props - fifteen bindings for the zoom alone, spread over three components
+ * that all wanted the same object. The store has always been injected; these
+ * are the first of the composables to follow it.
+ *
+ * A `Symbol` rather than a string, as `useBlueprint` does: two providers cannot
+ * collide and nothing can inject it by guessing.
+ *
+ * Exported, unlike `useBlueprint`'s, because a component that reaches for this
+ * has to be mountable on its own - by a test, or by an embedder composing a
+ * shell that is not `App.vue`. The alternative is standing up a whole document
+ * to render a hint, which makes the test about the wrong thing.
+ */
+export const PLAN_STATS_KEY = Symbol('architect3d.usePlanStats');
+
+/**
+ * Build it and make it available to every descendant.
+ * @param {import('./useBlueprint.js').BlueprintStore} store
+ */
+export function providePlanStats(store)
+{
+	var api = usePlanStats(store);
+	provide(PLAN_STATS_KEY, api);
+	return api;
+}
+
+/**
+ * Take it from an ancestor that called `providePlanStats`.
+ *
+ * Throws rather than returning null: a component that reached for this and did
+ * not get it is mounted outside the application shell, and every symptom of
+ * that is more confusing than the message.
+ */
+export function injectPlanStats()
+{
+	var api = inject(PLAN_STATS_KEY, null);
+	if (!api)
+	{
+		throw new Error('injectPlanStats() called outside a component tree that ran providePlanStats().');
+	}
+	return api;
 }

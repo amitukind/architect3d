@@ -18,7 +18,11 @@
  */
 
 /** Where the legacy models used to live, and where their conversions live now. */
-export const LEGACY_MODEL_DIR = 'models/js';
+// Module-private since RM-020 S-10: exported, and used by nothing outside
+// this file. `package.json` maps `./source/*` at the module level, so an
+// export is public surface by that route - and this was public surface
+// nobody used and no document named.
+const LEGACY_MODEL_DIR = 'models/js';
 export const CONVERTED_MODEL_DIR = 'models/js-glb';
 
 /**

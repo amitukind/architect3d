@@ -823,6 +823,12 @@ export class FloorplannerView2D
 		window.removeEventListener('orientationchange', this._orientationChangeEvent);
 
 		this._carbonsheet.removeEventListener(EVENT_UPDATED, this._carbonSheetUpdatedEvent);
+		// Before the dispose, not after (RM-020 S-15). `CarbonSheet.dispose()`
+		// calls `clear()`, which resets all eight of the fields the save format
+		// carries - so tearing the 2D view down used to delete the underlay from
+		// the next save: its URL, its placement, its scale and its transparency,
+		// all set by hand and all gone without a word. The plan keeps a copy.
+		this.floorplan.retainCarbonSheetSettings(this._carbonsheet);
 		this._carbonsheet.dispose();
 		if (this.floorplan.carbonSheet === this._carbonsheet)
 		{

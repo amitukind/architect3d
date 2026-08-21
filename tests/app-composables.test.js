@@ -680,12 +680,18 @@ describe('useCameraViews', () =>
 
 	it('boots into the 2D pane, not spinning, with 3D rendering paused', () =>
 	{
-		// The demo's boot state, reproduced: `spin: true` at construction and
-		// stopSpin() immediately after. hasClicked is what stopSpin sets, and it
-		// is also what suppresses the hover resume - so `spin: false` would not
-		// be the same thing.
+		// The demo's boot state, reproduced. `stopSpin()` is still called and still
+		// what matters here: it sets `hasClicked`, which suppresses the hover and
+		// click resume as well as the rotation, so it is not the same thing as
+		// simply not asking for spin.
+		//
+		// What changed at RM-020 S-3 is only the library default underneath it.
+		// `spin` defaulted true and did nothing, because nothing advanced the
+		// controls; now that something does, a true default would mean every
+		// viewer draws a frame forever. So the default is false and the two lines
+		// below assert the pair that actually governs the behaviour.
 		expect(camera.mode.value).toBe(MODE_FLOORPLAN);
-		expect(blueprint.three.options.spin).toBe(true);
+		expect(blueprint.three.options.spin).toBe(false);
 		expect(blueprint.three.hasClicked).toBe(true);
 		expect(blueprint.three.controls.autoRotate).toBe(false);
 		expect(blueprint.three.pauseRender).toBe(true);

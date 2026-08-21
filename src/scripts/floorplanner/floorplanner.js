@@ -46,7 +46,11 @@ export const ANGLE_SNAP_DEGREES = 15;
  * "near enough that you meant it" - and two different numbers for one feel is
  * how snapping starts feeling arbitrary.
  */
-export const ALIGN_TOLERANCE_CM = 25;
+// Module-private since RM-020 S-10: exported, and used by nothing outside
+// this file. `package.json` maps `./source/*` at the module level, so an
+// export is public surface by that route - and this was public surface
+// nobody used and no document named.
+const ALIGN_TOLERANCE_CM = 25;
 
 /**
  * Find corners that share a row or a column with a point (RM-008 E2).

@@ -389,10 +389,13 @@ export class Corner extends EventDispatcher
 				// deleting: this line executes 205 times across the headless suite,
 				// it is the path every corner drag takes, and nothing crashes.
 				this.mergeWithIntersected();
-				if(this.floorplan.rooms.length < 10)
-				{
-					this.updateAttachedRooms(true);
-				}
+				// The `rooms.length < 10` guard that used to wrap an
+				// `updateAttachedRooms(true)` here is gone (RM-020 S-9). It was a
+				// plan-size throttle on re-deriving the moved corner's rooms, and
+				// since RM-019 R1 the geometry branch of `Floorplan.update()` does
+				// that unconditionally and bounded by the corners that moved - so
+				// all the guard still decided was whether a *second*, redundant
+				// `updateArea()` ran over a polygon about to be rebuilt anyway.
 			}
 
 			this.dispatchEvent({type:EVENT_MOVED, item: this, position: new Vector2(newX, newY)});

@@ -158,8 +158,9 @@ footer a{color:var(--accent)}
   <a href="#numbers"><b>04</b><span>The numbers</span></a>
   <a href="#rules"><b>05</b><span>What must not change</span></a>
   <a href="#open"><b>06</b><span>What is open</span></a>
-  <a href="#corrections"><b>07</b><span>What this rewrite corrected</span></a>
-  <a href="#history"><b>08</b><span>Where it came from</span></a>
+  <a href="#audit"><b>07</b><span>The blind audit</span></a>
+  <a href="#corrections"><b>08</b><span>What this rewrite corrected</span></a>
+  <a href="#history"><b>09</b><span>Where it came from</span></a>
 </nav>
 
 <main>
@@ -169,9 +170,9 @@ footer a{color:var(--accent)}
   <p class="lede">What this thing is, how it is put together, what measures it, and what is still open. <strong>Every number here was produced by running something against the tree it describes</strong> &mdash; nothing is quoted from a previous document, because that is how three of the numbers in the previous document went wrong. It describes the code as it is today and not the code it used to be.</p>
   <dl class="stamp">
     <div><dt class="mono">PROJECT</dt><dd>architect3d 3.0.1</dd></div>
-    <div><dt class="mono">TREE</dt><dd class="mono">amit @ b1da4bd</dd></div>
+    <div><dt class="mono">TREE</dt><dd class="mono">amit @ 80b13ed</dd></div>
     <div><dt class="mono">MEASURED</dt><dd>2026-08-21</dd></div>
-    <div><dt class="mono">TESTS</dt><dd>2,740 + 267</dd></div>
+    <div><dt class="mono">TESTS</dt><dd>2,745 + 267</dd></div>
     <div><dt class="mono">GATES</dt><dd>14 automatic</dd></div>
     <div><dt class="mono">OPEN</dt><dd>2 items</dd></div>
   </dl>
@@ -274,7 +275,7 @@ footer a{color:var(--accent)}
     <thead><tr><th>Step</th><th>What it is the only check for</th></tr></thead>
     <tbody>
       <tr><td><code>npm run typecheck</code></td><td>JSDoc types across 164 of 166 source files, and SFC templates against their own script blocks</td></tr>
-      <tr><td><code>npm run test:coverage</code></td><td>2,740 tests, and nineteen coverage floors. Also the one thing a bare <code>vitest run</code> reports quietly: an exception escaping a test file with every assertion green</td></tr>
+      <tr><td><code>npm run test:coverage</code></td><td>2,745 tests, and nineteen coverage floors. Also the one thing a bare <code>vitest run</code> reports quietly: an exception escaping a test file with every assertion green</td></tr>
       <tr><td><code>npm run lint</code></td><td>&mdash;</td></tr>
       <tr><td><code>npm run build</code></td><td>That the library still builds as ESM, as IIFE, and emits its types</td></tr>
       <tr><td><code>npm run build:demo</code></td><td>That a Vue template or a Tailwind token that no longer resolves fails before a deploy rather than during one</td></tr>
@@ -321,8 +322,8 @@ footer a{color:var(--accent)}
   <p class="sub">Measured on 2026-08-21 against <code>8229949</code>, on one machine, with everything else idle.</p>
 
   <div class="big">
-    <div><div class="v">3,000</div><div class="l">tests &mdash; 2,740 headless, 267 in a browser</div></div>
-    <div><div class="v">89.04&thinsp;%</div><div class="l">statements covered, 12,163 of 13,659</div></div>
+    <div><div class="v">3,000</div><div class="l">tests &mdash; 2,745 headless, 267 in a browser</div></div>
+    <div><div class="v">89.17&thinsp;%</div><div class="l">statements covered, 12,202 of 13,683</div></div>
     <div><div class="v">274&thinsp;KB</div><div class="l">gzipped first load</div></div>
     <div><div class="v">95 / 62</div><div class="l">Lighthouse desktop / mobile</div></div>
   </div>
@@ -332,18 +333,18 @@ footer a{color:var(--accent)}
   <div class="tw"><table>
     <thead><tr><th>Floor</th><th>Metric</th><th class="n">Covered</th><th class="n">Now</th><th class="n">Written</th><th class="n">Enforced</th><th class="n">Slack</th></tr></thead>
     <tbody>
-      <tr><td>global</td><td>statements</td><td class="n">12,163 / 13,659</td><td class="n">89.04</td><td class="n">89</td><td class="n">89.00</td><td class="n"><span class="tag warn">6</span></td></tr>
+      <tr><td>global</td><td>statements</td><td class="n">12,202 / 13,683</td><td class="n">89.17</td><td class="n">89</td><td class="n">89.00</td><td class="n">24</td></tr>
       <tr><td><code>src/app/tour</code></td><td>branches</td><td class="n">9 / 10</td><td class="n">90.00</td><td class="n">85</td><td class="n">90.00</td><td class="n"><span class="tag crit">0</span></td></tr>
       <tr><td><code>src/app/offline</code></td><td>branches</td><td class="n">64 / 70</td><td class="n">91.43</td><td class="n">90</td><td class="n">90.00</td><td class="n"><span class="tag warn">1</span></td></tr>
-      <tr><td><code>src/scripts/*.js</code></td><td>branches</td><td class="n">18 / 20</td><td class="n">90.00</td><td class="n">85</td><td class="n">85.00</td><td class="n"><span class="tag warn">1</span></td></tr>
+      <tr><td><code>src/scripts/*.js</code></td><td>branches</td><td class="n">19 / 22</td><td class="n">86.36</td><td class="n">85</td><td class="n">86.36</td><td class="n"><span class="tag crit">0</span></td></tr>
       <tr><td><code>src/app/import</code></td><td>branches</td><td class="n">92 / 99</td><td class="n">92.93</td><td class="n">90</td><td class="n">90.91</td><td class="n"><span class="tag warn">2</span></td></tr>
-      <tr><td>global</td><td>lines</td><td class="n">11,629 / 13,049</td><td class="n">89.11</td><td class="n">89</td><td class="n">89.00</td><td class="n">15</td></tr>
-      <tr><td>global</td><td>functions</td><td class="n">2,528 / 2,882</td><td class="n">87.71</td><td class="n">87</td><td class="n">87.02</td><td class="n">20</td></tr>
-      <tr><td>global</td><td>branches</td><td class="n">5,991 / 7,403</td><td class="n">80.92</td><td class="n">80</td><td class="n">80.01</td><td class="n">68</td></tr>
+      <tr><td>global</td><td>lines</td><td class="n">11,666 / 13,072</td><td class="n">89.24</td><td class="n">89</td><td class="n">89.00</td><td class="n">32</td></tr>
+      <tr><td>global</td><td>functions</td><td class="n">2,540 / 2,892</td><td class="n">87.82</td><td class="n">87</td><td class="n">87.03</td><td class="n">24</td></tr>
+      <tr><td>global</td><td>branches</td><td class="n">6,003 / 7,420</td><td class="n">80.90</td><td class="n">80</td><td class="n">80.01</td><td class="n">67</td></tr>
       <tr><td>the other eleven</td><td>branches</td><td class="n">&mdash;</td><td class="n">&mdash;</td><td class="n">&mdash;</td><td class="n">&mdash;</td><td class="n">5 to 49</td></tr>
     </tbody>
   </table></div>
-  <p><code>npm run coverage:slack</code> prints all nineteen, and the CI summary prints it on every build. <strong>One floor has nothing under it</strong>: a single uncovered branch in the tour turns the build red. The global statements floor was the other, and it is at six because RM-019 R1 added tests rather than because anything moved &mdash; which is what a floor set at its own measurement means, and it is stated rather than discovered.</p>
+  <p><code>npm run coverage:slack</code> prints all nineteen, and the CI summary prints it on every build. <strong>Two floors have nothing under them</strong>: one uncovered branch in the tour, or one in the four library entry modules, turns the build red. The second is new at RM-020 &mdash; S-1 added two branches to <code>blueprint_core.js</code> and covered one, so a twenty-branch directory became twenty-two and its 85 is enforced at 86.36. That is what a percentage floor on a small denominator does, and it is stated rather than discovered.</p>
 
   <h3>Fifteen size limits</h3>
   <p>Each is a ceiling with its first measurement recorded beside it in <code>tools/budget.json</code>. Raising one is a commit with a reason; one has been lowered on purpose, once.</p>
@@ -437,11 +438,136 @@ footer a{color:var(--accent)}
     </div>
   </div>
 
-  <p>Two more things are true and are not tasks. <strong>Four floors are within two units of red</strong>, one of them at zero &mdash; visible on every CI run rather than discovered by a red build. And <strong>the source maps in the published package</strong> are 66.7&nbsp;% of it, waiting on somebody to decide whether a consumer should get readable stack traces at that price.</p>
+  <p>Two more things are true and are not tasks. <strong>Four floors are within two units of red</strong>, two of them at zero &mdash; visible on every CI run rather than discovered by a red build. And <strong>the source maps in the published package</strong> are 66.7&nbsp;% of it, waiting on somebody to decide whether a consumer should get readable stack traces at that price.</p>
+</section>
+
+<section id="audit">
+  <div class="sec-k mono">&sect; 07</div>
+  <h2>The blind audit</h2>
+  <p class="sub">RM-020 S. A review run with no prior context: read the code, then judge it &mdash; across dead code, deprecated APIs, resource lifecycle, structure, type safety and dependency currency. <strong>Fourteen findings, ordered by severity.</strong> Every one that made a factual claim was probed rather than argued; the three headings below the table record what the audit checked and did <em>not</em> find, because a review that only lists hits cannot be told from a review that stopped early.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>#</th><th>Where</th><th>The finding</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="n"><strong>S-1</strong></td>
+        <td><code>blueprint_core.js:240</code></td>
+        <td><strong>Teardown released none of the model&rsquo;s GPU resources</strong>, on a premise its own docblock got wrong &mdash; it said the model &ldquo;holds no DOM or GPU resources&rdquo;, while <code>room.js</code> says the opposite in as many words. Measured on a 4-wall, 1-room design: <strong>0 of 12 disposed</strong> (2 room planes, 4 half-edge planes). <code>useBlueprint.unmount()</code> nulls the model first, so they became unreachable <em>and</em> undisposed. Scales at 2 per room plus 1 per wall face</td>
+        <td><span class="tag ok">fixed</span></td>
+      </tr>
+      <tr>
+        <td class="n"><strong>S-2</strong></td>
+        <td><code>three/main.js:126</code></td>
+        <td><strong>Four of seven viewer options were never read.</strong> <code>pushHref</code>, <code>spinSpeed</code> and <code>clickPan</code> had no reader at all; <code>canMoveFixedItems</code> had none because <code>controller.js</code> tests <code>item.fixed</code> unconditionally, so setting it did nothing</td>
+        <td><span class="tag ok">fixed</span></td>
+      </tr>
+      <tr>
+        <td class="n"><strong>S-3</strong></td>
+        <td><code>three/main.js:573</code></td>
+        <td><strong>Auto-rotate and the damping tail were switched on and never advanced.</strong> <code>controls.update()</code> ran only at explicit camera moves, never per frame. three&rsquo;s addon self-updates on pointer events, so damping worked <em>during</em> a drag and the coast after release never played; auto-rotate never moved at all</td>
+        <td><span class="tag ok">fixed</span></td>
+      </tr>
+      <tr>
+        <td class="n"><strong>S-4</strong></td>
+        <td><code>three/edge.js:333</code></td>
+        <td><strong>Three <code>Vector3</code> allocated per wall face per camera-change event.</strong> OrbitControls fires <code>change</code> on every pointermove of an orbit; at the 144-wall scale the file itself cites, that is 288 handlers and roughly 864 objects per frame</td>
+        <td><span class="tag ok">fixed</span></td>
+      </tr>
+      <tr>
+        <td class="n"><strong>S-5</strong></td>
+        <td><code>app/App.vue</code></td>
+        <td><strong>One component orchestrated the whole application:</strong> 1,072 script lines wiring 22 composables, then pushing them down as 92 prop bindings and 72 event handlers. Only the blueprint store used provide/inject</td>
+        <td><span class="tag ok">fixed</span></td>
+      </tr>
+      <tr>
+        <td class="n"><strong>S-6</strong></td>
+        <td><code>items/opening.js:81,215</code><br><code>items/solid_builder.js:188</code></td>
+        <td><strong>Three exports with no caller anywhere</strong> &mdash; <code>OPENING_MATERIALS</code>, <code>opensOnAHinge</code>, <code>rotateAboutZ</code>. Each appeared exactly once in the repository: its own definition</td>
+        <td><span class="tag ok">fixed</span></td>
+      </tr>
+      <tr>
+        <td class="n"><strong>S-7</strong></td>
+        <td><code>package.json</code></td>
+        <td><strong><code>@vueuse/core</code> was an unused dependency</strong> &mdash; zero references outside the manifest and the lockfile</td>
+        <td><span class="tag ok">fixed</span></td>
+      </tr>
+      <tr>
+        <td class="n"><strong>S-8</strong></td>
+        <td><code>package.json</code></td>
+        <td><strong>TypeScript was a major version behind</strong> at <code>^6.0.3</code> against 7.x stable, and a caret cannot cross a major. Everything else was already current. <strong>Attempted and reverted:</strong> <code>vue-tsc</code> resolves <code>typescript/lib/tsc</code>, which TypeScript 7 no longer exports - the gate does not run at all under it, at 3.3.9 or at 3.3.11. Blocked upstream, not here; <code>vue-tsc</code> did move to 3.3.11 on the way past</td>
+        <td><span class="tag warn">blocked</span></td>
+      </tr>
+      <tr>
+        <td class="n"><strong>S-9</strong></td>
+        <td><code>model/corner.js:392</code></td>
+        <td><strong>A vestigial guard.</strong> <code>rooms.length &lt; 10</code> around <code>updateAttachedRooms(true)</code> decided only whether a redundant <code>updateArea()</code> ran, since RM-019 R1 re-derives the same rooms unconditionally a moment later</td>
+        <td><span class="tag ok">fixed</span></td>
+      </tr>
+      <tr>
+        <td class="n"><strong>S-10</strong></td>
+        <td>eight modules</td>
+        <td><strong>Eight exports used only inside their own file.</strong> <code>package.json</code> exposes <code>./source/*</code>, so an export is public API by that route &mdash; these were neither used nor documented as such. <strong>Seven de-exported, one kept:</strong> <code>GROUND_REFLECTOR_ENABLED</code> is not a leftover, it is a decision held in a form the compiler can see, and its own docblock says it was left exported for that reason. De-exporting it made lint call it dead, which is how the record would have been deleted next</td>
+        <td><span class="tag ok">fixed</span></td>
+      </tr>
+      <tr>
+        <td class="n"><strong>S-11</strong></td>
+        <td><code>items/floor_item.js:132</code></td>
+        <td><strong>A loop over every room, allocating per room, to compute a constant.</strong> <code>isValidPosition()</code> is provably always <code>true</code> &mdash; correctly, and documented as such &mdash; because both predicates it consults are pinned constants</td>
+        <td><span class="tag ok">fixed</span></td>
+      </tr>
+      <tr>
+        <td class="n"><strong>S-12</strong></td>
+        <td><code>asset-pipeline/</code></td>
+        <td><strong>61 MB tracked in git</strong> for a one-time migration: a 20 MB <code>.blend</code>, 12 MB of <code>legacy-json/</code> sources, against JSON reports the tools actually read. <em>Not acted on</em> &mdash; deleting the only copy of source assets is the owner&rsquo;s call, and removing them from the working tree would not shrink history anyway</td>
+        <td><span class="tag crit">owner&rsquo;s call</span></td>
+      </tr>
+      <tr>
+        <td class="n"><strong>S-13</strong></td>
+        <td><code>useOffline.js:113,120,145</code></td>
+        <td><strong>Three service-worker listeners added and never removed</strong>, in a file that cleans up its four window listeners in <code>onScopeDispose</code>. Harmless while the composable is built once; asymmetric either way</td>
+        <td><span class="tag ok">fixed</span></td>
+      </tr>
+      <tr>
+        <td class="n"><strong>S-14</strong></td>
+        <td>&mdash;</td>
+        <td><strong>Withdrawn &mdash; the finding was wrong.</strong> It claimed <code>clamp</code> was defined six times over. It is defined <em>once</em>, in <code>sun.js</code>. <code>useWalkthrough</code> has a same-named but different function &mdash; an eye-height coercion with a non-finite fallback and a round &mdash; <code>useZoom2D</code> has an inline <code>Math.min/Math.max</code> against its zoom stops, and <code>clampOpening</code> and <code>clampOpeningToRoom</code> are unrelated geometry. The grep behind it matched on the <code>clamp</code> prefix and the audit did not open the files before writing it down. Nothing to extract, and extracting it anyway would have been churn dressed as cleanup</td>
+        <td><span class="tag crit">withdrawn</span></td>
+      </tr>
+    </tbody>
+  </table></div>
+
+
+  <div class="note">
+    <div class="h mono">WHAT THE FIXES CHANGED, AND WHAT THEY DID NOT</div>
+    <p><strong>Eleven fixed, one blocked upstream, one the owner&rsquo;s, one withdrawn as wrong.</strong> Two of them changed behaviour rather than tidying it, and both are worth knowing about. S-1 means a torn-down design now gives its meshes back &mdash; the data still serializes, which is the half the old note was right to protect. S-3 means the library&rsquo;s <code>spin: true</code> default now actually rotates the model, which it has not done for as long as the render loop has been on demand; the application calls <code>stopSpin()</code> at boot and is unaffected, but an embedder on the defaults will see a difference. Neither costs a frame while nothing is happening: <code>update()</code> reports no change on a settled scene, and the idle-frames assertion holds it there.</p>
+    <p>S-5 is the one deliberately left part-done. Two composables of twenty-two are injected rather than drilled &mdash; the two that three components shared &mdash; which took 13 props and 7 emits out of <code>App.vue</code>. Converting the other twenty is a refactor of the application&rsquo;s composition root and does not belong in the same pass as a leak fix and a render-loop change, where a regression would be that much harder to attribute.</p>
+    <p>And one finding was produced <em>by</em> the fixing rather than by the audit: <strong>S-15</strong>, below.</p>
+  </div>
+
+  <div class="note">
+    <div class="h mono">S-15 &middot; FOUND WHILE FIXING S-1</div>
+    <p>Writing the test that proves a torn-down design still serializes turned up something the audit had missed: it did not. <code>FloorplannerView.dispose()</code> disposes the carbon sheet, <code>CarbonSheet.dispose()</code> calls <code>clear()</code>, and <code>clear()</code> resets all eight of the fields the save format carries &mdash; so tearing down the 2D view <strong>deleted the underlay from the next save</strong>: its URL, its placement, its scale and its transparency, each set by hand and each gone without a word. The plan keeps a copy now, taken on the way out and preferred by <code>exportSerialized</code> only when the live sheet is gone. <span class="tag ok">fixed</span></p>
+    <p>Worth recording for what it says about the method rather than the bug: the audit read the code and found fourteen things; writing the test for the first of them found a fifteenth that reading had not.</p>
+  </div>
+
+  <div class="note">
+    <div class="h mono">THE ONE THAT LOOKED CRITICAL AND WAS NOT</div>
+    <p>Four polygon predicates in <code>core/utils.js</code> are pinned broken with <code>@ts-expect-error</code>: <code>pointInPolygon</code> is constant-false, <code>polygonOutsidePolygon</code> constant-true, and <code>FloorItem</code> branches on both. That reads as a critical defect until you find that the file already states the exact consequence, characterization tests pin it, and RM-012 J4 shipped a correct replacement &mdash; <code>polygonsOverlap</code>, written from the separating-axis theorem &mdash; for the path that needed one. <strong>Preserved deliberately and correctly.</strong> All that was left of it is the wasted work in S-11.</p>
+  </div>
+
+  <div class="note">
+    <div class="h mono">WHAT THE AUDIT CHECKED AND DID NOT FIND</div>
+    <p>No deprecated three.js call anywhere in live code &mdash; every hit for <code>Geometry</code>, <code>Face3</code>, <code>addAttribute</code>, <code>outputEncoding</code>, <code>THREE.Math</code> and the rest is a <em>comment</em> recording a migration already done. No Options API and no Vue 2 idiom: all 29 single-file components use <code>&lt;script setup&gt;</code>. Six uses of <code>any</code> in 166 files, each with a stated reason. <code>Main.dispose()</code>, <code>Floorplan3D.dispose()</code> and the <code>forceContextLoss()</code> call are thorough. Three, Vue, ESLint and Tailwind were each already on the exact latest release.</p>
+  </div>
+
+  <div class="note">
+    <div class="h mono">WHAT S-1 SAYS ABOUT THE GATE LADDER</div>
+    <p><code>resource-lifecycle.test.js</code> covers <code>update()</code>, <code>reset()</code>, the 3D projection, each <code>dispose()</code> in isolation and per-item removal. It had <strong>no whole-teardown case</strong>, which is exactly where the hole was. RM-003 A0 made disposal a boundary rather than a habit; the boundary was never asserted at the outermost edge, so the one place with no test was the one place that leaked.</p>
+  </div>
 </section>
 
 <section id="corrections">
-  <div class="sec-k mono">&sect; 07</div>
+  <div class="sec-k mono">&sect; 08</div>
   <h2>What this rewrite corrected</h2>
   <p class="sub">This document replaces 1.38 MB of accumulated drawings. Cutting it meant checking what it said against the code, and five things did not survive.</p>
 
@@ -479,7 +605,7 @@ footer a{color:var(--accent)}
 </section>
 
 <section id="history">
-  <div class="sec-k mono">&sect; 08</div>
+  <div class="sec-k mono">&sect; 09</div>
   <h2>Where it came from</h2>
   <p class="sub">Eighteen drawings between a 2014 jQuery demo and this. One line each, because the detail is in the commits and the docblocks now.</p>
 
@@ -520,7 +646,7 @@ footer a{color:var(--accent)}
 
 <footer>
   <div class="wrap" style="padding:0">
-    <p><strong>architect3d</strong> &middot; engineering reference, replacing drawings RM-001 to RM-018 &middot; measured against <code>b1da4bd</code> on 2026-08-21 &middot; the drawings themselves remain in the git history.</p>
+    <p><strong>architect3d</strong> &middot; engineering reference, replacing drawings RM-001 to RM-018 &middot; measured against <code>80b13ed</code> on 2026-08-21 &middot; the drawings themselves remain in the git history.</p>
     <p>Created by <a href="https://amitukind.com" target="_blank" rel="noopener noreferrer">Amit Verma</a></p>
   </div>
 </footer>

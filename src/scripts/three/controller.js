@@ -116,6 +116,22 @@ export class Controller extends EventDispatcher
 	 * Detach the pointer and scene listeners and drop the ground plane out of the
 	 * scene. Safe to call more than once.
 	 */
+	/**
+	 * Whether a press on a fixed item may start a drag (RM-020 S-2).
+	 *
+	 * The viewer has carried a `canMoveFixedItems` option since before this file
+	 * was typed and nothing had ever read it - both guards in `mouseDownState`
+	 * tested `item.fixed` on its own, so an embedder that set it true got no
+	 * change and no warning. Reading it in one place keeps the two guards saying
+	 * the same thing.
+	 *
+	 * @returns {boolean}
+	 */
+	get canMoveFixedItems()
+	{
+		return Boolean(this.three && this.three.options && this.three.options.canMoveFixedItems);
+	}
+
 	dispose()
 	{
 		if (this._disposed)
@@ -336,7 +352,7 @@ export class Controller extends EventDispatcher
 				else if (this.intersectedObject != null)
 				{
 					this.setSelectedObject(this.intersectedObject);
-					if (!this.intersectedObject.fixed)
+					if (!this.intersectedObject.fixed || this.canMoveFixedItems)
 					{
 						this.switchState(states.DRAGGING);
 					}
@@ -346,7 +362,7 @@ export class Controller extends EventDispatcher
 				if (this.intersectedObject != null)
 				{
 					this.setSelectedObject(this.intersectedObject);
-					if (!this.intersectedObject.fixed)
+					if (!this.intersectedObject.fixed || this.canMoveFixedItems)
 					{
 						this.switchState(states.DRAGGING);
 					}

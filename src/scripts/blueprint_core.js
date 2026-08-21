@@ -237,8 +237,29 @@ export class BlueprintCore
 	 * Unmount: dispose the 2D floorplanner (if any) and the 3D view, releasing
 	 * every DOM listener and the WebGL context. Safe to call more than once.
 	 *
-	 * The model is left alone on purpose - it is plain data, it holds no DOM or
-	 * GPU resources, and callers often want to serialize it after teardown.
+	 * ## The model's data survives; the model's meshes do not (RM-020 S-1)
+	 *
+	 * This used to leave the model entirely alone, on the stated grounds that it
+	 * "holds no DOM or GPU resources". **The second half of that was wrong**, and
+	 * `Room.dispose()` had been saying so in its own docblock the whole time: a
+	 * `Room` owns two invisible hit-test meshes and every `HalfEdge` owns one, and
+	 * an `Item` owns its loaded geometry, its materials and two label canvases.
+	 *
+	 * Measured on a four-wall, one-room design with a probe on three's own
+	 * `dispose` event: **twelve resources seen, zero disposed** - two room planes
+	 * and four half-edge planes, each a geometry and a material. It scales at two
+	 * per room plus one per wall face, so a twenty-room plan abandoned a few
+	 * hundred. Nothing else could collect them: `Floor` and `Edge` borrow those
+	 * meshes and are documented never to dispose what they borrow, and
+	 * `useBlueprint.unmount()` nulls the model *before* calling this, so they
+	 * became unreachable as well as unreleased.
+	 *
+	 * What the original note got right is the reason it is worth keeping: callers
+	 * do serialize a design after teardown, so the corners, walls, rooms and item
+	 * records all stay exactly where they are. Only the GPU side goes back. That
+	 * is the whole of the distinction - `releaseResources()` and
+	 * `releaseItemResources()` are each written to release meshes without
+	 * forgetting anything.
 	 *
 	 * The runtime is disposed only if this instance built it - see
 	 * `_ownsRuntime`. A viewer handed one leaves it exactly as it found it.
@@ -258,6 +279,16 @@ export class BlueprintCore
 		if (this.model && this.model.scene)
 		{
 			this.model.scene.abortPendingLoads();
+		}
+
+		// After detachViewer(), deliberately. The viewer's own dispose tears down
+		// every Floor and Edge, and those hold the borrowed references to exactly
+		// the meshes released below - so releasing first would leave the projection
+		// detaching planes it had already given back.
+		if (this.model)
+		{
+			this.model.scene.releaseItemResources();
+			this.model.floorplan.releaseResources();
 		}
 
 		if (this._ownsRuntime)

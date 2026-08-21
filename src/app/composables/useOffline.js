@@ -99,6 +99,45 @@ export function useOffline(options)
 	 *
 	 * @param {*} registration
 	 */
+	/**
+	 * How the service-worker listeners come off again (RM-020 S-13).
+	 *
+	 * The four window listeners below were already paired with removals in
+	 * `onScopeDispose`; the three on the registration, the installing worker and
+	 * the container were not, which left this file cleaning up half of what it
+	 * attached. Harmless while the composable is built once per page - and
+	 * "harmless because of how it happens to be used" is the kind of thing that
+	 * stops being true quietly.
+	 *
+	 * A list rather than named fields because two of the three are attached to
+	 * objects that do not exist yet at setup: the registration arrives from a
+	 * promise, and the installing worker only on an update.
+	 *
+	 * @type {Array<function(): void>}
+	 */
+	var detachers = [];
+
+	/**
+	 * Remove a listener from a host object that may not offer the method.
+	 *
+	 * Guarded the same way the window listeners below are, and for the same
+	 * reason: these are host objects whose shape this code does not control. A
+	 * `ServiceWorkerRegistration` is an `EventTarget` by spec, but the thing
+	 * handed back by a polyfill, an older engine or a test double need not be.
+	 *
+	 * @param {*} host
+	 * @param {string} type
+	 * @param {function(*): void} listener
+	 * @returns {void}
+	 */
+	function detach(host, type, listener)
+	{
+		if (host && typeof host.removeEventListener === 'function')
+		{
+			host.removeEventListener(type, listener);
+		}
+	}
+
 	function watch(registration)
 	{
 		if (!registration)
@@ -110,14 +149,14 @@ export function useOffline(options)
 		{
 			updateReady.value = true;
 		}
-		registration.addEventListener('updatefound', function ()
+		var onUpdateFound = function ()
 		{
 			var installing = registration.installing;
 			if (!installing)
 			{
 				return;
 			}
-			installing.addEventListener('statechange', function ()
+			var onStateChange = function ()
 			{
 				// `installed` with a controller already present means a *replacement*
 				// rather than a first install - the difference between "this page is
@@ -126,8 +165,12 @@ export function useOffline(options)
 				{
 					updateReady.value = true;
 				}
-			});
-		});
+			};
+			installing.addEventListener('statechange', onStateChange);
+			detachers.push(function () {detach(installing, 'statechange', onStateChange);});
+		};
+		registration.addEventListener('updatefound', onUpdateFound);
+		detachers.push(function () {detach(registration, 'updatefound', onUpdateFound);});
 	}
 
 	/** @returns {Promise<void>} */
@@ -142,7 +185,9 @@ export function useOffline(options)
 			var registration = await container.register(WORKER_URL);
 			watch(registration);
 			ready.value = Boolean(container.controller);
-			container.addEventListener('controllerchange', function () {ready.value = true;});
+			var onControllerChange = function () {ready.value = true;};
+			container.addEventListener('controllerchange', onControllerChange);
+			detachers.push(function () {detach(container, 'controllerchange', onControllerChange);});
 		}
 		catch
 		{
@@ -208,6 +253,8 @@ export function useOffline(options)
 			target.removeEventListener('online', onOnline);
 			target.removeEventListener('offline', onOffline);
 		}
+		detachers.forEach(function (detach) {detach();});
+		detachers = [];
 	});
 
 	return {ready, updateReady, installable, installed, online, register, install, applyUpdate};

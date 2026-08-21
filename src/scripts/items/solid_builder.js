@@ -169,39 +169,6 @@ export function rotateAboutX(positions, normals, angle)
 		normals[i + 2] = ny * sin + nz * cos;
 	}
 }
-
-/**
- * Rotate positions and normals about the z axis, in place.
- *
- * The third of these, added by RM-010 G2 for a gable's slopes. F1 needed the
- * vertical axis for a door's swing, F3 the horizontal for a handrail's pitch,
- * and a roof slope falls about whichever horizontal axis its ridge does not run
- * along - so the third was the one that made the set complete rather than
- * arbitrary.
- *
- * Signs match the other two: a positive angle takes +x toward +y.
- *
- * @param {number[]} positions
- * @param {number[]} normals
- * @param {number} angle Radians.
- */
-export function rotateAboutZ(positions, normals, angle)
-{
-	var cos = Math.cos(angle);
-	var sin = Math.sin(angle);
-	for (var i = 0; i < positions.length; i += 3)
-	{
-		var x = positions[i];
-		var y = positions[i + 1];
-		positions[i] = x * cos - y * sin;
-		positions[i + 1] = x * sin + y * cos;
-		var nx = normals[i];
-		var ny = normals[i + 1];
-		normals[i] = nx * cos - ny * sin;
-		normals[i + 1] = nx * sin + ny * cos;
-	}
-}
-
 /**
  * Append one flat polygon as a triangle fan, with one normal.
  *

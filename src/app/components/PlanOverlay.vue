@@ -1,4 +1,6 @@
 <script setup>
+import {injectZoom2D} from '../composables/useZoom2D.js';
+import {injectPlanStats} from '../composables/usePlanStats.js';
 // @ts-check
 import {computed, ref} from 'vue';
 import {PopoverRoot, PopoverTrigger, PopoverPortal, PopoverContent} from 'reka-ui';
@@ -22,21 +24,19 @@ import {floorplannerModes, Dimensioning} from '../../scripts/blueprint.js';
  * behind it stays readable.
  */
 
+/**
+ * Zoom and the wall count are injected, not passed (RM-020 S-5).
+ *
+ * Six props and seven emits on this component were `useZoom2D` relayed through
+ * `App.vue` one value and one callback at a time. Reaching for the composable
+ * directly removes both halves: there is nothing for the parent to forward and
+ * nothing for it to forward back. What is still a prop is what the parent
+ * genuinely owns - the active tool and the display unit.
+ */
+const zoom = injectZoom2D();
+const stats = injectPlanStats();
+
 const props = defineProps({
-	zoomPercent: {type: Number, required: true},
-	canZoomIn: {type: Boolean, default: true},
-	canZoomOut: {type: Boolean, default: true},
-	snap: {type: Boolean, default: false},
-	spacing: {type: Number, default: 25},
-	spacings: {
-		/**
-		 * Typed so the template can read `.value` and `.label` off each entry.
-		 *
-		 * @type {import('vue').PropType<Array<import('../composables/useZoom2D.js').GridSpacing>>}
-		 */
-		type: Array,
-		required: true,
-	},
 	mode: {type: Number, required: true},
 	/**
 	 * How many walls the current storey has (RM-014 L2).
@@ -61,10 +61,7 @@ const props = defineProps({
 	unit: {type: String, default: ''},
 });
 
-const emit = defineEmits([
-	'zoom-in', 'zoom-out', 'zoom-fit', 'zoom-reset', 'centre',
-	'set-snap', 'set-spacing', 'set-angle-snap', 'set-draw-target',
-]);
+const emit = defineEmits(['set-angle-snap', 'set-draw-target']);
 
 /**
  * The typed half of "draw to a number" (RM-008 E2).
@@ -153,7 +150,7 @@ function commitTyped(place)
 	<!-- The empty plan, which nothing used to say anything about. Above the
 	     controls rather than inside them, because it is about the whole surface. -->
 	<div
-		v-if="props.walls === 0" data-testid="empty-plan"
+		v-if="stats.walls.value === 0" data-testid="empty-plan"
 		class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-6">
 		<p class="max-w-[36ch] text-center text-[13px] leading-relaxed text-ink-faint">
 			<strong class="block text-ink">Nothing drawn yet</strong>
@@ -167,21 +164,21 @@ function commitTyped(place)
 			<AppTip label="Zoom out" keys="-" side="top" :delay="0">
 				<button
 					type="button" class="btn btn-icon" title="Zoom out"
-					:disabled="!props.canZoomOut" @click="emit('zoom-out')">
+					:disabled="!zoom.canZoomOut.value" @click="zoom.zoomOut()">
 					<ZoomOut :size="15" />
 				</button>
 			</AppTip>
 
 			<AppTip label="Reset to 100%" side="top" :delay="0">
-				<button type="button" class="btn num w-[52px] px-0" title="Reset zoom" @click="emit('zoom-reset')">
-					{{ props.zoomPercent }}%
+				<button type="button" class="btn num w-[52px] px-0" title="Reset zoom" @click="zoom.resetZoom()">
+					{{ zoom.percent.value }}%
 				</button>
 			</AppTip>
 
 			<AppTip label="Zoom in" keys="+" side="top" :delay="0">
 				<button
 					type="button" class="btn btn-icon" title="Zoom in"
-					:disabled="!props.canZoomIn" @click="emit('zoom-in')">
+					:disabled="!zoom.canZoomIn.value" @click="zoom.zoomIn()">
 					<ZoomIn :size="15" />
 				</button>
 			</AppTip>
@@ -189,12 +186,12 @@ function commitTyped(place)
 			<span class="mx-1 h-4 w-px bg-line" />
 
 			<AppTip label="Frame the whole plan" keys="shift+f" side="top" :delay="0">
-				<button type="button" class="btn btn-icon" title="Zoom to fit" @click="emit('zoom-fit')">
+				<button type="button" class="btn btn-icon" title="Zoom to fit" @click="zoom.zoomToFit()">
 					<Maximize2 :size="15" />
 				</button>
 			</AppTip>
 			<AppTip label="Recentre" side="top" :delay="0">
-				<button type="button" class="btn btn-icon" title="Recentre" @click="emit('centre')">
+				<button type="button" class="btn btn-icon" title="Recentre" @click="zoom.centre()">
 					<Crosshair :size="15" />
 				</button>
 			</AppTip>
@@ -203,9 +200,9 @@ function commitTyped(place)
 		<div class="glass pointer-events-auto flex items-center gap-0.5 p-1">
 			<AppTip label="Snap to grid" keys="s" side="top" :delay="0">
 				<button
-					type="button" class="btn btn-icon" :class="{'is-active': props.snap}"
-					:aria-pressed="props.snap" title="Snap to grid"
-					@click="emit('set-snap', !props.snap)">
+					type="button" class="btn btn-icon" :class="{'is-active': zoom.snap.value}"
+					:aria-pressed="zoom.snap.value" title="Snap to grid"
+					@click="zoom.setSnap(!zoom.snap.value)">
 					<Magnet :size="15" />
 				</button>
 			</AppTip>
@@ -223,7 +220,7 @@ function commitTyped(place)
 				<PopoverTrigger as-child>
 					<button type="button" class="btn gap-1 px-1.5" title="Grid spacing">
 						<Grid3x3 :size="15" />
-						<span class="num">{{ props.spacing }}</span>
+						<span class="num">{{ zoom.spacing.value }}</span>
 						<ChevronDown :size="11" class="opacity-60" />
 					</button>
 				</PopoverTrigger>
@@ -233,11 +230,11 @@ function commitTyped(place)
 						class="a3d-pop z-[600] w-40 rounded-panel border border-line bg-overlay p-1 shadow-float">
 						<p class="eyebrow px-2 py-1.5">Grid spacing</p>
 						<button
-							v-for="entry in props.spacings" :key="entry.value" type="button"
-							class="btn w-full justify-between" :class="{'is-active': props.spacing === entry.value}"
-							@click="emit('set-spacing', entry.value)">
+							v-for="entry in zoom.gridSpacings" :key="entry.value" type="button"
+							class="btn w-full justify-between" :class="{'is-active': zoom.spacing.value === entry.value}"
+							@click="zoom.setSpacing(entry.value)">
 							<span>{{ entry.label }}</span>
-							<span v-if="props.spacing === entry.value" class="num">•</span>
+							<span v-if="zoom.spacing.value === entry.value" class="num">•</span>
 						</button>
 						<!-- The heavier line every fourth cell is drawn by the library, so
 						     the metre rhythm follows whatever is chosen here. -->

@@ -1,4 +1,6 @@
 <script setup>
+import {injectPlanStats} from '../composables/usePlanStats.js';
+import {injectZoom2D} from '../composables/useZoom2D.js';
 // @ts-check
 import {computed} from 'vue';
 import {Dimensioning, floorplannerModes} from '../../scripts/blueprint.js';
@@ -24,23 +26,20 @@ import {LAYOUT_PLAN} from '../composables/useLayout.js';
  * readout does not reflow the bar around it.
  */
 
+/**
+ * The plan's own numbers come from the composables, not from the parent
+ * (RM-020 S-5).
+ *
+ * Six of this component's props were `usePlanStats` and `useZoom2D` handed over
+ * one value at a time by `App.vue`, which built both and pushed them into three
+ * separate components. They are injected now. What stays a prop is what the
+ * *parent* decides - which tool is active, which layout is showing - because
+ * that is genuinely the caller's to say.
+ */
+const stats = injectPlanStats();
+const zoom = injectZoom2D();
+
 const props = defineProps({
-	rooms: {type: Number, default: 0},
-	walls: {type: Number, default: 0},
-	items: {type: Number, default: 0},
-	areaLabel: {type: String, default: ''},
-	cursor: {
-		/**
-		 * `type: X` with `default: null` still infers `X | undefined` - the default
-		 * does not widen the declared type, so passing an explicit null is an
-		 * error even though null is exactly what the default is (RM-004 B3).
-		 *
-		 * @type {import('vue').PropType<?{x: number, y: number}>}
-		 */
-		type: Object,
-		default: null,
-	},
-	zoom: {type: Number, default: 100},
 	mode: {type: Number, required: true},
 	layout: {type: String, required: true},
 	unitLabel: {type: String, default: ''},
@@ -84,11 +83,11 @@ function plural(count, noun)
 /** Plan coordinates, formatted in the active display unit. */
 const cursorLabel = computed(function ()
 {
-	if (!props.cursor)
+	if (!stats.cursor.value)
 	{
 		return null;
 	}
-	return `${Dimensioning.cmToMeasure(props.cursor.x)}, ${Dimensioning.cmToMeasure(props.cursor.y)}`;
+	return `${Dimensioning.cmToMeasure(stats.cursor.value.x)}, ${Dimensioning.cmToMeasure(stats.cursor.value.y)}`;
 });
 </script>
 
@@ -111,14 +110,14 @@ const cursorLabel = computed(function ()
 		</a>
 
 		<div class="ml-auto flex items-center gap-3">
-			<span class="num" :title="`${plural(props.rooms, 'room')}, ${plural(props.walls, 'wall')}, ${plural(props.items, 'item')}`">
-				<span class="text-ink-soft">{{ props.rooms }}</span> {{ props.rooms === 1 ? 'room' : 'rooms' }}
-				· <span class="text-ink-soft">{{ props.walls }}</span> {{ props.walls === 1 ? 'wall' : 'walls' }}
-				· <span class="text-ink-soft">{{ props.items }}</span> {{ props.items === 1 ? 'item' : 'items' }}
+			<span class="num" :title="`${plural(stats.rooms.value, 'room')}, ${plural(stats.walls.value, 'wall')}, ${plural(stats.items.value, 'item')}`">
+				<span class="text-ink-soft">{{ stats.rooms.value }}</span> {{ stats.rooms.value === 1 ? 'room' : 'rooms' }}
+				· <span class="text-ink-soft">{{ stats.walls.value }}</span> {{ stats.walls.value === 1 ? 'wall' : 'walls' }}
+				· <span class="text-ink-soft">{{ stats.items.value }}</span> {{ stats.items.value === 1 ? 'item' : 'items' }}
 			</span>
 
-			<span v-if="props.areaLabel" class="num" title="Total floor area">
-				<span class="text-ink-soft">{{ props.areaLabel }}</span>
+			<span v-if="stats.areaLabel.value" class="num" title="Total floor area">
+				<span class="text-ink-soft">{{ stats.areaLabel.value }}</span>
 			</span>
 
 			<span class="hidden h-3.5 w-px bg-line sm:block" />
@@ -130,7 +129,7 @@ const cursorLabel = computed(function ()
 				<template v-else>—</template>
 			</span>
 
-			<span class="num w-[46px] text-right" title="Plan zoom">{{ props.zoom }}%</span>
+			<span class="num w-[46px] text-right" title="Plan zoom">{{ zoom.percent.value }}%</span>
 		</div>
 	</footer>
 </template>

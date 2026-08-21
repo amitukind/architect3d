@@ -16,6 +16,14 @@ import {colorValue, multiplyHex, NO_TINT} from '../model/surface.js';
  */
 const LIGHT_MAP_URL = 'rooms/textures/walllightmap.png';
 
+/**
+ * Scratch vectors for {@link Edge#updateVisibility} (RM-020 S-4). Module-level
+ * and reused on every call; see the docblock there for why that is safe.
+ */
+const _visNormal = new Vector3();
+const _visPosition = new Vector3();
+const _visFocus = new Vector3();
+
 export class Edge extends EventDispatcher
 {
 	/**
@@ -330,6 +338,22 @@ export class Edge extends EventDispatcher
 		});
 	}
 
+	/**
+	 * Decide which way this face is turned, and fade it if the camera is behind
+	 * it.
+	 *
+	 * ## Three vectors, reused (RM-020 S-4)
+	 *
+	 * This runs on `EVENT_CAMERA_MOVED`, which OrbitControls dispatches on every
+	 * pointermove of an orbit - once per `Edge`, and a wall has two. At the 144
+	 * walls this file's batching note is written for, that is 288 calls per
+	 * frame, and each used to allocate three `Vector3`: roughly 864 objects a
+	 * frame, all of them dead before the next one.
+	 *
+	 * They are module-level scratch now. Safe because this is synchronous, does
+	 * not recurse and does not hand any of them out - the only value that escapes
+	 * is a number.
+	 */
 	updateVisibility()
 	{
 		var scope = this;
@@ -339,12 +363,11 @@ export class Edge extends EventDispatcher
 		var x = end.x - start.x;
 		var y = end.y - start.y;
 		// rotate 90 degrees CCW
-		var normal = new Vector3(-y, 0, x);
-		normal.normalize();
+		var normal = _visNormal.set(-y, 0, x).normalize();
 
 		// setup camera: scope.controls.object refers to the camera of the scene
-		var position = scope.controls.object.position.clone();
-		var focus = new Vector3((start.x + end.x) / 2.0,0,(start.y + end.y) / 2.0);
+		var position = _visPosition.copy(scope.controls.object.position);
+		var focus = _visFocus.set((start.x + end.x) / 2.0, 0, (start.y + end.y) / 2.0);
 		var direction = position.sub(focus).normalize();
 
 		// find dot

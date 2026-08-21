@@ -38,11 +38,14 @@ import {Floor} from '../src/scripts/three/floor.js';
 import {Edge} from '../src/scripts/three/edge.js';
 import {HUD} from '../src/scripts/three/hud.js';
 import {Model} from '../src/scripts/model/model.js';
+import {BlueprintJS} from '../src/scripts/blueprint.js';
+import {Main} from '../src/scripts/three/main.js';
 import {textureCacheStats} from '../src/scripts/three/texture_cache.js';
 import {EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED, EVENT_UPDATED} from '../src/scripts/core/events.js';
 import {watchResources, byType} from './helpers/resources.js';
 import {resetAll, buildSquareRoom, buildSharedWallRooms} from './helpers/harness.js';
-import {installCanvas2D} from './helpers/dom.js';
+import {installCanvas2D, installPointerApis, installResizeObserver, setLayout} from './helpers/dom.js';
+import {createRendererStub} from './helpers/renderer.js';
 
 /**
  * A stand-in for OrbitControls: `Edge` subscribes to two camera events on it and
@@ -220,6 +223,130 @@ describe('the model layer gives back the meshes it builds', () =>
 		const {floorplan} = buildSquareRoom();
 		const room = floorplan.getRooms()[0];
 		expect(() => {room.dispose(); room.dispose();}).not.toThrow();
+	});
+});
+
+/**
+ * A whole mounted design - 2D canvas, 3D viewer, four walls - and a probe on
+ * everything its model owns (RM-020 S-1).
+ */
+function mountBlueprint()
+{
+	installPointerApis(window);
+	installResizeObserver(window);
+	Main.setRendererFactory(() => createRendererStub());
+
+	const host = document.createElement('div');
+	host.innerHTML = '<canvas id="lifecycle-plan"></canvas><div id="lifecycle-viewer"></div>';
+	document.body.appendChild(host);
+	setLayout(host.querySelector('#lifecycle-viewer'), {width: 640, height: 480});
+	setLayout(host.querySelector('#lifecycle-plan'), {width: 600, height: 400});
+
+	const blueprint = new BlueprintJS({
+		floorplannerElement: host.querySelector('#lifecycle-plan'),
+		threeElement: host.querySelector('#lifecycle-viewer'),
+		threeCanvasElement: null,
+		textureDir: 'models/textures/',
+		widget: false,
+	});
+	blueprint.model.scene.setItemLoader(() => {});
+	blueprint.model.loadSerialized(JSON.stringify({
+		floorplan: {
+			corners: {
+				c1: {x: 0, y: 0, elevation: 0}, c2: {x: 400, y: 0, elevation: 0},
+				c3: {x: 400, y: 400, elevation: 0}, c4: {x: 0, y: 400, elevation: 0},
+			},
+			walls: [
+				{corner1: 'c1', corner2: 'c2'}, {corner1: 'c2', corner2: 'c3'},
+				{corner1: 'c3', corner2: 'c4'}, {corner1: 'c4', corner2: 'c1'},
+			],
+			rooms: {}, units: 'cm', version: '2.0.0',
+		},
+		items: [],
+	}));
+
+	const probe = watchResources({
+		floorplan: blueprint.model.floorplan,
+		scene: blueprint.model.scene,
+	});
+	return {blueprint, probe, host};
+}
+
+describe('teardown gives back what the whole design holds', () =>
+{
+	/**
+	 * The outermost boundary, which had no case at all (RM-020 S-1).
+	 *
+	 * Everything above tests a release *inside* a living design: update(),
+	 * reset(), a redraw, one item removed. None of them asked what happens when
+	 * the whole thing is torn down - and that was the one place nothing was
+	 * released, because `BlueprintJS.dispose()` believed the model held no GPU
+	 * resources and left it alone. Measured before the fix: twelve seen, zero
+	 * disposed.
+	 *
+	 * The two halves are asserted separately on purpose. Releasing the meshes is
+	 * the fix; keeping the *data* is the contract the old note was protecting,
+	 * and a fix that emptied the plan to pass the first half would be worse than
+	 * the leak.
+	 */
+	it('BlueprintJS.dispose() releases the meshes the model owns', () =>
+	{
+		const {blueprint, probe} = mountBlueprint();
+		probe.sample();
+		expect(probe.count().seen, 'the plan built hit-test meshes').toBeGreaterThan(0);
+
+		blueprint.dispose();
+
+		probe.sample();
+		const after = probe.count();
+		expect(after.disposed, 'every one of them released').toBe(after.seen);
+	});
+
+	it('and leaves the design serializable, which is why it left it alone before', () =>
+	{
+		const {blueprint} = mountBlueprint();
+		const before = JSON.parse(blueprint.model.exportSerialized());
+
+		blueprint.dispose();
+
+		const after = JSON.parse(blueprint.model.exportSerialized());
+		expect(after.floorplan.corners).toEqual(before.floorplan.corners);
+		expect(after.floorplan.walls).toEqual(before.floorplan.walls);
+		expect(after.floorplan.rooms).toEqual(before.floorplan.rooms);
+		expect(after.items).toEqual(before.items);
+		expect(Object.keys(after.floorplan.corners)).toHaveLength(4);
+	});
+
+	/**
+	 * Found while fixing S-1, and separate from it (RM-020 S-15).
+	 *
+	 * `FloorplannerView.dispose()` disposes the carbon sheet, and
+	 * `CarbonSheet.dispose()` calls `clear()`, which resets every field the save
+	 * format carries. So the teardown-then-save path this suite exists to
+	 * protect silently dropped the underlay - a URL, a placement, a scale and a
+	 * transparency, each set by hand.
+	 *
+	 * Only when there IS one: a sheet nobody configured exports as an empty
+	 * block either way, which is why the case above compares the design rather
+	 * than the whole document.
+	 */
+	it('keeps a configured carbon sheet across teardown', () =>
+	{
+		const {blueprint} = mountBlueprint();
+		const sheet = blueprint.model.floorplan.carbonSheet;
+		expect(sheet, 'the 2D view attached one').toBeTruthy();
+		sheet.url = 'plans/underlay.png';
+		sheet.x = 120;
+		sheet.y = -45;
+		sheet.transparency = 0.4;
+
+		blueprint.dispose();
+
+		const saved = JSON.parse(blueprint.model.exportSerialized()).floorplan.carbonSheet;
+		expect(saved.url).toBe('plans/underlay.png');
+		expect(saved.x).toBe(120);
+		expect(saved.y).toBe(-45);
+		expect(saved.transparency).toBe(0.4);
 	});
 });
 

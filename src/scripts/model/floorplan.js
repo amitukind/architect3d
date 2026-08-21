@@ -59,7 +59,11 @@ export const SAVE_UNITS = 'cm';
  * purpose survives, loose enough that one left behind by a merge or a split does
  * not.
  */
-export const COLLINEAR_SAGITTA_RATIO = 0.002;
+// Module-private since RM-020 S-10: exported, and used by nothing outside
+// this file. `package.json` maps `./source/*` at the module level, so an
+// export is public surface by that route - and this was public surface
+// nobody used and no document named.
+const COLLINEAR_SAGITTA_RATIO = 0.002;
 
 /**
  * Choose how to turn a stored coordinate into centimetres.
@@ -287,6 +291,23 @@ export class Floorplan extends EventDispatcher
 		 * no 2D view to inject one.
 		 */
 		this._carbonSheet = null;
+		/**
+		 * The carbon sheet's settings, kept for export once the sheet is gone
+		 * (RM-020 S-15).
+		 *
+		 * `FloorplannerView.dispose()` disposes the sheet - which is right, it
+		 * holds a decoded image - and `CarbonSheet.dispose()` calls `clear()`,
+		 * which resets all eight of the fields `exportSerialized` writes. So a
+		 * design saved after the 2D view was torn down came back with an empty
+		 * `carbonSheet` block and the underlay silently gone: a URL, a position, a
+		 * size and a transparency somebody had set by hand.
+		 *
+		 * The view snapshots them here on the way out. Export prefers the live
+		 * sheet and falls back to this, so nothing changes while a view is mounted.
+		 *
+		 * @type {?{url: string, transparency: number, x: number, y: number, anchorX: number, anchorY: number, width: number, height: number}}
+		 */
+		this._carbonSheetSettings = null;
 	}
 
 	/**
@@ -336,6 +357,31 @@ export class Floorplan extends EventDispatcher
 	 * @return {?CarbonSheet} reference to the instance of {@link CarbonSheet},
 	 *         or null in widget mode and headless use.
 	 */
+	/**
+	 * Keep the carbon sheet's settings before the sheet itself is disposed
+	 * (RM-020 S-15).
+	 *
+	 * Called by `FloorplannerView.dispose()`, and it has to be called *there*
+	 * rather than when the sheet is attached: a sheet is attached empty when the
+	 * 2D view is built and given its URL, position and scale later, so a snapshot
+	 * taken on the way in would record nothing every time.
+	 *
+	 * @param {CarbonSheet} sheet The sheet, still configured.
+	 * @returns {void}
+	 */
+	retainCarbonSheetSettings(sheet)
+	{
+		if (!sheet || !sheet.url)
+		{
+			return;
+		}
+		this._carbonSheetSettings = {
+			url: sheet.url, transparency: sheet.transparency,
+			x: sheet.x, y: sheet.y, anchorX: sheet.anchorX, anchorY: sheet.anchorY,
+			width: sheet.width, height: sheet.height,
+		};
+	}
+
 	get carbonSheet()
 	{
 		return this._carbonSheet;
@@ -797,6 +843,45 @@ export class Floorplan extends EventDispatcher
 		}
 	}
 
+	/**
+	 * Give back every GPU resource this plan's model objects hold (RM-020 S-1).
+	 *
+	 * A `Room` owns two invisible hit-test meshes and each `HalfEdge` owns one -
+	 * `Room.dispose()`'s own docblock is where the surprise is stated, because a
+	 * model class building GPU resources is not what the architecture used to
+	 * claim. This walks both sets and releases them, and nothing else: the corner,
+	 * wall and room *data* is untouched, so a caller can still serialize the
+	 * design afterwards.
+	 *
+	 * Extracted rather than written: `reset()` and `update(true)` each had this
+	 * exact loop inline, and S-1 needed a third caller at the outermost teardown
+	 * boundary. Both `dispose()` calls are idempotent, so a half edge reachable
+	 * from both a room's edge chain and its wall is released once.
+	 *
+	 * @param {boolean} [resetEdgePointers] Also null each wall's `frontEdge` and
+	 *        `backEdge`. What `update(true)` wants, immediately before it builds
+	 *        replacements; not what a teardown wants, since nothing follows it.
+	 * @returns {void}
+	 */
+	releaseResources(resetEdgePointers)
+	{
+		this.rooms.forEach((room) => {room.dispose();});
+		this.walls.forEach((wall) => {
+			if (wall.frontEdge)
+			{
+				wall.frontEdge.dispose();
+			}
+			if (wall.backEdge)
+			{
+				wall.backEdge.dispose();
+			}
+			if (resetEdgePointers)
+			{
+				wall.resetFrontBack();
+			}
+		});
+	}
+
 	removeWall(wall)
 	{
 		this.dispatchEvent({type: EVENT_DELETED, item: this, deleted: wall, item_type: 'wall'});
@@ -1068,16 +1153,20 @@ export class Floorplan extends EventDispatcher
 
 		floorplans.rooms = this.metaroomsdata;
 
-		if(this.carbonSheet)
+		// The live sheet while there is one, the snapshot the 2D view left behind
+		// otherwise (RM-020 S-15). Tearing the view down must not delete the
+		// underlay from the next save.
+		var sheet = this.carbonSheet || this._carbonSheetSettings;
+		if(sheet)
 		{
-			floorplans.carbonSheet['url'] = this.carbonSheet.url;
-			floorplans.carbonSheet['transparency'] = this.carbonSheet.transparency;
-			floorplans.carbonSheet['x'] = this.carbonSheet.x;
-			floorplans.carbonSheet['y'] = this.carbonSheet.y;
-			floorplans.carbonSheet['anchorX'] = this.carbonSheet.anchorX;
-			floorplans.carbonSheet['anchorY'] = this.carbonSheet.anchorY;
-			floorplans.carbonSheet['width'] = this.carbonSheet.width;
-			floorplans.carbonSheet['height'] = this.carbonSheet.height;
+			floorplans.carbonSheet['url'] = sheet.url;
+			floorplans.carbonSheet['transparency'] = sheet.transparency;
+			floorplans.carbonSheet['x'] = sheet.x;
+			floorplans.carbonSheet['y'] = sheet.y;
+			floorplans.carbonSheet['anchorX'] = sheet.anchorX;
+			floorplans.carbonSheet['anchorY'] = sheet.anchorY;
+			floorplans.carbonSheet['width'] = sheet.width;
+			floorplans.carbonSheet['height'] = sheet.height;
 		}
 
 		// Additive, and written only when there is something to write (RM-008 E3,
@@ -1868,17 +1957,7 @@ export class Floorplan extends EventDispatcher
 		// always a live set at this point, and clearing the arrays is the moment it
 		// stops being reachable. This is a teardown boundary, and reset() is the
 		// first thing loadFloorplan() calls, so it is on the load path too.
-		this.rooms.forEach((room) => {room.dispose();});
-		this.walls.forEach((wall) => {
-			if (wall.frontEdge)
-			{
-				wall.frontEdge.dispose();
-			}
-			if (wall.backEdge)
-			{
-				wall.backEdge.dispose();
-			}
-		});
+		this.releaseResources();
 		this.rooms = [];
 		this.corners = [];
 		this.walls = [];
@@ -2141,18 +2220,7 @@ export class Floorplan extends EventDispatcher
 		//
 		// Both dispose() calls are idempotent, so a half edge reachable from both a
 		// room's edge chain and its wall is disposed once.
-		this.rooms.forEach((room) => {room.dispose();});
-		this.walls.forEach((wall) => {
-			if (wall.frontEdge)
-			{
-				wall.frontEdge.dispose();
-			}
-			if (wall.backEdge)
-			{
-				wall.backEdge.dispose();
-			}
-			wall.resetFrontBack();
-		});
+		this.releaseResources(true);
 
 
 		var roomCorners = this.findRooms(this.corners);

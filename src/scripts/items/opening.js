@@ -76,10 +76,6 @@ const FRAME_WIDTH = 5;
 const LEAF_THICKNESS = 4;
 /** How thick the glazing is. Thin, but not zero: a zero-thickness box has no faces. */
 const PANE_THICKNESS = 0.6;
-
-/** The material slots a generated opening uses, in the order the groups name them. */
-export const OPENING_MATERIALS = Object.freeze(['frame', 'leaf', 'glass']);
-
 /**
  * @typedef {Object} Opening
  * @property {string} kind One of {@link OPENING_KINDS}.
@@ -206,17 +202,6 @@ export function clampOpening(opening, wallHeight)
 		height: Math.max(1, wallHeight - sill),
 	});
 }
-
-/**
- * Whether this opening is drawn with a leaf that swings.
- * @param {Opening} opening
- * @returns {boolean}
- */
-export function opensOnAHinge(opening)
-{
-	return opening.kind === OPENING_DOOR && opening.swing > 0;
-}
-
 /**
  * The box builder `buildOpeningGeometry` runs on lives in `solid_builder.js`.
  *

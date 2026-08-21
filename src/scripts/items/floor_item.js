@@ -1,5 +1,4 @@
 // @ts-check
-import {Vector2} from 'three';
 import {Item} from './item.js';
 import {Utils} from '../core/utils.js';
 import {Configuration, collisionWarnings} from '../core/configuration.js';
@@ -40,7 +39,10 @@ export class FloorItem extends Item
 	moveToPosition(vec3)
 	{
 		// keeps the position in the room and on the floor
-		if (!this.isValidPosition(vec3))
+		// No argument since RM-020 S-11: neither this class's override nor the
+		// base reads one, and passing a position to a predicate that ignores it
+		// is how the override kept looking like it did something.
+		if (!this.isValidPosition())
 		{
 			this.showError(vec3);
 			return;
@@ -128,41 +130,32 @@ export class FloorItem extends Item
 		return false;
 	}
 
-	/** */
-	isValidPosition(vec3)
+	/**
+	 * Whether this item may sit at `vec3`. Always yes - deliberately.
+	 *
+	 * ## Why it is a constant, and why it stopped pretending otherwise
+	 *
+	 * A floor item may be placed anywhere: *"It is upto the user to place it
+	 * anywhere he/she wants"* is the original comment, and it is still the
+	 * policy. Obstruction between two items is a separate question, answered by
+	 * `overlapsAnotherItem()` through `Utils.polygonsOverlap` (RM-012 J4).
+	 *
+	 * What used to be here reached that answer by accident (RM-020 S-11): a loop
+	 * over every room, allocating a `Vector2` per room, asking
+	 * `Utils.pointInPolygon` - which is one of the four predicates pinned
+	 * constant-false in `core/utils.js` and can never say yes. So `isInARoom`
+	 * could not become true, the `if (!isInARoom)` below it always returned true,
+	 * and the block after that had been commented out since before the migration.
+	 * The work was real; the branch was not.
+	 *
+	 * Kept as a method rather than deleted: `Item.isValidPosition` is the base
+	 * this overrides, `FloorItem.moveToPosition` gates on it, and a subclass with
+	 * a genuine constraint is the obvious next thing to want.
+	 *
+	 * @returns {boolean} Always true.
+	 */
+	isValidPosition()
 	{
-		var corners = this.getCorners('x', 'z', vec3);
-		// check if we are in a room
-		var rooms = this.floorplan.getRooms();
-		var isInARoom = false;
-		for (var i = 0; i < rooms.length; i++)
-		{
-			if (Utils.pointInPolygon(new Vector2(vec3.x, vec3.z), rooms[i].interiorCorners) && !Utils.polygonPolygonIntersect(corners, rooms[i].interiorCorners))
-			{
-				isInARoom = true;
-			}
-		}
-		if (!isInARoom)
-		{
-			//We do not want to check if the object is in room or not
-			//It is upto the user to place it anywhere he/she wants however
-			return true;
-		}
-
-		// check if we are outside all other objects
-		/*
-      if (this.obstructFloorMoves) {
-          var objects = this.model.items.getItems();
-          for (var i = 0; i < objects.length; i++) {
-              if (objects[i] === this || !objects[i].obstructFloorMoves) {
-                  continue;
-              }
-              if (!utils.polygonOutsidePolygon(corners, objects[i].getCorners('x', 'z')) ||
-                  utils.polygonPolygonIntersect(corners, objects[i].getCorners('x', 'z'))) {
-                  return false;
-              }
-          }
-      }*/
 		return true;
 	}
 }

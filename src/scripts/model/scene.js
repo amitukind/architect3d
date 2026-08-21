@@ -341,6 +341,40 @@ export class Scene extends EventDispatcher
 	}
 
 	/**
+	 * Give every item's GPU resources back without forgetting the items
+	 * (RM-020 S-1).
+	 *
+	 * `clearItems()` does the disposal half and then empties each level's list,
+	 * which is right when a document is being replaced and wrong at teardown:
+	 * `BlueprintJS.dispose()` promises the design stays serializable afterwards,
+	 * and a level with no items serializes as a level with no items.
+	 *
+	 * So this is `clearItems()` without the forgetting. Each item's meshes,
+	 * textures and label canvases go back through `removeItem(item, true)` - the
+	 * same path a single removal takes - and the records stay where they are.
+	 * What is left behind is data, which is what the teardown contract says the
+	 * model is.
+	 *
+	 * @returns {void}
+	 */
+	releaseItemResources()
+	{
+		var scope = this;
+		this.allItems().forEach((item) => {
+			// Anything in the list that is not an `Item` is skipped rather than
+			// thrown over. This is the last code that runs before a document is
+			// dropped: a throw here does not surface a problem, it abandons
+			// everything after it - and what comes after it is the rest of the
+			// release. `clearItems()` deliberately does not guard, because there a
+			// malformed item is a live-document bug worth hearing about.
+			if (item && typeof item.removed === 'function')
+			{
+				scope.removeItem(item, true);
+			}
+		});
+	}
+
+	/**
 	 * Removes an item.
 	 * @param item The item to be removed.
 	 * @param {boolean} [keepInList] If not set, also remove the item from the

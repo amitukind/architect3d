@@ -111,7 +111,6 @@
 		"@vitest/browser-playwright": "^4.1.10",
 		"@vitest/coverage-v8": "^4.1.10",
 		"@vue/test-utils": "^2.4.11",
-		"@vueuse/core": "^14.4.0",
 		"axe-core": "^4.13.0",
 		"bezier-js": "^6.1.4",
 		"draco3dgltf": "^1.5.7",
@@ -133,7 +132,7 @@
 		"vitepress": "^1.6.4",
 		"vitest": "^4.1.10",
 		"vue": "^3.5.41",
-		"vue-tsc": "^3.3.9"
+		"vue-tsc": "^3.3.11"
 	},
 	"peerDependencies": {
 		"bezier-js": "^6.1.4",

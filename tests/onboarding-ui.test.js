@@ -11,13 +11,15 @@
  * person is most likely to be lost.
  */
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
-import {h, nextTick} from 'vue';
+import {h, nextTick, ref} from 'vue';
 import {mount} from '@vue/test-utils';
 import {TooltipProvider} from 'reka-ui';
 
 import TourGuide from '../src/app/components/TourGuide.vue';
 import CatalogDrawer from '../src/app/components/CatalogDrawer.vue';
 import PlanOverlay from '../src/app/components/PlanOverlay.vue';
+import {ZOOM_2D_KEY} from '../src/app/composables/useZoom2D.js';
+import {PLAN_STATS_KEY} from '../src/app/composables/usePlanStats.js';
 import {TOUR_STEPS} from '../src/app/tour/steps.js';
 import {floorplannerModes} from '../src/scripts/floorplanner/floorplanner_view.js';
 import {noteUsed} from '../src/app/composables/useCatalogBrowse.js';
@@ -86,10 +88,11 @@ afterEach(() =>
  * `AppTip` is a Reka tooltip and wants a provider, which `App.vue` supplies once
  * around the whole shell. A component mounted on its own needs one too.
  */
-function inProvider(component, props)
+function inProvider(component, props, provide)
 {
 	return mount(TooltipProvider, {
 		attachTo: document.body,
+		global: provide ? {provide} : {},
 		slots: {default: () => h(component, props)},
 	});
 }
@@ -242,10 +245,21 @@ describe('an empty plan', () =>
 {
 	async function overlay(walls)
 	{
+		// Zoom and the plan counts are injected since RM-020 S-5, so a component
+		// mounted on its own supplies them the way the shell does. Only the two
+		// values this case is about need to be real; the rest is the shape
+		// `PlanOverlay` reads.
 		const mounted = inProvider(PlanOverlay, {
-			zoomPercent: 100, snap: false, spacing: 25,
-			spacings: [{value: 25, label: '25'}],
-			mode: floorplannerModes.MOVE, walls, unit: 'm',
+			mode: floorplannerModes.MOVE, unit: 'm',
+		}, {
+			[ZOOM_2D_KEY]: {
+				percent: ref(100), canZoomIn: ref(true), canZoomOut: ref(true),
+				snap: ref(false), spacing: ref(25),
+				gridSpacings: [{value: 25, label: '25'}],
+				zoomIn() {}, zoomOut() {}, zoomToFit() {}, resetZoom() {},
+				centre() {}, setSnap() {}, setSpacing() {},
+			},
+			[PLAN_STATS_KEY]: {walls: ref(walls)},
 		});
 		await nextTick();
 		return mounted;
