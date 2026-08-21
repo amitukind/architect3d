@@ -68,7 +68,18 @@ strong{font-weight:650}
 /* ————— page frame ————— */
 .frame{max-width:1240px; margin:0 auto; padding:0 24px 80px}
 .layout{display:grid; grid-template-columns:1fr; gap:0}
-nav.toc{display:none; position:sticky; top:24px; align-self:start; padding-top:36px}
+/* The index is 81 links across 18 programmes and about 2,900px tall - three
+   times a laptop viewport. Sticky alone pins it at the top and simply clips
+   the rest, so everything from programme F down was unreachable. It gets its
+   own bounded height and its own scrollbar; `overscroll-behavior` stops a
+   wheel at either end from scrolling the page underneath it. */
+nav.toc{display:none; position:sticky; top:24px; align-self:start; padding-top:36px;
+  max-height:calc(100dvh - 48px); overflow-y:auto; overscroll-behavior:contain;
+  padding-right:10px; scrollbar-width:thin; scrollbar-color:var(--line) transparent}
+nav.toc::-webkit-scrollbar{width:8px}
+nav.toc::-webkit-scrollbar-track{background:transparent}
+nav.toc::-webkit-scrollbar-thumb{background:var(--line); border-radius:4px}
+nav.toc:hover::-webkit-scrollbar-thumb{background:var(--muted)}
 @media(min-width:1180px){
   .layout{grid-template-columns:210px minmax(0,1fr); gap:40px}
   nav.toc{display:block}
