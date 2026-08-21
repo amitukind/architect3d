@@ -423,13 +423,21 @@ footer a{color:var(--accent)}
 <section id="open">
   <div class="sec-k mono">&sect; 06</div>
   <h2>What is open</h2>
-  <p class="sub">Two items. Neither <em>decision</em> is engineering work, and both are stated plainly rather than being allowed to look done. What is engineering work is making sure the decision is taken against real numbers, and on the second item it had not been &mdash; see AC-5 below.</p>
+  <p class="sub">Two items. Neither <em>decision</em> is engineering work, and both are stated plainly rather than being allowed to look done. Both have now been answered rather than left to drift: <strong>M-51 is deferred on purpose, with a date</strong>, and <strong>AC-5&rsquo;s numbers were re-derived</strong> after both of the figures it published turned out to be wrong. Making sure a decision is taken against real numbers is the part that <em>is</em> engineering work, and on the second item it had not been done.</p>
 
   <div class="grid2">
     <div class="card">
       <h3 class="card-h">Nobody has opened it <span class="tag crit">M-51</span></h3>
-      <p>This application has never been used by anybody who is not holding this repository. There is no hosting account, so the deploy workflow, its checks and its Lighthouse floor are all built and waiting on a credential.</p>
-      <p><strong>Every claim here about a deployed product is a projection.</strong> Eight drawings have said so in the same words.</p>
+      <p>This application has never been used by anybody who is not holding this repository. There is no hosting account, so <code>deploy.yml</code> and <code>publish.yml</code> are built and waiting on two Cloudflare secrets.</p>
+      <p><strong>DEFERRED ON PURPOSE, 2026-08-21.</strong> Asked and answered rather than left drifting: hosting waits until somebody actually needs to open the thing. Nothing in the tree is blocked by it, it is not engineering work &mdash; an account and two secrets &mdash; and the first deploy is what answers the three questions below, so answering them earlier buys nothing while there are no users. This is a decision with a date on it, not an item nobody got to.</p>
+      <p><strong>And the sentence above used to overstate it.</strong> For eight drawings this card said the deploy workflow, its checks <em>and its Lighthouse floor</em> were all waiting on a credential. The floor is not waiting: <code>lighthouse:check</code> is <strong>gate eighteen</strong> and it runs on every CI run, against the assembled tree served over HTTP from localhost &mdash; byte-for-byte what would be uploaded. <code>deploy:check</code> gates there too, on the same tree. What the deploy job adds is the same analysis pointed at the published URL, and that one was deliberately built to <em>report without gating</em>. So the bar is already applied to the exact bytes; it is a lab measurement rather than a field one.</p>
+      <p><strong>What is genuinely unverified</strong>, and what the first deploy is for:</p>
+      <ul>
+        <li><strong>Response headers.</strong> Every budget line here is a gzipped figure, and no host has ever confirmed it serves gzip or brotli with the cache headers those numbers assume. The cheapest thing a first deploy would falsify.</li>
+        <li><strong>The service worker on a real origin.</strong> <code>offline:check</code> is the strongest of the seventeen hand-run checks and is <em>not</em> in CI; it uses a local server and Playwright&rsquo;s <code>setOffline</code>. Real HTTPS, a real scope and a real update cycle are untested.</li>
+        <li><strong>That anybody can use it.</strong> A product risk rather than an engineering one, and the only one on this page that no amount of local measurement can retire.</li>
+      </ul>
+      <p><strong>Claims about a deployed product are still projections</strong> &mdash; but the set is smaller than eight drawings have said, and it is now the three lines above rather than everything.</p>
     </div>
     <div class="card">
       <h3 class="card-h">How large the catalog should be <span class="tag acc">for the owner</span></h3>
