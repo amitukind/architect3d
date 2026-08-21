@@ -145,6 +145,22 @@ export class Floorplan3D extends EventDispatcher
 	/**
 	 * React to a change by doing as little as it allows.
 	 *
+	 * ## Asking for a frame
+	 *
+	 * Every branch that touches the scene sets `scene.needsUpdate`, which is the
+	 * only thing `Main.shouldRender()` will accept as a reason to draw. That was
+	 * missing until RM-019 R1, and it was missing invisibly: before A2 this class
+	 * shared `EVENT_UPDATED` with `Main.centerCamera()`, which ends in
+	 * `controls.update()`, which fires `change`, which sets the *controls*' flag -
+	 * so every rebuild was followed by a frame drawn for the camera's sake. A2
+	 * stopped recentring the camera on a drag, correctly, and the repaint went
+	 * with it. Nothing in tier 2 caught it because every test there renders with
+	 * `render(true)`, which bypasses the question entirely.
+	 *
+	 * Measured: a corner drag produced zero writes to `scene.needsUpdate`, and
+	 * the 3D pane held its last frame until something unrelated - a texture
+	 * finishing, a resize, a pointer over the viewer - asked for one.
+	 *
 	 * A ChangeSet that carries both kinds - `update(true, corners)`, which the
 	 * load path produces - takes the topology branch alone: reconciliation
 	 * rebuilds from current model state, so redrawing the moved corners' faces
@@ -164,20 +180,25 @@ export class Floorplan3D extends EventDispatcher
 			// cannot tell what", and the safe reaction is the old one.
 			this._stats.full += 1;
 			this.redraw();
+			this.scene.needsUpdate = true;
 			return;
 		}
 		if (changes.has(CHANGE_TOPOLOGY))
 		{
 			this._stats.topology += 1;
 			this.reconcile();
+			this.scene.needsUpdate = true;
 			return;
 		}
 		if (changes.has(CHANGE_GEOMETRY))
 		{
 			this._stats.geometry += 1;
 			this.refresh(changes.entities(CHANGE_GEOMETRY));
+			this.scene.needsUpdate = true;
 			return;
 		}
+		// Not `needsUpdate`: an ignored change altered nothing here, and drawing a
+		// frame to show the same picture is the cost the contract exists to avoid.
 		this._stats.ignored += 1;
 	}
 
@@ -270,14 +291,22 @@ export class Floorplan3D extends EventDispatcher
 	 * recomputed. Every affected face therefore touches a corner in the list, and
 	 * a face two walls away - whose prev, self and next all sit still - does not.
 	 *
-	 * Floors follow the rooms attached to those corners. Note what that redraws
-	 * and what it does not: `Floor.buildRoofVaryingHeight()` reads
-	 * `room.corners` live, so the roof follows the drag, while `buildFloor()`
-	 * reads `room.interiorCorners`, which nothing recomputes on a geometry change.
-	 * The floor polygon therefore comes back identical - which is exactly what
-	 * `redraw()` produced too, because a rebuilt Floor reads the same stale array.
-	 * Reproducing that is the point; a floor that started tracking the drag would
-	 * be a visual change, and A2 promises none.
+	 * Floors follow the rooms attached to those corners, and since RM-019 R1 they
+	 * follow them all the way. `Floor.buildRoofVaryingHeight()` reads
+	 * `room.corners` live and always tracked the drag; `buildFloor()` reads
+	 * `room.interiorCorners`, and what A2 recorded here was that nothing
+	 * recomputed that on a geometry change - so the floor polygon came back
+	 * identical, exactly as `redraw()` produced it, because a rebuilt Floor read
+	 * the same stale array. A2 reproduced that deliberately, on the grounds that
+	 * a floor which started tracking the drag would be a visual change A2 had
+	 * promised not to make.
+	 *
+	 * It was a defect in the model rather than a property of either path, and it
+	 * outlived the sprint that documented it. `Floorplan.update(false, corners)`
+	 * now re-derives the rooms those corners belong to before announcing the
+	 * change, so `interiorCorners` is current by the time this runs and the floor
+	 * tracks the drag. See `Floorplan._refreshRoomGeometry` for what that costs
+	 * and why the scope of the two is the same set of rooms.
 	 *
 	 * @param {Array<Object>} corners
 	 */

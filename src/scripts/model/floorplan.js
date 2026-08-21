@@ -1954,6 +1954,101 @@ export class Floorplan extends EventDispatcher
 	}
 
 	/**
+	 * Re-derive the rooms a moved corner belongs to (RM-019 R1).
+	 *
+	 * ## The defect this closes
+	 *
+	 * A `Room` derives two things from its corners at construction and never
+	 * again: `interiorCorners`, the mitred interior polygon, and `area`, which is
+	 * `interiorArea()` over that polygon. Both were built in the constructor and
+	 * the only thing that rebuilt them was `update(true)`, which throws every
+	 * Room away and constructs new ones.
+	 *
+	 * A corner drag takes the other branch. So dragging a corner moved the walls
+	 * and left every room-derived quantity exactly as it was:
+	 *
+	 *   - the area on the plan (`Room.area` is `interiorArea()`, and
+	 *     `Corner.updateAttachedRooms()` dutifully called `updateArea()` on every
+	 *     step - over the stale polygon, so it recomputed the same number);
+	 *   - the 3D floor, which `Floor.buildFloor()` builds from `interiorCorners`;
+	 *   - the ceiling, and the half edges' hit-test planes.
+	 *
+	 * Measured on a square room dragged ten steps: the reported area stayed at
+	 * 113,100 cm2 where the shape was 88,739, and 12 of the 21 meshes in the
+	 * scene differed from what a rebuild produced. Switching to the 3D pane calls
+	 * `Floorplan.update()` through `useCameraViews.showDesign()`, which is why the
+	 * view corrected itself the moment somebody looked at it - and why this went
+	 * unreported for as long as the 2D and 3D panes were a card flip rather than
+	 * a split view.
+	 *
+	 * Note this is older than RM-003 A2. A2's incremental projection reproduced
+	 * the stale floor deliberately and said so, because the full `redraw()` it
+	 * replaced read the same stale array; both paths were faithful to a model
+	 * that had not been asked to keep up.
+	 *
+	 * ## Why it is bounded
+	 *
+	 * The affected set is the rooms attached to the corners that moved - the same
+	 * set `Floorplan3D.refresh()` uses to decide which floors to redraw, so the
+	 * model and its projection agree on the scope by construction. A drag touches
+	 * one or two rooms; this is not `update(true)` under another name, and there
+	 * is deliberately no room-count guard of the kind `Corner.move()` carries. A
+	 * guard would restore the bug on exactly the large plans where a rebuild is
+	 * least affordable.
+	 *
+	 * Measured over 300 `Corner.move()` calls with a live `Floorplan3D` attached,
+	 * milliseconds per step, before this line and after it:
+	 *
+	 *   square, 4 walls, 1 room        0.350 -> 0.355
+	 *   L-shape, 6 walls, 1 room       0.287 -> 0.298
+	 *   two rooms sharing a wall       0.343 -> 0.369
+	 *
+	 * The worst of those is 26 microseconds on a 16.7 ms frame. The expensive
+	 * part is `generatePlane()`, which triangulates a `ShapeGeometry`, and it is
+	 * paid once per affected room rather than once per room in the plan.
+	 *
+	 * ## The area is measured twice per step, on purpose
+	 *
+	 * `Corner.move()` calls `updateAttachedRooms(true)` inside its batch, which
+	 * measures whichever polygon exists at the time - the old one, since this
+	 * runs when the batch closes. Rather than reach into a public method two
+	 * other callers use, the measurement is simply taken again here over the
+	 * rebuilt polygon, and that is the one that lands. Both are a shoelace over a
+	 * handful of points. Removing the earlier call is a tidy-up for a sprint that
+	 * is not also fixing a defect.
+	 *
+	 * @param {?Corner[]} corners The corners the caller knew had moved.
+	 * @returns {void}
+	 */
+	_refreshRoomGeometry(corners)
+	{
+		if (!corners || !corners.length)
+		{
+			return;
+		}
+		var affected = new Set();
+		corners.forEach(function (corner)
+		{
+			(corner.attachedRooms || []).forEach(function (room) {affected.add(room);});
+		});
+		affected.forEach(function (room)
+		{
+			// The constructor's order, for the same reason it has one: the polygon
+			// feeds the floor plane, and `area` measures the polygon.
+			room.updateInteriorCorners();
+			// The two hit-test planes, which decide where a click on the floor or
+			// the ceiling lands and where a wall item may sit. Invisible, so a stale
+			// pair costs nothing to look at and means clicking the part of the floor
+			// a drag just added selects nothing. Safe to replace mid-drag only
+			// because `Floor` gives back the planes it borrowed rather than
+			// whichever pair the room holds at the time (RM-019 R1).
+			room.generatePlane();
+			room.generateRoofPlane();
+			room.updateArea();
+		});
+	}
+
+	/**
 	 * @param {boolean} [updateroomconfiguration] Re-derive the rooms. A topology
 	 * change; false is a geometry change.
 	 * @param {?Corner[]} [updatecorners] The corners whose angles moved.
@@ -1997,6 +2092,14 @@ export class Floorplan extends EventDispatcher
 			// scene (RM-003 A2). The corner list is the payload because the corners
 			// are what the caller knew had moved - see newCorner()'s EVENT_MOVED
 			// listener, which passes the corner and its neighbours.
+			//
+			// The rooms those corners belong to are re-derived first (RM-019 R1).
+			// Without that line this branch recomputed the corners' own angles and
+			// nothing else, and every quantity derived from a room stayed at its
+			// pre-drag value until something called `update(true)` - which is a
+			// rebuild, and which the application only performs when the 3D pane is
+			// switched to. See `_refreshRoomGeometry`.
+			this._refreshRoomGeometry(updatecorners);
 			this._emitChanges(new ChangeSet(effectiveReason).add(CHANGE_GEOMETRY, updatecorners));
 			return;
 		}

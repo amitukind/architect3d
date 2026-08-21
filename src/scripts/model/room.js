@@ -650,6 +650,26 @@ export class Room extends EventDispatcher
 		return shape;
 	}
 
+	/**
+	 * Derive the mitred interior polygon, and the half edges' hit-test planes.
+	 *
+	 * ## Why this is re-runnable, and was not
+	 *
+	 * Until RM-019 R1 this was called exactly once, from the constructor, and it
+	 * pushed onto an array the constructor had just initialised - so it read as
+	 * correct and was, for its one caller. `Floorplan.update(false, corners)` now
+	 * calls it again on the rooms a moved corner touches, and a second pass that
+	 * appended would have doubled the polygon rather than replaced it. Hence the
+	 * reset.
+	 *
+	 * `HalfEdge.generatePlane()` disposes the plane it replaces (RM-003 A0), and
+	 * nothing puts those planes into the 3D scene - `Edge.removeFromScene()`
+	 * records that `phantomPlanes` is empty - so calling this per drag step
+	 * neither leaks nor strands a mesh. That is *not* true of `generatePlane()`
+	 * and `generateRoofPlane()` on this class: `Floor.addToScene()` borrows both
+	 * of those, so regenerating them out from under it would leave the disposed
+	 * originals in the scene. They stay where they are, on the rebuild path.
+	 */
 	updateInteriorCorners()
 	{
 		// See setRoomWallsTexture: null only for a cornerless room.
@@ -658,6 +678,8 @@ export class Room extends EventDispatcher
 		{
 			return;
 		}
+		// Replaced, not extended - see the docblock.
+		this.interiorCorners = [];
 		var iterateWhile = true;
 		while (iterateWhile)
 		{

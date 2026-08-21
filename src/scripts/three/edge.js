@@ -217,12 +217,22 @@ export class Edge extends EventDispatcher
 		this.addToScene();
 	}
 
+	/**
+	 * Rebuild this wall face's meshes and ask for a frame (RM-019 R1).
+	 *
+	 * The frame is the half that was missing. `updateTexture()` requests one from
+	 * its load callback, so a face whose picture was still arriving repainted and
+	 * a face whose textures were already cached did not - which made the bug look
+	 * intermittent. Rebuilding the meshes is itself a reason to draw, whatever
+	 * the texture cache is doing.
+	 */
 	redraw()
 	{
 		this.removeFromScene();
 		this.updateTexture();
 		this.updatePlanes();
 		this.addToScene();
+		this.scene.needsUpdate = true;
 	}
 
 	/**

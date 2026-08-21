@@ -840,3 +840,154 @@ describe('removing a corner updates the plan, like removing a wall always did', 
 		expect(floorplan.getCorners().every((corner) => corner !== removed)).toBe(true);
 	});
 });
+
+/**
+ * The model keeps up with the drag, and the viewer is told (RM-019 R1).
+ *
+ * ## What was wrong, and why nothing above saw it
+ *
+ * A `Room` derives its interior polygon once, in its constructor, and its
+ * `area` is measured over that polygon. Nothing rebuilt either on a geometry
+ * change - `update(false, corners)` refreshed the moved corners' angles and
+ * returned - so dragging a corner moved the walls and left the floor, the
+ * ceiling, the two hit-test planes and the number on the plan exactly as they
+ * were. `update(true)` rebuilds every Room, and the application performs one
+ * when the 3D pane is switched to, which is why the view corrected itself the
+ * moment somebody looked at it.
+ *
+ * `comparePaths` above cannot catch this and never could. It compares the
+ * incremental path against a full `redraw()` **of the same model**, and both
+ * read the same stale array - which is what the docblock on
+ * `Floorplan3D.refresh()` said in as many words: "which is exactly what
+ * `redraw()` produced too". The oracle that was missing is not another view of
+ * the model, it is the model re-derived.
+ *
+ * ## The second half
+ *
+ * `Main.shouldRender()` draws a frame when something sets a dirty flag, and the
+ * projection set none. Until RM-003 A2 that did not show, because this class
+ * shared `EVENT_UPDATED` with `Main.centerCamera()` and the camera's own
+ * `controls.update()` requested the frame; A2 stopped recentring on a drag and
+ * the repaint went with it. Every test in tier 2 renders with `render(true)`,
+ * which is why the whole tier stayed green while the 3D pane held its last
+ * frame. Asserted here as a contract on the projection rather than on a frame.
+ */
+describe('the model keeps up with the drag', () =>
+{
+	/** Where the plan says the interior polygon is, rounded so float noise is not the subject. */
+	function interior(room)
+	{
+		return room.interiorCorners.map((corner) =>
+			`${Math.round(corner.x)},${Math.round(corner.y)}`).join(' ');
+	}
+
+	const designs = {
+		'a square room': buildSquareRoom,
+		'an L-shaped room': buildLShapedRoom,
+		'two rooms sharing a wall': buildSharedWallRooms,
+	};
+
+	Object.entries(designs).forEach(([label, build]) =>
+	{
+		it(`leaves ${label} drawn as a rebuild would draw it`, () =>
+		{
+			const {floorplan, corners} = build();
+			const projection = new Floorplan3D(scene, floorplan, controls);
+			projection.redraw();
+
+			const corner = corners[0];
+			for (let step = 0; step < 10; step += 1)
+			{
+				corner.move(corner.x + 8, corner.y + 4);
+			}
+			const afterDrag = describeScene(scene);
+
+			// What switching to the 3D pane does, through useCameraViews.showDesign().
+			floorplan.update();
+
+			expect(describeScene(scene)).toEqual(afterDrag);
+			// Not vacuous: the drag has to have changed the scene in the first place.
+			expect(projection.projectionStats().geometry).toBe(10);
+			expect(projection.projectionStats().full).toBe(0);
+			projection.dispose();
+		});
+	});
+
+	it('re-derives the area and the interior polygon on every step, not on the rebuild', () =>
+	{
+		const {floorplan, corners} = buildSquareRoom();
+		const room = floorplan.getRooms()[0];
+		const areaBefore = room.area;
+		const interiorBefore = interior(room);
+
+		corners[0].move(corners[0].x + 80, corners[0].y + 40);
+
+		const areaAfterDrag = room.area;
+		const interiorAfterDrag = interior(room);
+		expect(areaAfterDrag).not.toBe(areaBefore);
+		expect(interiorAfterDrag).not.toBe(interiorBefore);
+
+		// And the rebuild agrees, which is the half that says the drag was right
+		// rather than merely different.
+		floorplan.update();
+		expect(floorplan.getRooms()[0].area).toBeCloseTo(areaAfterDrag, 6);
+		expect(interior(floorplan.getRooms()[0])).toBe(interiorAfterDrag);
+	});
+
+	it('moves the hit-test planes with the room, and strands none of them', () =>
+	{
+		const {floorplan, corners} = buildSquareRoom();
+		const projection = new Floorplan3D(scene, floorplan, controls);
+		projection.redraw();
+		const meshesBefore = meshCount(scene);
+		const room = floorplan.getRooms()[0];
+		const planeBefore = room.floorPlane;
+
+		for (let step = 0; step < 30; step += 1)
+		{
+			corners[0].move(corners[0].x + 2, corners[0].y + 1);
+		}
+
+		expect(room.floorPlane, 'the picking plane is rebuilt').not.toBe(planeBefore);
+		expect(scene.children).toContain(room.floorPlane);
+		expect(scene.children).not.toContain(planeBefore);
+		// Thirty rebuilds of a borrowed mesh, and the scene is the size it was.
+		expect(meshCount(scene)).toBe(meshesBefore);
+		projection.dispose();
+	});
+
+	it('asks for a frame when it changes the scene, and not when it does not', () =>
+	{
+		const {floorplan, corners} = buildSquareRoom();
+		let asked = 0;
+		let flag = false;
+		const facade = {
+			add: (mesh) => scene.add(mesh),
+			remove: (mesh) => scene.remove(mesh),
+			get needsUpdate() {return flag;},
+			set needsUpdate(value) {flag = value; if (value) {asked += 1;}},
+		};
+		const projection = new Floorplan3D(facade, floorplan, controls);
+		projection.redraw();
+
+		asked = 0;
+		corners[0].move(corners[0].x + 20, corners[0].y + 10);
+		expect(asked, 'a geometry change').toBeGreaterThan(0);
+
+		asked = 0;
+		floorplan.update();
+		expect(asked, 'a topology change').toBeGreaterThan(0);
+
+		// A ChangeSet naming a kind this class does not project changes nothing
+		// here, so it must not cost a frame - that is what the contract is for.
+		asked = 0;
+		floorplan.dispatchEvent({
+			type: EVENT_CHANGESET,
+			item: floorplan,
+			changes: new ChangeSet(REASON_EDIT).add(CHANGE_SURFACE, []),
+		});
+		expect(asked, 'a change this projection ignores').toBe(0);
+		expect(projection.projectionStats().ignored).toBe(1);
+		projection.dispose();
+	});
+});

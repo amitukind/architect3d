@@ -364,10 +364,18 @@ describe('Room area recomputation when a corner moves', () => {
 		expect(floorplan.getRooms()[0].centrelineArea).toBe(180000);
 	});
 
-	it('skips the in-place area refresh once the plan holds ten or more rooms', () => {
-		// Preserved quirk: Corner.move only calls updateAttachedRooms when
-		// `this.floorplan.rooms.length < 10`. At ten rooms the area silently goes
-		// stale until someone calls Floorplan.update().
+	it('refreshes the area on a move however many rooms the plan holds', () => {
+		// This pinned a quirk until RM-019 R1: `Corner.move` only calls
+		// `updateAttachedRooms` when `this.floorplan.rooms.length < 10`, so at ten
+		// rooms the area went stale until someone called `Floorplan.update()`.
+		//
+		// That guard is still in `Corner.move` and still does nothing here. What
+		// changed is that the refresh no longer depends on it: the geometry branch
+		// of `Floorplan.update()` re-derives the rooms the moved corners belong to,
+		// and its scope is those rooms rather than the plan, so there is nothing
+		// for a plan-size guard to protect. Keeping the old behaviour would have
+		// meant fixing the stale-3D bug on small plans and leaving it on large
+		// ones, which is where a rebuild is least affordable.
 		const floorplan = new Floorplan();
 		const movable = [];
 		for (let k = 0; k < 10; k++)
@@ -385,8 +393,9 @@ describe('Room area recomputation when a corner moves', () => {
 		expect(room.centrelineArea).toBe(40000);
 
 		movable[0].move(400, 0);
-		expect(room.centrelineArea).toBe(40000);
+		expect(room.centrelineArea, 'refreshed in place, at ten rooms').toBe(60000);
 
+		// And a full update agrees with what the in-place refresh produced.
 		floorplan.update();
 		expect(floorplan.getRooms()[0].centrelineArea).toBe(60000);
 	});
@@ -470,15 +479,21 @@ describe('Interior corners (wall-thickness offsets)', () => {
 		});
 	});
 
-	it('appends instead of resetting when updateInteriorCorners is called again', () => {
-		// Preserved quirk: Room.updateInteriorCorners pushes onto interiorCorners
-		// without clearing it. Harmless today (the constructor is the only caller)
-		// but a second call doubles the array.
+	it('replaces rather than appends when updateInteriorCorners is called again', () => {
+		// This pinned the quirk its own comment predicted: the method pushed onto
+		// `interiorCorners` without clearing it, which was "harmless today (the
+		// constructor is the only caller) but a second call doubles the array".
+		//
+		// RM-019 R1 gave it a second caller - the geometry branch of
+		// `Floorplan.update()`, which re-derives the rooms a moved corner belongs
+		// to - so the day the comment described arrived and the array is reset.
 		const {floorplan} = buildSquareRoom();
 		const room = floorplan.getRooms()[0];
 		expect(room.interiorCorners).toHaveLength(4);
+		const before = xy(room.interiorCorners);
 		room.updateInteriorCorners();
-		expect(room.interiorCorners).toHaveLength(8);
+		expect(room.interiorCorners).toHaveLength(4);
+		expect(xy(room.interiorCorners), 'and re-derives the same polygon').toEqual(before);
 	});
 });
 

@@ -907,6 +907,48 @@ describe('the OrbitControls shim', () =>
 		three.dispose();
 	});
 
+	it('draws exactly one frame when a corner is dragged in the plan', () =>
+	{
+		// The gap between the two cases above (RM-019 R1). One says an idle scene
+		// costs nothing; the other says a dirty flag costs one frame. Neither
+		// says that *editing the plan* raises the flag - and for a corner drag it
+		// did not.
+		//
+		// Until RM-003 A2 it did, by accident: `Main` recentred the camera on
+		// every EVENT_UPDATED, `centerCamera()` ends in `controls.update()`, and
+		// that fires `change`, which is the case below. A2 stopped recentring on a
+		// drag - correctly, it was yanking the camera on every pointermove - and
+		// took the repaint with it. The 2D pane redrew, the model moved, the
+		// projection rebuilt its meshes, and the 3D canvas held its last frame
+		// until something unrelated asked for one.
+		//
+		// It survived because the 2D and 3D panes were a card flip: switching to
+		// 3D calls `showDesign()`, which unpauses and rebuilds, so the view was
+		// always correct by the time anybody saw it. In the split layout both
+		// panes are on screen at once and the stale one is in plain sight.
+		const {three} = mount();
+		const floorplan = three.model.floorplan;
+		const corners = [[0, 0], [400, 0], [400, 300], [0, 300]]
+			.map(([x, y]) => floorplan.newCorner(x, y));
+		corners.forEach((corner, i) => floorplan.newWall(corner, corners[(i + 1) % corners.length]));
+
+		three.pauseTheRendering(false);
+		for (let i = 0; i < 5; i += 1) { three.renderer.animationLoop(); }
+		const settled = three.renderer.renderCount;
+		// Idle, so the count below is attributable to the drag and nothing else.
+		three.renderer.animationLoop();
+		expect(three.renderer.renderCount).toBe(settled);
+
+		corners[1].move(450, 40);
+
+		three.renderer.animationLoop();
+		expect(three.renderer.renderCount, 'the drag drew a frame').toBe(settled + 1);
+		// And exactly one: a repaint per edit, not a repaint per frame.
+		three.renderer.animationLoop();
+		expect(three.renderer.renderCount).toBe(settled + 1);
+		three.dispose();
+	});
+
 	it('marks the view dirty whenever the camera changes', () =>
 	{
 		const {three, controls} = mount();

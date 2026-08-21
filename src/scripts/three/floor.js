@@ -33,6 +33,14 @@ export class Floor extends EventDispatcher
 		this.room = room;
 		this.floorPlane = null;
 		this.roofPlane = null;
+		/**
+		 * The model's two planes, as handed over by `addToScene()` (RM-019 R1).
+		 * Borrowed, never disposed here; see the docblock on `releasePlanes()`.
+		 * @type {?import('three').Mesh}
+		 */
+		this._borrowedFloorPlane = null;
+		/** @type {?import('three').Mesh} */
+		this._borrowedRoofPlane = null;
 		// Held so redraw() can give it back. The floor is rebuilt on every
 		// EVENT_CHANGED, and before RM-002 R-04 each rebuild loaded another copy
 		// of the same image and dropped the previous one on the floor, so to speak.
@@ -68,6 +76,14 @@ export class Floor extends EventDispatcher
 		this.roofPlane = this.ceilingPlane;
 	}
 
+	/**
+	 * Rebuild the floor and ceiling and ask for a frame (RM-019 R1).
+	 *
+	 * Reached from the room's own EVENT_CHANGED as well as from
+	 * `Floorplan3D.refresh()`, and the former carries no ChangeSet - so changing a
+	 * room's floor texture rebuilt these two meshes and left the viewer showing
+	 * the previous ones. Measured before the fix: the frame did not change.
+	 */
 	redraw()
 	{
 		this.removeFromScene();
@@ -76,6 +92,7 @@ export class Floor extends EventDispatcher
 		this.ceilingPlane = this.buildCeiling();
 		this.roofPlane = this.ceilingPlane;
 		this.addToScene();
+		this.scene.needsUpdate = true;
 	}
 
 	/**
@@ -279,21 +296,40 @@ export class Floor extends EventDispatcher
 		return roof;
 	}
 
+	/**
+	 * Put the four meshes in, and remember which two were borrowed (RM-019 R1).
+	 *
+	 * The room's two planes are the model's, added here so the raycaster has
+	 * something to hit. Until R1 the pair was re-read from the room on the way
+	 * out as well as on the way in, which is only equivalent while the model
+	 * never replaces them - and R1 makes a corner drag do exactly that. Reading
+	 * `room.floorPlane` at removal time would then detach the *new* plane, which
+	 * is not in the scene, and leave the old one in it forever, disposed.
+	 *
+	 * So what was borrowed is what is given back. The ownership boundary the
+	 * docblock on `releasePlanes()` describes is unchanged: these two are still
+	 * detached and never disposed.
+	 */
 	addToScene()
 	{
 		this.scene.add(this.floorPlane);
 		this.scene.add(this.roofPlane);
 		// hack so we can do intersect testing
-		this.scene.add(this.room.floorPlane);
-		this.scene.add(this.room.roofPlane);
+		this._borrowedFloorPlane = this.room.floorPlane;
+		this._borrowedRoofPlane = this.room.roofPlane;
+		this.scene.add(this._borrowedFloorPlane);
+		this.scene.add(this._borrowedRoofPlane);
 	}
 
 	removeFromScene()
 	{
 		this.scene.remove(this.floorPlane);
 		this.scene.remove(this.roofPlane);
-		this.scene.remove(this.room.floorPlane);
-		this.scene.remove(this.room.roofPlane);
+		// The ones that went in, not the ones the room holds now - see above.
+		this.scene.remove(this._borrowedFloorPlane || this.room.floorPlane);
+		this.scene.remove(this._borrowedRoofPlane || this.room.roofPlane);
+		this._borrowedFloorPlane = null;
+		this._borrowedRoofPlane = null;
 	}
 
 	/**
