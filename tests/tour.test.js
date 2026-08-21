@@ -16,13 +16,13 @@
  * list is data for exactly this reason, and it is walked here against the ids
  * the components actually render.
  */
-import {afterEach, beforeEach, describe, expect, it} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {readFileSync, readdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {ref} from 'vue';
 
 import {TOUR_STEPS, TOUR_VERSION} from '../src/app/tour/steps.js';
-import {HELP_PAGES, HELP_HOME, helpUrl} from '../src/app/tour/help.js';
+import {HELP_PAGES, HELP_HOME, DOCS_PATH, helpUrl} from '../src/app/tour/help.js';
 import {STORAGE_KEY, USED_KEYS, forgetTour, looksUsed,
 	markTourSeen, tourSeen, useTour} from '../src/app/composables/useTour.js';
 import {LAYOUT_PLAN, LAYOUT_SPLIT, LAYOUT_VIEW} from '../src/app/composables/useLayout.js';
@@ -269,6 +269,49 @@ describe('the help pages', () =>
 		// hand, and it must not produce `/architect3ddocs/`.
 		expect(helpUrl(undefined, '/architect3d')).toBe('/architect3d/docs/using/');
 		expect(helpUrl(undefined, '/')).toBe('/docs/using/');
+	});
+
+	it('falls back to the build\'s own base when the caller passes none', () =>
+	{
+		// The default argument, which every case above skips by passing a base
+		// explicitly. It is the path the APPLICATION takes: `App.vue:145` is the
+		// only call site in src/ and it passes nothing, so the arm the tests
+		// exercised was the one only tests use.
+		//
+		// What it must never do is return a bare `docs/...` with no leading slash,
+		// which would resolve against whatever route the user is on rather than
+		// against the deployment.
+		const url = helpUrl();
+
+		expect(url.startsWith('/')).toBe(true);
+		expect(url.endsWith(`/${HELP_HOME.route}`)).toBe(true);
+		expect(url).toContain('/docs/');
+		expect(url).not.toContain('//docs');
+	});
+
+	it('and on `/` when the build did not set a base at all', () =>
+	{
+		// The `|| '/'` at the end of that expression, which was the one uncovered
+		// branch in src/app/tour - a directory whose floor had zero slack, so it
+		// was the single unit standing between this build and a red one.
+		//
+		// It needs a stub because it cannot happen under Vite: `BASE_URL` is
+		// always defined, which is exactly why nothing had ever taken this arm.
+		// That does not make it dead - it is the defensive half of an expression
+		// whose other two guards check `import.meta` itself, for a consumer
+		// importing this module outside a Vite build - and an untaken defensive
+		// branch is worth a line of test rather than a coverage floor nobody can
+		// move.
+		vi.stubEnv('BASE_URL', '');
+		try
+		{
+			expect(helpUrl()).toBe(`/${DOCS_PATH}${HELP_HOME.route}`);
+			expect(helpUrl('using/drawing')).toBe(`/${DOCS_PATH}using/drawing`);
+		}
+		finally
+		{
+			vi.unstubAllEnvs();
+		}
 	});
 
 	it('has a source on disk for every page it links', () =>

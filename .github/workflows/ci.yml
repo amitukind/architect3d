@@ -180,6 +180,24 @@ jobs:
           npx playwright install chromium
           npm run lighthouse:check
 
+      - name: Offline
+        # RM-020 AC-8, promoting the check this repository has called "the
+        # strongest candidate for promotion" since it was written.
+        #
+        # It answers RM-013 K3's acceptance clause, which no other gate can: a
+        # SECOND load with the network disabled reaches an editable plan. The
+        # headless tier has no service worker and the browser tier runs against a
+        # dev server that never emits one - `sw.js` exists only in `dist-demo/` as
+        # a second Vite entry - so until now the one claim the offline feature
+        # makes was checked by somebody remembering to check it.
+        #
+        # Free to put here: it needs the built demo, which `build:demo` above
+        # produced, and chromium, which the Lighthouse step has just installed.
+        # Nine seconds, and it passed three consecutive local runs before being
+        # made a gate - the bar this programme set for itself when it dropped a
+        # tier-2 case rather than ship a flaky one.
+        run: npm run offline:check
+
       - name: Advisories
         # RM-006 took this tree to zero, and it is a ratchet from here.
         #

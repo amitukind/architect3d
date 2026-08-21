@@ -172,7 +172,7 @@ footer a{color:var(--accent)}
     <div><dt class="mono">PROJECT</dt><dd>architect3d 3.0.1</dd></div>
     <div><dt class="mono">TREE</dt><dd class="mono">amit @ 80b13ed</dd></div>
     <div><dt class="mono">MEASURED</dt><dd>2026-08-21</dd></div>
-    <div><dt class="mono">TESTS</dt><dd>2,749 + 267</dd></div>
+    <div><dt class="mono">TESTS</dt><dd>2,751 + 267</dd></div>
     <div><dt class="mono">GATES</dt><dd>14 automatic</dd></div>
     <div><dt class="mono">OPEN</dt><dd>2 items</dd></div>
   </dl>
@@ -254,7 +254,7 @@ footer a{color:var(--accent)}
 <section id="gates">
   <div class="sec-k mono">&sect; 03</div>
   <h2>What actually gates</h2>
-  <p class="sub">Fifteen checks run without anybody asking &mdash; fourteen until RM-020 AC-6 added one. Seventeen more exist as commands, and this is the first document to say which is which.</p>
+  <p class="sub">Sixteen checks run without anybody asking &mdash; fourteen until RM-020, which added <code>counts:check</code> and promoted <code>offline:check</code>. Sixteen more exist as commands, and this is the first document to say which is which.</p>
 
   <p>The design principle has not changed and is still right: <strong>Actions minutes are the constrained resource</strong>, so cheap high-yield checks run on the machine that made the change and only what genuinely needs a runner is paid for. What follows is what is wired up, read out of <code>lint-staged.config.mjs</code> and <code>.github/workflows/</code> rather than from any previous description of them.</p>
 
@@ -275,7 +275,7 @@ footer a{color:var(--accent)}
     <thead><tr><th>Step</th><th>What it is the only check for</th></tr></thead>
     <tbody>
       <tr><td><code>npm run typecheck</code></td><td>JSDoc types across 164 of 166 source files, and SFC templates against their own script blocks</td></tr>
-      <tr><td><code>npm run test:coverage</code></td><td>2,749 tests, and nineteen coverage floors. Also the one thing a bare <code>vitest run</code> reports quietly: an exception escaping a test file with every assertion green</td></tr>
+      <tr><td><code>npm run test:coverage</code></td><td>2,751 tests, and nineteen coverage floors. Also the one thing a bare <code>vitest run</code> reports quietly: an exception escaping a test file with every assertion green</td></tr>
       <tr><td><code>npm run lint</code></td><td>&mdash;</td></tr>
       <tr><td><code>npm run build</code></td><td>That the library still builds as ESM, as IIFE, and emits its types</td></tr>
       <tr><td><code>npm run build:demo</code></td><td>That a Vue template or a Tailwind token that no longer resolves fails before a deploy rather than during one</td></tr>
@@ -284,6 +284,7 @@ footer a{color:var(--accent)}
       <tr><td><code>npm run deploy:check</code></td><td>That every path the built document names exists in the assembled tree. Every other gate runs before assembly and none of them resolves a URL</td></tr>
       <tr><td><code>npm run lighthouse:check</code></td><td>The only threshold in this repository that this repository did not define</td></tr>
       <tr><td><code>npm audit --audit-level=low</code></td><td>Zero advisories, and that the one dependency override is still needed and still enough</td></tr>
+      <tr><td><code>npm run offline:check</code></td><td>RM-013 K3's acceptance clause, which nothing else can reach: a <em>second</em> load with the network disabled arrives at an editable plan. Serves the built tree, takes the browser offline for real, reloads, and asks the page questions only a working application can answer. Nine seconds, on the chromium the Lighthouse step just installed</td></tr>
       <tr><td><code>npm run counts:check</code></td><td>That the counts this document publishes are the tree's. <code>vitest list</code> collects both tiers without running either, and the coverage half is read from the summary <code>test:coverage</code> has just written &mdash; which is why it sits after it. Added because the test count drifted in four consecutive commits and the coverage figure beside it was a sprint stale</td></tr>
     </tbody>
   </table></div>
@@ -293,11 +294,10 @@ footer a{color:var(--accent)}
   <p>What it is for is the three things jsdom cannot do: the 2D plan <em>rasterised</em> and its palette read back off the canvas, the 3D view composited through SwiftShader and read with <code>readPixels</code>, and axe over the booted application. Since Q3 it loads the real stylesheet, which is what makes the third of those mean anything &mdash; see &sect;&nbsp;07.</p>
 
   <h3>On demand &mdash; seventeen commands nothing triggers</h3>
-  <p>These are real and they work; they are just not gates, and counting them as gates is how a previous version of this document arrived at a number nobody could check.</p>
+  <p>These are real and they work; they are just not gates, and counting them as gates is how a previous version of this document arrived at a number nobody could check. <code>offline:check</code> used to head this list as &ldquo;the strongest candidate for promotion&rdquo;; AC-8 promoted it, so it is in the CI table above and there are sixteen here rather than seventeen.</p>
   <div class="tw"><table>
     <thead><tr><th>Command</th><th>Status</th><th>Note</th></tr></thead>
     <tbody>
-      <tr><td><code>offline:check</code></td><td><span class="tag warn">hand-run</span></td><td>Serves the built tree, goes offline for real with <code>setOffline(true)</code> and reloads. The most valuable of the seventeen and the strongest candidate for promotion</td></tr>
       <tr><td><code>manifest:check</code>, <code>templates:check</code>, <code>catalog:check</code>, <code>help:check</code></td><td><span class="tag warn">hand-run</span></td><td>Generators run in <code>--check</code> mode. Partly covered from the other side by <code>tests/asset-integrity.test.js</code>, which resolves every asset URL every saved fixture names</td></tr>
       <tr><td><code>ledger:check</code></td><td><span class="tag ok">covered</span></td><td>Duplicated by <code>tests/type-coverage.test.js</code>, which is in tier 1 &mdash; so the ratchet is enforced even though this command is not run</td></tr>
       <tr><td>Twelve asset-pipeline checks</td><td><span class="tag warn">hand-run</span></td><td>Encoders, resizers, thumbnails, the transcode oracle. They rebuild content; running them in CI would need the source imagery, which is not in the tree</td></tr>
@@ -323,7 +323,7 @@ footer a{color:var(--accent)}
   <p class="sub">Measured on 2026-08-21 against <code>8229949</code>, on one machine, with everything else idle.</p>
 
   <div class="big">
-    <div><div class="v">3,000</div><div class="l">tests &mdash; 2,749 headless, 267 in a browser</div></div>
+    <div><div class="v">3,000</div><div class="l">tests &mdash; 2,751 headless, 267 in a browser</div></div>
     <div><div class="v">89.24&thinsp;%</div><div class="l">statements covered, 12,266 of 13,744</div></div>
     <div><div class="v">274&thinsp;KB</div><div class="l">gzipped first load</div></div>
     <div><div class="v">95 / 62</div><div class="l">Lighthouse desktop / mobile</div></div>
@@ -435,7 +435,7 @@ footer a{color:var(--accent)}
       <p><strong>What is genuinely unverified</strong>, and what the first deploy is for:</p>
       <ul>
         <li><strong>Response headers.</strong> Every budget line here is a gzipped figure, and no host has ever confirmed it serves gzip or brotli with the cache headers those numbers assume. The cheapest thing a first deploy would falsify.</li>
-        <li><strong>The service worker on a real origin.</strong> <code>offline:check</code> is the strongest of the seventeen hand-run checks and is <em>not</em> in CI; it uses a local server and Playwright&rsquo;s <code>setOffline</code>. Real HTTPS, a real scope and a real update cycle are untested.</li>
+        <li><strong>The service worker on a real origin.</strong> <code>offline:check</code> runs in CI as of AC-8 &mdash; that sentence used to end &ldquo;and is <em>not</em> in CI&rdquo;, which stopped being true one sprint after it was written. What it proves is a second load with the network disabled against a <em>local</em> server; real HTTPS, a real scope and a real update cycle are still untested, which is the part a deploy answers.</li>
         <li><strong>That anybody can use it.</strong> A product risk rather than an engineering one, and the only one on this page that no amount of local measurement can retire.</li>
       </ul>
       <p><strong>Claims about a deployed product are still projections</strong> &mdash; but the set is smaller than eight drawings have said, and it is now the three lines above rather than everything.</p>
@@ -622,7 +622,7 @@ footer a{color:var(--accent)}
     <tbody>
       <tr>
         <td><strong>&ldquo;Nineteen gates&rdquo;</strong>, in every landing note for four programmes</td>
-        <td>The nineteen were never listed anywhere, so nobody could check them. Counted from the triggers: <strong>3 in the pre-commit hook, 10 in CI, 1 in the browser job</strong> &mdash; fourteen. Fifteen since AC-6 put <code>counts:check</code> in CI; &sect;&nbsp;03 is the live count and this row is what the recount found. Seventeen further <code>*:check</code> commands exist and <strong>nothing runs them</strong>. They are useful, and they are not gates. &sect;&nbsp;03 lists all of it</td>
+        <td>The nineteen were never listed anywhere, so nobody could check them. Counted from the triggers: <strong>3 in the pre-commit hook, 10 in CI, 1 in the browser job</strong> &mdash; fourteen. Sixteen since RM-020 &mdash; AC-6 put <code>counts:check</code> in CI and AC-8 promoted <code>offline:check</code>; &sect;&nbsp;03 is the live count and this row is what the recount found. Seventeen further <code>*:check</code> commands exist and <strong>nothing runs them</strong>. They are useful, and they are not gates. &sect;&nbsp;03 lists all of it</td>
       </tr>
       <tr>
         <td><strong>&ldquo;Tier 3 &middot; scheduled &amp; on demand &mdash; weekly&rdquo;</strong>: a parity grid, Lighthouse against the deployed site, and Dependabot grouped weekly</td>
