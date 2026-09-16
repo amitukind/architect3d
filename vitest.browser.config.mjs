@@ -118,6 +118,10 @@ export default defineConfig({
 		fileParallelism: false,
 		testTimeout: 30000,
 		hookTimeout: 30000,
+		// The plan's 2 ms frame budget, and 2x that on a CI runner, which measured
+		// about 1.7x slower than the machine the budget was set on. The reasoning
+		// is in tests/browser/frame-budget.js.
+		provide: {frameBudgetMs: process.env.CI ? 4 : 2},
 		// Chromium only. A second engine doubles the runtime and this tier exists
 		// to prove the renderers work at all, not to survey engine differences -
 		// which is a question for the parity harness, not for CI.

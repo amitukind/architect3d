@@ -20,6 +20,7 @@
  * visible.
  */
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
+import {frameBudgetMs, perDrawMs} from './frame-budget.js';
 import {Vector3} from 'three';
 
 import {Model} from '../../src/scripts/model/model.js';
@@ -300,9 +301,11 @@ describe('the frame budget (RM-008 T-4)', () =>
 	 * Two things from getting there are kept. A wall-only probe said 1.51 ms warm
 	 * and would have declined the cache outright: **the 150 footprints are what
 	 * pushed it over**, which is worth knowing before anybody optimises walls. And
-	 * the warm-up below is five blocks rather than one draw, because the same
-	 * fixture measured 1.995, 1.73, 1.615, 1.51, 1.51 cold-to-warm - one warm draw
-	 * left this gate deciding on JIT rather than on anything in the repository.
+	 * the warm-up is five blocks rather than one draw, because the same fixture
+	 * measured 1.995, 1.73, 1.615, 1.51, 1.51 cold-to-warm - see `perDrawMs`.
+	 *
+	 * The 2 ms is the budget at a desk; a CI runner is given a stated allowance
+	 * on top, in `frame-budget.js`, where the reasoning is.
 	 */
 	it('draws a 400-wall furnished plan inside 2 ms', () =>
 	{
@@ -341,21 +344,6 @@ describe('the frame budget (RM-008 T-4)', () =>
 		// property of the topology rather than of the loop bounds.
 		expect(model.floorplan.getWalls().length).toBeGreaterThanOrEqual(400);
 
-		// Five blocks of warm-up, not one draw. See the note above: the same pass
-		// measured 1.995, 1.73, 1.615, 1.51, 1.51 cold-to-warm, so one warm draw
-		// leaves the timing on the settling curve.
-		for (let warm = 0; warm < 5; warm++)
-		{
-			for (let run = 0; run < 20; run++) { planner.view.draw(); }
-		}
-
-		const started = performance.now();
-		for (let run = 0; run < 20; run++)
-		{
-			planner.view.draw();
-		}
-		const perDraw = (performance.now() - started) / 20;
-
-		expect(perDraw).toBeLessThan(2);
+		expect(perDrawMs(() => planner.view.draw())).toBeLessThan(frameBudgetMs());
 	});
 });

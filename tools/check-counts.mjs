@@ -22,8 +22,16 @@
  *
  * `vitest list` walks every suite and reports what it WOULD run without
  * executing a single assertion - 2,749 headless in about eight seconds and 267
- * in the browser config in five, with no browser launched. That is cheap enough
- * to gate on, which a full run of both tiers is not.
+ * in the browser config in five. That is cheap enough to gate on, which a full
+ * run of both tiers is not.
+ *
+ * "Without executing" is not "without a browser". The browser tier collects
+ * INSIDE chromium, so this needs `npx playwright install chromium` exactly as
+ * the browser suite does. Without it `vitest list` prints "There were unhandled
+ * errors during test collection", writes no JSON, and still exits 0 - which is
+ * how this first failed in CI, with the reason thrown away. `--staticParse`
+ * would avoid the browser, and was measured and rejected: it counts 2,377 of
+ * the 2,751 headless tests, because it cannot see tests made in a loop.
  *
  * Coverage cannot be collected without running, so it is read from
  * `coverage/coverage-summary.json` instead - the same artefact
@@ -40,8 +48,9 @@
  * where a measurement was taken, and a tool that advanced it on every run would
  * be forging exactly the thing it records.
  */
-import {readFileSync, writeFileSync, existsSync} from 'node:fs';
-import {execFileSync} from 'node:child_process';
+import {readFileSync, writeFileSync, existsSync, mkdtempSync, rmSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
+import {tmpdir} from 'node:os';
 import {fileURLToPath} from 'node:url';
 import {dirname, join, resolve} from 'node:path';
 
@@ -56,23 +65,34 @@ const n = (value) => value.toLocaleString('en-US');
 /**
  * Collect one tier without running it.
  *
- * `vitest list --json` prints the collected tests. The `prepare` lifecycle
- * script writes two `[INFO]` lines to stdout on the way past, so the payload is
- * found by its opening bracket on a line of its own rather than by the first
- * `[` in the stream - which is inside `[INFO]`.
+ * The payload goes to a file rather than stdout, so nothing else vitest or an
+ * npm lifecycle script prints can be mistaken for it. `vitest list` exits 0 even
+ * when collection failed - it just writes nothing - so a missing file is the
+ * failure signal, and vitest's own stderr is the explanation, passed on whole.
  *
  * @param {string[]} extra Arguments selecting the config, if not the default.
  * @returns {{tests: number, files: number}}
  */
 function collect(extra)
 {
-	const out = execFileSync('npx', ['vitest', 'list', '--json', ...extra],
-		{cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024});
-	const lines = out.split('\n');
-	const start = lines.findIndex((line) => line.trim() === '[');
-	if (start === -1) { throw new Error('vitest list produced no JSON array'); }
-	const rows = JSON.parse(lines.slice(start).join('\n'));
-	return {tests: rows.length, files: new Set(rows.map((row) => row.file)).size};
+	const dir = mkdtempSync(join(tmpdir(), 'counts-'));
+	const file = join(dir, 'list.json');
+	try
+	{
+		const run = spawnSync('npx', ['vitest', 'list', `--json=${file}`, ...extra],
+			{cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'ignore', 'pipe'], maxBuffer: 64 * 1024 * 1024});
+		if (run.status !== 0 || !existsSync(file))
+		{
+			throw new Error(`vitest list ${extra.join(' ') || '(headless)'} collected nothing`
+				+ ` (exit ${run.status}):\n${run.stderr}`);
+		}
+		const rows = JSON.parse(readFileSync(file, 'utf8'));
+		return {tests: rows.length, files: new Set(rows.map((row) => row.file)).size};
+	}
+	finally
+	{
+		rmSync(dir, {recursive: true, force: true});
+	}
 }
 
 /** The statement line of section 04, from the artefact a coverage run leaves. */
