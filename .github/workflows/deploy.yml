@@ -60,9 +60,13 @@
 #
 # WHAT THIS NEEDS BEFORE IT CAN RUN
 #
-# Two repository secrets and one Pages project. Until they exist the job fails
-# at the guard below with a sentence saying which is missing, rather than deep
-# inside wrangler with a 401:
+# Two repository secrets and one Pages project. Until they exist, a push to
+# master SKIPS the publish job with a notice naming what is missing, and a hand
+# run fails at the guard with the same sentence rather than deep inside wrangler
+# with a 401. The asymmetry is deliberate: hosting (M-51) is deferred on
+# purpose, and a push that turns master red for a host nobody has set up is the
+# red-mark-everybody-ignores that RM-006 removed the last trigger over. A hand
+# run is somebody asking for a deploy, and that deserves a failure.
 #
 #   CLOUDFLARE_API_TOKEN    a token with the "Cloudflare Pages: Edit" permission
 #   CLOUDFLARE_ACCOUNT_ID   the account the project lives in
@@ -88,32 +92,49 @@ permissions:
   contents: read
 
 jobs:
+  configured:
+    # Its own job because `secrets` cannot appear in a job-level `if:`; an
+    # output can. Runs before npm ci, so a repository without the secrets is
+    # settled in seconds rather than after a four-minute build and a 401 from
+    # wrangler. The token is never printed; only whether it is set.
+    name: Check the deploy is configured
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      ok: ${{ steps.guard.outputs.ok }}
+    steps:
+      - id: guard
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          missing=""
+          [ -n "$TOKEN" ]   || missing="$missing CLOUDFLARE_API_TOKEN"
+          [ -n "$ACCOUNT" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          if [ -z "$missing" ]; then
+            echo "Cloudflare credentials are present."
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          msg="Deploy is not configured. Missing repository secret(s):$missing. See the header of .github/workflows/deploy.yml for what each one needs."
+          echo "ok=false" >> "$GITHUB_OUTPUT"
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "::error::$msg"
+            exit 1
+          fi
+          echo "::notice::$msg Skipping the publish (hosting is deferred, M-51)."
+
   publish:
     name: Build and publish
+    needs: configured
+    if: needs.configured.outputs.ok == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Check the deploy is configured
-        # Before npm ci, so a repository without the secrets fails in ten
-        # seconds with a sentence rather than after a four-minute build with a
-        # 401 from wrangler. The token is never printed; only whether it is set.
-        env:
-          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          missing=""
-          [ -n "$TOKEN" ]   || missing="$missing CLOUDFLARE_API_TOKEN"
-          [ -n "$ACCOUNT" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
-          if [ -n "$missing" ]; then
-            echo "::error::Deploy is not configured. Missing repository secret(s):$missing"
-            echo "See the header of .github/workflows/deploy.yml for what each one needs."
-            exit 1
-          fi
-          echo "Cloudflare credentials are present."
 
       - name: Set up Node
         uses: actions/setup-node@v4
