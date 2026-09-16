@@ -10,25 +10,40 @@ import AppWorkspace from './components/AppWorkspace.vue';
 import FloorplannerView from './components/FloorplannerView.vue';
 import ThreeViewport from './components/ThreeViewport.vue';
 import PlanOverlay from './components/PlanOverlay.vue';
+import LevelSwitcher from './components/LevelSwitcher.vue';
 import SceneOverlay from './components/SceneOverlay.vue';
 import CatalogDrawer from './components/CatalogDrawer.vue';
+import ImportModelDialog from './components/ImportModelDialog.vue';
+import TourGuide from './components/TourGuide.vue';
 import ShortcutsDialog from './components/ShortcutsDialog.vue';
+import ProjectLibrary from './components/ProjectLibrary.vue';
+import ShareDialog from './components/ShareDialog.vue';
+import ViewerBanner from './components/ViewerBanner.vue';
 import ToastStack from './components/ToastStack.vue';
 import InspectorPanel from './inspector/InspectorPanel.vue';
 
 import {provideBlueprint} from './composables/useBlueprint.js';
-import {useSelection} from './composables/useSelection.js';
-import {useCameraViews, MODE_WALKTHROUGH} from './composables/useCameraViews.js';
-import {useFloorplannerMode} from './composables/useFloorplannerMode.js';
-import {useDesignIO} from './composables/useDesignIO.js';
+import {useSelection, SELECTION_ITEM, SELECTION_DIMENSION, SELECTION_ANNOTATION} from './composables/useSelection.js';
+import {provideCameraViews, MODE_WALKTHROUGH, MODE_EXTERIOR} from './composables/useCameraViews.js';
+import {useWalkthrough} from './composables/useWalkthrough.js';
+import {provideFloorplannerMode} from './composables/useFloorplannerMode.js';
+import {provideDesignIO, fileNameFor} from './composables/useDesignIO.js';
+import {provideProjects} from './composables/useProjects.js';
+import {useTemplates} from './composables/useTemplates.js';
+import {provideShare} from './composables/useShare.js';
+import {provideModelImport} from './composables/useModelImport.js';
+import {provideTour} from './composables/useTour.js';
+import {helpUrl} from './tour/help.js';
+import {useOffline} from './composables/useOffline.js';
 import {useCatalog} from './composables/useCatalog.js';
-import {useDisplayUnit, syncDisplayUnit} from './composables/useDisplayUnit.js';
+import {provideDisplayUnit, syncDisplayUnit} from './composables/useDisplayUnit.js';
 import {useTheme, applyTheme} from './composables/useTheme.js';
-import {useLayout, LAYOUT_PLAN, LAYOUT_SPLIT, LAYOUT_VIEW} from './composables/useLayout.js';
-import {useHistory} from './composables/useHistory.js';
-import {useZoom2D} from './composables/useZoom2D.js';
-import {usePlanStats} from './composables/usePlanStats.js';
-import {useItemActions} from './composables/useItemActions.js';
+import {provideLayout, LAYOUT_PLAN, LAYOUT_SPLIT, LAYOUT_VIEW} from './composables/useLayout.js';
+import {provideHistory} from './composables/useHistory.js';
+import {provideZoom2D} from './composables/useZoom2D.js';
+import {provideLevels} from './composables/useLevels.js';
+import {providePlanStats} from './composables/usePlanStats.js';
+import {provideItemActions} from './composables/useItemActions.js';
 import {useAutosave, readDraft, clearDraft, RECOVERY_LOST_TAIL} from './composables/useAutosave.js';
 import {useAssets, applyAssetBaseFromQuery} from './composables/useAssets.js';
 import {useToasts} from './composables/useToasts.js';
@@ -66,17 +81,27 @@ import {renderProfile} from '../scripts/blueprint.js';
 
 const store = provideBlueprint();
 const selection = useSelection(store);
-const camera = useCameraViews(store);
-const editor = useFloorplannerMode(store);
-const io = useDesignIO(store);
+const camera = provideCameraViews(store);
+const editor = provideFloorplannerMode(store);
+const models = provideModelImport(store);
+// The one hook every load route runs through, so a design's imported models are
+// reported the same way whether it came from a file, a project, a template, a
+// link or a bundle (RM-012 J3).
+const io = provideDesignIO(store, {afterLoad: (text) => models.reportMissing(text)});
+const projects = provideProjects(store, io);
+const templates = useTemplates(projects);
+const share = provideShare(store, projects, io, models);
+const offline = useOffline();
 const catalog = useCatalog(store, selection.placementContext);
-const display = useDisplayUnit(store);
+const display = provideDisplayUnit(store);
 const theme = useTheme(store);
-const workspace = useLayout();
-const history = useHistory(store);
-const zoom = useZoom2D(store);
-const stats = usePlanStats(store);
-const items = useItemActions(store, selection, history);
+const workspace = provideLayout();
+const tour = provideTour(workspace);
+const history = provideHistory(store);
+const zoom = provideZoom2D(store);
+const levels = provideLevels(store);
+const stats = providePlanStats(store);
+const items = provideItemActions(store, selection, history);
 const autosave = useAutosave(store);
 const assets = useAssets();
 const toasts = useToasts();
@@ -86,14 +111,41 @@ const toasts = useToasts();
 // (RM-004 B3).
 /** @type {import('vue').Ref<?{canvas: HTMLCanvasElement}>} */
 const floorplanRef = ref(null);
+/**
+ * Whether the plan canvas has keyboard focus (RM-014 L4, finding Z-5).
+ *
+ * A ref written by the canvas's own focus and blur, rather than a call to
+ * `document.activeElement` inside `enabled`. The keyboard map is a `computed`
+ * and `activeElement` is not reactive, so reading it there would answer with
+ * whatever was true when the map last rebuilt. This is the same question asked
+ * in a form Vue can see change.
+ */
+const planFocused = ref(false);
 /** @type {import('vue').Ref<?{container: HTMLElement}>} */
 const viewportRef = ref(null);
 const catalogOpen = ref(false);
 const shortcutsOpen = ref(false);
+const libraryOpen = ref(false);
+const shareOpen = ref(false);
+const importOpen = ref(false);
 const inspectorTab = ref('settings');
 const renderMode = ref(renderProfile.mode);
 
+// Mounted here rather than only in the settings panel: the panel lives behind a
+// tab and can be unmounted when a new viewer is built, and the stored eye height
+// has to reach that viewer either way (RM-011 H3).
+useWalkthrough(store);
+
+/**
+ * Where the help pages are for this deployment.
+ *
+ * Computed once rather than per render: the base is fixed at build time, and a
+ * link that changed between renders would be a bug rather than a feature.
+ */
+const help = helpUrl();
+
 const walkthrough = computed(() => camera.mode.value === MODE_WALKTHROUGH);
+const exterior = computed(() => camera.mode.value === MODE_EXTERIOR);
 
 onMounted(() =>
 {
@@ -136,8 +188,9 @@ onMounted(() =>
 	history.reset();
 	frameDesign();
 
-	offerDraft();
+	openShared();
 	loadAssetManifest();
+	goOffline();
 	applyLayoutToCamera(workspace.layout.value);
 });
 
@@ -206,12 +259,112 @@ function frameDesign()
  * about a draft several minutes behind what the user actually had is a prompt
  * that loses work quietly.
  */
+/**
+ * Register the service worker, once the page has finished arriving (RM-013 K3).
+ *
+ * After `load` rather than on mount, because registration competes with first
+ * paint for the same connection and there is nothing a worker can do for the
+ * visit it is racing. It does nothing in development - see `useOffline`.
+ */
+function goOffline()
+{
+	if (document.readyState === 'complete')
+	{
+		offline.register();
+		return;
+	}
+	window.addEventListener('load', function once()
+	{
+		window.removeEventListener('load', once);
+		offline.register();
+	});
+}
+
+/**
+ * A design in the URL, and what it displaces (RM-013 K2).
+ *
+ * Before the draft, not beside it. A recovered draft and a shared design are
+ * two documents competing for one screen, and offering the first over the
+ * second would mean a toast inviting somebody to replace the thing they had
+ * just been sent - so the link wins and the draft is not offered at all. It is
+ * not lost either: it is still in the store, and it is offered on the next boot
+ * that does not carry a link.
+ */
+async function openShared()
+{
+	// Before anything loads a design, and awaited rather than fired off. The
+	// index is what `Scene` asks whether a name is an import, so a design that
+	// arrived first would report every one of its models missing and then load
+	// none of them (RM-012 J3). It is one `getAll` of a few hundred bytes a
+	// model, because the bytes are in a separate object store.
+	await models.refresh();
+	if (await share.openFromHash())
+	{
+		history.reset();
+		markSaved();
+		frameDesign();
+		// Deliberately no tour. Somebody who arrived on a link came to look at a
+		// design, not to be introduced to a drawing tool they cannot draw in -
+		// the shared view is read-only until they keep a copy (RM-013 K2).
+		return;
+	}
+	// Last, and after the draft has been offered, because a recovered draft is the
+	// loudest possible evidence that this browser has been used before - and the
+	// application is the thing that knows, not the storage (RM-014 L2).
+	const draft = await offerDraft();
+	tour.offer(draft || projects.projects.value.length > 0);
+}
+
+/**
+ * Make a link for what is on screen, and show it.
+ *
+ * Encoded on the click rather than kept current, because a design is
+ * re-serialized and deflated to make one and nobody is owed that on every edit.
+ */
+async function openShare()
+{
+	shareOpen.value = true;
+	await share.makeLink();
+}
+
+/**
+ * Save the design as a bundle.
+ *
+ * Through the same download helper as every other export, which is why it goes
+ * through `io` rather than building its own anchor - `useDesignIO`'s note about
+ * the demo creating four of those by hand is the reason there is only one.
+ */
+async function onSaveBundle()
+{
+	const built = await share.makeBundle();
+	if (!built)
+	{
+		return;
+	}
+	io.download(built.bytes, `${fileNameFor(built.name)}.zip`, 'application/zip');
+	const carried = built.manifest.carried.length;
+	toasts.success(`Exported ${fileNameFor(built.name)}.zip`, {
+		detail: carried
+			? `${carried} model(s) travelled with it.`
+			: 'Every model in it ships with the app, so none had to travel.',
+	});
+}
+
+async function adoptShared()
+{
+	if (await share.adopt(projects.current.value ? undefined : 'Shared design'))
+	{
+		markSaved();
+	}
+}
+
+/** @returns {Promise<boolean>} whether a draft was found. */
 async function offerDraft()
 {
 	const draft = await readDraft(Date.now());
 	if (!draft)
 	{
-		return;
+		return false;
 	}
 
 	const message = draft.recovery === RECOVERY_LOST_TAIL
@@ -232,6 +385,7 @@ async function offerDraft()
 			},
 		},
 	});
+	return true;
 }
 
 /**
@@ -252,6 +406,39 @@ function applyLayoutToCamera(next)
 		camera.showFloorplan();
 		return;
 	}
+	// The moment the 3D engine is worth downloading (RM-015 M3). Every layout
+	// that is not the plan alone shows the viewer, so this is the one place that
+	// has to ask for it - and it is already the place that decides what the
+	// camera does about a layout change. `ensureViewer` is idempotent and caches
+	// its import, so switching back and forth costs one fetch.
+	//
+	// Not awaited: the camera calls below are written for a viewer that may not
+	// be there, `useCameraViews` re-runs `applyBootState` when it arrives, and
+	// blocking the layout change on a network fetch would leave the workspace
+	// mid-transition with nothing on screen.
+	store.ensureViewer();
+	// Except when the camera asked for this layout in the first place.
+	//
+	// RM-010 G3 wrote this guard for the exterior view: `toggleExterior` sets
+	// LAYOUT_VIEW and then frames the building, and without it the watcher fires
+	// in between and `showDesign()` puts the mode straight back, so the button
+	// lit up and nothing moved.
+	//
+	// It was written for one of the two modes that arrange their own layout, and
+	// RM-016 N2 found the other one broken in exactly the way that paragraph
+	// describes. Traced from the default layout: `showWalkthrough` sets
+	// `walkthrough`, the mode watcher below moves the layout to VIEW, this
+	// watcher then runs and calls `showDesign()`. So the first press of Walk
+	// through from the plan-only layout - which is the layout everybody starts
+	// in - left a person in the orbit view, and a second press worked, because by
+	// then the layout was already VIEW and nothing re-entered here.
+	//
+	// The guard is about the class rather than the instance now: a camera mode
+	// that carries its own layout is not a camera mode this watcher may override.
+	if (camera.mode.value === MODE_EXTERIOR || camera.mode.value === MODE_WALKTHROUGH)
+	{
+		return;
+	}
 	camera.showDesign();
 }
 
@@ -265,7 +452,7 @@ watch(() => workspace.layout.value, applyLayoutToCamera);
  */
 watch(() => camera.mode.value, function (mode)
 {
-	if (mode === MODE_WALKTHROUGH && workspace.layout.value === LAYOUT_PLAN)
+	if ((mode === MODE_WALKTHROUGH || mode === MODE_EXTERIOR) && workspace.layout.value === LAYOUT_PLAN)
 	{
 		workspace.setLayout(LAYOUT_VIEW);
 	}
@@ -302,6 +489,29 @@ function toggleWalkthrough()
 }
 
 /**
+ * Step outside, or come back in.
+ *
+ * Same shape as the walk-through toggle above and for the same reason: both
+ * arrange their own precondition, which is that the 3D view is on screen. The
+ * way back is `showDesign()`, which puts the camera back on the storey being
+ * edited without moving it - so leaving the exterior view returns you to the
+ * design rather than to wherever the framing left the camera.
+ */
+function toggleExterior()
+{
+	if (exterior.value)
+	{
+		camera.showDesign();
+		return;
+	}
+	if (workspace.layout.value === LAYOUT_PLAN)
+	{
+		workspace.setLayout(LAYOUT_VIEW);
+	}
+	camera.showExterior();
+}
+
+/**
  * Bring the carbon-sheet controls forward.
  *
  * Tracing a scanned floorplan is one of the more useful things this app can do
@@ -322,6 +532,19 @@ function setRenderMode(mode)
 		store.three.value.applyRenderProfile(mode);
 	}
 }
+
+// A viewer built after the fact starts on whichever profile is current
+// (RM-015 M3). Before this sprint the viewer existed from boot and the only way
+// to change the look was through the function above; now the order can be the
+// other way round - somebody picks a look while still on the plan, then opens
+// the 3D pane - and the engine has to arrive wearing it.
+watch(store.three, function (viewer)
+{
+	if (viewer)
+	{
+		viewer.applyRenderProfile(renderMode.value);
+	}
+});
 
 /**
  * The plan-space coordinate readout.
@@ -344,6 +567,37 @@ function onPlanPointerMove(event)
 		x: Dimensioning.pixelToCm(event.clientX - bounds.left) + Dimensioning.pixelToCm(planner.originX),
 		y: Dimensioning.pixelToCm(event.clientY - bounds.top) + Dimensioning.pixelToCm(planner.originY),
 	});
+	// The library's own handler has already run by now - this listener is bound
+	// on the canvas before App constructs the library, so the target is current
+	// rather than one event stale, the same ordering the readout above relies on.
+	editor.refreshDrawTarget();
+}
+
+/**
+ * Place an imported model, and close the dialog behind it (RM-012 J3).
+ *
+ * The dialog closes on success only. A refusal - no room in the store, a
+ * browser that withholds it - leaves the decision on screen with the reason
+ * under it, because the alternative is a dialog that vanishes and a toast that
+ * explains why something the person can no longer see did not happen.
+ *
+ * @param {Object} decision
+ */
+async function onPlaceModel(decision)
+{
+	if (await models.place(decision))
+	{
+		importOpen.value = false;
+	}
+}
+
+/** @param {Object} record One row of the imported shelf. */
+function onPlaceStoredModel(record)
+{
+	if (models.placeStored(record))
+	{
+		importOpen.value = false;
+	}
 }
 
 function onAddItem(entry)
@@ -378,13 +632,125 @@ function onNewDesign()
 	history.reset();
 	frameDesign();
 	clearDraft();
+	// A blank design belongs to nobody: the next save makes a record rather than
+	// overwriting whatever was open a moment ago (RM-013 K1).
+	projects.detach();
+	markSaved();
 }
 
+/**
+ * Open whatever somebody picked, whichever of the two it is (RM-013 K2).
+ *
+ * A `.zip` and a `.blueprint3d` arrive through the same control on purpose:
+ * "open a design" is one intention, and making a person choose the right of two
+ * buttons for a distinction the file itself declares is an interface asking
+ * them to do the computer's job.
+ */
 async function onOpenDesign(file)
 {
+	if (file && /\.zip$/i.test(file.name))
+	{
+		const bytes = new Uint8Array(await file.arrayBuffer());
+		if (!await share.openBundle(bytes))
+		{
+			return;
+		}
+		history.reset();
+		markSaved();
+		frameDesign();
+		return;
+	}
 	await io.openDesign(file);
 	history.reset();
 	frameDesign();
+	markSaved();
+	// A file off a disk is not a record either, but it does have a name worth
+	// keeping - the seven exports read it, and a save will record it.
+	projects.detach();
+	if (file && file.name)
+	{
+		io.documentName.value = file.name.replace(/\.blueprint3d$/i, '');
+	}
+}
+
+/**
+ * Open the library, and fetch the shelf the first time (RM-013 K1, Y-5).
+ *
+ * The manifest is fetched here rather than at boot, which is what M-47 asserts:
+ * nothing about the starter plans is visible before this click, so nothing about
+ * them should be in the payload or in the boot's requests.
+ */
+function openLibrary()
+{
+	libraryOpen.value = true;
+	projects.refresh();
+	templates.load();
+}
+
+/** @param {string} id */
+async function onOpenProject(id)
+{
+	if (await projects.open(id))
+	{
+		history.reset();
+		markSaved();
+		frameDesign();
+		libraryOpen.value = false;
+	}
+}
+
+/** @param {Object} entry A template manifest row. */
+async function onStartTemplate(entry)
+{
+	if (await templates.start(entry))
+	{
+		history.reset();
+		savedDepth.value = history.depth.value;
+		// A starter plan is not a saved design: it is on screen and unkept, which
+		// is what `adopt` already said and what the dot in the bar shows.
+		projects.dirty.value = true;
+		frameDesign();
+		clearDraft();
+		libraryOpen.value = false;
+		toasts.success(`Started from ${entry.name}`);
+	}
+}
+
+/**
+ * What "unsaved changes" means (RM-013 K1).
+ *
+ * The history stack, not the model's change events. `useHistory` commits one
+ * entry per edit and `history.reset()` runs after every load, so its depth is
+ * already the number of edits since this design arrived - which is the
+ * question - and it gets undo right for nothing: undoing back to the depth a
+ * save happened at leaves nothing to save, which is what every editor does.
+ *
+ * The alternative was to listen to the same model events `useAutosave` does,
+ * and it is worse: a design with furniture fires ITEM_LOADED once per item as
+ * the files arrive, so a project would go dirty a second after being opened
+ * without anybody touching it.
+ */
+const savedDepth = ref(0);
+
+function markSaved()
+{
+	savedDepth.value = history.depth.value;
+	projects.dirty.value = false;
+}
+
+watch(history.depth, function (depth)
+{
+	projects.dirty.value = depth !== savedDepth.value;
+});
+
+async function onSaveProject()
+{
+	// A design nobody has kept yet is named after whatever put it on screen - a
+	// template, an opened file - and that name is the one to offer.
+	if (await projects.save(projects.current.value ? {} : {name: io.documentName.value}))
+	{
+		markSaved();
+	}
 }
 
 function undo()
@@ -407,6 +773,123 @@ function redo()
 }
 
 /**
+ * Delete whatever is selected (RM-008 E3).
+ *
+ * The Delete key used to mean "delete the selected item", because furniture was
+ * the only thing a selection could be that had nothing else to press. A
+ * dimension and a text label are two more, and a key that works for one kind of
+ * selection and silently does nothing for another is the worse half of a
+ * feature.
+ *
+ * Walls, corners and rooms are deliberately not included: they are deleted with
+ * the eraser tool, which is modal and armed on purpose, because deleting a wall
+ * silently deletes the rooms it defined. That asymmetry is a decision, not an
+ * oversight - an annotation costs a keystroke to recreate and a room does not.
+ */
+function deleteSelection()
+{
+	var current = selection.selection.value;
+	var planner = store.floorplanner.value;
+	if (current && (current.type === SELECTION_DIMENSION || current.type === SELECTION_ANNOTATION) && planner)
+	{
+		planner.deleteSelectedAnnotation();
+		return;
+	}
+	items.deleteSelected();
+}
+
+/**
+ * Select every item in the design (RM-012 J4).
+ *
+ * The most basic operation over a set, and the one that makes the set worth
+ * having on a plan somebody has already furnished: the alternative is
+ * shift-clicking twenty chairs. `mod+a` rather than a button, because it is a
+ * keyboard idiom nobody has to be taught and nothing here was using it -
+ * the plan and the 3D view both handle their own pointer events and neither has
+ * a text field with a native select-all to shadow.
+ */
+function selectAllItems()
+{
+	var model = store.model.value;
+	if (!model)
+	{
+		return;
+	}
+	selection.selectMany(SELECTION_ITEM, model.scene.getItems());
+}
+
+/** Whether {@link deleteSelection} has anything to do. */
+const canDeleteSelection = computed(function ()
+{
+	var current = selection.selection.value;
+	if (current && (current.type === SELECTION_DIMENSION || current.type === SELECTION_ANNOTATION))
+	{
+		return true;
+	}
+	return items.canActOnItem.value;
+});
+
+/**
+ * The plan lost focus, so the keyboard cursor goes away with it.
+ *
+ * `hideCursor` also lets go of anything a Space grab is holding: a `mousedown`
+ * with no matching `mouseup` would leave the plan dragging it for the life of
+ * the page. Escape reaches this too, because Escape's fall-through blurs
+ * whatever has focus.
+ */
+function onPlanBlur()
+{
+	planFocused.value = false;
+	withPlanner((planner) => planner.hideCursor());
+}
+
+/**
+ * Run something against the live floorplanner, if there is one.
+ *
+ * @param {function(any): void} run
+ */
+function withPlanner(run)
+{
+	const planner = store.floorplanner.value;
+	if (planner)
+	{
+		run(planner);
+	}
+}
+
+/**
+ * One direction of the plan cursor, fine and coarse (RM-014 L4).
+ *
+ * A pair rather than one binding reading `event.shiftKey`, because `describe()`
+ * spells a held Shift into the combination itself - so 'arrowup' would simply
+ * not match while Shift is down, and the coarse step would be unreachable. The
+ * shifted one is an `alias` so the sheet lists the direction once and explains
+ * the modifier in prose rather than four more times.
+ *
+ * @param {string} key
+ * @param {string} label
+ * @param {number} dx
+ * @param {number} dy
+ * @returns {Array<Object>}
+ */
+function cursorKeys(key, label, dx, dy)
+{
+	return [
+		{
+			group: 'Plan cursor', keys: key, label: label, repeats: true,
+			enabled: () => planFocused.value, yieldWhenDisabled: true,
+			run: () => withPlanner((planner) => planner.moveCursor(dx, dy, false)),
+		},
+		{
+			group: 'Plan cursor', keys: 'shift+' + key, label: label + ' by a metre',
+			alias: true, repeats: true,
+			enabled: () => planFocused.value, yieldWhenDisabled: true,
+			run: () => withPlanner((planner) => planner.moveCursor(dx, dy, true)),
+		},
+	];
+}
+
+/**
  * The keyboard map.
  *
  * A computed rather than a constant, so `enabled` and the bindings themselves
@@ -421,6 +904,9 @@ const bindings = computed(() => /** @type {Array<import('./composables/useShortc
 	// --- document ---
 	{group: 'Document', keys: 'mod+n', label: 'New layout', run: onNewDesign},
 	{group: 'Document', keys: 'mod+s', label: 'Save layout', run: io.saveDesign},
+	{group: 'Document', keys: 'mod+shift+o', label: 'Designs', run: openLibrary},
+	{group: 'Document', keys: 'mod+shift+c', label: 'Share a link', run: openShare,
+		enabled: () => !share.viewing.value},
 	{group: 'Document', keys: 'mod+z', label: 'Undo', run: undo, enabled: () => history.canUndo.value},
 	{group: 'Document', keys: 'mod+shift+z', label: 'Redo', run: redo, enabled: () => history.canRedo.value},
 	// Windows and Linux editors also bind Ctrl+Y. Harmless on Apple platforms,
@@ -430,20 +916,68 @@ const bindings = computed(() => /** @type {Array<import('./composables/useShortc
 	// --- tools ---
 	{group: 'Tools', keys: 'v', label: 'Select and move', run: () => editor.setMode(floorplannerModes.MOVE)},
 	{group: 'Tools', keys: 'w', label: 'Draw walls', run: () => editor.setMode(floorplannerModes.DRAW)},
+	{group: 'Tools', keys: 'r', label: 'Draw a rectangular room', run: () => editor.setMode(floorplannerModes.RECTANGLE)},
+	{group: 'Tools', keys: 'd', label: 'Measure between two points', run: () => editor.setMode(floorplannerModes.DIMENSION)},
+	{group: 'Tools', keys: 't', label: 'Add a text label', run: () => editor.setMode(floorplannerModes.TEXT)},
 	{group: 'Tools', keys: 'x', label: 'Delete walls', run: () => editor.setMode(floorplannerModes.DELETE)},
 	{group: 'Tools', keys: 's', label: 'Toggle snap to grid', run: () => zoom.setSnap(!zoom.snap.value)},
+
+	// --- the plan, with no pointer (RM-014 L4, finding Z-5) ---
+	//
+	// Live only while the plan canvas has focus, and `yieldWhenDisabled` because
+	// the same four keys pan the 3D camera, scroll the inspector and drive the
+	// pane splitter when it does not. They stay in the array either way, because
+	// this array is also what the shortcuts sheet renders and a key nobody can
+	// discover is a key nobody has.
+	//
+	// `repeats`, because holding an arrow IS the gesture - the one case the
+	// repeat guard in `useShortcuts` was written to expect.
+	...cursorKeys('arrowup', 'Move the plan cursor up', 0, -1),
+	...cursorKeys('arrowdown', 'Move the plan cursor down', 0, 1),
+	...cursorKeys('arrowleft', 'Move the plan cursor left', -1, 0),
+	...cursorKeys('arrowright', 'Move the plan cursor right', 1, 0),
+	{
+		group: 'Plan cursor', keys: 'enter', label: 'Press at the cursor',
+		enabled: () => planFocused.value, yieldWhenDisabled: true,
+		run: () => withPlanner((planner) => planner.pressCursor()),
+	},
+	{
+		group: 'Plan cursor', keys: 'space', label: 'Pick up, or put down',
+		enabled: () => planFocused.value, yieldWhenDisabled: true,
+		run: () => withPlanner((planner) => planner.toggleCursorGrab()),
+	},
 	{group: 'Tools', keys: 'a', label: 'Furniture catalog', run: toggleCatalog},
 	{
 		group: 'Tools', keys: 'mod+d', label: 'Duplicate item',
 		run: items.duplicateSelected, enabled: () => items.canActOnItem.value,
 	},
 	{
-		group: 'Tools', keys: 'delete', label: 'Delete item',
-		run: items.deleteSelected, enabled: () => items.canActOnItem.value,
+		group: 'Tools', keys: 'mod+a', label: 'Select every item',
+		run: selectAllItems, enabled: () => stats.items.value > 0,
 	},
 	{
-		group: 'Tools', keys: 'backspace', label: 'Delete item', alias: true,
-		run: items.deleteSelected, enabled: () => items.canActOnItem.value,
+		group: 'Tools', keys: 'mod+c', label: 'Copy the selection',
+		run: items.copySelected, enabled: () => items.canActOnItem.value,
+	},
+	{
+		group: 'Tools', keys: 'mod+v', label: 'Paste',
+		run: items.pasteClipboard, enabled: () => items.canPaste.value,
+	},
+	{
+		group: 'Tools', keys: 'm', label: 'Mirror left to right',
+		run: () => items.mirrorSelected('x'), enabled: () => items.canActOnItem.value,
+	},
+	{
+		group: 'Tools', keys: 'shift+m', label: 'Mirror front to back',
+		run: () => items.mirrorSelected('z'), enabled: () => items.canActOnItem.value,
+	},
+	{
+		group: 'Tools', keys: 'delete', label: 'Delete the selection',
+		run: deleteSelection, enabled: () => canDeleteSelection.value,
+	},
+	{
+		group: 'Tools', keys: 'backspace', label: 'Delete the selection', alias: true,
+		run: deleteSelection, enabled: () => canDeleteSelection.value,
 	},
 
 	// --- view ---
@@ -451,6 +985,7 @@ const bindings = computed(() => /** @type {Array<import('./composables/useShortc
 	{group: 'View', keys: '2', label: 'Split view', run: () => workspace.setLayout(LAYOUT_SPLIT)},
 	{group: 'View', keys: '3', label: '3D only', run: () => workspace.setLayout(LAYOUT_VIEW)},
 	{group: 'View', keys: 'f', label: 'Walk through', run: toggleWalkthrough},
+	{group: 'View', keys: 'e', label: 'Exterior view', run: toggleExterior},
 	{group: 'View', keys: 'o', label: 'Orthographic camera', run: () => camera.setOrthographic(!camera.orthographic.value)},
 	{group: 'View', keys: 'g', label: 'Wireframe', run: () => camera.setWireframe(!camera.wireframe.value)},
 	{group: 'View', keys: '=', label: 'Zoom in', run: zoom.zoomIn},
@@ -493,90 +1028,138 @@ const bindings = computed(() => /** @type {Array<import('./composables/useShortc
 	},
 ]));
 
+/**
+ * The two things offline has to say, said in the place notices are said.
+ *
+ * Not new chrome. An install offer that occupied a bar would be a bar advertising
+ * something most people will decline, and an update notice that did would sit
+ * there being ignored - the toast stack already exists, already knows how to
+ * carry an action, and is where this application puts everything else that is
+ * true for a moment.
+ *
+ * The install offer is raised once and never repeated: `beforeinstallprompt`
+ * fires again on later visits, and a browser that keeps asking is the reason
+ * people learn to dismiss without reading.
+ */
+watch(offline.installable, function (canInstall)
+{
+	if (!canInstall)
+	{
+		return;
+	}
+	toasts.info('Architect3D can be installed as an app.', {
+		ttl: 12000,
+		action: {label: 'Install', run: function () {offline.install();}},
+	});
+});
+
+watch(offline.updateReady, function (waiting)
+{
+	if (!waiting)
+	{
+		return;
+	}
+	// No `ttl`: a person who misses this reloads later and gets it anyway, but a
+	// notice that disappears while somebody is reading it is worse than one that
+	// waits to be dismissed.
+	toasts.info('A newer version of Architect3D is ready.', {
+		ttl: 0,
+		action: {label: 'Reload', run: offline.applyUpdate},
+	});
+});
+
 useShortcuts(() => bindings.value);
 </script>
 
 <template>
 	<TooltipProvider :delay-duration="260" :skip-delay-duration="240">
 		<div id="app-shell" class="flex h-screen w-screen flex-col overflow-hidden bg-ground text-ink">
+			<!-- First in the tab order, and invisible until it has focus
+			     (RM-014 L4). It points at the plan rather than at the <main>
+			     landmark, because a landmark is not focusable and the browser would
+			     move the caret without moving focus - the next Tab would carry on
+			     from the top bar as if nothing had happened. The plan canvas IS
+			     focusable now, so the link lands somewhere a person can work. -->
+			<a
+				href="#floorplanner-canvas"
+				class="absolute left-3 top-3 z-[100] -translate-y-[200%] rounded bg-panel px-3 py-2 text-[13px] font-medium text-ink shadow-lg ring-1 ring-line transition-transform focus:translate-y-0"
+			>Skip to the plan</a>
 			<TopBar
-				:layout="workspace.layout.value"
+				:help-url="help"
 				:theme="theme.theme.value"
-				:unit="display.unit.value"
-				:units="display.units"
-				:can-undo="history.canUndo.value"
-				:can-redo="history.canRedo.value"
-				:exporting="io.busy.value"
-				:inspector-open="workspace.inspectorOpen.value"
 				:saved-at="autosave.savedAt.value"
+				:project-name="projects.name.value"
+				:project-dirty="projects.dirty.value"
 				@new-design="onNewDesign"
 				@open-design="onOpenDesign"
-				@save-design="io.saveDesign"
-				@save-mesh="io.saveMesh"
-				@save-gltf="io.saveGLTF"
+				@save-bundle="onSaveBundle"
+				@start-tour="tour.start"
 				@undo="undo"
 				@redo="redo"
-				@set-layout="workspace.setLayout"
-				@set-unit="display.setUnit"
 				@toggle-theme="theme.toggleTheme"
-				@toggle-inspector="workspace.toggleInspector"
-				@show-shortcuts="shortcutsOpen = true" />
+				@show-shortcuts="shortcutsOpen = true"
+				@show-library="openLibrary"
+				@show-share="openShare" />
+
+			<ViewerBanner
+				v-if="share.viewing.value"
+				:busy="projects.busy.value"
+				@adopt="adoptShared"
+				@leave="share.leave" />
 
 			<div class="flex min-h-0 flex-1">
 				<ToolRail
-					:mode="editor.mode.value"
-					:layout="workspace.layout.value"
-					:can-act-on-item="items.canActOnItem.value"
+					v-if="!share.viewing.value"
 					:catalog-open="catalogOpen"
 					:walkthrough="walkthrough"
-					@set-mode="editor.setMode"
+					:exterior="exterior"
 					@open-catalog="toggleCatalog"
-					@duplicate-item="items.duplicateSelected"
-					@delete-item="items.deleteSelected"
 					@toggle-walkthrough="toggleWalkthrough"
+					@toggle-exterior="toggleExterior"
 					@open-backdrop="openBackdropSettings" />
 
-				<AppWorkspace
-					:layout="workspace.layout.value"
-					:split-ratio="workspace.splitRatio.value"
-					@update:split-ratio="workspace.setSplitRatio">
+				<AppWorkspace>
 					<template #plan>
 						<FloorplannerView
 							ref="floorplanRef"
 							@wheel-zoom="zoom.nudge"
+							@canvas-focus="planFocused = true"
+							@canvas-blur="onPlanBlur"
 							@pointer-move="onPlanPointerMove"
 							@pointer-leave="stats.setCursor(null)">
-							<PlanOverlay
-								:zoom-percent="zoom.percent.value"
-								:can-zoom-in="zoom.canZoomIn.value"
-								:can-zoom-out="zoom.canZoomOut.value"
-								:snap="zoom.snap.value"
-								:spacing="zoom.spacing.value"
-								:spacings="zoom.gridSpacings"
-								:mode="editor.mode.value"
-								@zoom-in="zoom.zoomIn"
-								@zoom-out="zoom.zoomOut"
-								@zoom-fit="zoom.zoomToFit"
-								@zoom-reset="zoom.resetZoom"
-								@centre="zoom.centre"
-								@set-snap="zoom.setSnap"
-								@set-spacing="zoom.setSpacing" />
+							<div
+								v-if="levels.enabled.value"
+								class="pointer-events-none absolute right-3 top-3 z-20 w-44">
+								<LevelSwitcher :unit="display.unit.value" />
+							</div>
+							<!-- Zoom and the plan counts are injected, not passed
+							     (RM-020 S-5): fourteen of this element's bindings were
+							     one composable being handed over a value at a time. -->
+							<PlanOverlay :unit="display.unit.value" />
 						</FloorplannerView>
 					</template>
 
 					<template #view>
 						<ThreeViewport ref="viewportRef">
+							<!--
+								The 3D engine is 130 KB gzipped and it is fetched on the
+								first switch to a layout that shows it (RM-015 M3). On a
+								fast connection this is one frame and nobody sees it; on a
+								slow one the alternative is an empty box that looks broken.
+								`aria-live` because a person using a screen reader gets no
+								other signal that the pane is populating.
+							-->
+							<div
+								v-if="store.viewerLoading.value"
+								class="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+								<p class="glass px-3 py-2 text-[11px] text-ink-soft" role="status" aria-live="polite">
+									Preparing the 3D view&hellip;
+								</p>
+							</div>
+
 							<SceneOverlay
 								v-show="!walkthrough"
-								:active-view="camera.activeView.value"
-								:orthographic="camera.orthographic.value"
-								:wireframe="camera.wireframe.value"
-								:view-locked="camera.viewLocked.value"
 								:render-mode="renderMode"
-								@switch-view="camera.switchView"
-								@toggle-orthographic="camera.setOrthographic(!camera.orthographic.value)"
-								@toggle-wireframe="camera.setWireframe(!camera.wireframe.value)"
-								@toggle-lock="camera.setViewLocked(!camera.viewLocked.value)"
 								@set-render-mode="setRenderMode" />
 
 							<div
@@ -584,14 +1167,23 @@ useShortcuts(() => bindings.value);
 								class="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center p-4">
 								<p class="glass px-3 py-2 text-[11px]">
 									<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> to walk ·
-									move the mouse to look · <kbd>Esc</kbd> to leave
+									move the mouse to look · <strong>click the floor</strong> to go there ·
+									<kbd>Esc</kbd> to leave
 								</p>
 							</div>
 						</ThreeViewport>
 					</template>
 				</AppWorkspace>
 
+				<!--
+					`v-if` while viewing, not `v-show` (RM-013 K2). Every panel in
+					there is a set of live editors bound straight to model objects -
+					18 of the 20 files carry an editable control - so hiding it with
+					CSS would leave a form over somebody else's design that a screen
+					reader still reaches and a Tab still lands in.
+				-->
 				<InspectorPanel
+					v-if="!share.viewing.value"
 					v-show="workspace.inspectorOpen.value"
 					v-model:tab="inspectorTab"
 					:selection="selection.selection.value"
@@ -599,25 +1191,38 @@ useShortcuts(() => bindings.value);
 					@changed="history.commit" />
 			</div>
 
-			<StatusBar
-				:rooms="stats.rooms.value"
-				:walls="stats.walls.value"
-				:items="stats.items.value"
-				:area-label="stats.areaLabel.value"
-				:cursor="stats.cursor.value"
-				:zoom="zoom.percent.value"
-				:mode="editor.mode.value"
-				:layout="workspace.layout.value" />
+			<StatusBar />
 		</div>
 
 		<CatalogDrawer
 			v-model:open="catalogOpen"
 			:sections="catalog.sections.value"
+			:promised="catalog.promised.value"
 			:placement="selection.placementContext.value"
 			@add-item="onAddItem"
-			@prefetch-item="assets.prefetchItem" />
+			@prefetch-item="assets.prefetchItem"
+			@import-model="importOpen = true" />
+
+		<TourGuide />
+
+		<ImportModelDialog
+			v-model:open="importOpen"
+			@place="onPlaceModel"
+			@place-stored="onPlaceStoredModel" />
 
 		<ShortcutsDialog v-model:open="shortcutsOpen" :bindings="bindings" />
+
+		<ShareDialog
+			v-model:open="shareOpen"
+			@save-file="io.saveDesign" />
+
+		<ProjectLibrary
+			v-model:open="libraryOpen"
+			:templates="templates.entries.value"
+			:templates-error="templates.error.value"
+			@open-project="onOpenProject"
+			@start-template="onStartTemplate"
+			@save-current="onSaveProject" />
 
 		<ToastStack />
 	</TooltipProvider>

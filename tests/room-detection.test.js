@@ -3,12 +3,27 @@
  *
  * findRooms is the semantic centre of the data layer: it walks the planar
  * straight-line graph of corners/walls, keeps the tightest cycles, drops
- * duplicates and drops clockwise loops. The roadmap (docs/roadmap.html, S0)
- * freezes it as-is for the Vue3/three-0.185 migration, so everything below
- * records what the algorithm DOES TODAY - including its quirks - rather than
- * what a textbook room finder would do.
+ * duplicates and drops clockwise loops. It was frozen as-is for the
+ * Vue 3 / three 0.185 migration, so everything below records what the
+ * algorithm DOES TODAY - including its quirks - rather than what a textbook
+ * room finder would do. A failure here is a signal to re-check the change.
  *
  * Coordinates are in cm, y grows DOWNWARD on the 2D canvas.
+ *
+ * ## `centrelineArea`, not `area` (RM-008 F2)
+ *
+ * Every figure below was written against `Room.area`, which was the area
+ * between the wall CENTRELINES. F2 made `area` the interior polygon - the floor
+ * a person can stand on - because the centreline figure is neither the inside
+ * of the room nor the outside, and it reads 5.2 % high at the default 10 cm
+ * wall thickness and about 23 % high at 40 (RM-009 U-7).
+ *
+ * Re-pointed rather than re-numbered, and the distinction matters: these tests
+ * are about room DETECTION - which cycles are found, and that the polygon
+ * arithmetic is the shoelace formula rather than a bounding box. The centreline
+ * polygon is the one that answers those questions, and it is still computed and
+ * still exposed. `tests/wall-joins.test.js` is where the interior figure is
+ * asserted.
  */
 import {describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {Floorplan} from '../src/scripts/model/floorplan.js';
@@ -52,7 +67,7 @@ describe('findRooms: a closed square', () => {
 		const {floorplan} = buildSquareRoom();
 		// Room.updateArea uses Region (shoelace) over the raw corner locations,
 		// so area is in cm^2 regardless of the active display unit.
-		expect(floorplan.getRooms()[0].area).toBe(120000);
+		expect(floorplan.getRooms()[0].centrelineArea).toBe(120000);
 	});
 
 	it('names every freshly detected room "A New Room"', () => {
@@ -101,7 +116,7 @@ describe('findRooms: an L-shaped room', () => {
 		// 400x200 bottom limb (80000) + 200x200 upper limb (40000) = 120000.
 		// The library agrees exactly - no discrepancy to preserve here.
 		const {floorplan} = buildLShapedRoom();
-		expect(floorplan.getRooms()[0].area).toBe(120000);
+		expect(floorplan.getRooms()[0].centrelineArea).toBe(120000);
 	});
 
 	it('keeps the concave vertex in the L room cycle', () => {
@@ -136,7 +151,7 @@ describe('findRooms: two rectangles sharing a wall (the dedup path)', () => {
 
 	it('gives both shared-wall rooms an area of 90000 square cm', () => {
 		const {floorplan} = buildSharedWallRooms();
-		expect(floorplan.getRooms().map((r) => r.area)).toEqual([90000, 90000]);
+		expect(floorplan.getRooms().map((r) => r.centrelineArea)).toEqual([90000, 90000]);
 	});
 
 	it('gives the shared wall both a front and a back edge', () => {
@@ -257,7 +272,7 @@ describe('findRooms: cycle orientation', () => {
 		const {floorplan} = buildPolygon([[-400, -300], [0, -300], [0, 0], [-400, 0]]);
 		expect(floorplan.getRooms()).toHaveLength(1);
 		expect(xy(floorplan.getRooms()[0].corners)).toEqual([[-400, -300], [0, -300], [0, 0], [-400, 0]]);
-		expect(floorplan.getRooms()[0].area).toBe(120000);
+		expect(floorplan.getRooms()[0].centrelineArea).toBe(120000);
 	});
 });
 
@@ -316,10 +331,10 @@ describe('Room area recomputation when a corner moves', () => {
 	it('recomputes the area in place when a corner is moved with move()', () => {
 		const {floorplan, corners} = buildSquareRoom();
 		const room = floorplan.getRooms()[0];
-		expect(room.area).toBe(120000);
+		expect(room.centrelineArea).toBe(120000);
 		corners[1].move(600, 0);
 		// (0,0),(600,0),(400,300),(0,300) shoelace = 300000 / 2 = 150000.
-		expect(room.area).toBe(150000);
+		expect(room.centrelineArea).toBe(150000);
 	});
 
 	it('does not re-run room detection on a move, so the Room object survives', () => {
@@ -337,7 +352,7 @@ describe('Room area recomputation when a corner moves', () => {
 		const {floorplan, corners} = buildSquareRoom();
 		corners[1].move(600, 0);
 		floorplan.update();
-		expect(floorplan.getRooms()[0].area).toBe(150000);
+		expect(floorplan.getRooms()[0].centrelineArea).toBe(150000);
 		expect(roomSignatures(floorplan)).toEqual(['[[0,0],[600,0],[400,300],[0,300]]']);
 	});
 
@@ -346,13 +361,21 @@ describe('Room area recomputation when a corner moves', () => {
 		corners[1].x = 600;
 		corners[2].x = 600;
 		// 600x300 rectangle.
-		expect(floorplan.getRooms()[0].area).toBe(180000);
+		expect(floorplan.getRooms()[0].centrelineArea).toBe(180000);
 	});
 
-	it('skips the in-place area refresh once the plan holds ten or more rooms', () => {
-		// Preserved quirk: Corner.move only calls updateAttachedRooms when
-		// `this.floorplan.rooms.length < 10`. At ten rooms the area silently goes
-		// stale until someone calls Floorplan.update().
+	it('refreshes the area on a move however many rooms the plan holds', () => {
+		// This pinned a quirk until RM-019 R1: `Corner.move` only calls
+		// `updateAttachedRooms` when `this.floorplan.rooms.length < 10`, so at ten
+		// rooms the area went stale until someone called `Floorplan.update()`.
+		//
+		// That guard is still in `Corner.move` and still does nothing here. What
+		// changed is that the refresh no longer depends on it: the geometry branch
+		// of `Floorplan.update()` re-derives the rooms the moved corners belong to,
+		// and its scope is those rooms rather than the plan, so there is nothing
+		// for a plan-size guard to protect. Keeping the old behaviour would have
+		// meant fixing the stale-3D bug on small plans and leaving it on large
+		// ones, which is where a rebuild is least affordable.
 		const floorplan = new Floorplan();
 		const movable = [];
 		for (let k = 0; k < 10; k++)
@@ -367,13 +390,14 @@ describe('Room area recomputation when a corner moves', () => {
 		floorplan.update();
 		const room = floorplan.getRooms()[0];
 		expect(floorplan.getRooms()).toHaveLength(10);
-		expect(room.area).toBe(40000);
+		expect(room.centrelineArea).toBe(40000);
 
 		movable[0].move(400, 0);
-		expect(room.area).toBe(40000);
+		expect(room.centrelineArea, 'refreshed in place, at ten rooms').toBe(60000);
 
+		// And a full update agrees with what the in-place refresh produced.
 		floorplan.update();
-		expect(floorplan.getRooms()[0].area).toBe(60000);
+		expect(floorplan.getRooms()[0].centrelineArea).toBe(60000);
 	});
 });
 
@@ -455,15 +479,21 @@ describe('Interior corners (wall-thickness offsets)', () => {
 		});
 	});
 
-	it('appends instead of resetting when updateInteriorCorners is called again', () => {
-		// Preserved quirk: Room.updateInteriorCorners pushes onto interiorCorners
-		// without clearing it. Harmless today (the constructor is the only caller)
-		// but a second call doubles the array.
+	it('replaces rather than appends when updateInteriorCorners is called again', () => {
+		// This pinned the quirk its own comment predicted: the method pushed onto
+		// `interiorCorners` without clearing it, which was "harmless today (the
+		// constructor is the only caller) but a second call doubles the array".
+		//
+		// RM-019 R1 gave it a second caller - the geometry branch of
+		// `Floorplan.update()`, which re-derives the rooms a moved corner belongs
+		// to - so the day the comment described arrived and the array is reset.
 		const {floorplan} = buildSquareRoom();
 		const room = floorplan.getRooms()[0];
 		expect(room.interiorCorners).toHaveLength(4);
+		const before = xy(room.interiorCorners);
 		room.updateInteriorCorners();
-		expect(room.interiorCorners).toHaveLength(8);
+		expect(room.interiorCorners).toHaveLength(4);
+		expect(xy(room.interiorCorners), 'and re-derives the same polygon').toEqual(before);
 	});
 });
 

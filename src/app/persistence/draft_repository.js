@@ -1,5 +1,19 @@
 // @ts-check
 
+import {REASON_QUOTA, REASON_UNAVAILABLE, REASON_VERSION, REASON_ERROR,
+	byteLength, classify, estimate, promisify} from './storage.js';
+
+/**
+ * Re-exported, not moved away (RM-013 K1).
+ *
+ * These four names and these two functions were defined here from RM-003 A5 and
+ * now live in `storage.js`, because the project library is a second store that
+ * has to mean the same thing by all of them. Re-exporting rather than editing
+ * four call sites keeps every existing importer working, and keeps this
+ * module's public surface exactly what it was.
+ */
+export {REASON_QUOTA, REASON_UNAVAILABLE, REASON_VERSION, REASON_ERROR, byteLength, classify};
+
 /**
  * Where the working draft is kept (RM-003 A5).
  *
@@ -78,15 +92,6 @@
  * @property {?number} quota
  */
 
-/** The write was refused because the store is full. */
-export const REASON_QUOTA = 'quota';
-/** No store at all: private browsing, a disabled setting, a webview. */
-export const REASON_UNAVAILABLE = 'unavailable';
-/** A store written by a build newer than this one. Left alone deliberately. */
-export const REASON_VERSION = 'version';
-/** Anything else the platform threw. */
-export const REASON_ERROR = 'error';
-
 /**
  * Where the pre-A5 draft lives, and where the localStorage implementation still
  * puts it.
@@ -113,78 +118,6 @@ export const STORE_VERSION = 1;
 
 /** The single slot. `useAutosave`'s "deliberately not a recent-files list". */
 export const DRAFT_ID = 'current';
-
-/**
- * How many bytes a string occupies once stored.
- *
- * Both stores hold UTF-16 in practice, but what this is used for is a size
- * report and a quota estimate, and for those the honest unit is what a byte
- * count means everywhere else in this project: UTF-8. `TextEncoder` is in every
- * environment this runs in, including jsdom.
- *
- * @param {string} text
- * @returns {number}
- */
-export function byteLength(text)
-{
-	return new TextEncoder().encode(text).length;
-}
-
-/**
- * Classify a storage exception.
- *
- * `QuotaExceededError` is the one worth distinguishing, because it is the one a
- * caller can do something about - prune, then retry. It arrives as a `DOMException`
- * with that name in every current browser, and as code 22 in older ones.
- *
- * @param {*} error
- * @returns {string}
- */
-export function classify(error)
-{
-	if (!error)
-	{
-		return REASON_ERROR;
-	}
-	if (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED' || error.code === 22)
-	{
-		return REASON_QUOTA;
-	}
-	if (error.name === 'VersionError')
-	{
-		return REASON_VERSION;
-	}
-	return REASON_ERROR;
-}
-
-/**
- * What the browser thinks it has room for, or nulls.
- *
- * Not part of the interface's correctness - nothing branches on it - but it is
- * what turns "autosave is off" into "autosave is off because the draft is 8 MB
- * and you have 6 MB left".
- *
- * @returns {Promise<{usage: ?number, quota: ?number}>}
- */
-async function estimate()
-{
-	try
-	{
-		if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.estimate)
-		{
-			var result = await navigator.storage.estimate();
-			return {
-				usage: typeof result.usage === 'number' ? result.usage : null,
-				quota: typeof result.quota === 'number' ? result.quota : null,
-			};
-		}
-	}
-	catch
-	{
-		// An estimate nobody can get is not a failure of anything.
-	}
-	return {usage: null, quota: null};
-}
 
 /**
  * The pre-A5 behaviour, behind the interface.
@@ -342,22 +275,6 @@ function parseDraft(raw)
 	{
 		return null;
 	}
-}
-
-/**
- * Wrap an IDBRequest as a promise.
- *
- * @template T
- * @param {IDBRequest<T>} request
- * @returns {Promise<T>}
- */
-function promisify(request)
-{
-	return new Promise(function (resolve, reject)
-	{
-		request.onsuccess = function () {resolve(request.result);};
-		request.onerror = function () {reject(request.error);};
-	});
 }
 
 /**

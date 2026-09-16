@@ -322,6 +322,295 @@ export function textureVram(root = 'public')
 	return Math.round((texels * 4 + compressedTexels) * 4 / 3);
 }
 
+/* -------------------------------------------------------------------------
+ * What one scene asks for (RM-011 W-5)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * The texels one image file costs, split by how it is stored.
+ *
+ * `textureVram` above did this inline over a whole tree. H1 needs it per file,
+ * because the question changed from "what does the tree contain" to "what does
+ * a scene upload", and a scene names files rather than directories.
+ *
+ * @param {string} relative A path under public/.
+ * @returns {{texels: number, compressed: number}} zero for anything unreadable.
+ */
+function texelsOf(relative)
+{
+	const path = join('public', relative);
+	if (!existsSync(path)) { return {texels: 0, compressed: 0}; }
+	const ext = extname(path).toLowerCase();
+	if (!['.png', '.jpg', '.jpeg', '.ktx2'].includes(ext)) { return {texels: 0, compressed: 0}; }
+	const bytes = readFileSync(path);
+	if (ext === '.ktx2')
+	{
+		const size = ktx2Size(bytes);
+		return {texels: 0, compressed: size ? size.w * size.h : 0};
+	}
+	const size = pngSize(bytes) || jpegSize(bytes);
+	return {texels: size ? size.w * size.h : 0, compressed: 0};
+}
+
+/** The same model `textureVram` uses: four bytes a texel, one for a transcode, 4/3 for mips. */
+const vramOf = (texels, compressed) => Math.round((texels * 4 + compressed) * 4 / 3);
+
+/**
+ * Two textures every viewer uploads, whatever the design says.
+ *
+ * `three/skybox.js` GROUND_URL and `three/edge.js` LIGHT_MAP_URL. The
+ * environment map beside them is not here on purpose: `Skybox.useEnvironment`
+ * is false and nothing in the application turns it on, so a scene does not pay
+ * for `envs/Garden.jpg` and this number should not say it does.
+ */
+const SCENE_FIXED = ['rooms/textures/Ground_4K.ktx2', 'rooms/textures/walllightmap.png'];
+
+/** Both catalogs offer the same shape, which is what lets one loop read both. */
+function surfaceEntries(file, group)
+{
+	if (!existsSync(file)) { return []; }
+	const catalog = JSON.parse(readFileSync(file, 'utf8'));
+	return catalog[group] || [];
+}
+
+/** The costliest thing the picker can put on one surface, maps included. */
+function worstSurface(group)
+{
+	const entries = [
+		...surfaceEntries('src/catalog/textures.json', group),
+		...surfaceEntries('src/catalog/materials.json', group),
+	];
+	let worst = {texels: 0, compressed: 0, name: null};
+	for (const entry of entries)
+	{
+		let texels = 0;
+		let compressed = 0;
+		for (const url of [entry.url, entry.normalMap, entry.roughnessMap])
+		{
+			if (!url) { continue; }
+			const cost = texelsOf(url);
+			texels += cost.texels;
+			compressed += cost.compressed;
+		}
+		if (vramOf(texels, compressed) > vramOf(worst.texels, worst.compressed))
+		{
+			worst = {texels, compressed, name: entry.name};
+		}
+	}
+	return worst;
+}
+
+/**
+ * How many items the most furnished design this repository ships places.
+ *
+ * Read rather than chosen, so the worst case tracks the evidence: if a fixture
+ * grows to forty items, the ceiling this feeds should notice.
+ */
+function busiestDesign()
+{
+	let worst = 0;
+	for (const dir of ['tests/fixtures'])
+	{
+		if (!existsSync(dir)) { continue; }
+		for (const name of readdirSync(dir))
+		{
+			if (!name.endsWith('.blueprint3d')) { continue; }
+			try
+			{
+				const design = JSON.parse(readFileSync(join(dir, name), 'utf8'));
+				const levels = (design.levels || []).reduce((sum, level) => sum + ((level.items || []).length), 0);
+				worst = Math.max(worst, (design.items || []).length + levels);
+			}
+			catch { /* a fixture that will not parse is asset-integrity's problem, not this line's */ }
+		}
+	}
+	return worst;
+}
+
+/**
+ * What a GPU is actually asked for, rather than what the tree contains (W-5).
+ *
+ * ## Why this replaced a tree walk
+ *
+ * `textureVram` above sums every image in `public/`, which was the right
+ * instrument while the tree was 28 textures and a scene used most of them. It
+ * stopped being one. RM-011 W-5 measured what a scene really holds:
+ *
+ *     three-storey house, 3 storeys and 6 items      7 textures
+ *     furnished 20-item design                      15 textures
+ *     the tree                                     202 images
+ *
+ * So the line was reporting a number no GPU is ever asked for, and it was about
+ * to refuse H1's material library over it - 90 images the tree holds and a scene
+ * uploads at most four of. A budget that blocks a feature for a cost nobody pays
+ * is not protecting anything.
+ *
+ * ## The three terms, and why each one is a thing that exists
+ *
+ * Every part of this is something a user can actually produce, which is the
+ * difference between a worst case and a hypothetical:
+ *
+ *   fixed      the skybox ground and the wall lightmap, uploaded by every
+ *              viewer on every boot.
+ *   surfaces   the costliest wall material and the costliest floor material the
+ *              pickers offer, maps included. A room has walls and a floor, and
+ *              choosing both is two clicks.
+ *   furniture  the distinct textures of the costliest N catalog items, where N
+ *              is the item count of the most furnished design in the repository.
+ *              Shared images are counted once, because a GPU uploads them once.
+ *
+ * It is a model and not an observation, so `tests/browser/gpu-memory.test.js`
+ * checks it against `renderer.info.memory.textures` on a real scene in a real
+ * browser - the model has to be an upper bound on what the renderer reports, or
+ * the model is wrong. That cross-check is the reason this can stay a tier-1 gate
+ * instead of moving to the browser tier entirely.
+ */
+/** Compacted the way a bundler emits it, then gzipped. */
+function jsonGzip(path)
+{
+	return existsSync(path)
+		? gzipSync(Buffer.from(JSON.stringify(JSON.parse(readFileSync(path, 'utf8')))), {level: 9}).length
+		: null;
+}
+
+/**
+ * Every catalog file the bundle carries (RM-012 J1 M-44, J2).
+ *
+ * J1 added this line pointed at `catalog-index.json`, to notice a key or a row
+ * count crossing back into the payload. J2 moved what it was watching: no
+ * catalog row is bundled at all now, so the file it named no longer exists and
+ * the line is re-pointed at what took its place.
+ *
+ * Four files, and the reason it is four rather than one. The **manifest** is the
+ * list of packs, and it grows by a line when a kit is acquired rather than by a
+ * line when an item is. The three **generated sections** - openings, flights,
+ * columns and beams - are bundled because they name no model file and so cannot
+ * be in a pack; they are the one part of the catalog that is still content in
+ * the payload, and this is the only line that would notice them growing.
+ *
+ * Summed rather than given four lines, because the question is one question:
+ * what does a visitor download of the catalog before they ask for any of it.
+ *
+ * @returns {?number} Gzipped bytes.
+ */
+function catalogBundledBytes()
+{
+	const files = ['catalog-manifest', 'openings', 'stairs', 'structures']
+		.map((name) => jsonGzip(`src/catalog/${name}.json`));
+	return files.some((bytes) => bytes === null) ? null : files.reduce((sum, bytes) => sum + bytes, 0);
+}
+
+/**
+ * What opening the drawer costs (RM-012 J2).
+ *
+ * The thirteenth line, and it exists because J2 moved a cost rather than
+ * removing one. Every catalog row is now fetched, which is what keeps
+ * `first-load` flat while the catalog grows - but the bytes did not evaporate,
+ * they moved to the first click on the furniture button, and nothing here was
+ * measuring that. `public-total` counts them at rest on a disk and `first-load`
+ * correctly ignores them; this is the one line that asks what a person waits for
+ * the first time they go looking for a chair.
+ *
+ * Gzipped, because these are served as text and it is what the browser
+ * downloads. Summed across every pack, because opening the drawer fetches all of
+ * them - a per-pack ceiling would say nothing about the wait.
+ *
+ * @returns {?number} Gzipped bytes.
+ */
+/**
+ * What the starter plans cost, once somebody asks for them (RM-013 K1, Y-5).
+ *
+ * The fourteenth line, and the same shape as `catalog-packs` above: content
+ * that is deliberately NOT in the payload still costs somebody a download, and
+ * a number nobody watches is how a shelf of seven becomes a shelf of seventy.
+ *
+ * Gzipped, because the manifest and the documents are served as text and every
+ * host on earth compresses those. Y-5 measured five distinct furnished plans at
+ * 4,050 gzipped bytes against 9,849 of `first-load` headroom, which is the
+ * arithmetic that put them out here rather than in the bundle.
+ */
+function templateBytes()
+{
+	const dir = 'public/templates';
+	if (!existsSync(dir))
+	{
+		return null;
+	}
+	return readdirSync(dir)
+		.filter((name) => extname(name) === '.json' || name.endsWith('.blueprint3d'))
+		.reduce((sum, name) => sum + gzipSync(readFileSync(join(dir, name)), {level: 9}).length, 0);
+}
+
+function catalogPackBytes()
+{
+	const dir = 'public/catalog';
+	if (!existsSync(dir))
+	{
+		return null;
+	}
+	return readdirSync(dir)
+		.filter((name) => extname(name) === '.json')
+		.reduce((sum, name) => sum + jsonGzip(join(dir, name)), 0);
+}
+
+export function sceneVram()
+{
+	if (!existsSync('public')) { return null; }
+
+	let texels = 0;
+	let compressed = 0;
+	for (const name of SCENE_FIXED)
+	{
+		const cost = texelsOf(name);
+		texels += cost.texels;
+		compressed += cost.compressed;
+	}
+
+	for (const group of ['wall', 'floor'])
+	{
+		const worst = worstSurface(group);
+		texels += worst.texels;
+		compressed += worst.compressed;
+	}
+
+	// Furniture. An item's images are its .glb's external URIs; nothing in this
+	// catalog embeds one, which is why there is no BIN chunk to walk here.
+	const catalogPath = 'src/catalog/catalog.json';
+	if (existsSync(catalogPath))
+	{
+		const catalog = JSON.parse(readFileSync(catalogPath, 'utf8'));
+		const priced = [];
+		for (const item of catalog.items || [])
+		{
+			if (!item.model || !item.model.endsWith('.glb')) { continue; }
+			const modelPath = join('public', item.model);
+			if (!existsSync(modelPath)) { continue; }
+			const json = glbJson(modelPath);
+			const images = new Set();
+			for (const image of (json && json.images) || [])
+			{
+				if (image.uri) { images.add(join(dirname(item.model), image.uri).split(sep).join('/')); }
+			}
+			if (!images.size) { continue; }
+			let cost = 0;
+			for (const image of images) { const t = texelsOf(image); cost += vramOf(t.texels, t.compressed); }
+			priced.push({images, cost});
+		}
+		priced.sort((a, b) => b.cost - a.cost);
+
+		const distinct = new Set();
+		for (const item of priced.slice(0, busiestDesign())) { for (const image of item.images) { distinct.add(image); } }
+		for (const image of distinct)
+		{
+			const cost = texelsOf(image);
+			texels += cost.texels;
+			compressed += cost.compressed;
+		}
+	}
+
+	return vramOf(texels, compressed);
+}
+
 /** The twelve bytes every KTX2 container opens with. */
 const KTX2_MAGIC = Buffer.from([0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -371,6 +660,117 @@ function jpegSize(b)
 	return null;
 }
 
+/* -------------------------------------------------------------------------
+ * What a person waits for (RM-011 W-7, M-43)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Everything a browser fetches before the first wall is drawn.
+ *
+ * ## Why this is not covered by the four lines above it
+ *
+ * `demo-js-gzip` and `demo-css-gzip` measure the bundle, `demo-total` measures
+ * the deployment, and none of the three is the number a person experiences. A
+ * boot is the document, the scripts and stylesheets it references, **and
+ * `asset-manifest.json`**, which `useAssets` fetches before the viewer can
+ * resolve a single texture. That last one belongs to no other line here and is
+ * the one that grows when the asset tree does - which is exactly the coupling
+ * M-43 exists to watch, because H1 added ninety files to that tree.
+ *
+ * RM-007 asked for a first-load budget before there was a number to put in it.
+ * RM-011 W-7 measured one: **407,324 bytes gzipped**, of which 380,846 is the
+ * application and 18,038 the manifest.
+ *
+ * ## Read from the document rather than from a list
+ *
+ * The scripts and stylesheets are the ones `index.html` actually references, not
+ * every file in `assets/`. Today those are the same set; they stop being the same
+ * set the moment anything is code-split, and a budget that kept summing the
+ * directory would then charge a boot for chunks it never fetches - which is the
+ * shape of mistake `texture-vram` spent three sprints making.
+ *
+ * ## What it deliberately does not count
+ *
+ * Anything fetched *after* the first paint: the Basis transcoder, the skybox
+ * ground, a texture somebody picks. W-7 measured 595,263 bytes of that, 98 % of
+ * it a transcoder for one 10 KB image, and it is a real cost - but it is a cost
+ * of *using* the application rather than of opening it, and a single number that
+ * mixed the two could fall while the wait got worse.
+ */
+function firstLoadPayload()
+{
+	const root = 'dist-demo';
+	const document = join(root, 'index.html');
+	if (!existsSync(document)) { return null; }
+
+	const html = readFileSync(document, 'utf8');
+	const referenced = new Set();
+	for (const match of html.matchAll(/(?:src|href)="([^"]+)"/g))
+	{
+		const url = match[1];
+		if (!/\.(js|css)$/i.test(url)) { continue; }
+		// Same-origin, relative to the document. An absolute URL is somebody
+		// else's server and not part of what this build ships.
+		if (/^[a-z]+:|^\/\//i.test(url)) { continue; }
+		referenced.add(url.replace(/^\.?\//, ''));
+	}
+
+	let total = gzipFile(document);
+	for (const name of [...referenced].sort())
+	{
+		total += gzipFile(join(root, name)) || 0;
+	}
+	// The one fetch that is not in the document. `useAssets.MANIFEST_URL`.
+	total += gzipFile(join(root, 'asset-manifest.json')) || 0;
+	return total;
+}
+
+/**
+ * What `npm publish` would put on somebody else's disk (RM-018 Q3, AD-8).
+ *
+ * The `files` allowlist in package.json, walked and summed - which is what npm
+ * packs, so this is the published artefact measured rather than estimated. It
+ * is the one thing this repository builds that no budget line watched: the
+ * deploy tree has one, `public/` has one, both bundles have one, and the
+ * package a consumer installs had none.
+ *
+ * Measured when the line was added: **10,451,791 bytes across 250 files**, of
+ * which **6,969,049 - 66.7 % - is two source maps**. `dist/bp3djs.js.map` alone
+ * is 5.32 MB. RM-013 K3 made the same discovery about the deploy tree (36 %
+ * maps) and decided not to CACHE them; nobody has ever decided whether to
+ * SHIP them, because nothing measured it.
+ *
+ * The line is a ceiling, not a verdict on that question. Shipping maps is a
+ * defensible trade - a consumer debugging through this library gets readable
+ * stack traces - and it is a trade somebody should make on purpose.
+ *
+ * RM-020 AC-7 made it: the IIFE map is no longer emitted and the ESM map stays.
+ * This line reads **5,190,342 across 249 files** now, and the tarball a consumer
+ * actually downloads went 2,685,194 -> 1,491,868. Worth keeping the two figures
+ * apart, because this one overstates the saving: maps compress about 4.5x, so
+ * the 66.7 % of the unpacked tree above was 62.6 % of the download. See the
+ * long note in tools/budget.json and the block in vite.config.mjs for the trade.
+ *
+ * @returns {?number}
+ */
+function packageBytes()
+{
+	const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
+	let total = 0;
+	for (const entry of manifest.files.concat(['package.json']))
+	{
+		const path = entry;
+		if (!existsSync(path))
+		{
+			// A missing entry means the build has not run; the `needs` field says
+			// which one, and reporting null is how every other line says so.
+			return null;
+		}
+		total += statSync(path).isDirectory() ? treeBytes(path) : statSync(path).size;
+	}
+	return total;
+}
+
 const MEASUREMENTS = [
 	{key: 'demo-js-gzip', label: 'Demo JS (gzip)', needs: 'build:demo',
 		measure: () => gzipBytes('dist-demo/assets', ['.js'])},
@@ -378,6 +778,8 @@ const MEASUREMENTS = [
 		measure: () => gzipBytes('dist-demo/assets', ['.css'])},
 	{key: 'demo-total', label: 'Deployed tree', needs: 'build:demo',
 		measure: () => treeBytes('dist-demo')},
+	{key: 'package-unpacked', label: 'Published package', needs: 'build',
+		measure: () => packageBytes()},
 	{key: 'lib-iife-gzip', label: 'Library IIFE (gzip)', needs: 'build',
 		measure: () => gzipFile('dist/bp3djs.js')},
 	// The one budget here that guards a property rather than a size. The ESM
@@ -416,8 +818,44 @@ const MEASUREMENTS = [
 	// decoder beside the WASM one - shows up immediately.
 	{key: 'decoder-total', label: 'Codec machinery', needs: null,
 		measure: () => treeBytes('public/draco') + treeBytes('public/basis')},
-	{key: 'texture-vram', label: 'Texture VRAM', needs: null,
-		measure: () => textureVram()},
+	// Re-pointed by RM-011 H1 from the tree to a scene - see sceneVram for the
+	// measurement W-5 made and why a tree walk stopped being the right question.
+	{key: 'texture-vram', label: 'Scene texture VRAM', needs: null,
+		measure: () => sceneVram()},
+	// The twelfth line, added by RM-012 J1 (M-44) and re-pointed by J2. It guards
+	// a boundary rather than a total: it is what notices catalog content crossing
+	// into the payload. J1 pointed it at the bundled index; J2 took every row out
+	// of the bundle, so it now measures the manifest that replaced the index plus
+	// the three generated sections, which are the only catalog content left in
+	// there. See catalogBundledBytes.
+	//
+	// Compacted before gzipping because that is what a bundler emits: the files on
+	// disk are tab-indented for a reader, and charging the payload for whitespace
+	// nobody downloads would make the number wrong in the safe direction, which
+	// is still wrong.
+	{key: 'catalog-bundled', label: 'Catalog in the bundle (gzip)', needs: null,
+		measure: () => catalogBundledBytes()},
+	// And the thirteenth, added by RM-012 J2 beside it, because the bytes the line
+	// above stopped counting did not stop existing - they moved to the drawer's
+	// first open. See catalogPackBytes.
+	//
+	// Its limit was re-derived by RM-016 N3 from the wait rather than from the
+	// last measurement: 50,000 gzipped bytes is 244 ms on the 1.6 Mbps link
+	// Lighthouse throttles to. AB-5 found the old 12,250 rationing the catalog at
+	// 228 rows while five megabytes of model headroom sat unused, and the note in
+	// budget.json carries the measurement that ruled out making the index cheaper
+	// instead.
+	{key: 'catalog-packs', label: 'Catalog packs (gzip)', needs: null,
+		measure: () => catalogPackBytes()},
+	// The fourteenth, added by RM-013 K1 for the same reason the thirteenth
+	// exists: the starter plans are out of the bundle on Y-5's arithmetic, and
+	// what leaves the payload still has to be counted somewhere.
+	{key: 'templates', label: 'Starter plans (gzip)', needs: null,
+		measure: () => templateBytes()},
+	// The eleventh line, added by RM-011 H1 (M-43). Every other entry here asks
+	// what something weighs; this one asks what a person waits for.
+	{key: 'first-load', label: 'First load (gzip)', needs: 'build:demo',
+		measure: () => firstLoadPayload()},
 ];
 
 function human(bytes)
@@ -501,7 +939,11 @@ function main()
 
 	if (update)
 	{
-		writeFileSync(BUDGET_FILE, JSON.stringify(budget, null, 2) + '\n');
+		// Tabs, which is what the committed file uses and what everything else in
+		// this repository does. Two spaces here made every `budget:update` a
+		// 600-line reformat of a file whose whole value is that a reviewer can
+		// see which number moved (found by RM-011 H1, adding the eleventh line).
+		writeFileSync(BUDGET_FILE, JSON.stringify(budget, null, '\t') + '\n');
 		console.log(`Recorded current measurements in ${BUDGET_FILE}.`);
 		console.log('Limits were NOT changed — edit them by hand, with a reason in the commit message.');
 		process.exit(0);

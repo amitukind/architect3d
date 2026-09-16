@@ -1,7 +1,14 @@
 // @ts-check
 import {EVENT_LOADED, EVENT_LOADING, EVENT_GLTF_READY} from '../core/events.js';
+import {EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED, EVENT_ITEM_MOVE_FINISH, EVENT_LEVELS_CHANGED} from '../core/events.js';
+import {projectItems} from './plan_projection.js';
+import {projectPlanOutline} from './level_projection.js';
+import {placeRectangle} from './floor_opening.js';
+import {normaliseRoof, roofToJSON, roofFootprint, roofMetrics} from '../items/roof.js';
+import {normaliseSun, sunToJSON} from './sun.js';
+import {stairPlan} from '../items/stair.js';
 import {EventDispatcher, Vector3, Mesh} from 'three';
-import {Floorplan} from './floorplan.js';
+import {Level, DEFAULT_LEVEL_HEIGHT} from './level.js';
 import {Scene} from './scene.js';
 import {DesignDocument} from './document.js';
 
@@ -9,7 +16,51 @@ import {DesignDocument} from './document.js';
 // old enough to branch on `instanceof THREE.Geometry`, and three-gltf-exporter
 // shipped a second copy of three; both are gone.
 import {OBJExporter} from 'three/addons/exporters/OBJExporter.js';
-import {GLTFExporter} from 'three/addons/exporters/GLTFExporter.js';
+
+/**
+ * One storey's furniture, as the file records it.
+ *
+ * Sorted by id for the reason `exportSerialized` documents at length: item order
+ * carries no meaning, the order they arrive in depends on which model file
+ * finished downloading first, and `useHistory` decides whether anything changed
+ * by comparing two of these strings.
+ *
+ * @param {import('./level.js').Level} level
+ * @returns {Array<Object>}
+ */
+function savedItems(level)
+{
+	return level.items
+		.map(function (item) {return item.getMetaData();})
+		.sort(function (a, b) {return String(a.id).localeCompare(String(b.id));});
+}
+
+/**
+ * One storey, as the file records it (RM-010 G1).
+ *
+ * **The ground floor's plan and furniture are not repeated here.** They stay
+ * where they have always been, at `floorplan` and `items` on the design, and
+ * `levels[0]` carries only this storey's name and height. That is not a special
+ * case being tolerated - it is what makes the promise in RM-009 §44 hold: *the
+ * save format stays readable by any build that reads 2.0.0.* A build that has
+ * never heard of `levels` opens a three-storey house and gets the ground floor,
+ * correctly drawn, rather than an error or an empty plan.
+ *
+ * @param {import('./level.js').Level} level
+ * @param {number} index
+ * @returns {Record<string, any>}
+ */
+function savedLevel(level, index)
+{
+	/** @type {Record<string, any>} */
+	var record = {name: level.displayName(index), height: level.height};
+	if (index > 0)
+	{
+		record.floorplan = level.floorplan.saveFloorplan();
+		record.items = savedItems(level);
+	}
+	return record;
+}
 
 /**
  * The colours somebody picked, in a form two records can be compared by.
@@ -60,6 +111,64 @@ function isSameItem(record, item)
 /**
  * A Model is an abstract concept the has the data structuring a floorplan. It connects a {@link Floorplan} and a {@link Scene}
  */
+/**
+ * A saved item record, as the metadata `Scene.addItem` builds an `Item` from.
+ *
+ * ## Why this is a function and not four lines in the loader
+ *
+ * Because it was four lines in the loader, and something else needed it and got
+ * it wrong. RM-012 recorded the failure while checking X-6's survey:
+ * `useItemActions.duplicateSelected` read `meta.itemType` and `meta.modelUrl`
+ * off `Item.getMetaData()`, which returns `item_type` and `model_url`. **Both
+ * reads were `undefined`**, so `Scene.addItem` defaulted the type to 1 and asked
+ * the loader for `undefined`. Duplicate had never worked.
+ *
+ * It went unseen because the test's fake returned the camelCase shape the caller
+ * wished for rather than the shape the real method returns - the second time in
+ * this document set that a stub agreed with the code instead of with the data.
+ * A shared function is what makes that impossible rather than unlikely: there is
+ * one translation between the save format and the constructor, and both callers
+ * are it.
+ *
+ * ## The identity is deliberately not carried
+ *
+ * `designId` comes from `options`, and a loader passes it while a duplicate does
+ * not. Two items sharing a `designId` is not cosmetic: `useSelection` resolves a
+ * selection by searching the scene for that id, so the copy and the original
+ * would be one thing to the inspector, to the plan highlight and to delete.
+ * Making the caller state it is what stops a copy inheriting it by accident.
+ *
+ * @param {Object} record One entry of a design's `items` array.
+ * @param {{designId?: ?string, materialColors?: Array<*>}} [options]
+ * @returns {Object} Metadata for `Scene.addItem`.
+ */
+export function metadataFromRecord(record, options)
+{
+	var settings = options || {};
+	var metadata = {
+		itemName: record.item_name,
+		resizable: record.resizable,
+		format: record.format,
+		itemType: record.item_type,
+		modelUrl: record.model_url,
+		materialColors: settings.materialColors || (record.material_colors || []),
+		// Additive keys, passed through exactly as read. Each is present only on
+		// the kind of item that has one, and each is completed where the item is
+		// built rather than here - `normaliseOpening` and its two siblings.
+		opening: record.opening,
+		stair: record.stair,
+		structure: record.structure,
+		lamp: record.lamp,
+		group: record.group,
+		local: record.local,
+	};
+	if (settings.designId)
+	{
+		metadata.designId = settings.designId;
+	}
+	return metadata;
+}
+
 export class Model extends EventDispatcher
 {
 	/** Constructs a new model.
@@ -71,11 +180,591 @@ export class Model extends EventDispatcher
 	constructor(textureDir, runtime)
 	{
 		super();
-		// Resolved once, by the Floorplan, and read back off it below. Resolving
-		// here as well would be idempotent, but it would put a second call site in
-		// the way of the answer to "which runtime is this document on".
-		this.floorplan = new Floorplan(runtime);
+		/**
+		 * The storeys, ground floor first (RM-010 G1).
+		 *
+		 * Always at least one, so a design that never hears the word "level" is a
+		 * design with one of them - which is why `this.floorplan` below is a getter
+		 * onto this list rather than a second field beside it. Nothing outside this
+		 * class asks which level it is on: it reads `model.floorplan` and gets the
+		 * active one, exactly as it did before there were any.
+		 *
+		 * @type {Array<Level>}
+		 */
+		this.levels = [new Level(runtime)];
+		/**
+		 * Which storey is being edited. An index rather than a reference, because
+		 * a level's position in the list is what "the floor above" means.
+		 * @type {number}
+		 */
+		this.activeLevelIndex = 0;
+		/**
+		 * The building's roof, or null when it has none (RM-010 G2).
+		 *
+		 * Null is the default and every design written before G2 has one, which is
+		 * what keeps those files byte-identical. RM-010 V-1 measured that there was
+		 * no roof in this tree at all - `roofPlanes()` returns a ceiling per room -
+		 * so this is the first, and it is opt-in rather than assumed.
+		 *
+		 * @type {?import('../items/roof.js').Roof}
+		 */
+		this.roof = null;
+		/**
+		 * The sun over this building, or null when there is none (RM-011 H2).
+		 *
+		 * Null is the default and every design written before H2 has one, which is
+		 * what keeps those files byte-identical. **Presence is the switch**: with
+		 * no sun the key light sits exactly where the render profile puts it,
+		 * which is what `classic` keeps doing and what every design did until now.
+		 * Same shape `roof` uses one field up, and for the same reason - a
+		 * separate `enabled` flag is a second source of truth that can disagree.
+		 *
+		 * @type {?import('./sun.js').Sun}
+		 */
+		this.sun = null;
+		// Constructed after the levels, because a `Scene` reads its runtime off the
+		// model's floorplan - which is now the ground level's.
 		this.scene = new Scene(this, textureDir);
+
+		/**
+		 * Keep the plan's view of the furniture current (RM-008 E1, T-1).
+		 *
+		 * This class is the only object that holds both halves - `Scene` knows its
+		 * `Model` and `Floorplan` knows neither - so it is the only place that can
+		 * derive one from the other without giving somebody a reference they should
+		 * not have. See `model/plan_projection.js` for why that matters.
+		 *
+		 * Three events, which are the three ways the picture can change: an item
+		 * arrives, an item leaves, an item finishes being moved. There is
+		 * deliberately no fourth for "an item is being dragged" - `Controller`
+		 * marks the projection stale directly during a drag (T-7), because adding
+		 * a dispatch inside a pointermove handler is the shape RM-002 R-05 spent a
+		 * sprint removing.
+		 *
+		 * Held as a field so `dispose()` can take them off again. A `Model` that
+		 * outlives its listeners is how a document keeps a dead scene alive.
+		 */
+		// A stairwell is a consequence of a flight of stairs, so it is recomputed
+		// exactly when the furniture changes - an item arrives, leaves, or finishes
+		// being moved (RM-010 G2). The same three signals the projection uses, and
+		// for the same reason: those are the three ways the answer can change.
+		this._reproject = () => {this.projectItemsToPlan(); this._updateFloorOpenings();};
+		this.scene.addEventListener(EVENT_ITEM_LOADED, this._reproject);
+		this.scene.addEventListener(EVENT_ITEM_REMOVED, this._reproject);
+		this.scene.addEventListener(EVENT_ITEM_MOVE_FINISH, this._reproject);
+
+		// And the way back: what the 2D plan may do to an item (RM-008 E1).
+		//
+		// Same shape as `Scene.setItemLoader` - the layer takes functions rather
+		// than importing the thing that does the work - so the plan can move a
+		// chair without holding the chair. The plan knows an id and a position in
+		// centimetres; everything about what an item IS stays on this side.
+		this.levels.forEach((level) => {this._wireLevel(level);});
+	}
+
+	/**
+	 * Give a level's floorplan the way back to the furniture (RM-008 E1).
+	 *
+	 * Every level needs it, not just the first, and it is the one thing a fresh
+	 * `Floorplan` does not arrive with - so a level added at runtime goes through
+	 * here too, and a plan drawn on the third storey can move a chair.
+	 *
+	 * @param {Level} level
+	 */
+	_wireLevel(level)
+	{
+		level.floorplan.setItemCommands({
+			move: (id, x, y) => {this.moveItemInPlan(id, x, y);},
+			rotate: (id, radians) => {this.rotateItemInPlan(id, radians);},
+			commit: (id) => {this.commitItemGesture(id);},
+		});
+	}
+
+	/**
+	 * Give the active storey's plan the one below it, to trace over.
+	 *
+	 * Called wherever the answer can change - a switch, an add, a remove, a
+	 * height edit, a load - which is every place `EVENT_LEVELS_CHANGED` goes, so
+	 * it is called from the same one place.
+	 *
+	 * @returns {void}
+	 */
+	_updateGhostPlan()
+	{
+		var below = this.levels[this.activeLevelIndex - 1];
+		this.floorplan.setGhostPlan(below ? projectPlanOutline(below.floorplan) : null);
+	}
+
+	/**
+	 * Give the building a roof, or change the one it has (RM-010 G2).
+	 *
+	 * @param {?Partial<import('../items/roof.js').Roof>} changes Null removes it.
+	 * @returns {?import('../items/roof.js').Roof} What the building took.
+	 */
+	setRoof(changes)
+	{
+		if (changes === null)
+		{
+			this.roof = null;
+		}
+		else
+		{
+			this.roof = normaliseRoof(Object.assign({}, this.roof || {}, changes || {}));
+		}
+		this.dispatchEvent({type: EVENT_LEVELS_CHANGED, model: this, active: this.activeLevelIndex});
+		return this.roof;
+	}
+
+	/**
+	 * Give the building a sun, or change the one it has (RM-011 H2).
+	 *
+	 * @param {?Partial<import('./sun.js').Sun>} changes Null removes it.
+	 * @returns {?import('./sun.js').Sun} What the building took.
+	 */
+	setSun(changes)
+	{
+		if (changes === null)
+		{
+			this.sun = null;
+		}
+		else
+		{
+			this.sun = normaliseSun(Object.assign({}, this.sun || {}, changes || {}));
+		}
+		this.dispatchEvent({type: EVENT_LEVELS_CHANGED, model: this, active: this.activeLevelIndex});
+		return this.sun;
+	}
+
+	/**
+	 * Which way the building faces, in degrees clockwise from up on the sheet.
+	 *
+	 * RM-011 W-10: `north` has lived on `Floorplan` since RM-008 E3, which was
+	 * exactly right while a design was one plan. Since RM-010 G1 a design is a
+	 * list of `Level`s each holding a whole `Floorplan`, so **a three-storey
+	 * house has three north bearings and nothing stopped them disagreeing** - and
+	 * a sun needs one answer.
+	 *
+	 * Derived rather than added, which is why there is no new field and no new
+	 * save key: the building's north *is* the ground floor's, and the setter
+	 * writes every storey so the question of disagreement cannot arise. The
+	 * per-plan value stays exactly what it was and exactly what the 2D sheet
+	 * draws - `drawNorthArrow` reads `floorplan.north` and is untouched.
+	 *
+	 * @returns {number}
+	 */
+	get north()
+	{
+		return this.levels[0] ? this.levels[0].floorplan.north : 0;
+	}
+
+	/** @param {number} degrees */
+	set north(degrees)
+	{
+		this.levels.forEach(function (level)
+		{
+			level.floorplan.north = degrees;
+		});
+	}
+
+	/**
+	 * The rectangle the roof covers, or null when there is nothing to cover.
+	 * @returns {?ReturnType<typeof roofFootprint>}
+	 */
+	roofFootprint()
+	{
+		return this.roof ? roofFootprint(this.levels, this.roof.overhang) : null;
+	}
+
+	/**
+	 * How high the eaves sit above the ground floor (RM-010 G2).
+	 *
+	 * The top storey's base plus the highest thing on it, which is a corner's
+	 * elevation - the number that has always been the top of a wall. Derived like
+	 * every other height in this programme, so raising a storey raises the roof
+	 * with nothing left holding the old figure.
+	 *
+	 * @returns {number} Centimetres.
+	 */
+	roofBase()
+	{
+		var top = this.levels.length - 1;
+		var elevations = this.levels[top].floorplan.getCorners().map((corner) => corner.elevation);
+		var wallTop = elevations.length
+			? Math.max.apply(null, elevations)
+			: this.configuration.getNumericValue('wallHeight');
+		return this.levelBase(top) + wallTop;
+	}
+
+	/**
+	 * The box the whole building stands in (RM-010 G3).
+	 *
+	 * Every other extent in this class answers a question about one storey:
+	 * `floorplan.getSize()` is the plan being edited, and `roofFootprint()` is
+	 * what the roof has to cover. Neither frames a house. `switchView` used the
+	 * first of them, so on a three-storey design the camera framed the ground
+	 * floor and cut the top two off - which is fine for the four elevations,
+	 * because a person asking for "front" is asking about the storey they are
+	 * working on, and wrong for the one view whose whole subject is the outside.
+	 *
+	 * Plain data, and derived rather than stored, like every other height in this
+	 * programme: the footprint is the union of the storeys' corners (the same
+	 * union the roof already takes, without the overhang), the eaves are
+	 * `roofBase()`, and the ridge is the eaves plus the rise the pitch implies.
+	 * A building with no roof stops at its eaves. Nothing here knows about three,
+	 * which is the one-way arrow: the *camera* is placed in `three/main.js`, and
+	 * this only says where the building is.
+	 *
+	 * @returns {?{x0: number, y0: number, x1: number, y1: number, width: number,
+	 *   depth: number, cx: number, cy: number, base: number, top: number,
+	 *   height: number}} Null when no storey has a plan yet.
+	 */
+	buildingBounds()
+	{
+		var footprint = roofFootprint(this.levels, this.roof ? this.roof.overhang : 0);
+		if (!footprint)
+		{
+			return null;
+		}
+		var top = this.roofBase();
+		if (this.roof)
+		{
+			top += roofMetrics(this.roof, footprint).rise + this.roof.thickness;
+		}
+		return {
+			x0: footprint.x0, y0: footprint.y0, x1: footprint.x1, y1: footprint.y1,
+			width: footprint.width, depth: footprint.depth,
+			cx: footprint.cx, cy: footprint.cy,
+			base: 0, top: top, height: top,
+		};
+	}
+
+	/**
+	 * Cut each storey's floor where the flight below it arrives (RM-010 G2).
+	 *
+	 * The stairwell rectangle is F3's - the part of a flight's footprint with
+	 * less than two metres of headroom under the floor above - so nothing new is
+	 * stored and nothing has to be drawn by hand. What this adds is the frame
+	 * change: the hint is in the item's own frame and a room is in plan space, so
+	 * each is rotated and translated by the item's own placement, which is what
+	 * makes the stairwell under a flight turned thirty degrees a rectangle turned
+	 * thirty degrees.
+	 *
+	 * The ground floor is deliberately never cut. There is nothing below it, and
+	 * a flight going *down* from the ground floor is a basement - a level with a
+	 * negative index, which this build does not have.
+	 *
+	 * @returns {void}
+	 */
+	_updateFloorOpenings()
+	{
+		var scope = this;
+		this.levels.forEach(function (level, index)
+		{
+			var below = scope.levels[index - 1];
+			if (!below)
+			{
+				level.floorplan.setFloorOpenings([]);
+				return;
+			}
+			var openings = [];
+			below.items.forEach(function (item)
+			{
+				if (!item.stair)
+				{
+					return;
+				}
+				openings.push(placeRectangle(stairPlan(item.stair).well, {
+					x: item.position.x,
+					y: item.position.z,
+					rotation: item.rotation ? item.rotation.y : 0,
+				}));
+			});
+			level.floorplan.setFloorOpenings(openings);
+		});
+	}
+
+	/**
+	 * The storey being edited (RM-010 G1).
+	 * @returns {Level}
+	 */
+	get level()
+	{
+		return this.levels[this.activeLevelIndex];
+	}
+
+	/**
+	 * The active level's plan.
+	 *
+	 * **This getter is the whole of G1's third acceptance line.** Everything
+	 * outside this class - the 2D view, the 3D view, the inspectors, the file,
+	 * the composables - read `model.floorplan` before there were levels and read
+	 * it unchanged now. There is no `model.floorplan(level)` and no argument
+	 * threaded through 200 call sites, because the question "which level" is
+	 * answered in exactly one place.
+	 *
+	 * @returns {import('./floorplan.js').Floorplan}
+	 */
+	get floorplan()
+	{
+		return this.levels[this.activeLevelIndex].floorplan;
+	}
+
+	/**
+	 * How high a level's floor sits above the ground floor's (RM-010 G1, V-4).
+	 *
+	 * The running sum of the floor-to-floor heights below it, derived and never
+	 * stored - so a storey's height can be edited and everything above it moves,
+	 * with nothing left holding the old number.
+	 *
+	 * @param {number} index
+	 * @returns {number} Centimetres.
+	 */
+	levelBase(index)
+	{
+		var base = 0;
+		for (var i = 0; i < index && i < this.levels.length; i++)
+		{
+			base += this.levels[i].height;
+		}
+		return base;
+	}
+
+	/**
+	 * Switch which storey is being edited.
+	 *
+	 * Clamped rather than refused: an index out of range is a caller that has
+	 * lost track of a removal, and the nearest real level is a better answer than
+	 * a throw in a click handler.
+	 *
+	 * @param {number} index
+	 * @returns {number} The index it settled on.
+	 */
+	setActiveLevel(index)
+	{
+		var next = Math.max(0, Math.min(this.levels.length - 1, Math.round(Number(index) || 0)));
+		if (next !== this.activeLevelIndex)
+		{
+			this.activeLevelIndex = next;
+			this._updateGhostPlan();
+			this._updateFloorOpenings();
+			this.dispatchEvent({type: EVENT_LEVELS_CHANGED, model: this, active: next});
+		}
+		return this.activeLevelIndex;
+	}
+
+	/**
+	 * Add a storey, and make it the active one.
+	 *
+	 * Inserted rather than appended, because "add a floor" from the third storey
+	 * of a building means a fourth storey and not a roof over the whole thing -
+	 * the new level goes directly above the active one, which is where a person
+	 * standing on a plan expects it.
+	 *
+	 * @param {Object} [options] `name` and `height`.
+	 * @returns {Level}
+	 */
+	addLevel(options)
+	{
+		var level = new Level(this.runtime, options);
+		this._wireLevel(level);
+		this.levels.splice(this.activeLevelIndex + 1, 0, level);
+		this.activeLevelIndex += 1;
+		this._updateGhostPlan();
+		this._updateFloorOpenings();
+		this.dispatchEvent({type: EVENT_LEVELS_CHANGED, model: this, active: this.activeLevelIndex});
+		return level;
+	}
+
+	/**
+	 * Remove a storey and everything on it.
+	 *
+	 * The last one cannot go: a design with no levels has nowhere to draw, and
+	 * every path in this class assumes `levels[0]` exists. Returns false rather
+	 * than throwing, so a UI can grey the control out from the same answer.
+	 *
+	 * @param {number} index
+	 * @returns {boolean} Whether it went.
+	 */
+	removeLevel(index)
+	{
+		if (this.levels.length < 2 || index < 0 || index >= this.levels.length)
+		{
+			return false;
+		}
+		var level = this.levels[index];
+		// The items go first and through the scene, so their meshes are disposed
+		// and their groups emptied - dropping the level would leak every one of
+		// them, which is the class of fault RM-003 A0 spent a sprint on.
+		level.items.slice().forEach((item) => {this.scene.removeItem(item);});
+		this.scene.forgetLevel(level);
+		this.levels.splice(index, 1);
+		this.activeLevelIndex = Math.max(0, Math.min(this.levels.length - 1, this.activeLevelIndex));
+		this._updateGhostPlan();
+		this._updateFloorOpenings();
+		this.dispatchEvent({type: EVENT_LEVELS_CHANGED, model: this, active: this.activeLevelIndex});
+		return true;
+	}
+
+	/**
+	 * Set a storey's floor-to-floor height. Everything above it moves.
+	 *
+	 * @param {number} index
+	 * @param {number} value Centimetres.
+	 * @returns {number} What it took.
+	 */
+	setLevelHeight(index, value)
+	{
+		var level = this.levels[index];
+		if (!level)
+		{
+			return 0;
+		}
+		var taken = level.setHeight(value);
+		this._updateGhostPlan();
+		this._updateFloorOpenings();
+		this.dispatchEvent({type: EVENT_LEVELS_CHANGED, model: this, active: this.activeLevelIndex});
+		return taken;
+	}
+
+	/**
+	 * The item carrying an id, or null (RM-008 E1).
+	 *
+	 * `designId` rather than `uuid`: it is the identity the save file carries and
+	 * the one `useSelection` already resolves against, so an id that came off a
+	 * footprint names the same item everywhere.
+	 *
+	 * @param {?string} id
+	 * @returns {?Object}
+	 */
+	itemById(id)
+	{
+		if (!id)
+		{
+			return null;
+		}
+		// Every storey, not the active one: `designId` is the identity the save
+		// file carries and the one `useSelection` resolves against, so it names an
+		// item in the building rather than one on this floor (RM-010 G1).
+		var items = this.scene.allItems();
+		for (var i = 0; i < items.length; i++)
+		{
+			if (items[i].designId === id)
+			{
+				return items[i];
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Move an item, because the plan was dragged (RM-008 E1).
+	 *
+	 * Writes `position` directly and keeps the height, for the reason
+	 * `Scene.updateItem` documents: `moveToPosition` is the interactive 3D path
+	 * and carries placement rules that can silently refuse the move. A drag on
+	 * the plan is a deliberate instruction with the destination visible, and an
+	 * item that stops following the pointer without saying why is the worst of
+	 * the available behaviours.
+	 *
+	 * The projection is refreshed but nothing is dispatched as finished - that is
+	 * `commitItemGesture`, once, when the pointer is released, so the undo stack
+	 * gets one entry for the drag rather than one per pointermove (T-7).
+	 *
+	 * @param {string} id
+	 * @param {number} x Plan space, centimetres.
+	 * @param {number} y Plan space, centimetres (the 3D z).
+	 */
+	moveItemInPlan(id, x, y)
+	{
+		var item = this.itemById(id);
+		if (!item)
+		{
+			return;
+		}
+		item.position.x = x;
+		item.position.z = y;
+		if (item.bhelper)
+		{
+			item.bhelper.update();
+		}
+		this.projectItemsToPlan();
+	}
+
+	/**
+	 * Turn an item, because the plan asked.
+	 *
+	 * @param {string} id
+	 * @param {number} radians About the vertical axis.
+	 */
+	rotateItemInPlan(id, radians)
+	{
+		var item = this.itemById(id);
+		if (!item)
+		{
+			return;
+		}
+		item.rotation.y = radians;
+		if (item.bhelper)
+		{
+			item.bhelper.update();
+		}
+		this.projectItemsToPlan();
+	}
+
+	/**
+	 * The gesture is over: tell everybody once.
+	 *
+	 * EVENT_ITEM_MOVE_FINISH is what the 3D controller dispatches when a drag
+	 * ends and what `useHistory` records an undo entry from, so a plan drag and a
+	 * 3D drag produce the same single entry. Dispatched on the scene, which is
+	 * where the existing listeners are - a second channel for the same fact would
+	 * be a second thing to keep in step.
+	 *
+	 * @param {string} id
+	 */
+	commitItemGesture(id)
+	{
+		var item = this.itemById(id);
+		if (!item)
+		{
+			return;
+		}
+		this.scene.dispatchEvent({type: EVENT_ITEM_MOVE_FINISH, item: item});
+	}
+
+
+	/**
+	 * Recompute the plan's view of the furniture and hand it over (RM-008 E1).
+	 *
+	 * Public because more than one thing legitimately needs to ask for it: the
+	 * three item events above, `loadDocument` once a design has settled, and
+	 * `Controller` while an item is being dragged. Cheap enough to call freely -
+	 * it maps and sorts an array whose length is the item count - and idempotent,
+	 * which is what lets every one of those callers just call it rather than
+	 * reason about whether somebody else already did.
+	 */
+	projectItemsToPlan()
+	{
+		// The active storey's furniture, onto the active storey's plan. A plan is a
+		// section through one floor and drawing the sofa from upstairs on it would
+		// be a picture of no building (RM-010 G1).
+		this.floorplan.setItemProjection(projectItems(this.scene.getItems()));
+	}
+
+	/**
+	 * Stop keeping the plan's projection current.
+	 *
+	 * `BlueprintJS.dispose()` disposes the viewers and the runtime; the model
+	 * outlives both in an embedder that keeps the document. These three listeners
+	 * are the only ones this class holds, and they hold `this`, so leaving them
+	 * attached would keep a whole document reachable from a scene nobody is
+	 * looking at.
+	 */
+	dispose()
+	{
+		this.scene.removeEventListener(EVENT_ITEM_LOADED, this._reproject);
+		this.scene.removeEventListener(EVENT_ITEM_REMOVED, this._reproject);
+		this.scene.removeEventListener(EVENT_ITEM_MOVE_FINISH, this._reproject);
 	}
 
 	/** This design's services (RM-003 A4). @returns {import('../core/design_runtime.js').DesignRuntime} */
@@ -185,7 +874,17 @@ export class Model extends EventDispatcher
 		this.scene.loadSession.begin();
 		this.scene.abortPendingLoads();
 
-		this.newRoom(result.document.floorplan, result.document.items, options && options.reason);
+		this.roof = result.document.roof ? normaliseRoof(result.document.roof) : null;
+		this.sun = result.document.sun ? normaliseSun(result.document.sun) : null;
+		this.newRoom(result.document.floorplan, result.document.items,
+			options && options.reason, result.document.levels || undefined);
+
+		// The furniture of the document just closed is gone and none of the new
+		// document's has arrived yet - every item load is asynchronous. Project
+		// once here so the plan shows an empty room rather than the last design's
+		// chairs; each arrival then re-projects through EVENT_ITEM_LOADED
+		// (RM-008 E1).
+		this.projectItemsToPlan();
 
 		this.dispatchEvent({type: EVENT_LOADED, item: this});
 		return result;
@@ -197,7 +896,36 @@ export class Model extends EventDispatcher
 		return exporter.parse(this.scene.getScene());
 	}
 
+	/**
+	 * The glTF exporter arrives with the export (RM-015 M3).
+	 *
+	 * 67,150 rendered bytes of `GLTFExporter`, which used to be a static import
+	 * at the top of this file and therefore in every first load, for a verb
+	 * nobody reaches in the first seconds of a session - and one that already
+	 * answers through `EVENT_GLTF_READY` rather than a return value, so a
+	 * network hop in front of it changes nothing a caller can observe.
+	 *
+	 * `exportMeshAsObj` above deliberately keeps its static import: it returns a
+	 * string synchronously, so deferring it would move the library's public API
+	 * rather than its bytes, and `OBJExporter` is 4,302 of them.
+	 */
 	exportForBlender()
+	{
+		var scope = this;
+		import('three/addons/exporters/GLTFExporter.js').then(function (module)
+		{
+			scope._exportForBlender(module.GLTFExporter);
+		}).catch(function (error)
+		{
+			console.error('glTF export failed', error);
+		});
+	}
+
+	/**
+	 * @param {typeof import('three/addons/exporters/GLTFExporter.js').GLTFExporter} GLTFExporter
+	 * @private
+	 */
+	_exportForBlender(GLTFExporter)
 	{
 		var scope = this;
 		var gltfexporter = new GLTFExporter();
@@ -259,12 +987,55 @@ export class Model extends EventDispatcher
 	 */
 	exportSerialized()
 	{
-		var items_arr = this.scene.getItems()
-			.map(function (item) {return item.getMetaData();})
-			.sort(function (a, b) {return String(a.id).localeCompare(String(b.id));});
-
-		var room = {floorplan: (this.floorplan.saveFloorplan()),items: items_arr};
+		/** @type {Record<string, any>} */
+		var room = {
+			floorplan: this.levels[0].floorplan.saveFloorplan(),
+			items: savedItems(this.levels[0]),
+		};
+		// Additive and conditional, per T-6 and RM-010 V-6: a design with one
+		// storey at its default height writes no `levels` key at all and is
+		// therefore byte-identical to the file it was before this sprint. That is
+		// M-26's second half, and it is the same rule E2's thickness, E3's
+		// dimensions and F3's stair already follow.
+		if (this._needsLevelsRecord())
+		{
+			room.levels = this.levels.map((level, index) => savedLevel(level, index));
+		}
+		// Additive and conditional again: a building with no roof writes no `roof`
+		// key, which is every design written before G2.
+		if (this.roof)
+		{
+			room.roof = roofToJSON(this.roof);
+		}
+		// And once more for the sun. `sunToJSON` returns `{}` rather than null for
+		// a sun at its defaults, because "there is a sun and it is the default
+		// one" is a thing a file has to be able to say - the presence of the key
+		// is what turns it on.
+		if (this.sun)
+		{
+			room.sun = sunToJSON(this.sun);
+		}
 		return JSON.stringify(room);
+	}
+
+	/**
+	 * Whether this design has anything to say about storeys.
+	 *
+	 * A single default-height storey with no name of its own says nothing, which
+	 * is every design anybody has ever saved. One that has been named or re-sized
+	 * says something, even alone - otherwise renaming the ground floor would be
+	 * an edit that does not survive a save.
+	 *
+	 * @returns {boolean}
+	 */
+	_needsLevelsRecord()
+	{
+		if (this.levels.length > 1)
+		{
+			return true;
+		}
+		var only = this.levels[0];
+		return Boolean(only.name) || only.height !== DEFAULT_LEVEL_HEIGHT;
 	}
 
 	/**
@@ -301,18 +1072,63 @@ export class Model extends EventDispatcher
 	 * removals after `loadFloorplan()` had already reset the plan would detach
 	 * from walls that no longer exist.
 	 *
+	 * ## Storeys (RM-010 G1)
+	 *
+	 * `levels` is the whole building; the `floorplan` and `items` arguments are
+	 * its ground floor, which is where they have always been in the file. The
+	 * reconciliation above runs across **every** storey rather than the active
+	 * one, and for the reason A3 gave in the first place: undo is a document
+	 * load, so an item that stayed put on the second floor must keep its mesh
+	 * when somebody undoes an edit on the ground floor.
+	 *
+	 * Level objects are **reused** where the incoming design has as many, rather
+	 * than rebuilt. The 2D view holds `model.floorplan`, which is a level's
+	 * `Floorplan` - replacing the object would leave the plan drawing a design
+	 * nobody is editing, which is finding T-1 in a new place.
+	 *
 	 * @param {Object} floorplan
 	 * @param {Array<Object>} items
 	 * @param {string} [reason]
+	 * @param {Array<Object>} [levels] Every storey, ground floor first. Entry 0
+	 *        carries a name and a height only; its plan and furniture are the
+	 *        two arguments above.
 	 */
-	newRoom(floorplan, items, reason)
+	newRoom(floorplan, items, reason, levels)
 	{
 		var scope = this;
-		var incoming = items || [];
+		// One list per storey, ground floor first. A design with no `levels` key -
+		// which is every design written before G1 - is one storey holding exactly
+		// what it always held.
+		var storeys = (levels && levels.length)
+			? levels.map(function (record, index)
+			{
+				return {
+					name: (typeof record.name === 'string') ? record.name : '',
+					height: record.height,
+					floorplan: (index === 0) ? floorplan : record.floorplan,
+					items: (index === 0) ? (items || []) : (record.items || []),
+				};
+			})
+			: [{name: '', height: undefined, floorplan: floorplan, items: items || []}];
+
+		this._reshapeLevels(storeys);
+
+		/** @type {Array<Object>} */
+		var incoming = [];
+		/** @type {Map<Object, import('./level.js').Level>} */
+		var destination = new Map();
+		storeys.forEach(function (storey, index)
+		{
+			storey.items.forEach(function (record)
+			{
+				incoming.push(record);
+				destination.set(record, scope.levels[index]);
+			});
+		});
 
 		/** @type {Map<string, Object>} */
 		var live = new Map();
-		this.scene.getItems().forEach(function (item)
+		this.scene.allItems().forEach(function (item)
 		{
 			if (item.designId)
 			{
@@ -342,7 +1158,7 @@ export class Model extends EventDispatcher
 			}
 		});
 
-		this.scene.getItems().slice().forEach(function (item)
+		this.scene.allItems().slice().forEach(function (item)
 		{
 			if (!kept.has(item.designId))
 			{
@@ -374,12 +1190,25 @@ export class Model extends EventDispatcher
 			}
 		});
 
-		this.floorplan.loadFloorplan(floorplan, reason);
+		storeys.forEach(function (storey, index)
+		{
+			scope.levels[index].floorplan.loadFloorplan(storey.floorplan, reason);
+		});
+		this.scene.syncLevels();
 
 		if (boundTo.size)
 		{
+			// Across every storey: a wall item is re-bound to a face on its OWN
+			// floor, and two storeys can hold walls with the same id because each
+			// floorplan numbers its own.
 			var edgesById = new Map();
-			this.floorplan.wallEdges().forEach(function (edge) {edgesById.set(edge.id, edge);});
+			this.levels.forEach(function (level)
+			{
+				level.floorplan.wallEdges().forEach(function (edge)
+				{
+					edgesById.set(`${level.id}|${edge.id}`, edge);
+				});
+			});
 
 			boundTo.forEach(function (edgeId, item)
 			{
@@ -388,7 +1217,8 @@ export class Model extends EventDispatcher
 				// freshly created wall item and is the right answer here too; what it
 				// is not is a substitute for the id, because "nearest" and "the one it
 				// was on" differ wherever two walls meet.
-				var edge = edgesById.get(edgeId) || item.closestWallEdge();
+				var key = item.level ? `${item.level.id}|${edgeId}` : edgeId;
+				var edge = edgesById.get(key) || item.closestWallEdge();
 				if (edge)
 				{
 					item.changeWallEdge(edge);
@@ -402,7 +1232,13 @@ export class Model extends EventDispatcher
 			});
 		}
 
+		// Restored to the storey it was on, whichever storey is active. The active
+		// index is set back afterwards; `Scene.addItem` reads it, and threading a
+		// level through five signatures to avoid two assignments would be worse.
+		var wasActive = this.activeLevelIndex;
 		incoming.forEach((item) => {
+			var storey = destination.get(item) || this.levels[0];
+			this.activeLevelIndex = Math.max(0, this.levels.indexOf(storey));
 			var existing = item.id ? kept.get(item.id) : null;
 			var position = new Vector3(item.xpos, item.ypos, item.zpos);
 			var scale = new Vector3(item.scale_x,item.scale_y,item.scale_z);
@@ -411,11 +1247,65 @@ export class Model extends EventDispatcher
 				existing.metadata.itemName = item.item_name;
 				existing.metadata.resizable = item.resizable;
 				scope.scene.updateItem(existing, position, item.rotation, scale, item.fixed);
+				scope.scene.moveItemToLevel(existing, storey);
 				return;
 			}
 			var matColors = (item.material_colors) ? item.material_colors : [];
-			var metadata = {itemName: item.item_name,resizable: item.resizable,format: item.format, itemType: item.item_type, modelUrl: item.model_url, materialColors: matColors, designId: item.id};
+			// `opening` is RM-008 F1's description - five numbers and two choices -
+			// and is present only on a parametric door, window or archway. Passed
+			// through as it was read: `normaliseOpening` is what completes it, once,
+			// where the item is built.
+			var metadata = metadataFromRecord(item, {materialColors: matColors, designId: item.id});
 			this.scene.addItem(item.item_type,item.model_url,metadata,position,item.rotation,scale,item.fixed);
 		});
+		this.activeLevelIndex = Math.max(0, Math.min(this.levels.length - 1, wasActive));
+		// Last, and once. The views build a projection per storey off this, and a
+		// storey's projection has to be built after its plan is loaded rather than
+		// before - so this cannot move up beside `_reshapeLevels`.
+		this._updateGhostPlan();
+		this._updateFloorOpenings();
+		this.dispatchEvent({type: EVENT_LEVELS_CHANGED, model: this, active: this.activeLevelIndex});
+	}
+
+	/**
+	 * Make the level list as long as the incoming design's, reusing what is here.
+	 *
+	 * Reused rather than rebuilt, because the 2D view holds `model.floorplan` -
+	 * which is a level's `Floorplan` object - and replacing it would leave the
+	 * plan drawing a design nobody is editing. Only the surplus is destroyed and
+	 * only the shortfall is created.
+	 *
+	 * The active index is clamped rather than reset: undo is a document load, and
+	 * an undo that threw you back to the ground floor on every keystroke would be
+	 * unusable. It is deliberately not persisted - which storey you are looking
+	 * at is not a property of the building.
+	 *
+	 * @param {Array<Object>} storeys
+	 * @returns {void}
+	 */
+	_reshapeLevels(storeys)
+	{
+		while (this.levels.length > storeys.length)
+		{
+			var surplus = this.levels[this.levels.length - 1];
+			surplus.items.slice().forEach((item) => {this.scene.removeItem(item);});
+			this.scene.forgetLevel(surplus);
+			this.levels.pop();
+		}
+		while (this.levels.length < storeys.length)
+		{
+			var added = new Level(this.runtime);
+			this._wireLevel(added);
+			this.levels.push(added);
+		}
+		this.levels.forEach((level, index) =>
+		{
+			level.name = storeys[index].name || '';
+			if (storeys[index].height !== undefined)
+			{
+				level.setHeight(storeys[index].height);
+			}
+		});
+		this.activeLevelIndex = Math.max(0, Math.min(this.levels.length - 1, this.activeLevelIndex));
 	}
 }

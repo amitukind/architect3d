@@ -1,24 +1,75 @@
-# Deploy the application and the documentation site to GitHub Pages.
+# Publish the application and the documentation site to Cloudflare Pages.
 #
-# Replaces `gitpush.sh`, which pushed the checked-in build/ directory to a
-# gh-pages branch with `git subtree push`. That published a prebuilt bundle
-# nobody could reproduce, and it needed a human to remember to run it. This
-# builds from source on a clean runner instead, and there is no gh-pages branch
-# any more: Pages serves the artifact this workflow uploads.
+# RM-015 M1. This is the first address this project has had.
 #
-# BRANCH POLICY (deliberate, to conserve Actions minutes and storage):
-#   - Runs ONLY on pushes to `master`.
-#   - Does NOT run on `dev`, on the `amit` working branch, or anywhere else.
-#   - Can be started by hand from the Actions tab (workflow_dispatch).
+# WHAT CAME BEFORE, AND WHY IT NEVER PUBLISHED
 #
-# Narrower than ci.yml on purpose. CI proves `dev` is healthy; a deploy from
-# `dev` would overwrite the published site with work in progress, and Pages has
-# exactly one live deployment.
+# The previous version of this file targeted GitHub Pages and never once served
+# a page. `actions/configure-pages` fails unless Settings -> Pages -> Source is
+# set to "GitHub Actions", that switch was never thrown, and RM-006 removed the
+# push trigger rather than leave a workflow that went red on every push to the
+# default branch - a red mark everybody learns to ignore is worse than none.
 #
-# BEFORE THE FIRST RUN: set Settings -> Pages -> Build and deployment -> Source
-# to "GitHub Actions". Until that is done this workflow fails at the
-# configure-pages step, which is the intended failure - it means Pages is still
-# wired to the old branch-based publish.
+# RM-015 AA-1 measured the consequence rather than assuming it: both addresses
+# the README advertised returned HTTP 404, and the README linked to them nine
+# times. The front page of this repository was advertising an application that
+# had never existed at that address.
+#
+# EVERYTHING ABOVE THE PUBLISH STEP IS UNCHANGED, DELIBERATELY
+#
+# Checkout, install, the full suite with coverage, both builds, the size budgets
+# and the assembly are exactly what they were. They are not new and they are not
+# untested: they ran, green, on every one of those red pushes, and only the
+# three GitHub-Pages-specific actions at the end ever failed. So this swaps the
+# last three steps and touches nothing else.
+#
+# WHAT CHANGED BESIDES THE HOST
+#
+#   --base       gone. Cloudflare Pages serves a project at the root of its own
+#                domain, so the application no longer lives under a repository
+#                sub-path and the hashed asset URLs need no prefix. RM-015 AA-2
+#                measured what that costs: one production file names the base
+#                (the VitePress config, which already reads DOCS_BASE), and
+#                everything else in the tree is relative on purpose - including
+#                the service worker, which asks `registration.scope` at runtime
+#                and hard-codes nothing.
+#
+#   .nojekyll    gone. It existed to stop GitHub Pages running the artifact
+#                through Jekyll and dropping every path beginning with an
+#                underscore. Cloudflare does not run Jekyll, and a file whose
+#                only comment explains a host we no longer use is a file that
+#                will mislead the next reader.
+#
+#   permissions  down to `contents: read`. `pages: write` and `id-token: write`
+#                existed for the OIDC handshake `deploy-pages` needed.
+#
+# BRANCH POLICY (deliberate, and it is the same Actions-minutes argument ci.yml
+# makes - see the note there)
+#
+#   - push to `master` publishes to production. This is now safe in a way it was
+#     not on Pages: Pages has exactly one live deployment, so any deploy from a
+#     working branch would have overwritten what people were using. Cloudflare
+#     gives every non-production branch its own preview URL, which is precisely
+#     the constraint that kept the trigger off before.
+#
+#   - `workflow_dispatch` from any other branch publishes a PREVIEW at that
+#     branch's own URL. Run by hand rather than on every push, because CI
+#     already proves `dev` and this job re-runs the whole suite on top of it -
+#     paying twice for the same proof on every push is the trade this repository
+#     has consistently declined.
+#
+# WHAT THIS NEEDS BEFORE IT CAN RUN
+#
+# Two repository secrets and one Pages project. Until they exist the job fails
+# at the guard below with a sentence saying which is missing, rather than deep
+# inside wrangler with a 401:
+#
+#   CLOUDFLARE_API_TOKEN    a token with the "Cloudflare Pages: Edit" permission
+#   CLOUDFLARE_ACCOUNT_ID   the account the project lives in
+#
+# The project name defaults to the repository name and can be overridden with
+# the `CLOUDFLARE_PROJECT` repository variable, so a project that already exists
+# under another name does not require editing this file.
 name: Deploy
 
 on:
@@ -30,23 +81,39 @@ on:
 # Never deploy two commits at once, and never cancel a deploy half-published -
 # unlike CI, where cancelling the older run is free.
 concurrency:
-  group: pages
+  group: deploy-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 jobs:
-  build:
-    name: Build site
+  publish:
+    name: Build and publish
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Check the deploy is configured
+        # Before npm ci, so a repository without the secrets fails in ten
+        # seconds with a sentence rather than after a four-minute build with a
+        # 401 from wrangler. The token is never printed; only whether it is set.
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          missing=""
+          [ -n "$TOKEN" ]   || missing="$missing CLOUDFLARE_API_TOKEN"
+          [ -n "$ACCOUNT" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          if [ -n "$missing" ]; then
+            echo "::error::Deploy is not configured. Missing repository secret(s):$missing"
+            echo "See the header of .github/workflows/deploy.yml for what each one needs."
+            exit 1
+          fi
+          echo "Cloudflare credentials are present."
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -70,15 +137,14 @@ jobs:
         run: npm run test:coverage
 
       - name: Build the application
-        # --base carries the repository sub-path into the hashed asset URLs.
-        # It does NOT affect the model and texture URLs: those are bare
-        # relative strings composed at runtime, and they resolve against the
-        # page. See the comment in index.html.
-        run: npm run build:demo -- --base=/${{ github.event.repository.name }}/
+        # No --base. Cloudflare serves the project at the root of its domain, so
+        # the hashed asset URLs need no prefix and the relative model and
+        # texture URLs resolve exactly as they do in dev. See index.html.
+        run: npm run build:demo
 
       - name: Build the documentation
         env:
-          DOCS_BASE: /${{ github.event.repository.name }}/docs/
+          DOCS_BASE: /docs/
         run: npm run docs:build
 
       - name: Size budgets
@@ -87,14 +153,14 @@ jobs:
         # build produced, not what the deploy job then stacks on top of it.
         run: npm run budget
 
-      - name: Assemble the site
-        # The application at the root, the docs one level down. .nojekyll stops
-        # Pages running the artifact through Jekyll, which would drop every
-        # path beginning with an underscore - VitePress emits none today, but
-        # the failure mode is a silent 404 rather than a build error.
+      - name: Deploy checks
+        # RM-015 M1, gate seventeen. Runs against the assembled tree below, so
+        # it is the last thing before the upload rather than part of the build:
+        # what it checks is that what is about to be published resolves at the
+        # base it is about to be published at.
         run: |
           mv docs/.vitepress/dist dist-demo/docs
-          touch dist-demo/.nojekyll
+          npm run deploy:check
 
       - name: Report what is being published
         run: |
@@ -104,25 +170,41 @@ jobs:
           du -sh dist-demo/* >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Publish to Cloudflare Pages
+        id: publish
+        uses: cloudflare/wrangler-action@v3
         with:
-          path: dist-demo
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # --branch decides production versus preview. Cloudflare treats the
+          # project's configured production branch as production and gives every
+          # other branch its own URL, which is the whole reason a push trigger is
+          # safe here and was not on Pages.
+          command: >-
+            pages deploy dist-demo
+            --project-name=${{ vars.CLOUDFLARE_PROJECT || github.event.repository.name }}
+            --branch=${{ github.ref_name }}
 
-  deploy:
-    name: Publish
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+      - name: Lighthouse, against what was just published
+        # The field half of M-53. CI runs the same analysis against the tree
+        # served from localhost and gates on it; this one runs against the real
+        # address, over the real CDN, and only reports.
+        #
+        # Not a gate, on purpose. A cold edge cache, a slow region or a
+        # rate-limited run would fail a deploy that published a perfectly good
+        # build, and a red mark nobody can act on is the failure mode RM-006
+        # removed the last one for. What it is good for is the difference: if
+        # the lab says 62 and the network says 40, that gap is the host's, and
+        # nothing else in this repository could have told us.
+        if: always() && steps.publish.outputs.deployment-url != ''
+        continue-on-error: true
+        run: |
+          npx playwright install chromium
+          node tools/check-lighthouse.mjs --url="${{ steps.publish.outputs.deployment-url }}" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
 
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Say where it went
+        run: |
+          echo "### Published" >> "$GITHUB_STEP_SUMMARY"
+          echo "- branch: \`${{ github.ref_name }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- url: ${{ steps.publish.outputs.deployment-url }}" >> "$GITHUB_STEP_SUMMARY"

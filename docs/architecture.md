@@ -138,8 +138,10 @@ true rather than merely stated. Retirements are declared in
 that is not there. Rename a room texture only with a retirement; do not delete a
 name.
 
-Eleven textures are then **KTX2/ETC1S**, taking VRAM to 27.38 MB against a 45.15
-MB ceiling. A JPEG becomes RGBA8 on the way to the GPU whatever it cost on disk;
+Eleven textures are then **KTX2/ETC1S**. <!-- RM-011 H1: the VRAM figure that
+stood here — "27.38 MB against a 45.15 MB ceiling" — was a measurement of the
+whole tree, and that budget now measures a scene. See The material library
+below. --> A JPEG becomes RGBA8 on the way to the GPU whatever it cost on disk;
 a KTX2 is transcoded to a format the GPU reads directly and stays compressed at
 one byte per pixel against RGBA8's four. `tools/encode-textures.mjs` transcodes,
 `tools/repoint-textures.mjs` rewrites the containers in either direction, and
@@ -160,6 +162,217 @@ Run `npm run oracle -- --check` before adding a compressed texture. The cheap
 half of that — every shipped `.ktx2` has a measurement and the measurement
 passed — is asserted in `tests/asset-integrity.test.js` and runs with the normal
 suite.
+
+::: tip The catalog is nine files, and the bundle imports one of them
+`src/catalog/catalog.json` is still the only place a row is authored, and it is
+no longer what the application imports. `tools/split-catalog.mjs` divides it
+twice. `npm run catalog:check` regenerates every output and compares, and a test
+runs that check.
+
+**By tier** (RM-012 J1, X-3): an *index* of what the grid draws and filters on
+plus what `addItem` reads, and a *detail* of what a person reads about one item.
+Where that line goes was decided by gzipping each candidate key across all 168
+rows rather than by taste — `format` costs **40 bytes**, `room` **131**, `tags`
+**178**, `size` **907**. The filterable keys turn out to be the cheap ones
+because their vocabularies repeat, so the index stays small and adding an item
+stays synchronous.
+
+**By pack** (RM-012 J2): both tiers are then divided by *source*, one pair of
+files per kit, and written to `public/catalog/`. Nothing is bundled but
+`catalog-manifest.json` — one line per pack naming it, its licence, its row count
+and its two URLs. `useCatalog` fetches the packs the first time somebody opens
+the drawer, rows first and sizes after, through the same `AssetResolver` every
+model goes through, so `?assetBase=` moves the catalog to a CDN along with the
+models it describes.
+
+The tier split alone runs out, which is why there are two. J1's metadata on the
+600 rows programme J is written for measured **17,264 gzipped bytes of growth
+against 13,292 bytes of `first-load` headroom**; split by tier the index half is
+9,857, which fits — and that is the trap, because it fits until the sprint that
+adds rows. A manifest is a function of how many *kits* exist rather than how many
+*items*, so acquiring two hundred chairs moves the payload by one line.
+
+A pack is a source because a licence is a property of a kit: the unit somebody
+admits or refuses, the unit a licence is recorded against and the unit the fetch
+is grouped by are the same unit. Each pack carries its own provenance rather than
+pointing at a shared table, so acquiring one is a file dropped in and a manifest
+line — not an edit to a file the pack does not own.
+
+::: tip A pack is admitted on its measured mean, not on its name
+`npm run admit` prices every shipped pack; `npm run admit -- --candidate <f>`
+prices a candidate and admits or refuses it; `npm run admit:check` gates.
+
+The question is not "is this pack expensive" — that is a question about a pack in
+isolation and has no answer. It is whether admitting N items at this price leaves
+RM-007's 400 reachable. A large pack of cheap items passes; a small pack of dear
+ones fails, because it spends headroom the remaining items need at a price that
+will not get there. It also refuses an unestablished licence, an item over
+`catalog-item-largest`, and a source that resolves to nothing — and *notes*,
+rather than refusing, a candidate not yet through Draco (its price is a
+pre-pipeline one) or one whose mean is twice its median (a tail that trimming
+fixes more cheaply than refusing).
+
+Reachable *at what price* is the whole question, and the benchmark is a kit in
+this tree rather than an estimate: the Kenney furniture kit, **12,285 bytes an
+item**, 140 CC0 rows already through Draco. At that price the headroom buys 469
+against the 432 still needed for 600.
+
+The first run found where the catalog's mean lives. `blueprint3d` is 25 rows —
+**14.9 % of the catalog and 55.7 % of its bytes**, a mean of 104,850 against
+12,285. The tail has an address, and it is the 2014 demo's own models.
+:::
+
+Two budget lines hold it. `catalog-bundled` (M-44, re-pointed in J2) is the
+manifest plus the three generated sections, so catalog content entering the
+payload is a decision somebody records. `catalog-packs` is what opening the
+drawer costs, which is where J2 moved the bytes rather than removing them. And
+`tests/browser/first-load.test.js` asserts the claim a byte count cannot: a boot
+fetches none of the four, and the drawer's first open fetches all of them.
+
+Every row names a **room** from a closed list of eight, at least one **tag** from
+a closed list of fourteen, and a **source** that resolves in
+`src/catalog/sources.json` — where the licence, the author and *the evidence for
+the identification* live, once per kit rather than once per row. Two rows resolve
+to a source whose licence is `unknown`, and they are named in the test that
+counts them: recording that is the point, and assuming CC0 by resemblance is what
+writing provenance down exists to prevent.
+
+The dimensions in the detail are **measured, not authored**: each model's
+bounding box is computed by walking its glTF scene graph and transforming all
+eight corners of every primitive's accessor bounds. What multiplies that box into
+centimetres is **declared**, not detected — `unitScale` on the kit in
+`sources.json`, overridable per row — which is only possible because the same
+sprint put `source` on every row.
+
+The first attempt did detect it, from the model's own extent, and got it wrong
+for 141 of 168 rows: it read the Kenney kit as metres when the kit is on a **2 m
+grid**. The sanity check that should have caught that was run on a basin and a
+stack of books, which are plausible at either reading. Architecture is not: at
+the wrong scale the kit's floor tile is a metre square under a **1.29 m ceiling**.
+Six standard heights then agree on ×200 to within 5 %, and at ×200 this kit's
+door frame is 97.2 cm wide against the demo kit's 97.1 — two catalogs, authored
+in different units, agreeing on the width of a door.
+
+The resolved scale is the one derived value the splitter writes into the *index*
+as well, because `Item.applyUnitScale` reads it at the moment an item is placed
+and `addItem` is synchronous by construction. It costs 60 gzipped bytes across
+all 168 rows, there being three distinct values in it.
+:::
+
+::: tip What the deploy is allowed to weigh, and what that buys
+`public-total` and `demo-total` are not host limits — Cloudflare Pages on the
+free plan allows 20,000 files a site and 25 MiB a file, against 626 files and a
+307 KB largest asset. They are **self-imposed**, and their job is to make growth
+a decision somebody records. RM-012 J2 took that decision at **1.5×**: 16.77 MB
+and 29.99 MB.
+
+What it buys is a division, and `tools/catalog-cost.mjs` is what keeps the
+divisor true (M-45). 5,843,561 bytes of headroom is **209 items at the measured
+mean of 27,997** and **521 at the median of 11,218** — so the ceiling reaches
+RM-007's 400–600 only if packs are curated near the median, which is deliberate:
+152 of 168 models are already Draco and 11 already KTX2, so nothing arrives under
+the mean by being encoded harder. Curation is the lever; compression is not.
+
+Two costs are recorded because they answer two questions. Within an item, a
+texture used twice is one download — that is what a person pays for a chair.
+Across the catalog, a texture used by two rows is one file on a disk — that is
+what the tree grows by, and only that belongs in the division.
+
+The number that protects a *visitor* is `first-load`, and nothing here moves it:
+a pack nobody opens costs a boot nothing.
+:::
+
+::: tip The thumbnails are rendered, and the tool is what renders them
+`npm run thumbnails` renders one 300 × 225 PNG per catalog row from the model
+that row actually places — `tools/render-thumbnails.mjs`, in headless chromium
+over SwiftShader, at 600 × 450 and box-filtered down, one model at a time. The
+camera fits each model's projected **box**, not its bounding sphere — a sphere
+round a low bed takes the half-diagonal for a radius and draws it at the size of
+a cube — which is worth 15.8 % → 20.9 % of mean frame coverage.
+`asset-pipeline/thumbnails.json` records what came out; `tests/thumbnails.test.js`
+asserts the tree still matches it without needing a GPU, which is the same
+division `tools/transcode-oracle.mjs` uses.
+
+X-8 measured that all 168 collected thumbnails were already 300 × 225, so this is
+not about size. It is about **framing** — a collected thumbnail is whatever the
+person who collected it happened to crop, and a catalog several times larger
+cannot be kept consistent by hand — and about **format**: 21 of the 168 were
+JPEG and so could not carry the alpha the other 147 have and the drawer's theming
+needs. Two of those 21 were `.JPG`, uppercase.
+
+The honest limit, measured first: **139 of the 168 models declare
+`KHR_materials_unlit`**, so no light reaches them and lighting is not something
+this tool can make consistent. What it makes consistent is the camera, the
+framing margin, the background, the resolution and the format. The 29 that are
+lit get a soft frontal rig; the rest ignore it, which is also what they will do
+in the scene.
+:::
+
+### The material library
+
+Thirty CC0 materials from Poly Haven, an albedo and a roughness map each, under
+`public/materials/`. `tools/fetch-materials.mjs` acquires and processes them and
+`npm run materials:check` verifies the committed tree against
+`asset-pipeline/material-library.json` with no network; the report has the
+per-image numbers and `public/materials/CREDITS.md` names the authors, which CC0
+does not require and which is worth more than the licence asks for.
+
+**Thirty is a measurement, not a plan.** RM-007 priced the sprint at *"about
+ninety materials"*; `tools/material-trial.mjs` encoded four of the tree's own
+photographs into the three maps a PBR material is, at three settings each, and
+measured what one costs. Ninety of three maps is a 8.2× budget raise. Thirty of
+two is 4.5 MB, which is what shipped.
+
+Two resolutions, because the two maps do not carry the same information. Measured
+as the detail a round trip preserves, **a roughness map at 256 is more faithful
+than an albedo at 512** — by 1.2 to 7.3 dB across six materials — so the smaller
+map is not the weak link and costs a quarter of the pixels. Both are JPEG at q95,
+the quality `tools/resize-textures.mjs` already measured for this tree, and both
+pass that pass's own two gates: worst resample error 0.72 against 2.0, worst codec
+error 2.802 against 3.0.
+
+**JPEG, although H1's own trial measured KTX2 as better for a roughness map.** A
+KTX2 needs the 515 KB Basis transcoder, which RM-011 W-7 measured at 98 % of a
+boot's network traffic for one 10 KB texture. Charging that to the first person
+who picks a material trades 19 KB of roughness map for half a megabyte of
+decoder. The skybox ground keeps its KTX2 because every boot loads it anyway;
+the container decision is per asset, which is the rule B1 and C1 already set.
+
+`scale` in `src/catalog/materials.json` is **centimetres per tile, taken from
+each asset's published real-world size** rather than chosen. `Edge.updateTexture`
+divides a wall's width in centimetres by it, so a 1 m brick panel repeats every
+metre. The demo's own catalog carries `50` and `100` for the same brick image and
+records no reason for either.
+
+The two catalogs are separate files and the picker reads both:
+`src/catalog/textures.json` is the demo's seven, hand-written, and every design
+that has ever named a texture names one of them; `src/catalog/materials.json` is
+generated, and regenerated whenever the library changes. A material entry is a
+superset of a texture entry, which is the whole integration.
+
+**`first-load` is the eleventh budget** (M-43): the document, the scripts and
+stylesheets it references, and `asset-manifest.json`, which `useAssets` fetches
+before the viewer can resolve a texture. **401,316 bytes gzipped**, which is
+6,008 *below* what RM-011 W-7 measured before the library existed — the library
+cost 10,724 and the line's own first reading found 17,065 to give back, because
+that much of the manifest was subresource-integrity hashes for a feature nothing
+turns on. They live in `asset-pipeline/asset-integrity.json` now and
+`npm run manifest -- --integrity` puts them back for a cross-origin deployment.
+The other half of M-43 is `tests/browser/first-load.test.js`, which reads a
+boot's `performance.getEntriesByType('resource')` and asserts no material image
+is among them — a byte count cannot tell a tree that grew from a boot that
+fetches more.
+
+**`texture-vram` measures a scene now, not the tree.** RM-011 W-5 measured a
+three-storey house holding 7 textures on the GPU and a furnished 20-item design
+holding 15, against 202 images in the tree — so the tree figure was a number no
+GPU is ever asked for, and it would have refused this library over 90 images a
+scene uploads at most four of. `check-budget.mjs:sceneVram()` prices the two
+textures every viewer uploads, the costliest wall and floor material the pickers
+offer, and the distinct textures of the costliest catalog items up to the item
+count of the busiest design in the repository. It is a model, so
+`tests/browser/gpu-memory.test.js` holds it to `renderer.info.memory` on a real
+scene: the model has to be an upper bound on what the renderer reports.
 
 Two things about the runtime are worth knowing. **Nothing holds a renderer.**
 `KTX2Loader` needs `workerConfig`, a record of which compressed formats the GPU
@@ -208,6 +421,69 @@ a loaded glTF into a single `BufferGeometry` with material groups.
 the loaded `Item`s. Between them they are the entire state of a design, and
 they hold no DOM node and no canvas — which is what lets `exportSerialized()`
 be a pure function of them, and what lets `dispose()` leave the model standing.
+
+**A storey is a whole `Floorplan`, not a field on one** (RM-010 G1). `Model`
+holds a list of `Level`s, each with its own plan, its own furniture and one
+stored number — its floor-to-floor height. Where a storey sits is the running
+sum of the heights below it, derived and never stored.
+
+`model.floorplan` is a **getter onto the active storey**, and that one getter is
+why nothing else in the tree gained a level argument: the 2D view, the 3D view,
+the inspectors, the composables and the file all read it exactly as they did
+before there were any storeys. `Main.floorplan` does the same thing one layer
+up. Two questions the getters do not answer are asked explicitly instead —
+`scene.allItems()` for the whole building (the save file, resolving an id) and
+`scene.getItems()` for the storey being edited (the plan, the item count, what a
+click in 3D can hit).
+
+**A surface is a material, not just a picture** (RM-011 H1). A wall side and a
+floor carried `{url, stretch, scale}` and nothing else; they now also carry a
+tint, a rotation, an offset and up to two more maps, and a room's *ceiling* has a
+surface of its own for the first time. `model/surface.js` is the description and
+the one place that decides what reaches the file — every key is written only when
+it differs from its default, so a design nobody recoloured re-saves
+byte-identical. `three/surface_material.js` is the seam on the other side: it
+turns those numbers into texture state, and it is a module rather than a method
+because `Edge` and `Floor` need the same arithmetic.
+
+The tint applies under both render profiles because a tint is a multiply; **the
+maps are `studio`-only**, because `classic` draws walls with an unlit
+`MeshBasicMaterial` that has no slot for either (RM-011 W-1). That is a recorded
+decision, not a gap — moving the library's default profile is a parity change
+against goldens that cannot be recaptured.
+
+**A floor gets a hole where the stairs from below arrive** (RM-010 G2), derived
+rather than authored: the flight already computes the rectangle, and the storey
+above cuts it out of whichever room it lands in. It is clamped to that room
+first, because `ShapeGeometry` merges a hole that pokes outside its outline
+*into* the outline and the floor grows — the same failure RM-009 U-2 measured for
+walls. The clamp's polygon predicates live in `model/floor_opening.js` and are
+new: the four in `core/utils.js` are preserved bugs, and nothing is built on
+them.
+
+The base elevation is applied in exactly one place: a `Group` per storey inside
+`Scene`, positioned from the derived base. `Floor`, `Edge` and `Item` each build
+their geometry relative to a plan they are handed and know nothing about
+storeys — measured before the sprint, they ask a scene for `add`, `remove` and
+`needsUpdate` and nothing else, which is why `Scene.levelScene(level)` can hand
+each storey's `Floorplan3D` a three-method façade and none of those files
+changed.
+
+**Where a building is, as opposed to where a plan is** (RM-010 G3).
+`Model.buildingBounds()` is the only extent that answers a question about the
+whole house: the union of every storey's corners, the eaves at `roofBase()`, and
+the ridge the pitch implies. Everything else — `floorplan.getSize()`,
+`roofFootprint()` — answers about one storey or about what the roof must cover.
+The exterior view is the caller, and it is a caller in `three/`: this function
+says where the building is and nothing about a camera, which is the arrow
+holding.
+
+**What a click can hit is the storey being edited, not what is drawn.**
+`Controller.updateIntersections` raycasts `scene.getItems()` and
+`checkWallsAndFloors` asks `model.floorplan`, so with every storey visible the
+upper floors are drawn and inert. `Main.showStoreys(false)` is the way to make
+what you see and what you can click the same set; the roof follows it, because a
+roof over one visible storey is a lid on a box you are looking into.
 
 ::: warning The model does hold GPU resources
 This section used to say it held none, and that was wrong. `Room` builds two
@@ -318,10 +594,72 @@ removal. Use `shallowRef` for the slot and `markRaw` for the object — see
 
 ### `floorplanner` — the 2D view
 
-`floorplanner.js` is the controller (modes: move, draw, delete) and
-`floorplanner_view.js` is the renderer, drawing to a plain 2D canvas. There is
-no scene graph and no retained objects; every change repaints the whole canvas.
+`floorplanner.js` is the controller — modes: move, draw, rectangle, dimension,
+text, delete — and `floorplanner_view.js` is the renderer. There is no scene
+graph and no retained objects; every change repaints the whole canvas.
 `carbonsheet.js` is the image underlay you can trace over.
+
+#### The view draws through a backend, not through a canvas
+
+`backends.js` is eleven stateless drawing operations — `clear`, `fillRect`,
+`line`, `curve`, `polygon`, `path`, `circle`, `arc`, `text`, `measureText`,
+`dash` — with two implementations: `CanvasBackend` over a
+`CanvasRenderingContext2D`, and `SvgBackend`, which accumulates elements and
+hands back a document.
+
+Each operation carries its own colour and width. There is no state to set and
+restore, no transform stack and no current path, and that shape is chosen for
+the *export* rather than for the canvas: a stateful interface maps onto a canvas
+context for free and onto SVG badly, because an SVG element carries its own
+style and has no notion of "the style in force". Even rotation is a parameter of
+`text` rather than a transform, because it is the only rotation the plan draws.
+
+`plan_export.js` is what turns that into a sheet — bounds, a scale projection, a
+scale bar, a title block — and it is deliberately **not** a renderer.
+`FloorplannerView2D.renderTo(backend, project, size)` swaps the backend and the
+projection, calls the same `draw()` the screen calls, and puts them back. A
+sheet is the plan on screen, not a second rendering of it, so there is nothing
+to keep in step.
+
+A scale is a physical promise: CSS defines an inch as 96 pixels, so a centimetre
+of paper is 96/2.54 of them and a four-metre wall on a 1:100 sheet is exactly
+four centimetres. PNG export makes no such promise — an image is pixels — so it
+fits the plan to a width and its title block says "not to scale" beside a scale
+bar, which stays true through a photocopier when a printed ratio does not.
+
+#### How the plan sees the furniture
+
+It does not, directly — and that is deliberate (RM-008 E1). `BlueprintJS` hands
+`Floorplanner2D` a `Floorplan`, and a `Floorplan` holds walls, corners and rooms
+and has no reference to `Model` or `Scene`. So before E1 the plan could not draw
+a chair even in principle, and the obvious fixes both cost something real:
+passing the `Model` in widens a public constructor to read one list, and giving
+`Floorplan` a back-reference puts the scene inside the layer whose whole
+discipline is plain data with no DOM and no GPU.
+
+What it gets instead is a **projection**. `Model` — the one object that holds
+both halves — derives an array of footprints, each one an id, a centre, half
+extents, a rotation, a type and a label in centimetres, and hands it to the
+floorplan as data on `EVENT_ITEMS_PROJECTED`. The view draws a description of
+the furniture and never touches an item.
+
+Three consequences worth knowing:
+
+- **The plan cannot become a second editor of the scene.** To change an item it
+  asks, through the command interface `Model` installs with
+  `floorplan.setItemCommands` — the same shape as `Scene.setItemLoader`, where
+  the layer takes functions rather than importing the thing that does the work.
+- **It is testable without a canvas**, which is most of why it is a module and
+  not a lookup. `model/plan_projection.js` is pure functions over plain objects.
+- **It can be compared.** "Items in the scene equals footprints on the plan" is
+  a claim a test can make, and does, headlessly and again against a real
+  raster.
+
+Hit-testing uses `footprintContains`, which un-rotates the point about the
+footprint's centre — a rotated rectangle is axis-aligned in its own frame. It
+deliberately does not use `Utils.pointInPolygon`: that is one of four pinned
+constant-returning predicates (see the ledger in `core/utils.js`), and a new
+feature must not be built on a bug that is preserved on purpose.
 
 Everything it paints with comes from **`floorplannerPalette`**, a mutable object
 seeded from the twenty-one exported colour constants. A canvas cannot read a
@@ -359,6 +697,79 @@ materials pick their class while being built, so the profile has to be set
 first. `Main.applyRenderProfile()` switches a live viewer, at the cost of
 rebuilding every `Edge` and `Floor`.
 
+::: tip Ambient occlusion, and the photo capture
+`three/post.js` is an `EffectComposer` with a `GTAOPass` in it — new
+construction, because RM-011 W-2 found **no `aoMap` anywhere in the tree** and
+screen-space is the only occlusion available. It is **available and off in both
+profiles**, and that is a measurement: a six-metre room renders in 0.22 ms
+without it and 0.37 ms with, **+68 %**, the largest single cost in programme H.
+Under `classic` it would also be wrong rather than merely expensive — multiplying
+an unlit `MeshBasicMaterial` by an occlusion term is a grey stain, not lighting.
+
+Its four modules are **dynamic imports**, and the first-load budget H1 added
+caught that: they were static in the first draft and cost 10.6 KB gzipped on
+every boot for an effect no default turns on. A build that never enables AO now
+fetches none of them.
+
+`Main.dataUrl(n)` supersamples by raising the pixel ratio and leaving the CSS
+size alone — which is what a device pixel ratio *is*, so the camera, the picking
+and the controls all stay correct. W-11 measured the old behaviour: 1024 × 768 at
+ratio 1, and **nothing in `src/` called it**. The restore is in a `finally`,
+because a `toDataURL` that throws on a tainted canvas would otherwise leave the
+viewer rendering at four times its size for the rest of the session.
+:::
+
+::: tip Lamps, and the catalog's sixth key
+`items/lamp.js` is a colour, a brightness in **lumens**, a range and a fraction
+of the item's height where the bulb sits. RM-011 W-11 counted the catalog — all
+168 rows carried exactly `format`, `image`, `model`, `name`, `type`, and eight
+were named like lamps with nothing a renderer could read — so this was priced as
+schema work over a file six suites assert about, and the eight rows say only what
+differs from the defaults.
+
+An item builds a `PointLight` as its own child, so dragging a lamp takes its
+light with it. **Studio-only and shadowless**, both for measured reasons: an
+unlit `MeshBasicMaterial` wall cannot receive a point light, and a
+shadow-casting one is a cube of six renders.
+:::
+
+::: tip The sun, and the one north a building has
+`model/sun.js` turns a latitude, a day and an hour into an elevation and a
+bearing, and `Main.syncSun()` hands the direction to `Lights`. **Presence is the
+switch**: `Model.sun` is null by default and the key light then sits exactly
+where the render profile puts it, which is what `classic` keeps doing — the
+sun's effect there would be a `#330000` wash moving, so it is off rather than
+worked around.
+
+It is not an ephemeris: solar time, no equation of time, no longitude. The model
+is Cooper's declination and an hour angle, which is the honest one for *"does the
+morning sun reach this room"*.
+
+RM-011 W-10 is the other half. `north` has lived on `Floorplan` since E3, which
+was right while a design was one plan; since G1 a design is a list of them, so a
+three-storey house had **three north bearings and nothing stopped them
+disagreeing**. `Model.north` reads the ground floor's and writes every storey, so
+there is one answer and no new save key — the per-plan value is still exactly
+what each 2D sheet draws.
+:::
+
+::: tip The shadow filter, and a claim RM-011 got wrong
+`main.js` asked the renderer for `PCFSoftShadowMap` from the fork until H2.
+three deprecated that constant and `WebGLShadowMap.render` **assigns
+`PCFShadowMap` over the top of it** on the first frame, with a warning, so the
+property read back as `1` while the source said `2`. It names `PCFShadowMap`
+now, which is a **zero-pixel change** — asserted, not assumed, in
+`tests/browser/shadow-filter.test.js`.
+
+RM-011 W-8 also concluded that the profile's `shadowRadius` was therefore inert.
+It is not. three rewrote PCF into a five-tap Vogel disk **scaled by
+`shadow.radius`**, which is precisely why the soft variant was deprecated: the
+ordinary filter now does what the separate one existed to do. A radius sweep
+moves 256, 2,394 and 11,993 pixels of a 307,200-pixel frame at 1, 6 and 12
+against the profile's own 2.4 — monotonically, which is what tells "the number
+reaches the shader" apart from "the frame is noisy".
+:::
+
 ::: tip Why the key light was red
 `lights.js` called `setHSL(1, 1, 0.1)` on a light it had just constructed as
 white. Hue 1 wraps to 0, so the "white" key has always been `#330000` — a dim
@@ -366,15 +777,91 @@ red wash contributing essentially no shadow contrast. It did not matter while
 nothing in the room was lit. `classic` keeps it, bug and all; `studio` does not.
 :::
 
+::: tip The panorama, and why it is not a `CubeCamera`
+`core/equirect.js` is the projection — six square faces in, one 2:1 image out —
+and it holds no three types, no renderer and no canvas. `three/panorama.js` is
+the half that needs a GPU. The split is why the whole feature is tested exactly
+rather than by looking at it, and why coverage went **up** on the sprint that
+added it.
+
+three ships a `CubeCamera`, and the six orientations in `CUBE_FACES` are copied
+from it — asserted against a real one, so a version bump that re-orients them
+fails a test rather than rotating a picture. What is *not* used is where it
+renders to. `WebGLPrograms.getParameters` forces `toneMapping` to
+`NoToneMapping` and `outputColorSpace` to the working space **unless
+`currentRenderTarget` is null**, so a `WebGLCubeRenderTarget` hands back six
+faces that are not what the screen shows — and `studio` renders through ACES. So
+the faces are rendered to the canvas, one at a time, through the same call a
+frame makes, and `gl.readPixels` reads them back. (Note also that `CubeCamera`
+is built with `fov = -90`: a negative field of view negates both axes of the
+projection, which is how three writes each face in GL cube-map order.)
+
+The cost of that choice is stated rather than hidden: **the panorama has no
+post-processing**, so H2's ambient occlusion is absent from it. Screen-space
+occlusion is computed per frame, so each 90° face would occlude against its own
+view and the six would disagree along the seams.
+:::
+
+::: tip Eye height, and the teleport
+`pointerlockcontrols.js` keeps the fork's physics exactly — friction 10/s,
+gravity 980/s², walk 3000, jump 350 — and `tests/walkthrough.test.js` recovers
+all five numbers **from the motion** rather than reading them back off the
+object.
+
+H3 added two things and neither of them moves those numbers. `groundHeight`
+defaults to 0, so the fall is arithmetically identical for a design with one
+storey; it exists because since G1 a design has storeys, and a walker teleported
+to the first floor used to fall straight through it. And `teleport()` writes a
+position and the floor under it and **nothing else** — not the velocity, so a
+walker who was moving arrives moving; not the orientation; not `_canJump`.
+
+Eye height is a *session* preference (`useWalkthrough.js`), not a design
+property: two people opening the same plan should walk it at their own eye
+level. Wall collision is still not here — RM-011 W-11 left it with J4, whose
+subject is the two preserved polygon predicates it needs.
+:::
+
 `orbitcontrols.js` and `pointerlockcontrols.js` are thin subclasses over
 three's own addons — the previously vendored copies are gone as of S5.
 
 ### `items` — the furniture
 
-Eight classes over one `Item` base, and the class decides how a thing behaves:
+Eleven classes over one `Item` base, and the class decides how a thing behaves:
 whether it snaps to a wall, cuts a hole in one, sits on the floor, hangs from
 the roof, or floats free. `factory.js` maps the numeric `item_type` in a save
-file to the class. Adding a ninth type means a class and a factory entry.
+file to the class. Adding another type means a class and a factory entry —
+appended, never filling one of the gaps at 5 and 6, because a type number is
+written into every save file and one that used to mean something else is a trap.
+
+**Three of the eleven are generated rather than downloaded**: `ParametricOpening`
+(type 10, RM-008 F1), `ParametricStair` (type 11, F3) and `ParametricStructure`
+(type 12, F2). Each carries a description of seven numbers, and its mesh, the
+hole it cuts, the symbol the plan draws and the record it saves are all derived
+from it. Everything else about them is an ordinary item: they select, undo,
+project and persist through the same paths.
+
+The generator itself is four files with a deliberate seam:
+
+| File | What it is |
+|---|---|
+| `solid_builder.js` | Boxes into a buffer, with material groups, and two rotations. Knows nothing about doors, stairs or columns |
+| `opening.js` | A door, window or archway: the description, the clamp, the geometry |
+| `stair.js` | A flight: the description, the shape of its runs and landings, the plan symbol, the stairwell hint, the geometry |
+| `structure.js` | A column or a beam: the description, which side of the plan's section it is on, the geometry |
+| `roof.js` | The building's roof: flat, gable and hip, which are one solid with the ridge inset by a different amount |
+
+`solid_builder.js` was written inside `opening.js` for F1 and moved out by F3,
+unchanged, when stairs became its second caller — which is the check RM-009's
+risk table asked F3 to make. What it found is that F1 had drawn the boundary at
+the *call* (numbers in, a `BufferGeometry` and a material list out) but not
+underneath it: the four builder pieces were module-private, so a second caller's
+only options were to copy them or to import from a module named after doors.
+
+The third caller tested it again and it held: a column and a beam are one `box`
+each. A *round* column is not, and the prism that draws it stays in
+`structure.js` with one caller rather than moving to the shared file
+pre-emptively — the rule that file states is that a piece moves when a second
+caller wants it, which is the rule F3 learned by finding `box` private.
 
 ## The application layer
 

@@ -1,11 +1,13 @@
 // @ts-check
 import {EventDispatcher, RepeatWrapping, BufferAttribute, Vector2, Vector3, MeshBasicMaterial, MeshStandardMaterial, FrontSide, DoubleSide, BackSide, Shape, Path, ShapeGeometry, Mesh, SRGBColorSpace} from 'three';
 import {Utils} from '../core/utils.js';
-import {triangleFanGeometry} from '../core/geometry_builders.js';
+import {fanBatchGeometry, triangleFanGeometry} from '../core/geometry_builders.js';
 import {EVENT_REDRAW, EVENT_CAMERA_MOVED, EVENT_CAMERA_ACTIVE_STATUS} from '../core/events.js';
 import {isStudio} from '../core/render_profile.js';
 import {acquireTexture, releaseTexture} from './texture_cache.js';
 import {runtimeOf} from '../core/design_runtime.js';
+import {applySurfaceTransform, acquireSurfaceMaps, releaseSurfaceMaps} from './surface_material.js';
+import {colorValue, multiplyHex, NO_TINT} from '../model/surface.js';
 
 /**
  * The hand-painted vignette every wall is lit with. One image, one decode -
@@ -13,6 +15,14 @@ import {runtimeOf} from '../core/design_runtime.js';
  * way it is.
  */
 const LIGHT_MAP_URL = 'rooms/textures/walllightmap.png';
+
+/**
+ * Scratch vectors for {@link Edge#updateVisibility} (RM-020 S-4). Module-level
+ * and reused on every call; see the docblock there for why that is safe.
+ */
+const _visNormal = new Vector3();
+const _visPosition = new Vector3();
+const _visFocus = new Vector3();
 
 export class Edge extends EventDispatcher
 {
@@ -89,6 +99,15 @@ export class Edge extends EventDispatcher
 		// throwaway `new TextureLoader()` that used to sit here loaded nothing and
 		// was overwritten on the next line of init().
 		this.texture = null;
+		/**
+		 * The extra maps this side carries, or nulls (RM-011 H1). Beside
+		 * `this.texture` because they are released together and for the same
+		 * reason - the cache hands out clones and every clone has to be given back.
+		 * @type {?{normalMap: ?import('three').Texture, roughnessMap: ?import('three').Texture}}
+		 */
+		this.surfaceMaps = null;
+		/** @type {?import('../model/surface.js').SurfaceMaterial} */
+		this.surfaceMaterial = null;
 
 		// One decode for the whole scene, not one per wall (RM-002 R-04). Every
 		// Edge asks for the same URL, and every Edge used to get its own copy.
@@ -112,6 +131,46 @@ export class Edge extends EventDispatcher
 		// factor varies across the texture.
 		this.lightMap.colorSpace = SRGBColorSpace;
 
+		/**
+		 * Whether something else draws this edge's base plane (RM-015 M2, AA-3).
+		 *
+		 * `basePlanes` is the one thing an Edge owns that `updateVisibility` never
+		 * touches - the comment where it is pushed says so: *"put into basePlanes
+		 * since this is always visible"*. Always visible and always the same flat
+		 * colour is exactly the geometry that can share a mesh with every other
+		 * edge's, and {@link Floorplan3D} batches them into one.
+		 *
+		 * The plane is still BUILT here and still owned here, which is deliberate:
+		 * `tests/geometry-rewrites.test.js` pins its geometry against a frozen r98
+		 * golden, and the batch consumes what this builds rather than replacing it.
+		 * What the flag changes is only whether it is added to the scene on its own.
+		 *
+		 * @type {boolean}
+		 */
+		this.baseBatched = false;
+		/**
+		 * The two side fillers as one mesh (RM-015 M2, finding AA-3).
+		 *
+		 * A wall face's two side fillers are the same colour, the same material and
+		 * the same four-point shape, and `updateVisibility` fades them together
+		 * because it fades everything in `planes` together. Same material, same
+		 * visibility, so they can be the same mesh - and at 144 walls that is 288
+		 * draw calls becoming 144.
+		 *
+		 * Both originals stay in `planes` and are NOT added to the scene. That is
+		 * not tidiness: `tests/geometry-rewrites.test.js` pins `planes` at five
+		 * entries against frozen r98 goldens, and it pins the geometry at each
+		 * index. Repacking the array would fail a parity test that cannot be
+		 * regenerated, so the array keeps its shape and only what reaches the scene
+		 * changes. They share one material with this mesh, which is what makes the
+		 * fade still work: `updateVisibility` mutates `plane.material.opacity`, and
+		 * this holds the very same material object.
+		 *
+		 * @type {?Mesh}
+		 */
+		this.sideBatch = null;
+		/** @type {Set<Object>} Planes the batch draws, so addToScene skips them. */
+		this.batchedPlanes = new Set();
 		this.fillerColor = 0xdddddd;
 		this.sideColor = 0xcccccc;
 		this.baseColor = 0xdddddd;
@@ -139,6 +198,11 @@ export class Edge extends EventDispatcher
 		// Both handles go back, so the last wall using an image releases it.
 		releaseTexture(this.texture);
 		this.texture = null;
+		// And the surface's own maps, which are cache handles exactly like the two
+		// beside them (RM-011 H1). A normal map shared by four walls is one upload
+		// and four handles; missing this line makes it one upload and a leak.
+		releaseSurfaceMaps(this.surfaceMaps);
+		this.surfaceMaps = null;
 		releaseTexture(this.lightMap);
 		/** @type {?import('three').Texture} */
 		this.lightMap = null;
@@ -161,12 +225,22 @@ export class Edge extends EventDispatcher
 		this.addToScene();
 	}
 
+	/**
+	 * Rebuild this wall face's meshes and ask for a frame (RM-019 R1).
+	 *
+	 * The frame is the half that was missing. `updateTexture()` requests one from
+	 * its load callback, so a face whose picture was still arriving repainted and
+	 * a face whose textures were already cached did not - which made the bug look
+	 * intermittent. Rebuilding the meshes is itself a reason to draw, whatever
+	 * the texture cache is doing.
+	 */
 	redraw()
 	{
 		this.removeFromScene();
 		this.updateTexture();
 		this.updatePlanes();
 		this.addToScene();
+		this.scene.needsUpdate = true;
 	}
 
 	/**
@@ -197,6 +271,12 @@ export class Edge extends EventDispatcher
 			scope.scene.remove(plane);
 		});
 		scope.resources.releaseAll();
+		if (scope.sideBatch)
+		{
+			scope.scene.remove(scope.sideBatch);
+			scope.sideBatch = null;
+		}
+		scope.batchedPlanes = new Set();
 		scope.planes = [];
 		scope.basePlanes = [];
 		scope.phantomPlanes = [];
@@ -206,11 +286,23 @@ export class Edge extends EventDispatcher
 	{
 		var scope = this;
 		this.planes.forEach((plane) => {
+			if (scope.batchedPlanes.has(plane)) { return; }
 			scope.scene.add(plane);
 		});
-		this.basePlanes.forEach((plane) => {
-			scope.scene.add(plane);
-		});
+		if (this.sideBatch)
+		{
+			this.scene.add(this.sideBatch);
+		}
+		// Skipped when the floorplan has batched them (RM-015 M2). `removeFromScene`
+		// is deliberately NOT symmetric about this: removing an object that is not
+		// in the scene is a no-op, and a flag that changed between the two calls
+		// would otherwise strand a plane in the scene forever.
+		if (!this.baseBatched)
+		{
+			this.basePlanes.forEach((plane) => {
+				scope.scene.add(plane);
+			});
+		}
 		this.phantomPlanes.forEach((plane) => {
 			scope.scene.add(plane);
 		});
@@ -246,6 +338,22 @@ export class Edge extends EventDispatcher
 		});
 	}
 
+	/**
+	 * Decide which way this face is turned, and fade it if the camera is behind
+	 * it.
+	 *
+	 * ## Three vectors, reused (RM-020 S-4)
+	 *
+	 * This runs on `EVENT_CAMERA_MOVED`, which OrbitControls dispatches on every
+	 * pointermove of an orbit - once per `Edge`, and a wall has two. At the 144
+	 * walls this file's batching note is written for, that is 288 calls per
+	 * frame, and each used to allocate three `Vector3`: roughly 864 objects a
+	 * frame, all of them dead before the next one.
+	 *
+	 * They are module-level scratch now. Safe because this is synchronous, does
+	 * not recurse and does not hand any of them out - the only value that escapes
+	 * is a number.
+	 */
 	updateVisibility()
 	{
 		var scope = this;
@@ -255,12 +363,11 @@ export class Edge extends EventDispatcher
 		var x = end.x - start.x;
 		var y = end.y - start.y;
 		// rotate 90 degrees CCW
-		var normal = new Vector3(-y, 0, x);
-		normal.normalize();
+		var normal = _visNormal.set(-y, 0, x).normalize();
 
 		// setup camera: scope.controls.object refers to the camera of the scene
-		var position = scope.controls.object.position.clone();
-		var focus = new Vector3((start.x + end.x) / 2.0,0,(start.y + end.y) / 2.0);
+		var position = _visPosition.copy(scope.controls.object.position);
+		var focus = _visFocus.set((start.x + end.x) / 2.0, 0, (start.y + end.y) / 2.0);
 		var direction = position.sub(focus).normalize();
 
 		// find dot
@@ -312,6 +419,12 @@ export class Edge extends EventDispatcher
 			this.texture.repeat.set(width / scale, height / scale);
 			this.texture.needsUpdate = true;
 		}
+
+		// What this side is made of, beyond the image (RM-011 H1).
+		var material = this.edge.getMaterial();
+		applySurfaceTransform(this.texture, material);
+		this.surfaceMaterial = material;
+		this.surfaceMaps = acquireSurfaceMaps(this.runtime, material, this.surfaceMaps, callback);
 	}
 
 	/**
@@ -361,6 +474,22 @@ export class Edge extends EventDispatcher
 			material.lightMapIntensity = this.renderProfile.wallLightMapIntensity;
 		}
 
+		// The maps a surface may carry, and studio only (RM-011 H1, W-1). A
+		// classic wall is `MeshBasicMaterial` and has no slot to put either of
+		// these in - it is unlit, so a normal map has no light to bend and a
+		// roughness map has no specular term to modulate. That is not a gap to
+		// fill later: filling it means moving the default profile, which is a
+		// parity change against goldens captured from a three r98 that no longer
+		// exists. The colour applies to both, because a tint is a multiply.
+		if (this.surfaceMaps && this.surfaceMaps.normalMap)
+		{
+			material.normalMap = this.surfaceMaps.normalMap;
+		}
+		if (this.surfaceMaps && this.surfaceMaps.roughnessMap)
+		{
+			material.roughnessMap = this.surfaceMaps.roughnessMap;
+		}
+
 		return material;
 	}
 
@@ -375,7 +504,10 @@ export class Edge extends EventDispatcher
 			return;			
 		}
 
-		var color = 0xFFFFFF;
+		// The surface's own tint, white unless somebody picked one (RM-011 H1).
+		// It was a literal `0xFFFFFF` here, which is what "no colour picker for
+		// walls" looked like in the code.
+		var color = colorValue(this.surfaceMaterial ? this.surfaceMaterial.color : NO_TINT);
 		var wallMaterial = isStudio(this.renderProfile) ? this.makeStudioWallMaterial(color, FrontSide) : new MeshBasicMaterial({
 			color: color,
 			side: FrontSide,
@@ -411,8 +543,16 @@ export class Edge extends EventDispatcher
 			opacity: 1.0,
 			wireframe: false,
 		});
-		var fillerMaterial = isStudio(this.renderProfile) ? this.makeStudioWallMaterial(this.fillerColor, DoubleSide, false) : new MeshBasicMaterial({
-			color: this.fillerColor,
+		// The filler is the top of this wall, so a tinted wall has a tinted top
+		// (RM-011 H1). Multiplied into the filler's own 0xdddddd rather than
+		// replacing it, so an untinted wall's filler is exactly the shade it has
+		// always been - and a wall painted dark blue does not keep a light grey
+		// edge, which is what the first draft of this did and what anybody would
+		// have called a bug.
+		var fillerColor = multiplyHex(this.fillerColor,
+			colorValue(this.surfaceMaterial ? this.surfaceMaterial.color : NO_TINT));
+		var fillerMaterial = isStudio(this.renderProfile) ? this.makeStudioWallMaterial(fillerColor, DoubleSide, false) : new MeshBasicMaterial({
+			color: fillerColor,
 			side: DoubleSide,
 			map: this.texture,
 			transparent: true,
@@ -442,12 +582,28 @@ export class Edge extends EventDispatcher
 		this.basePlanes.push(this.resources.registerObject(this.buildFillerUniformHeight(this.edge, 0, BackSide, this.baseColor)));
 		if(this.edge.wall.start.getAttachedRooms().length < 2 || this.edge.wall.end.getAttachedRooms().length < 2)
 		{
-			this.planes.push(this.resources.registerObject(this.buildFillerVaryingHeights(this.edge, DoubleSide, this.fillerColor)));
+			this.planes.push(this.resources.registerObject(this.buildFillerVaryingHeights(this.edge, DoubleSide, fillerColor)));
 		}
 
 		// sides
-		this.planes.push(this.resources.registerObject(this.buildSideFillter(this.edge.interiorStart(), this.edge.exteriorStart(), extStartCorner.elevation, this.sideColor)));
-		this.planes.push(this.resources.registerObject(this.buildSideFillter(this.edge.interiorEnd(), this.edge.exteriorEnd(), extEndCorner.elevation, this.sideColor)));
+		//
+		// One material for both, and one mesh drawing both (RM-015 M2). The two
+		// meshes below still exist and still carry the geometry the r98 goldens
+		// pin; `addToScene` adds the batch in their place.
+		var sideMaterial = this.makeFillerMaterial(this.sideColor, DoubleSide);
+		this.resources.register(sideMaterial);
+		var startPoints = this.sideFillerPoints(this.edge.interiorStart(), this.edge.exteriorStart(), extStartCorner.elevation);
+		var endPoints = this.sideFillerPoints(this.edge.interiorEnd(), this.edge.exteriorEnd(), extEndCorner.elevation);
+
+		var startFiller = this.resources.registerObject(this.buildSideFillter(this.edge.interiorStart(), this.edge.exteriorStart(), extStartCorner.elevation, this.sideColor, sideMaterial));
+		var endFiller = this.resources.registerObject(this.buildSideFillter(this.edge.interiorEnd(), this.edge.exteriorEnd(), extEndCorner.elevation, this.sideColor, sideMaterial));
+		this.planes.push(startFiller);
+		this.planes.push(endFiller);
+
+		this.sideBatch = this.resources.registerObject(
+			new Mesh(fanBatchGeometry([startPoints, endPoints]), sideMaterial));
+		this.sideBatch.name = 'wall-sides';
+		this.batchedPlanes = new Set([startFiller, endFiller]);
 	}
 
 	// start, end have x and y attributes (i.e. corners)
@@ -458,8 +614,12 @@ export class Edge extends EventDispatcher
 		var v3 = v2.clone();
 		var v4 = v1.clone();
 		
-		v3.y = this.edge.getEnd().elevation;
-		v4.y = this.edge.getStart().elevation;
+		// A half wall stops below its corners (RM-008 F2). `drawnHeightAt` is the
+		// corner's elevation capped by `Wall.partialHeight`, which is null for
+		// every wall anybody has ever drawn - so this is the corner elevation
+		// unchanged for every existing design, and every frozen r98 golden with it.
+		v3.y = this.wall.drawnHeightAt(this.edge.getEnd());
+		v4.y = this.wall.drawnHeightAt(this.edge.getStart());
 		
 		var points = [v1.clone(), v2.clone(), v3.clone(), v4.clone()];
 
@@ -468,17 +628,50 @@ export class Edge extends EventDispatcher
 		var spoints = [new Vector2(points[0].x, points[0].y),new Vector2(points[1].x, points[1].y),new Vector2(points[2].x, points[2].y),new Vector2(points[3].x, points[3].y)];
 		var shape = new Shape(spoints);
 
-		// add holes for each wall item
+		// The hole each item cuts, clamped to the wall it is cut into (RM-008 F1).
+		//
+		// Two changes here, and the second is the finding. An item that describes
+		// its own opening - `ParametricOpening`, whose whole point is that a door
+		// is five numbers rather than a mesh - is asked for its rectangle instead
+		// of being measured, because a door's leaf is drawn OPEN and its bounding
+		// box is therefore 86 cm deep for a 90 cm door.
+		//
+		// And every hole is clamped. RM-009 U-2 measured what happens without it:
+		// `ShapeGeometry` triangulates a contour and its holes together, so a hole
+		// taller than the wall is merged into the OUTLINE rather than cut out of
+		// it. A 300 x 387 opening in a 400 x 250 wall produces a mesh 387 tall -
+		// the wall grows 137 cm to swallow it, nothing warns, and the plan is
+		// unaffected because it draws the graph rather than the mesh. Seven of the
+		// ten catalog openings are that size, which is why none of them was ever
+		// noticed to be unusable.
+		var wallTop = Math.max(
+			this.wall.drawnHeightAt(this.edge.getStart()),
+			this.wall.drawnHeightAt(this.edge.getEnd()));
 		this.wall.items.forEach((item) => {
 			var pos = item.position.clone();
 			pos.applyMatrix4(transform);
 			var halfSize = item.halfSize;
-			var min = halfSize.clone().multiplyScalar(-1);
-			var max = halfSize.clone();
-			min.add(pos);
-			max.add(pos);
-
-			var holePoints = [new Vector2(min.x, min.y),new Vector2(max.x, min.y),new Vector2(max.x, max.y),new Vector2(min.x, max.y)];
+			var halfWidth = halfSize.x;
+			var bottom = pos.y - halfSize.y;
+			var top = pos.y + halfSize.y;
+			if (typeof item.wallOpening === 'function')
+			{
+				var opening = item.wallOpening();
+				halfWidth = opening.width / 2;
+				bottom = opening.bottom;
+				top = opening.top;
+			}
+			// Clamped into (0, wallTop). A hole with no height left is not drawn at
+			// all, which is the honest outcome for an opening that does not fit.
+			bottom = Math.max(0, Math.min(bottom, wallTop));
+			top = Math.max(bottom, Math.min(top, wallTop));
+			if (top - bottom < 1e-6)
+			{
+				return;
+			}
+			var holePoints = [
+				new Vector2(pos.x - halfWidth, bottom), new Vector2(pos.x + halfWidth, bottom),
+				new Vector2(pos.x + halfWidth, top), new Vector2(pos.x - halfWidth, top)];
 			shape.holes.push(new Path(holePoints));
 		});
 
@@ -566,15 +759,30 @@ export class Edge extends EventDispatcher
 		});
 	}
 
-	buildSideFillter(p1, p2, height, color)
+	/**
+	 * @param {Object} p1
+	 * @param {Object} p2
+	 * @param {number} height
+	 * @param {number} color
+	 * @param {Object} [shared] A material to use instead of making one. The two
+	 * side fillers of a face pass the same one so that {@link Edge#sideBatch} can
+	 * draw both and still receive the opacity `updateVisibility` writes.
+	 */
+	buildSideFillter(p1, p2, height, color, shared)
 	{
-		var points = [this.toVec3(p1), this.toVec3(p2), this.toVec3(p2, height), this.toVec3(p1, height) ];
+		var points = this.sideFillerPoints(p1, p2, height);
 
 		var geometry = triangleFanGeometry(points);
 
-		var fillerMaterial = this.makeFillerMaterial(color, DoubleSide);
+		var fillerMaterial = shared || this.makeFillerMaterial(color, DoubleSide);
 		var filler = new Mesh(geometry, fillerMaterial);
 		return filler;
+	}
+
+	/** The four corners of a side filler, shared by the mesh and the batch. */
+	sideFillerPoints(p1, p2, height)
+	{
+		return [this.toVec3(p1), this.toVec3(p2), this.toVec3(p2, height), this.toVec3(p1, height)];
 	}
 
 	buildFillerVaryingHeights(edge, side, color)

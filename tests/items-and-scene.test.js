@@ -19,14 +19,16 @@
  * a local FakeItem that stands in for Item's constructor only, and re-uses the
  * real Item.prototype.initObject and Item.prototype.getMetaData.
  */
-import {describe, it, expect, beforeEach} from 'vitest';
+import {afterEach, describe, it, expect, beforeEach} from 'vitest';
 import * as three from 'three';
 
 import {Model} from '../src/scripts/model/model.js';
+import {EVENT_GLTF_READY} from '../src/scripts/core/events.js';
 import {Scene} from '../src/scripts/model/scene.js';
 import {Factory, item_types} from '../src/scripts/items/factory.js';
 import {Item} from '../src/scripts/items/item.js';
 import {FloorItem} from '../src/scripts/items/floor_item.js';
+import {Configuration, collisionWarnings} from '../src/scripts/core/configuration.js';
 import {WallItem} from '../src/scripts/items/wall_item.js';
 import {InWallItem} from '../src/scripts/items/in_wall_item.js';
 import {InWallFloorItem} from '../src/scripts/items/in_wall_floor_item.js';
@@ -56,7 +58,9 @@ import {resetAll, stubItemLoader} from './helpers/harness.js';
  * repaints the two dimension canvases. Here the scale is set directly, because
  * setScale() needs a 2D canvas context.
  *
- * initObject() and getMetaData() are the REAL implementations, called through.
+ * initObject() and getMetaData() are the REAL implementations, called through,
+ * and so is applyUnitScale() - the method that replaced the x300 hack (RM-012
+ * J1). setScale is the one stub in the chain, for the canvas reason above.
  */
 class FakeItem extends three.Mesh
 {
@@ -80,6 +84,9 @@ class FakeItem extends three.Mesh
 		{
 			this.rotation.y = rotation;
 		}
+		// The real Item records this before applying the scale, and initObject
+		// reads it to decide whether the model still needs its unit conversion.
+		this._scaleFromDocument = (scale != null);
 		if (scale != null)
 		{
 			this.scale.set(scale.x, scale.y, scale.z);
@@ -107,10 +114,21 @@ class FakeItem extends three.Mesh
 		}
 	}
 
+	// The real setScale multiplies halfSize and repaints two dimension canvases,
+	// and a canvas is what this environment does not have. Multiplying the two
+	// numbers `applyUnitScale` and its callers actually read is enough, and being
+	// a stub is why the assertions about it are about the scale and not the label.
+	setScale(x, y, z)
+	{
+		this.halfSize.multiply(new three.Vector3(x, y, z));
+		this.scale.set(this.scale.x * x, this.scale.y * y, this.scale.z * z);
+	}
+
 	placeInRoom() { this.calls.push('placeInRoom'); }
 	moveToPosition(position, edge) { this.calls.push(['moveToPosition', position, edge]); }
 	removed() { this.calls.push('removed'); }
 	initObject() { this.calls.push('initObject'); Item.prototype.initObject.call(this); }
+	applyUnitScale() { return Item.prototype.applyUnitScale.call(this); }
 	getMetaData() { return Item.prototype.getMetaData.call(this); }
 }
 
@@ -195,9 +213,55 @@ beforeEach(() => {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * Everything under the three scene, at any depth (RM-010 G1).
+ *
+ * These assertions used to read `getScene().children` and mean "what is in the
+ * scene". A level's geometry now goes into that level's `Group` - which is
+ * where its base elevation is applied - so `children` is one group per storey
+ * and the meshes are a level down. Re-pointed rather than relaxed: the question
+ * each of them asks is still "is this mesh in the scene", and this answers it
+ * without caring how deep the graph is.
+ *
+ * The groups themselves are excluded, because a container is not a thing in the
+ * scene in the sense these tests mean.
+ */
+function sceneContents(model)
+{
+	const found = [];
+	model.scene.getScene().traverse((object) =>
+	{
+		if (object !== model.scene.getScene() && !String(object.name).startsWith('level:'))
+		{
+			found.push(object);
+		}
+	});
+	return found;
+}
+
 describe('Factory registry (written into every save file)', () => {
-	it('maps exactly the eight numeric item types 0,1,2,3,4,7,8,9', () => {
-		expect(Object.keys(item_types)).toEqual(['0', '1', '2', '3', '4', '7', '8', '9']);
+	/**
+	 * The eight original numbers, still meaning the same eight classes.
+	 *
+	 * This assertion used to read `toEqual([...eight])`. RM-008 F1 added a ninth
+	 * (type 10, the parametric opening), F3 a tenth (11, the parametric stair)
+	 * and F2's late slice an eleventh (12, the column and beam). Re-checked each
+	 * time rather than relaxed. What the pin is FOR is that a type number, once
+	 * written into a save file, cannot change its meaning - so the eight are
+	 * asserted individually and the three additions are asserted as the additions
+	 * they are. Appending rather than filling the gaps at 5 and 6 is the same
+	 * argument: a number that once meant something else is a trap, and a gap is
+	 * only untidy.
+	 */
+	it('keeps the eight original numeric item types, and adds 10, 11 and 12', () => {
+		expect(Object.keys(item_types).sort((a, b) => Number(a) - Number(b)))
+			.toEqual(['0', '1', '2', '3', '4', '7', '8', '9', '10', '11', '12']);
+		expect(item_types[10].name).toBe('ParametricOpening');
+		expect(item_types[11].name).toBe('ParametricStair');
+		expect(item_types[12].name).toBe('ParametricStructure');
+		// The gaps stay gaps.
+		expect(item_types[5]).toBeUndefined();
+		expect(item_types[6]).toBeUndefined();
 	});
 
 	it('maps 0 to Item', () => {
@@ -348,10 +412,20 @@ describe('Scene.addItem failure path (RM-002 R-01)', () => {
 		return seen;
 	}
 
-	it('balances LOADING with LOADED when the URL cannot even be parsed', () => {
+	it('balances LOADING with LOADED when the URL cannot even be parsed', async () => {
 		// Under Node a relative URL throws synchronously out of three's FileLoader,
 		// from `new Request` - past the onError callback that exists for this and
 		// never sees it. That synchronous throw used to escape addItem entirely.
+		//
+		// It also used to be reported synchronously, and as of RM-015 M3 it is
+		// not: the loaders arrive behind a dynamic import, so the branch that
+		// starts a load - and therefore the branch that fails to - runs a
+		// microtask later. The `try` is still wrapped around `loader.load` and
+		// nothing else, which is the property this case exists for; what moved is
+		// when the answer comes back, and it moved to where every other load's
+		// answer already was. A load that reported failure synchronously on one
+		// path and asynchronously on every other was the more surprising of the
+		// two behaviours.
 		const model = new Model('/textures/');
 		const seen = countEvents(model.scene);
 		const before = Scene.unloadableItemCount;
@@ -362,7 +436,14 @@ describe('Scene.addItem failure path (RM-002 R-01)', () => {
 			null, 0, null, false,
 		)).not.toThrow();
 
+		// LOADING is still synchronous: it is dispatched before anything is
+		// fetched, which is what makes it the signal a caller can pair.
 		expect(seen.loading).toBe(1);
+		expect(seen.loaded).toBe(0);
+
+		await model.scene._ensureLoaders();
+		await Promise.resolve();
+
 		expect(seen.loaded).toBe(1);
 		expect(seen.items).toEqual([null]);
 		expect(Scene.unloadableItemCount).toBe(before + 1);
@@ -490,7 +571,7 @@ describe('Scene.setItemLoader seam', () => {
 		model.scene.addItem(1, 'a.js', {}, null, 0, null, false);
 		expect(loaded).toBe(0);
 		expect(model.scene.itemCount()).toBe(0);
-		expect(model.scene.getScene().children).toHaveLength(0);
+		expect(sceneContents(model)).toHaveLength(0);
 	});
 });
 
@@ -512,7 +593,7 @@ describe('Scene.addItem with the loader seam (Item stubbed - see DOM STATUS)', (
 			expect(events[1][0]).toBe('EVENT_ITEM_LOADED');
 			expect(events[1][1]).toBe(item);
 			// The item mesh plus the BoxHelper that initObject() adds.
-			expect(model.scene.getScene().children).toContain(item);
+			expect(sceneContents(model)).toContain(item);
 		});
 	});
 
@@ -525,7 +606,11 @@ describe('Scene.addItem with the loader seam (Item stubbed - see DOM STATUS)', (
 				stateAtLoaded = {
 					calls: e.item.calls.slice(),
 					inItems: model.scene.getItems().indexOf(e.item),
-					parented: e.item.parent === model.scene.getScene(),
+					// Parented to the storey's group rather than to the scene since
+					// RM-010 G1: that group is where the level's base elevation is
+					// applied. What the assertion means - "it is in the graph before
+					// the event fires" - is unchanged.
+					parented: e.item.parent === model.scene.levelGroup(model.level),
 				};
 			});
 			model.scene.addItem(1, 'a.js', {}, null, 0, null, false);
@@ -658,7 +743,7 @@ describe('Scene.addItem with a real Item (DOM boundary)', () => {
 		expect(error.stack).toMatch(/items\/item\.js/);
 		expect(events).toEqual(['EVENT_ITEM_LOADING']);
 		expect(model.scene.itemCount()).toBe(0);
-		expect(model.scene.getScene().children).toHaveLength(0);
+		expect(sceneContents(model)).toHaveLength(0);
 	});
 });
 
@@ -669,7 +754,7 @@ describe('Scene container bookkeeping', () => {
 		const model = new Model('/textures/');
 		const mesh = plainMesh();
 		model.scene.add(mesh);
-		expect(model.scene.getScene().children).toEqual([mesh]);
+		expect(sceneContents(model)).toEqual([mesh]);
 		expect(mesh.parent).toBe(model.scene.getScene());
 		expect(model.scene.itemCount()).toBe(0);
 	});
@@ -679,7 +764,7 @@ describe('Scene container bookkeeping', () => {
 		const mesh = plainMesh();
 		model.scene.add(mesh);
 		model.scene.remove(mesh);
-		expect(model.scene.getScene().children).toHaveLength(0);
+		expect(sceneContents(model)).toHaveLength(0);
 		expect(mesh.parent).toBeNull();
 	});
 
@@ -689,7 +774,7 @@ describe('Scene container bookkeeping', () => {
 	it('remove() also strips the mesh from the items list, despite being the non-item path', () => {
 		const model = new Model('/textures/');
 		const mesh = plainMesh();
-		model.scene.items.push(mesh);
+		model.level.items.push(mesh);
 		model.scene.add(mesh);
 		model.scene.remove(mesh);
 		expect(model.scene.itemCount()).toBe(0);
@@ -703,35 +788,35 @@ describe('Scene container bookkeeping', () => {
 		const events = [];
 		model.scene.addEventListener(EVENT_ITEM_REMOVED, (e) => events.push(e.item));
 
-		model.scene.items.push(mesh);
+		model.level.items.push(mesh);
 		model.scene.add(mesh);
 		model.scene.removeItem(mesh);
 
 		expect(events).toEqual([mesh]);
 		expect(removedCalled).toBe(true);
 		expect(model.scene.itemCount()).toBe(0);
-		expect(model.scene.getScene().children).toHaveLength(0);
+		expect(sceneContents(model)).toHaveLength(0);
 	});
 
 	it('removeItem(item, true) detaches the mesh but keeps it in getItems()', () => {
 		const model = new Model('/textures/');
 		const mesh = plainMesh();
 		mesh.removed = () => {};
-		model.scene.items.push(mesh);
+		model.level.items.push(mesh);
 		model.scene.add(mesh);
 		model.scene.removeItem(mesh, true);
-		expect(model.scene.getScene().children).toHaveLength(0);
+		expect(sceneContents(model)).toHaveLength(0);
 		expect(model.scene.getItems()).toEqual([mesh]);
 	});
 
 	it('clearItems() detaches every item and empties the list', () => {
 		const model = new Model('/textures/');
 		const meshes = [plainMesh(), plainMesh(), plainMesh()];
-		meshes.forEach((m) => { m.removed = () => {}; model.scene.items.push(m); model.scene.add(m); });
+		meshes.forEach((m) => { m.removed = () => {}; model.level.items.push(m); model.scene.add(m); });
 		model.scene.clearItems();
 		expect(model.scene.itemCount()).toBe(0);
 		expect(model.scene.getItems()).toEqual([]);
-		expect(model.scene.getScene().children).toHaveLength(0);
+		expect(sceneContents(model)).toHaveLength(0);
 	});
 
 	it('clearItems() fires one EVENT_ITEM_REMOVED per item, in insertion order', () => {
@@ -742,7 +827,7 @@ describe('Scene container bookkeeping', () => {
 			const m = plainMesh();
 			m.name = name;
 			m.removed = () => {};
-			model.scene.items.push(m);
+			model.level.items.push(m);
 			model.scene.add(m);
 		});
 		model.scene.clearItems();
@@ -773,20 +858,20 @@ describe('Scene container bookkeeping', () => {
 			const item = model.scene.getItems()[0];
 			expect(item.bhelper).toBeInstanceOf(three.BoxHelper);
 			expect(item.bhelper.visible).toBe(false);
-			expect(model.scene.getScene().children.map((c) => c.type)).toEqual(['Mesh', 'BoxHelper']);
+			expect(sceneContents(model).map((c) => c.type)).toEqual(['Mesh', 'BoxHelper']);
 
 			model.scene.removeItem(item);
 			expect(model.scene.itemCount()).toBe(0);
-			expect(model.scene.getScene().children.map((c) => c.type)).toEqual(['BoxHelper']);
-			expect(model.scene.getScene().children[0]).toBe(item.bhelper);
+			expect(sceneContents(model).map((c) => c.type)).toEqual(['BoxHelper']);
+			expect(sceneContents(model)[0]).toBe(item.bhelper);
 		});
 	});
 
 	it('Model.switchWireframe forwards the flag to every item', () => {
 		const model = new Model('/textures/');
 		const calls = [];
-		model.scene.items.push({switchWireframe: (flag) => calls.push(['a', flag])});
-		model.scene.items.push({switchWireframe: (flag) => calls.push(['b', flag])});
+		model.level.items.push({switchWireframe: (flag) => calls.push(['a', flag])});
+		model.level.items.push({switchWireframe: (flag) => calls.push(['b', flag])});
 		model.switchWireframe(true);
 		expect(calls).toEqual([['a', true], ['b', true]]);
 	});
@@ -1033,13 +1118,13 @@ describe('Model.loadSerialized', () => {
 		model.scene.setItemLoader(() => {});
 		const stale = new three.Mesh();
 		stale.removed = () => {};
-		model.scene.items.push(stale);
+		model.level.items.push(stale);
 		model.scene.add(stale);
 
 		model.loadSerialized(JSON.stringify(makeDesign([])));
 
 		expect(model.scene.itemCount()).toBe(0);
-		expect(model.scene.getScene().children).toHaveLength(0);
+		expect(sceneContents(model)).toHaveLength(0);
 	});
 
 	// RETIRED QUIRK (RM-003 A1). This used to read "throws on a design with no
@@ -1078,8 +1163,8 @@ describe('Model.loadSerialized', () => {
 describe('Model.exportSerialized', () => {
 	it('emits {floorplan, items} with one getMetaData object per scene item', () => {
 		const model = new Model('/textures/');
-		model.scene.items.push({getMetaData: () => ({item_name: 'A', item_type: 1})});
-		model.scene.items.push({getMetaData: () => ({item_name: 'B', item_type: 7})});
+		model.level.items.push({getMetaData: () => ({item_name: 'A', item_type: 1})});
+		model.level.items.push({getMetaData: () => ({item_name: 'B', item_type: 7})});
 
 		const out = JSON.parse(model.exportSerialized());
 
@@ -1216,10 +1301,38 @@ describe('Model.exportSerialized', () => {
  */
 describe('RoofItem on a design with no ceiling (RM-005 C2, J-5)', () =>
 {
-	/** The two things `closestCeilingPoint` reads off `this`. */
+	/**
+	 * The two things `closestCeilingPoint` reads off `this`.
+	 *
+	 * `floorplan` rather than `model.floorplan` since RM-010 G1: an item asks its
+	 * own storey's plan, through an `Item.prototype` getter, because reading
+	 * `model.floorplan` would ask whichever storey the user is looking at. A
+	 * duck-typed stand-in has no prototype, so it states the resolved value - and
+	 * the getter's own fallback is pinned separately below.
+	 */
 	const withRoofs = (planes) => ({
-		model: {floorplan: {roofPlanes: () => planes}},
+		floorplan: {roofPlanes: () => planes},
 		position: new three.Vector3(10, 20, 30),
+	});
+
+	/**
+	 * The getter itself: an item's own storey, falling back to the active one.
+	 *
+	 * The fallback is not a nicety - `Item`'s constructor runs before
+	 * `Scene.addItem` can assign a level, and every item a test builds by hand
+	 * has none. Before there were storeys the two were always the same object, so
+	 * the fallback is exactly the old behaviour.
+	 */
+	it('asks its own storey for a floorplan, and the active one when it has none', () =>
+	{
+		const active = {name: 'active'};
+		const mine = {name: 'mine'};
+		const unplaced = {model: {floorplan: active}, level: null};
+		const placed = {model: {floorplan: active}, level: {floorplan: mine}};
+
+		const read = Object.getOwnPropertyDescriptor(Item.prototype, 'floorplan').get;
+		expect(read.call(unplaced)).toBe(active);
+		expect(read.call(placed)).toBe(mine);
 	});
 
 	it('does not throw when the floorplan has no rooms', () =>
@@ -1253,7 +1366,8 @@ describe('RoofItem on a design with no ceiling (RM-005 C2, J-5)', () =>
 		// Same shape as J-5, named by the same checker, and neither had a test
 		// because no fixture is empty enough to hit either.
 		const item = {
-			model: {floorplan: {wallEdges: () => []}},
+			// `floorplan` rather than `model.floorplan`, for the reason above.
+			floorplan: {wallEdges: () => []},
 			position: new three.Vector3(1, 2, 3),
 			position_set: false,
 			closestWallEdge: WallItem.prototype.closestWallEdge,
@@ -1271,11 +1385,580 @@ describe('RoofItem on a design with no ceiling (RM-005 C2, J-5)', () =>
 		// The fix must not have turned the normal path into the fallback. One roof
 		// that contains the point, so the loop assigns and the guard is not reached.
 		const item = withRoofs([{}]);
-		item.model.floorplan.roofPlanes = () => [{}];
+		item.floorplan.roofPlanes = () => [{}];
 		const contained = {distance: 5, contains: true, point: new three.Vector3(1, 2, 3), closestPoint: new three.Vector3(9, 9, 9)};
 		const stub = {...item, roofContainsPoint: () => contained};
 
 		const where = RoofItem.prototype.closestCeilingPoint.call(stub);
 		expect([where.x, where.y, where.z]).toEqual([1, 2, 3]);
+	});
+});
+
+/**
+ * Mirror, and the two things a negative scale must not break (RM-012 J4).
+ *
+ * RM-007 calls mirror one of the three cheap verbs and names its risk: *"a
+ * mirrored mesh renders inside out unless the material's side is handled"*.
+ * Measured against the three in this tree, that is already handled and not by
+ * us - `WebGLRenderer` computes `frontFaceCW` from
+ * `matrixWorld.determinantAffine() < 0` and flips the winding for exactly this
+ * case. So the material's `side` is deliberately not touched, and these assert
+ * that it is not: 139 of the 168 catalog models are `KHR_materials_unlit`, and
+ * forcing `DoubleSide` on all of them to fix a problem that does not exist
+ * would change how every one of them renders.
+ *
+ * What a negative scale *would* have broken is the item's size, which is the
+ * part worth a suite. `halfSize` feeds `getWidth`, the two dimension canvases,
+ * the plan's footprint projection and `Edge.createShape` - which pushes a
+ * rectangle of it into the wall's holes. A mirrored door with a negative half
+ * width cuts a hole of negative width and nothing says so.
+ */
+/**
+ * The collision warning, and the dead code it brings back to life (RM-012 J4).
+ *
+ * `Item.showError()` had one caller and that caller was unreachable: it sits
+ * behind `!this.isValidPosition(vec3)`, and `FloorItem.isValidPosition` returns
+ * true on every path it has. The red glow has existed since the fork with a
+ * comment claiming it fires. RM-007 gave J4 the choice - *"either the halo
+ * becomes the collision warning or it is deleted"* - and these are the first
+ * half of that.
+ *
+ * A warning and never a refusal. `isValidPosition` says in its own comment that
+ * placement is up to the user, and eight programmes of saved designs were made
+ * under that rule.
+ */
+describe('the collision warning, behind its flag (RM-012 J4)', () =>
+{
+	/** Enough of a FloorItem for `collides` and `warnOnCollision`. */
+	function footprint(scene, x, z, half)
+	{
+		var item = Object.create(FloorItem.prototype);
+		return Object.assign(item, {
+			scene: scene,
+			position: new three.Vector3(x, 10, z),
+			rotation: {y: 0},
+			halfSize: new three.Vector3(half || 10, 10, half || 10),
+			error: false,
+			shown: 0,
+			hidden: 0,
+			showError() {this.shown += 1; this.error = true;},
+			hideError() {this.hidden += 1; this.error = false;},
+		});
+	}
+
+	afterEach(() =>
+	{
+		Configuration.setValue(collisionWarnings, false);
+	});
+
+	it('is silent while the flag is off, which is the default', () =>
+	{
+		// The first thing in nine programmes to make a correct polygon predicate
+		// observable, with the four broken ones untouched. Whether anybody sees
+		// the consequence is a decision somebody takes.
+		const scene = {getItems: () => items};
+		const a = footprint(scene, 0, 0);
+		const items = [a, footprint(scene, 5, 5)];
+
+		expect(Configuration.getNumericValue(collisionWarnings)).toBeFalsy();
+		a.warnOnCollision();
+		expect(a.shown).toBe(0);
+	});
+
+	it('shows the glow that had never once fired, when it is on', () =>
+	{
+		Configuration.setValue(collisionWarnings, true);
+		const scene = {getItems: () => items};
+		const a = footprint(scene, 0, 0);
+		const items = [a, footprint(scene, 5, 5)];
+
+		a.warnOnCollision();
+		expect(a.shown).toBe(1);
+		expect(a.error).toBe(true);
+	});
+
+	it('clears it again when the overlap goes away', () =>
+	{
+		Configuration.setValue(collisionWarnings, true);
+		const scene = {getItems: () => items};
+		const a = footprint(scene, 0, 0);
+		const items = [a, footprint(scene, 500, 500)];
+
+		a.warnOnCollision();
+		expect(a.shown).toBe(0);
+		expect(a.hidden).toBe(1);
+	});
+
+	it('does not call two flush items a collision', () =>
+	{
+		// Which is what J4's own snapping produces on purpose. A warning that
+		// fired on every deliberate alignment would be a warning nobody reads.
+		const scene = {getItems: () => items};
+		const a = footprint(scene, 0, 0, 10);
+		const items = [a, footprint(scene, 20, 0, 10)];
+		expect(a.collides()).toBe(false);
+	});
+
+	it('ignores anything that is not on the floor', () =>
+	{
+		// An item on a wall and an item on the floor share a footprint constantly
+		// and neither is in the other's way.
+		const wall = Object.assign(Object.create(Item.prototype), {
+			position: new three.Vector3(0, 120, 0),
+			rotation: {y: 0},
+			halfSize: new three.Vector3(40, 40, 10),
+		});
+		const scene = {getItems: () => items};
+		const a = footprint(scene, 0, 0);
+		const items = [a, wall];
+		expect(a.collides()).toBe(false);
+	});
+});
+
+describe('Item.applySnap, and the two rules it will not break (RM-012 J4)', () =>
+{
+	/** The minimum of an Item that `applySnap` reads. */
+	function mover(scene, halfSize, wallEdge)
+	{
+		return Object.assign(Object.create(Item.prototype), {
+			scene: scene,
+			halfSize: halfSize || new three.Vector3(10, 10, 10),
+			currentWallEdge: wallEdge || null,
+			position: new three.Vector3(0, 10, 0),
+		});
+	}
+
+	function neighbour(x, z, halfX, halfY, halfZ)
+	{
+		return {
+			position: new three.Vector3(x, halfY, z),
+			halfSize: new three.Vector3(halfX, halfY, halfZ),
+		};
+	}
+
+	it('does nothing at all unless the scene asks for it', () =>
+	{
+		// Off by default, so nothing about a drag changes for an embedder who has
+		// not opted in and no parity capture moves.
+		const scene = {snapItems: false, getItems: () => [neighbour(0, 0, 20, 10, 10)]};
+		const item = mover(scene);
+		const vec = new three.Vector3(46, 10, 0);
+		item.applySnap(vec);
+		expect(vec.x).toBe(46);
+	});
+
+	it('snaps flush to a neighbour when it does', () =>
+	{
+		const scene = {snapItems: true, getItems: () => [neighbour(0, 0, 20, 10, 10)]};
+		const item = mover(scene);
+		const vec = new three.Vector3(46, 10, 0);
+		item.applySnap(vec);
+		// The moving item is 20 cm wide, so flush against a neighbour whose right
+		// edge is at 20 puts its centre at 30.
+		expect(vec.x).toBe(30);
+		expect(vec.x - item.halfSize.x).toBe(20);
+	});
+
+	it('never touches a wall-bound item, because that is a fight between two rules', () =>
+	{
+		// `WallItem.moveToPosition` derives the position along the wall from the
+		// pointer and then calls up to here. Snapping after that would pull the
+		// item off the wall it is bound to. An item on a wall snaps to the wall -
+		// that is what being bound to it already means.
+		const scene = {snapItems: true, getItems: () => [neighbour(0, 0, 20, 10, 10)]};
+		const item = mover(scene, null, {id: 'edge-1'});
+		const vec = new three.Vector3(46, 10, 0);
+		item.applySnap(vec);
+		expect(vec.x).toBe(46);
+	});
+
+	it('rests on the top of what it is over, in the centre convention position uses', () =>
+	{
+		// `stackOn` answers with a base and a position is a centre, so the item's
+		// own half height is added back. A bowl 8 cm tall on a 75 cm table sits
+		// with its centre at 79.
+		const table = neighbour(0, 0, 60, 37.5, 40);
+		const scene = {snapItems: true, getItems: () => [table]};
+		const item = mover(scene, new three.Vector3(8, 4, 8));
+		item.position.set(0, 4, 0);
+		const vec = new three.Vector3(0, 4, 0);
+		item.applySnap(vec);
+		expect(vec.y).toBe(79);
+	});
+
+	it('drops back to the floor when it moves off the surface', () =>
+	{
+		const table = neighbour(0, 0, 60, 37.5, 40);
+		const scene = {snapItems: true, getItems: () => [table]};
+		const item = mover(scene, new three.Vector3(8, 4, 8));
+		item.position.set(0, 79, 0);
+		const vec = new three.Vector3(400, 79, 400);
+		item.applySnap(vec);
+		expect(vec.y).toBe(4);
+	});
+});
+
+describe('a group and an elevation are additive keys (RM-012 J4)', () =>
+{
+	/** The real `getMetaData`, over the minimum state it reads. */
+	function record(extra)
+	{
+		var item = Object.assign(Object.create(Item.prototype), {
+			_pickedColorSlots: new Set(),
+			designId: 'x',
+			metadata: {itemName: 'N', itemType: 1, format: 'glb', modelUrl: 'm.glb'},
+			position: {x: 0, y: 0, z: 0},
+			rotation: {y: 0},
+			scale: {x: 1, y: 1, z: 1},
+			fixed: false,
+			lamp: null,
+			groupId: null,
+		}, extra || {});
+		return item.getMetaData();
+	}
+
+	it('writes no group key for an item nobody grouped', () =>
+	{
+		// The rule every key added since E2 follows: a design of ungrouped chairs
+		// re-saves byte-identical to the file it was before this sprint.
+		expect(Object.keys(record())).not.toContain('group');
+	});
+
+	it('writes one when there is one', () =>
+	{
+		expect(record({groupId: 'g:1'}).group).toBe('g:1');
+	});
+
+	it('needs no key at all for elevation, which is why RM-007 called it cheap', () =>
+	{
+		// `ypos` has been in the save format since the format existed. What was
+		// missing was any way to set it, not anywhere to put it.
+		expect(record({position: {x: 0, y: 45, z: 0}}).ypos).toBe(45);
+	});
+
+	it('clamps an elevation at the floor', () =>
+	{
+		var item = Object.assign(Object.create(Item.prototype), {
+			position: {x: 0, y: 10, z: 0},
+			bhelper: null,
+			scene: {needsUpdate: false},
+			resized() {},
+		});
+		Item.prototype.setElevation.call(item, 60);
+		expect(item.position.y).toBe(60);
+		// A floor plan has no basement, and a negative would put furniture under
+		// the floor where it cannot be clicked.
+		Item.prototype.setElevation.call(item, -5);
+		expect(item.position.y).toBe(0);
+	});
+});
+
+describe('Item.mirror, and the sign that must not reach the size', () =>
+{
+	/** The minimum of an Item that `mirror` and `applyScale` actually touch. */
+	function mirrorable(scale)
+	{
+		return {
+			scale: new three.Vector3(scale ? scale.x : 1, scale ? scale.y : 1, scale ? scale.z : 1),
+			halfSize: new three.Vector3(25, 50, 10),
+			bhelper: null,
+			scene: {needsUpdate: false},
+			objectHalfSize() { return new three.Vector3(25, 50, 10); },
+			resized() {},
+			updateCanvasTexture() {},
+			getWidth() { return this.halfSize.x * 2; },
+			getHeight() { return this.halfSize.y * 2; },
+			getDepth() { return this.halfSize.z * 2; },
+			applyScale: Item.prototype.applyScale,
+			mirror: Item.prototype.mirror,
+			mirrored: Item.prototype.mirrored,
+		};
+	}
+
+	it('negates one axis of the scale and nothing else', () =>
+	{
+		const item = mirrorable();
+		expect(item.mirror('x')).toBe(true);
+		expect([item.scale.x, item.scale.y, item.scale.z]).toEqual([-1, 1, 1]);
+
+		expect(item.mirror('z')).toBe(false);
+		// Two negated axes are a 180-degree rotation, not a reflection - which is
+		// what the sign of the product says and what the renderer tests.
+		expect([item.scale.x, item.scale.y, item.scale.z]).toEqual([-1, 1, -1]);
+		expect(item.mirrored()).toBe(false);
+	});
+
+	it('defaults to the left-to-right flip, which is the one people mean', () =>
+	{
+		const item = mirrorable();
+		item.mirror();
+		expect(item.scale.x).toBe(-1);
+		expect(item.scale.z).toBe(1);
+	});
+
+	it('leaves the size positive, which is what Edge.createShape reads', () =>
+	{
+		// The assertion this whole describe exists for. A negative half width
+		// would cut a wall hole of negative width and nothing would report it.
+		const item = mirrorable();
+		item.mirror('x');
+		expect(item.halfSize.x).toBe(25);
+		expect(item.getWidth()).toBe(50);
+		expect(item.getDepth()).toBe(20);
+	});
+
+	it('keeps it positive through a resize on top of a mirror', () =>
+	{
+		// The composition that would drift if the half size were accumulated
+		// rather than restated from the geometry each time.
+		const item = mirrorable();
+		item.mirror('x');
+		item.applyScale(-2, 1, 1);
+		expect(item.scale.x).toBe(-2);
+		expect(item.halfSize.x).toBe(50);
+		expect(item.getWidth()).toBe(100);
+	});
+
+	it('comes back unmirrored, exactly, rather than to a near miss', () =>
+	{
+		// `applyScale` is the absolute form for the reason its own note gives:
+		// expressing "back to 1" as a relative factor produces 0.9999999999999999,
+		// which serialises differently and makes an undo differ from what it
+		// restored. Mirroring twice must not do that either.
+		const item = mirrorable();
+		item.mirror('x');
+		item.mirror('x');
+		expect(item.scale.x).toBe(1);
+		expect(item.mirrored()).toBe(false);
+		expect(item.halfSize.x).toBe(25);
+	});
+
+	it('is what the renderer already keys off, so no material is touched', () =>
+	{
+		// The measurement behind not setting `side`. three flips the winding when
+		// the world matrix determinant is negative; a mirrored item's is.
+		const mesh = new three.Mesh(new three.BoxGeometry(1, 1, 1), new three.MeshBasicMaterial());
+		const before = mesh.material.side;
+		mesh.scale.set(-1, 1, 1);
+		mesh.updateMatrixWorld(true);
+		expect(mesh.matrixWorld.determinant()).toBeLessThan(0);
+		expect(mesh.material.side, 'mirroring must not change how 139 unlit models render')
+			.toBe(before);
+	});
+});
+
+describe('Item.resize, the inspector\'s path', () =>
+{
+	/**
+	 * Tested directly because it lost its incidental cover.
+	 *
+	 * `initObject` used to call this - it was how the x300 hack applied itself -
+	 * and every test that built an item exercised it on the way past. RM-012 J1
+	 * replaced that call with `applyUnitScale`, which does not go through here,
+	 * so the only caller left is `ItemInspector`'s width/height/depth fields and
+	 * the inspector's own tests stub the method out. A public method somebody
+	 * types into three times a minute is not a method to leave uncovered because
+	 * a different change happened to stop calling it.
+	 */
+	function resizable(proportional)
+	{
+		return {
+			resizeProportionally: proportional,
+			halfSize: new three.Vector3(25, 50, 10),
+			applied: null,
+			getWidth() { return this.halfSize.x * 2; },
+			getHeight() { return this.halfSize.y * 2; },
+			getDepth() { return this.halfSize.z * 2; },
+			setScale(x, y, z) { this.applied = [x, y, z]; },
+		};
+	}
+
+	it('scales each axis independently when proportion is off', () =>
+	{
+		const item = resizable(false);
+		Item.prototype.resize.call(item, 200, 100, 40);
+		expect(item.applied).toEqual([2, 2, 2]);
+
+		Item.prototype.resize.call(item, 50, 100, 10);
+		expect(item.applied).toEqual([2, 0.5, 0.5]);
+	});
+
+	it('follows whichever dimension the person actually changed when it is on', () =>
+	{
+		// Width first, then height, then depth - the order the real method checks,
+		// and the reason it checks in an order at all: the inspector sends all
+		// three fields on every edit and only one of them differs.
+		const item = resizable(true);
+		Item.prototype.resize.call(item, 100, 100, 20);
+		expect(item.applied, 'width changed, so width wins').toEqual([2, 2, 2]);
+
+		Item.prototype.resize.call(item, 200, 50, 20);
+		expect(item.applied, 'width unchanged, so height wins').toEqual([2, 2, 2]);
+
+		Item.prototype.resize.call(item, 100, 50, 40);
+		expect(item.applied, 'neither, so depth wins').toEqual([2, 2, 2]);
+	});
+
+	it('treats a change under a tenth of a centimetre as no change', () =>
+	{
+		// The tolerance is the demo's and is kept: a field that round-trips
+		// 49.99999 must not be read as a resize.
+		const item = resizable(true);
+		Item.prototype.resize.call(item, 100.05, 50.05, 20.05);
+		expect(item.applied, 'the depth branch, because neither of the first two moved')
+			.toEqual([1.0025, 1.0025, 1.0025]);
+	});
+});
+
+describe('the unit scale replaces the x300 hack (RM-012 J1, RM-009 U-3)', () =>
+{
+	/** A minimal stand-in with just what `applyUnitScale` reads and writes. */
+	function placed(metadata, fromDocument)
+	{
+		return {
+			metadata: metadata,
+			_scaleFromDocument: Boolean(fromDocument),
+			scale: new three.Vector3(1, 1, 1),
+			applied: null,
+			setScale(x, y, z) { this.applied = [x, y, z]; },
+		};
+	}
+
+	it('scales a kit model by the number its kit declares', () =>
+	{
+		// 200, because the Kenney kit is on a 2 m grid. Under the hack this was
+		// 300, which makes that kit's dining chair 141 cm tall.
+		const item = placed({unitScale: 200});
+		Item.prototype.applyUnitScale.call(item);
+		expect(item.applied).toEqual([200, 200, 200]);
+	});
+
+	it('leaves a model already in centimetres alone', () =>
+	{
+		// The 25 demo models and two Blender exports. The old test - one axis of
+		// the half-extent under 1.0 - answered a question about units by measuring
+		// a shape, so a wide flat rug in centimetres passed and a tall thin lamp in
+		// kit units failed. A declared 1 cannot be ambiguous.
+		const item = placed({unitScale: 1});
+		Item.prototype.applyUnitScale.call(item);
+		expect(item.applied).toBeNull();
+	});
+
+	it('leaves a restored item alone, whatever its kit says', () =>
+	{
+		// A document records an absolute scale, so an item built from one is
+		// already the size it was saved at. Applying the kit's factor again would
+		// multiply it by 200 on every open - which is the one way this change could
+		// have damaged a file somebody has.
+		const item = placed({unitScale: 200}, true);
+		Item.prototype.applyUnitScale.call(item);
+		expect(item.applied).toBeNull();
+	});
+
+	it('does nothing at all for metadata that has no scale', () =>
+	{
+		// A parametric opening, stair or column builds its mesh from its own
+		// numbers and is already in centimetres; so is anything an embedder adds
+		// through the library without a catalog behind it.
+		// `null` metadata included: `Item` always has some, but this method is also
+		// reachable through `initObject` on a subclass a test or an embedder built
+		// by hand, and a missing scale is not a reason to throw.
+		[{}, null, {unitScale: null}, {unitScale: 0}, {unitScale: -5}].forEach((metadata) =>
+		{
+			const item = placed(metadata);
+			Item.prototype.applyUnitScale.call(item);
+			expect(item.applied, JSON.stringify(metadata)).toBeNull();
+		});
+	});
+
+	it('runs inside initObject, on a fresh item and not on a restored one', () =>
+	{
+		// Through the real initObject and the real Scene.addItem, so the wiring is
+		// asserted and not only the arithmetic. `useCatalog.addItem` is what puts
+		// `unitScale` on the metadata; a restored item gets a scale instead.
+		const model = new Model('/textures/');
+		withFakeFactory(() =>
+		{
+			model.scene.setItemLoader(boxLoader());
+			model.scene.addItem(1, 'a.glb', {unitScale: 200}, null, 0, null, false);
+			model.scene.addItem(1, 'b.glb', {unitScale: 200}, null, 0,
+				new three.Vector3(300, 300, 300), false);
+
+			const [fresh, restored] = model.scene.getItems();
+			expect([fresh.scale.x, fresh.scale.y, fresh.scale.z]).toEqual([200, 200, 200]);
+			expect(fresh.halfSize.x).toBe(25 * 200);
+			expect([restored.scale.x, restored.scale.y, restored.scale.z]).toEqual([300, 300, 300]);
+		});
+	});
+});
+
+/**
+ * The two exports, and the boundary RM-015 M3 drew between them.
+ *
+ * `exportMeshAsObj` returns a string synchronously and keeps its static
+ * `OBJExporter`: deferring it would move the library's public API rather than
+ * its bytes, and the exporter is 4,302 rendered bytes. `exportForBlender`
+ * answers through `EVENT_GLTF_READY` and never had a return value, so the 67,150
+ * bytes of `GLTFExporter` went behind a dynamic import - a network hop in front
+ * of a verb whose answer already arrived by event changes nothing a caller can
+ * observe.
+ *
+ * Which is a claim, and this is the case that checks it: the event still fires,
+ * still carries glTF JSON, and still comes from a `Model` that was never told
+ * an exporter existed.
+ */
+describe('exporting the mesh (RM-015 M3)', () =>
+{
+	/** Four walls, so there is geometry for an exporter to walk. */
+	function squareRoomIn(model)
+	{
+		const plan = model.floorplan;
+		const corners = [[0, 0], [400, 0], [400, 300], [0, 300]]
+			.map(([x, y]) => plan.newCorner(x, y));
+		corners.forEach((corner, at) => plan.newWall(corner, corners[(at + 1) % corners.length]));
+		plan.update();
+		return plan;
+	}
+
+	it('hands back an OBJ synchronously, from the exporter it still imports', () =>
+	{
+		const model = new Model('/textures/');
+		squareRoomIn(model);
+		// A mesh in the scene, because `exportMeshAsObj` walks the scene - the
+		// furniture - and not the building, which the 3D viewer builds and owns.
+		model.scene.getScene().add(new three.Mesh(
+			new three.BoxGeometry(10, 10, 10), new three.MeshBasicMaterial()));
+
+		const obj = model.exportMeshAsObj();
+
+		// Synchronously, with no await anywhere: that is the property that kept
+		// `OBJExporter` a static import while `GLTFExporter` became a dynamic one.
+		expect(typeof obj).toBe('string');
+		expect(obj).toContain('v ');
+	});
+
+	it('dispatches the glTF once the exporter has been fetched', async () =>
+	{
+		const model = new Model('/textures/');
+		squareRoomIn(model);
+
+		const ready = new Promise((resolve, reject) =>
+		{
+			const timer = setTimeout(() => reject(new Error('EVENT_GLTF_READY never arrived')), 8000);
+			model.addEventListener(EVENT_GLTF_READY, (event) =>
+			{
+				clearTimeout(timer);
+				resolve(event);
+			});
+		});
+
+		// No return value, and that is the point: the caller waits on the event
+		// whether the exporter was already in the bundle or is being fetched now.
+		expect(model.exportForBlender()).toBeUndefined();
+
+		const event = await ready;
+		expect(event.item).toBe(model);
+		const document = JSON.parse(event.gltf);
+		expect(document.asset.version).toBe('2.0');
 	});
 });

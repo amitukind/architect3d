@@ -67,7 +67,7 @@ import {NodeIO, Format} from '@gltf-transform/core';
 import {KHRONOS_EXTENSIONS, KHRDracoMeshCompression} from '@gltf-transform/extensions';
 import {draco} from '@gltf-transform/functions';
 import draco3d from 'draco3dgltf';
-import {readFileSync, writeFileSync, renameSync, unlinkSync, readdirSync, statSync} from 'node:fs';
+import {readFileSync, writeFileSync, renameSync, unlinkSync, readdirSync, statSync, existsSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {dirname, join, relative, sep} from 'node:path';
 
@@ -634,7 +634,21 @@ async function main()
 
 		const models = Object.assign(existing, fidelity);
 		const sorted = {};
-		for (const key of Object.keys(models).sort()) { sorted[key] = models[key]; }
+		for (const key of Object.keys(models).sort())
+		{
+			// A model that is no longer in the tree loses its record here (RM-012
+			// J2). The merge above exists so a run that encodes one model does not
+			// drop the other 200's measurements; without this it also never drops a
+			// measurement for a model that has been deleted, and the report then
+			// claims a fidelity figure for a file nobody can check it against.
+			// Found when J2 removed two rows whose licence nobody could establish
+			// and `encode:check` went on reporting one of them as encoded.
+			if (!existsSync(join(ROOT, 'public', key.split('/').join(sep))))
+			{
+				continue;
+			}
+			sorted[key] = models[key];
+		}
 
 		let worst = 0;
 		for (const record of Object.values(sorted)) { worst = Math.max(worst, record.movedCm); }

@@ -43,7 +43,7 @@ export class RoofItem extends Item
 	 * for passing intersection to clickPressed and clickDragged */
 	customIntersectionPlanes()
 	{
-		return this.model.floorplan.roofPlanes();
+		return this.floorplan.roofPlanes();
 	}
 
 	roofContainsPoint(roof, forpoint)
@@ -97,7 +97,7 @@ export class RoofItem extends Item
 
 	closestCeilingPoint()
 	{
-		var roofs = this.model.floorplan.roofPlanes();
+		var roofs = this.floorplan.roofPlanes();
 		var roof;
 		/** @type {{distance: number, point: ?Vector3}} */
 		var globalResult = {distance: Number.MAX_VALUE, point: null};

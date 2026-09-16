@@ -92,3 +92,57 @@ export const EVENT_ROOM_2D_DOUBLE_CLICKED = 'ROOM_DOUBLE_CLICKED_2D_EVENT';
 export const EVENT_CORNER_2D_HOVER = 'CORNER_HOVER_2D_EVENT';
 export const EVENT_WALL_2D_HOVER = 'WALL_HOVER_2D_EVENT';
 export const EVENT_ROOM_2D_HOVER = 'ROOM_HOVER_2D_EVENT';
+
+/**
+ * The plan's view of the furniture has been replaced (RM-008 E1).
+ *
+ * Dispatched by `Floorplan` when `Model` hands it a new projection - see
+ * `model/plan_projection.js` for why the plan is given data rather than a
+ * reference to the scene. Carries the list on `projection`.
+ *
+ * A dedicated event rather than EVENT_UPDATED, which means "the wall graph
+ * changed" and drives a full 3D teardown and rebuild. Moving a chair must not
+ * cost that.
+ */
+export const EVENT_ITEMS_PROJECTED = 'ITEMS_PROJECTED_EVENT';
+
+/** An item's footprint was clicked on the 2D plan (RM-008 E1). Carries `id`. */
+export const EVENT_ITEM_2D_CLICKED = 'ITEM_CLICKED_2D_EVENT';
+
+/**
+ * The storeys changed (RM-010 G1).
+ *
+ * Dispatched by `Model` when a level is added, removed, re-sized or switched to.
+ * Carries `model` and `active`.
+ *
+ * One event for four things because they have one consequence: what the views
+ * are looking at is no longer what they drew. Splitting it would mean four
+ * subscriptions in each of two views, all of which redraw, which is four ways to
+ * subscribe to three of them.
+ *
+ * Not EVENT_CHANGESET: that means "this floorplan's wall graph changed" and is
+ * dispatched by a `Floorplan`. A level switch changes *which* floorplan, and a
+ * floorplan cannot say that about itself.
+ */
+export const EVENT_LEVELS_CHANGED = 'LEVELS_CHANGED_EVENT';
+
+/**
+ * The plan's dimensions, text labels or north bearing changed (RM-008 E3).
+ *
+ * Its own event rather than EVENT_UPDATED for the reason
+ * {@link EVENT_ITEMS_PROJECTED} is: EVENT_UPDATED means the wall graph moved,
+ * and drives a full 3D teardown, a light rebuild and a camera recentre. Typing
+ * a note on the plan must not cost that, and none of it would change anything -
+ * annotations are drawn by the 2D view alone.
+ *
+ * Carries `item` (the floorplan). Deliberately no payload beyond that: the
+ * collections are small, the view redraws whole, and a delta would be a second
+ * description of state that already has one.
+ */
+export const EVENT_ANNOTATIONS_CHANGED = 'ANNOTATIONS_CHANGED_EVENT';
+
+/** A dimension line was clicked on the 2D plan (RM-008 E3). Carries `item`. */
+export const EVENT_DIMENSION_2D_CLICKED = 'DIMENSION_CLICKED_2D_EVENT';
+
+/** A text label was clicked on the 2D plan (RM-008 E3). Carries `item`. */
+export const EVENT_ANNOTATION_2D_CLICKED = 'ANNOTATION_CLICKED_2D_EVENT';

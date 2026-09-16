@@ -26,9 +26,19 @@ older one is still out there.
   "wallTextures": [],
   "floorTextures": {},
   "newFloorTextures": { },
-  "carbonSheet": { }
+  "carbonSheet": { },
+  "dimensions": [],
+  "annotations": [],
+  "north": 0,
+  "ceilings": { }
 }
 ```
+
+The last four are **optional** and are written only when there is something to
+write — the first three under [what the plan says about
+itself](#what-the-plan-says-about-itself) and `ceilings` under
+[`ceilings`](#ceilings). A design nobody annotated and nobody recoloured
+produces exactly the file it produced before either existed.
 
 ### `corners`
 
@@ -69,12 +79,33 @@ An array. Each wall names the two corners it spans:
 | Field | Meaning |
 |---|---|
 | `corner1`, `corner2` | Corner ids. A wall with a missing endpoint is skipped on save. |
-| `frontTexture`, `backTexture` | `{url, stretch, scale}`. When `stretch` is true the map is fitted to the wall and `scale` is ignored — which is why stretched entries are often saved with `scale: 0`. |
+| `frontTexture`, `backTexture` | `{url, stretch, scale}`, plus the optional material keys below. When `stretch` is true the map is fitted to the wall and `scale` is ignored — which is why stretched entries are often saved with `scale: 0`. |
 | `wallType` | `"STRAIGHT"` or `"CURVED"`. |
 | `a`, `b` | Bezier control points. Only meaningful when `wallType` is `"CURVED"`, but always written. |
+| `thickness` | Centimetres. **Optional**, and written only for a wall somebody gave a thickness of its own. |
+| `partialHeight` | Centimetres. **Optional**, and written only for a half wall — one whose faces stop below its corners (RM-008 F2). Absent means the wall reaches its corners, which is every wall in every older file. |
 
 `a` and `b` are centimetres, like everything else in a 2.0.0 file. They always
 were, which in 0.0.2a made them disagree with the corners.
+
+::: tip `thickness` is written only when it was chosen
+Added in RM-008 E2, and absent from every file written before it. A wall with no
+`thickness` follows the document's wall thickness — the value in Settings —
+which is what it has always done and what lets one setting still reach a whole
+design.
+
+That is why the field is conditional rather than always written. Every other key
+in a wall record appears unconditionally, and a `thickness` written for every
+wall would freeze today's default into every file: a design saved now would stop
+following a setting changed later, and a file written before E2 would not
+survive a re-save unchanged. A reader can treat its absence as "ask the
+document".
+
+A positive finite number is required when the key is present. Zero or negative
+collapses both half edges onto the wall centreline and takes every room derived
+from them with it, so `DesignDocument.parse` rejects the file rather than
+opening a design that looks empty.
+:::
 
 **A wall has no `id` field, and will not get one.** In memory it has an
 identity, and since RM-004 B2 that identity survives a load — but it is
@@ -109,9 +140,21 @@ things a user typed. The key is the room's corner ids joined with commas:
 
 ```json
 {
-  "3c885e88-…,0438a3a5-…,dc6353ae-…,213bb50e-…": {"name": "Living Room"}
+  "3c885e88-…,0438a3a5-…,dc6353ae-…,213bb50e-…": {"name": "Living Room", "type": "Living"}
 }
 ```
+
+| Field | Meaning |
+|---|---|
+| `name` | What the room is called. Always written for a room that has an entry. |
+| `type` | What the room is *for* — "Bedroom", "Kitchen". **Optional**, written only when somebody typed one, and removed again if it is cleared. |
+
+There is deliberately no ceiling height here. A room's ceiling is the elevation
+of its corners — that is where a wall's drawn top comes from — so storing a
+second number beside them could disagree with the geometry. Setting a ceiling
+height in the room panel writes `elevation` on every corner of the room, which
+means every file ever written by this project already carries its ceiling
+heights.
 
 The key is a description of the room rather than a name for it, which is
 deliberate: another build reading this file can find the room without needing
@@ -151,6 +194,136 @@ Both are written on every save — `[]` and `{}` — and neither is ever read.
 They are the pre-`newFloorTextures` fields, kept so old readers do not
 choke. Write them; ignore them.
 :::
+
+### What a surface is made of
+
+Added in RM-011 H1. A surface record — `frontTexture`, `backTexture` or an entry
+in `newFloorTextures` — may carry five more keys beside the ones above, and
+**each is written only when it differs from its default**:
+
+| Field | Default | Meaning |
+|---|---|---|
+| `color` | `"#ffffff"` | Six-digit hex, **multiplied** into the texture. White is not a colour, it is the absence of one — which is why clearing a tint writes nothing rather than writing white. |
+| `rotation` | `0` | Degrees, about the centre of the tile rather than its corner. |
+| `offsetX`, `offsetY` | `0` | Fractions of a tile, −1 to 1. |
+| `normalMap` | absent | A URL, resolved the same way `url` is. |
+| `roughnessMap` | absent | A URL. It modulates the render profile's roughness rather than replacing it. |
+
+```json
+{
+  "url": "rooms/textures/light_brick.jpg",
+  "stretch": false,
+  "scale": 100,
+  "color": "#c8b48c",
+  "rotation": 45
+}
+```
+
+A design that picks one of the thirty library materials records it the same way
+it records any other texture — a URL for the picture and a URL for the roughness
+map, both logical names the resolver answers:
+
+```json
+{
+  "url": "materials/brick_wall_001/albedo.jpg",
+  "stretch": false,
+  "scale": 300,
+  "roughnessMap": "materials/brick_wall_001/rough.jpg"
+}
+```
+
+**No material id, deliberately.** The temptation is to write the catalog's own
+name — `"oak_planks"` — and let the build resolve it, which would make a design
+saved against thirty materials open wrong against thirty-one. The file records
+what it uses; the catalog is a way of *choosing*.
+
+There is deliberately **no per-surface roughness or metalness number**. Those
+are properties of the render profile, tuned per profile and frozen for classic;
+a fourth place for them to live would be the first place they could disagree
+with the parity grid.
+
+::: tip The maps only draw under `studio`
+RM-011 W-1 measured that the `classic` profile draws walls with an unlit
+`MeshBasicMaterial`, which has no slot for either map — there is no light for a
+normal map to bend and no specular term for a roughness map to modulate. The
+**tint applies under both**, because a tint is a multiply. This is a recorded
+decision rather than a gap: the alternative is moving the library's default
+profile, which is a parity change against r98 goldens that cannot be recaptured.
+:::
+
+### `ceilings`
+
+**Optional**, and added in RM-011 H1 to answer the *"no ceiling material"* clause
+of RM-007's gap Q-4 — a ceiling used to be one colour out of the render profile,
+shared by every room in the building and settable by nobody.
+
+Keyed exactly like `newFloorTextures`, because a ceiling belongs to the same
+room its floor does, and holding the same material keys. A room whose ceiling
+nobody has touched has no entry, and a design where no room has one writes no
+`ceilings` key at all — which is what keeps every file written before H1
+byte-identical on re-save.
+
+```json
+{
+  "0438a3a5-…,213bb50e-…,3c885e88-…,dc6353ae-…": {"color": "#e8e8e8"}
+}
+```
+
+A ceiling has no `url`: it is the profile's colour, tinted. Setting the tint back
+to white removes the entry rather than writing white into it, so "I cleared it"
+and "I never touched it" are the same file.
+
+### What the plan says about itself
+
+Everything above describes the building. These three describe the *drawing*, and
+they are the only entities in the file that were authored rather than derived —
+added in RM-008 E3.
+
+All three are optional and are omitted entirely when empty, which is what keeps
+a file written before E3 byte-identical after a re-save. An older reader ignores
+them; this build ignores nothing else it does not recognise either.
+
+#### `dimensions`
+
+An array. Each entry measures between two points:
+
+```json
+{
+  "id": "9f2c1a44-…",
+  "a": {"x": 0, "y": 0},
+  "b": {"x": 400, "y": 0},
+  "offset": 40,
+  "aCorner": "3c885e88-…"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `id` | Stable identity, **persisted** — unlike a room's, which is derived from its corners. A dimension has no description to be found again by, so the id in the file *is* the identity. |
+| `a`, `b` | The two points, in centimetres. |
+| `offset` | Signed centimetres from the measured line to the drawn one. Negative puts it on the other side. |
+| `aCorner`, `bCorner` | **Optional** corner ids. When present and the corner still exists, that end follows it; when the corner is deleted the stored point is used instead. |
+
+#### `annotations`
+
+An array of free text placed on the plan:
+
+```json
+{"id": "1b7e0c92-…", "x": 220, "y": 340, "text": "Service duct", "size": 18}
+```
+
+| Field | Meaning |
+|---|---|
+| `id` | Persisted, for the same reason a dimension's is. |
+| `x`, `y` | Centimetres. |
+| `text` | What it says. May be empty — that is a label somebody is still typing. |
+| `size` | Font size in **CSS pixels**, not centimetres, so a label stays legible at every zoom. **Optional**, written only when it is not the default 14. |
+
+#### `north`
+
+A number: degrees clockwise from up. Absent means 0, which is north up, so a
+plan nobody oriented carries nothing. A value outside 0–360 loads and is
+normalised rather than refused — it is the same bearing written differently.
 
 ### `carbonSheet`
 
@@ -198,6 +371,23 @@ An array, one entry per placed object:
 | `rotation` | Y rotation in radians. X and Z are not stored. |
 | `fixed` | Locked in place. |
 | `material_colors` | Sparse: a `#rrggbb` for each material slot somebody recoloured, `null` for the rest. Absent when nothing was recoloured. |
+| `scale_x`/`scale_y`/`scale_z` | Absolute, not relative to anything. See below. |
+
+::: tip Why a chair placed last year is a different size from one placed today
+`scale_*` includes the conversion from the model's authored units into
+centimetres, because that conversion is applied as a scale and nothing separates
+the two afterwards. Until RM-012 J1 that conversion was a hack in
+`Item.initObject` — any model whose half-extent on one axis was under 1.0 was
+multiplied by **300** — and J1 measured what it should be: the Kenney kit is on a
+2 m grid, so the number is **200**.
+
+Designs saved before that change record 300 and **keep it**. A file is what its
+author saved, and rewriting a scale on load would silently resize somebody's
+design; nothing in a document is reinterpreted by a later build. Anything placed
+from the catalog afterwards is 200, which is the size the model actually is. Two
+copies of the same chair in one design, one placed before and one after, are
+genuinely different sizes — and both are exactly what their `scale_*` says.
+:::
 
 ::: tip `id`, and why items are the only thing that carries one
 Corners have always had one. Walls, rooms and half edges have one too since
@@ -220,6 +410,305 @@ loaded. Item order carries no meaning, and the order they arrive in depends on
 which model file finished downloading first — so two saves of a design nobody
 touched could otherwise differ.
 
+### `opening` — a door that is numbers
+
+Present only on a **parametric opening**, item type 10, added by RM-008 F1 and
+absent from every file written before it. An item that carries one names no
+`model_url`, because there is no model: its mesh is generated.
+
+```json
+{
+  "kind": "door",
+  "width": 90,
+  "height": 210,
+  "sill": 0,
+  "hinge": "left",
+  "swing": 90,
+  "style": "plain"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `kind` | `"door"`, `"window"` or `"arch"`. Anything else is read as a door. |
+| `width`, `height` | Centimetres. The rectangle cut in the wall is exactly these. |
+| `sill` | Height of the opening's **bottom** above the floor, in centimetres. A door's is 0. The *centre* — which is what the item's `ypos` holds — is derived from the sill and the height and is never stored twice. |
+| `hinge` | `"left"` or `"right"`. |
+| `swing` | Degrees the leaf stands open, 0–180. Ignored for a window and an archway. |
+| `style` | A name the generator understands. `"plain"` today. |
+
+::: tip Why this exists
+Before F1 a door's size was a **scale factor on a mesh**: "900 mm wide" was
+recorded as "0.927 times whatever `closed-door28x80_baked.glb` happens to be",
+a window's height above the floor was never stated at all, and `rotation` is a
+single y angle — so a hinge side had nowhere to live. RM-009 U-4 has the
+measurement. Every field above is read back exactly and the wall's hole is cut
+from these numbers, not from the mesh's bounding box.
+
+An opening taller than its wall is **trimmed to fit**. Without that, an
+oversized hole is merged into the wall's outline rather than cut out of it, and
+the wall grows to swallow it — RM-009 U-2 measured a 400 × 250 wall becoming
+387 cm tall.
+:::
+
+### `stair` — a flight that is numbers
+
+Present only on a **parametric stair**, item type 11, added by RM-008 F3 and
+absent from every file written before it. Like an opening, an item that carries
+one names no `model_url`.
+
+```json
+{
+  "shape": "straight",
+  "treads": 16,
+  "rise": 17.5,
+  "going": 25,
+  "width": 90,
+  "handrail": "right",
+  "turn": "right",
+  "style": "plain"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `shape` | `"straight"`, `"l"` (a quarter turn with a landing) or `"u"` (a half turn). Anything else is read as straight. |
+| `treads` | How many risers the flight climbs. A whole number, 2–40; a fractional one is rounded. |
+| `rise`, `going` | Centimetres, per step. These are what a building code is written in, and they are the only inputs to the two totals. |
+| `width` | Clear width of the flight, in centimetres. |
+| `handrail` | `"none"`, `"left"`, `"right"` or `"both"`, as seen by somebody climbing. |
+| `turn` | `"left"` or `"right"`. Ignored when the shape is straight. |
+| `style` | A name the generator understands. `"plain"` today. |
+
+**Nothing else is stored, and that is the point.** The height is `treads ×
+rise`, the plan length is `treads × going`, the landing sits after
+`ceil(treads / 2)` steps, and the stairwell a floor above would need is worked
+out from the height and two metres of headroom. None of those is a field, so
+none of them can disagree with the seven that are — which is metric M-37.
+
+::: tip Why this exists
+The four stair meshes this build ships arrive **5.5 m wide and 4 m tall**: every
+model under two units across is multiplied by 300 on load, and the kit is
+authored at roughly one unit per metre. RM-009 U-3 has the measurement. They are
+superseded rather than scaled — a generated flight has no mesh to scale.
+:::
+
+### `structure` — a column or a beam that is numbers
+
+Present only on a **parametric structure**, item type 12, added by RM-008 F2
+(delivered after F3) and absent from every file written before it. Like an
+opening or a stair, an item that carries one names no `model_url`.
+
+```json
+{
+  "kind": "beam",
+  "width": 20,
+  "depth": 40,
+  "length": 300,
+  "soffit": 210,
+  "section": "rectangular",
+  "style": "plain"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `kind` | `"column"` or `"beam"`. Anything else is read as a column. |
+| `width`, `depth` | The cross-section, in centimetres, always measured perpendicular to the member's axis. |
+| `length` | Along the axis: a column's height, a beam's span. |
+| `soffit` | Height of the **underside** above the floor. A column's is normally 0. |
+| `section` | `"rectangular"` or `"round"`. A column's choice — a round beam is a pipe, so a beam's is forced back to rectangular. |
+| `style` | A name the generator understands. `"plain"` today. |
+
+**`depth` means different axes for the two kinds, and that is not a trick.** A
+column's axis is vertical, so its cross-section lies in plan and `depth` is a
+plan dimension; a beam's axis is horizontal, so `depth` is the vertical one.
+That is exactly what those words mean on a structural drawing — a beam's depth
+*is* its vertical dimension — so one field carries one meaning and lands on the
+right convention for both.
+
+A round column's `depth` is forced to its `width` on read: a circle has one
+dimension, and storing two would let a file say something a circle cannot be.
+
+::: tip Why this exists
+RM-007 listed columns and beams as *"boxes with numbers"* in one line. F2
+shipped without them and said so, because a new **persisted** item type needs a
+class, a type number, catalog rows, an inspector and round-trip tests. This is
+that slice, landed before programme G started.
+:::
+
+### `levels` — the storeys
+
+Present only on a design with something to say about storeys, added by RM-010 G1
+and absent from every file written before it. A design with one storey at the
+default height writes no `levels` key at all, which is what makes an older file
+**byte-identical on re-save** (metric M-26).
+
+```json
+{
+  "floorplan": { "…the ground floor's plan…" },
+  "items": [ "…the ground floor's furniture…" ],
+  "levels": [
+    {"name": "Ground floor", "height": 280},
+    {"name": "First floor", "height": 280, "floorplan": {}, "items": []}
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `name` | What to call the storey. Defaults to `"Ground floor"`, `"Floor 1"`, … from its position. |
+| `height` | **Floor to floor**, in centimetres. Not the wall height — a wall's top still comes from its corners' elevations. |
+| `floorplan` | That storey's plan, in exactly the format the design's own `floorplan` uses. |
+| `items` | That storey's furniture, in exactly the format the design's own `items` uses. |
+
+**The ground floor's plan and furniture are not repeated inside `levels[0]`.**
+They stay where they have always been, at `floorplan` and `items` on the design,
+and `levels[0]` carries only a name and a height. That is not a special case
+being tolerated — it is what keeps the compatibility promise: **a build that has
+never heard of storeys opens a three-storey house and gets the ground floor**,
+correctly drawn, rather than an error or an empty plan.
+
+**Where a storey sits is not stored.** A level's base elevation is the running
+sum of the floor-to-floor heights below it, so editing the ground floor's height
+moves everything above it and there is no second number to go stale. Neither is
+**which storey you were looking at** — that is not a property of a building. A
+freshly opened file starts on the ground floor; an undo, which is a document
+load, keeps you where you were.
+
+::: tip Why a level is a whole plan
+`Floorplan` has 55 methods and **36 of them read one of its seven collections**,
+so a level *field* would be 36 filters and 36 places where forgetting one shows
+up as furniture from the floor below appearing on this one. Two independent
+designs already coexist in one page — RM-003 A1's work, with a browser suite
+over it — so N floorplans is a proven property rather than a proposal.
+RM-010 V-5 has the count.
+:::
+
+### `roof` — the building's roof
+
+Present only on a design that has one, added by RM-010 G2 and absent from every
+file written before it. **There is no roof by default** — which is what keeps
+older files byte-identical, and is honest about what the application had before:
+RM-010 V-1 measured that `roofPlanes()` returns a *ceiling* per room, not a roof.
+
+```json
+{
+  "kind": "gable",
+  "pitch": 30,
+  "overhang": 40,
+  "thickness": 20,
+  "ridge": "x"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `kind` | `"flat"`, `"gable"` or `"hip"`. |
+| `pitch` | Degrees from horizontal, 0–60. Ignored for a flat roof. |
+| `overhang` | How far the eaves project past the walls, in centimetres. |
+| `thickness` | The slab's depth. Flat roofs only. |
+| `ridge` | `"x"` or `"z"` — which way the ridge runs in plan. Ignored for a flat roof. |
+
+**Nothing about where the roof sits is stored.** Its eaves are the top storey's
+base plus that storey's wall top, and its rise is the half-span times the tangent
+of the pitch — so raising a storey raises the roof and changing a pitch changes a
+rise, with no second number to go stale.
+
+::: warning The footprint is the plan's bounding rectangle
+Stated rather than hidden. A gable or a hip over an arbitrary outline is a
+straight-skeleton problem; what this generates is a roof over the bounding
+rectangle of every storey's corners plus the overhang. That is right for the
+rectangular houses most plans are and a box over an L-shaped one.
+`roofFootprint()` is a separate function so a later sprint can make it a real
+outline without touching the three generators.
+:::
+
+### `lamp` — an item that emits light
+
+Added in RM-011 H2, on an **item** rather than at the top level, and absent from
+every item that does not emit — which is 160 of the 168 the catalog offers.
+
+```json
+{"item_name": "Chandelier", "item_type": 4, "lamp": {"brightness": 2400, "at": 0.25}}
+```
+
+| Field | Default | Meaning |
+|---|---|---|
+| `color` | `"#ffe9c4"` | Six-digit hex. A warm bulb; unfiltered white reads as a fluorescent tube. |
+| `brightness` | `800` | **Lumens.** A 60 W incandescent is about 800. |
+| `range` | `300` | Centimetres at which the light has fallen to nothing. |
+| `at` | `0.85` | Where the bulb sits, as a **fraction of the item's own height**. |
+
+Lumens because it is a unit that means something outside this repository:
+three's `PointLight.power` is documented in lumens and divides by `4π` to get the
+candela its shader wants, so the number in the file is one anybody can check
+against a box in a shop.
+
+`at` is a fraction rather than a distance so it survives a resize — a floor
+lamp scaled to twice its height keeps its bulb at the top rather than halfway up
+the shade. **Nothing about where the bulb ends up is stored**; it is derived from
+the item's bounding box every time.
+
+**Lamps are Studio-only and cast no shadows.** `classic` draws walls with an
+unlit `MeshBasicMaterial`, so a point light there would reach the floors and
+nothing else; the bulb is not built at all rather than built and dimmed. And a
+shadow-casting point light is a cube of six renders — four lamps would be
+twenty-four — so the key light casts the shadows and lamps light surfaces.
+
+### `sun` — a sun over the building
+
+Added in RM-011 H2, top level beside `roof`, and absent from every file written
+before it. **There is no sun by default**, which is what keeps those files
+byte-identical: with no sun the key light sits where the render profile puts it,
+which is where it has always sat.
+
+```json
+"sun": {"hour": 8.5, "latitude": 55}
+```
+
+| Field | Default | Meaning |
+|---|---|---|
+| `latitude` | `45` | Degrees north, −90 to 90. Negative is south. |
+| `dayOfYear` | `81` | 1–365. No leap day. |
+| `hour` | `12` | Local **solar** hour. 12 is the sun due south. |
+
+**The presence of the key is the switch.** There is no `enabled` field, and
+`"sun": {}` is meaningful rather than empty — it says the building has a sun and
+takes the defaults. A flag beside the record would be a second source of truth
+that could disagree with it, which is the same argument `roof` settles by being
+nullable.
+
+Those three defaults describe themselves: at latitude 45 on day 81 at hour 12 the
+sun is at **exactly 45°**, due south. Solar noon elevation is
+`90 − |latitude − declination|`, day 81 is where the declination term crosses
+zero, and 45 is halfway from the equator to the pole.
+
+::: tip Solar time, not clock time
+`hour` is local solar time: noon means the sun is on the meridian, not that a
+clock says 12:00. There is no equation of time, no longitude and no timezone —
+for *"does the morning sun reach this room"* that is the honest model, and the
+error across a year is smaller than one step of the control that sets it.
+:::
+
+**North is not stored here.** It lives on each `floorplan`, where RM-008 E3 put
+it, and `Model.north` reads the ground floor's and writes all of them — so a
+three-storey house cannot hold three bearings that disagree (RM-011 W-10). The
+per-plan value is still what each 2D sheet draws.
+
+### Stairwells are not in the file
+
+A hole in a floor is **derived**, not recorded. A flight of stairs on one storey
+computes the part of its own footprint with less than two metres of headroom
+under the floor above (RM-008 F3), and the storey above cuts that rectangle out
+of whichever room it lands in. The stair is saved; the hole follows.
+
+The opening is **clamped to the room** before it is cut, and that clamp is not a
+nicety. `ShapeGeometry` does not cut a hole that pokes outside its outline — it
+merges the hole *into* the outline, so the floor gets **bigger**. RM-009 U-2
+measured a wall growing 137 cm that way and RM-010 V-3 measured a 400 cm floor
+coming out as −100..500.
+
 ### Item types
 
 | `item_type` | Class | Behaviour |
@@ -232,6 +721,9 @@ touched could otherwise differ.
 | 7 | `InWallFloorItem` | Cuts a hole and stays on the floor (a door) |
 | 8 | `OnFloorItem` | Renders under other items (a rug) |
 | 9 | `WallFloorItem` | Wall-bound and floor-bound |
+| 10 | `ParametricOpening` | A door, window or archway generated from its numbers (RM-008 F1). Names no model; carries `opening` |
+| 11 | `ParametricStair` | A flight of stairs generated from its numbers (RM-008 F3). Names no model; carries `stair` |
+| 12 | `ParametricStructure` | A column or a beam generated from its numbers (RM-008 F2). Names no model; carries `structure` |
 
 The numbering is not contiguous — there is no type 5 or 6, and 7/8/9 are not
 the order you would guess. It is the registry in

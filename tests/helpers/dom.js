@@ -46,6 +46,13 @@ export function createContext2DStub()
 		fillText: record('fillText'),
 		strokeText: record('strokeText'),
 		drawImage: record('drawImage'),
+		// RM-011 H3: the panorama paints its projected pixels through a 2D canvas
+		// on the way to a PNG. `putImageData` records, like every other call here,
+		// and `createImageData` hands back the buffer the caller then fills.
+		createImageData: (width, height) => ({
+			width, height, data: new Uint8ClampedArray(width * height * 4),
+		}),
+		putImageData: record('putImageData'),
 	};
 
 	// Style is set immediately before the call that consumes it, so snapshot it
@@ -71,15 +78,24 @@ export function installCanvas2D(window)
 {
 	const context = createContext2DStub();
 	const original = window.HTMLCanvasElement.prototype.getContext;
+	const originalDataUrl = window.HTMLCanvasElement.prototype.toDataURL;
 	window.HTMLCanvasElement.prototype.getContext = function ()
 	{
 		return context;
 	};
+	// jsdom has no encoder either, and says so through the virtual console on
+	// every call - which is thirteen lines of "Not implemented" in one suite once
+	// something starts making thumbnails (RM-013 K1). `data:,` is exactly what
+	// jsdom returns after logging, so this changes no behaviour: a caller that
+	// checks what came back still finds nothing usable, which is the honest
+	// answer under jsdom and the reason `captureThumbnail` returns null there.
+	window.HTMLCanvasElement.prototype.toDataURL = function () {return 'data:,';};
 	return {
 		context,
 		restore()
 		{
 			window.HTMLCanvasElement.prototype.getContext = original;
+			window.HTMLCanvasElement.prototype.toDataURL = originalDataUrl;
 		},
 	};
 }
@@ -135,6 +151,43 @@ export function installPointerApis(window)
  *
  * @returns {{instances: Array, trigger: Function, liveCount: Function, restore: Function}}
  */
+/**
+ * jsdom has no `IntersectionObserver`, and Reka's popovers need one.
+ *
+ * Added by RM-014 L2, which is the first suite to mount a `PopoverRoot` under
+ * jsdom: Floating UI's auto-update watches the anchor with one, and without it
+ * the component throws on mount rather than degrading. Nothing here is
+ * asserted on - the observer never fires, which is the honest behaviour for a
+ * layout engine that never lays anything out.
+ *
+ * @param {*} window
+ * @returns {{restore: Function}}
+ */
+export function installIntersectionObserver(window)
+{
+	const original = window.IntersectionObserver;
+
+	class TestIntersectionObserver
+	{
+		constructor(callback) {this.callback = callback;}
+		observe() {}
+		unobserve() {}
+		disconnect() {}
+		takeRecords() {return [];}
+	}
+
+	window.IntersectionObserver = TestIntersectionObserver;
+	globalThis.IntersectionObserver = TestIntersectionObserver;
+
+	return {
+		restore()
+		{
+			window.IntersectionObserver = original;
+			globalThis.IntersectionObserver = original;
+		},
+	};
+}
+
 export function installResizeObserver(window)
 {
 	const original = window.ResizeObserver;
@@ -432,4 +485,63 @@ export function buildFloorplannerDom(window, {left = 0, top = 0, width = 1000, h
 	setLayout(canvas, {left, top, width, height});
 
 	return {container, canvas};
+}
+
+/**
+ * A `matchMedia` that answers whatever the test says, and can change its mind.
+ *
+ * jsdom ships no `matchMedia` at all, so anything reading a media preference
+ * gets the "cannot be asked" branch by default - which is the right default for
+ * the library and useless for testing the other branch. This installs one that
+ * matches a given set of query strings, and `set()` flips a query and notifies
+ * every listener, which is how a person changing a system setting with the tab
+ * already open reaches the application (RM-014 L4, finding Z-6).
+ *
+ * @param {Window} window
+ * @param {Object<string, boolean>} [initial] Query string to whether it matches.
+ */
+export function installMatchMedia(window, initial = {})
+{
+	const state = new Map(Object.entries(initial));
+	/** @type {Map<string, Set<function(Object): void>>} */
+	const listeners = new Map();
+	const had = Object.prototype.hasOwnProperty.call(window, 'matchMedia');
+	const original = window.matchMedia;
+
+	function listenersFor(query)
+	{
+		if (!listeners.has(query)) { listeners.set(query, new Set()); }
+		return listeners.get(query);
+	}
+
+	window.matchMedia = function (query)
+	{
+		return {
+			media: query,
+			get matches() {return Boolean(state.get(query));},
+			addEventListener: (type, handler) => {if (type === 'change') { listenersFor(query).add(handler); }},
+			removeEventListener: (type, handler) => {if (type === 'change') { listenersFor(query).delete(handler); }},
+			// The pre-Safari-14 spelling, which watchReducedMotion falls back to.
+			addListener: (handler) => listenersFor(query).add(handler),
+			removeListener: (handler) => listenersFor(query).delete(handler),
+			dispatchEvent: () => true,
+			onchange: null,
+		};
+	};
+
+	return {
+		/** Flip a query and tell everyone listening to it. */
+		set(query, matches)
+		{
+			state.set(query, matches);
+			listenersFor(query).forEach((handler) => handler({matches: matches, media: query}));
+		},
+		/** How many listeners are attached to a query right now. */
+		listenerCount(query) {return listenersFor(query).size;},
+		restore()
+		{
+			if (had) { window.matchMedia = original; }
+			else { delete window.matchMedia; }
+		},
+	};
 }

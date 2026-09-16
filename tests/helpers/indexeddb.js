@@ -26,8 +26,90 @@
  * and would let a bug through that ordering would catch.
  *
  * No cursors, no indexes, no key ranges, no `onversionchange`. If the repository
- * ever needs one, it belongs here rather than in a test.
+ * ever needs one, it belongs here rather than in a test - which is what happened
+ * for RM-013 K1: the project library reads whole stores and writes two of them
+ * in one transaction, so `getAll`, `clear` and a multi-store `transaction()`
+ * were added here.
+ *
+ * RM-012 J3 changed one thing that was wrong rather than missing. Records were
+ * stored with `JSON.parse(JSON.stringify(record))`, and the model store holds
+ * `ArrayBuffer`s - which JSON renders as `{}`. A real IndexedDB uses the
+ * structured clone algorithm, so the fake now uses `structuredClone`, which is
+ * both the fix and the more faithful thing to have been doing all along.
  */
+
+/**
+ * Whether a value is an `ArrayBuffer`, from any realm.
+ *
+ * `instanceof` is not the test. Under vitest's jsdom environment there are two
+ * `ArrayBuffer` constructors - jsdom's, which is the global, and Node's, which
+ * is what `structuredClone` and `Buffer.buffer` produce - and they are not the
+ * same function. `Object.prototype.toString` reads the internal slot and does
+ * not care.
+ *
+ * @param {*} value
+ * @returns {boolean}
+ */
+function isArrayBuffer(value)
+{
+	return Object.prototype.toString.call(value) === '[object ArrayBuffer]';
+}
+
+/**
+ * Store a record the way IndexedDB does, and hand back buffers the page can use.
+ *
+ * Two things, and both are fidelity rather than convenience (RM-012 J3).
+ *
+ * A real store structured-clones, so a caller mutating what it wrote does not
+ * mutate what is stored - `JSON.parse(JSON.stringify(...))` was standing in for
+ * that and rendered an `ArrayBuffer` as `{}`.
+ *
+ * And a real store hands back an `ArrayBuffer` **the page can use**. Node's
+ * `structuredClone` produces one from Node's realm, and under jsdom that fails
+ * `data instanceof ArrayBuffer` inside `GLTFLoader` - which then treats the
+ * bytes as an already-parsed glTF object and reports an unsupported asset
+ * version. Re-homing the buffer is what a browser's IndexedDB does for free.
+ *
+ * @param {Object} record
+ * @returns {Object}
+ */
+function clone(record)
+{
+	const copy = structuredClone(record);
+	Object.keys(copy).forEach(function (key)
+	{
+		if (!isArrayBuffer(copy[key]))
+		{
+			return;
+		}
+		const rehomed = new ArrayBuffer(copy[key].byteLength);
+		new Uint8Array(rehomed).set(new Uint8Array(copy[key]));
+		copy[key] = rehomed;
+	});
+	return copy;
+}
+
+/**
+ * How large a record is, for the quota fake.
+ *
+ * `JSON.stringify(...).length` up to RM-012 J3, which is what a store of text
+ * costs and what an `ArrayBuffer` does not: `JSON.stringify` renders one as
+ * `{}`, so the model store's blobs would have weighed two bytes each and no
+ * quota refusal could ever have been reached for the one store where a quota
+ * refusal is likely.
+ *
+ * @param {Object} record
+ * @returns {number}
+ */
+function weigh(record)
+{
+	return Object.values(record).reduce(function (sum, value)
+	{
+		if (isArrayBuffer(value)) {return sum + value.byteLength;}
+		if (ArrayBuffer.isView(value)) {return sum + value.byteLength;}
+		return sum + JSON.stringify(value === undefined ? null : value).length;
+	}, 0);
+}
 
 /** Fire a callback on a microtask, the way a real IDBRequest does. */
 function later(fn)
@@ -87,8 +169,8 @@ class FakeObjectStore
 			// that took the generous view would never exercise the retry path the
 			// repository has for it - the same trap the localStorage fake has a note
 			// about in tests/persistence-and-assets.test.js.
-			let total = JSON.stringify(record).length;
-			this._records.forEach((existing) => {total += JSON.stringify(existing).length;});
+			let total = weigh(record);
+			this._records.forEach((existing) => {total += weigh(existing);});
 			if (total > store.quotaBytes)
 			{
 				const error = new Error('quota');
@@ -102,7 +184,8 @@ class FakeObjectStore
 			}
 		}
 
-		this._records.set(key, JSON.parse(JSON.stringify(record)));
+		this._remember(key);
+		this._records.set(key, clone(record));
 		request._succeed(key);
 		return request;
 	}
@@ -110,22 +193,74 @@ class FakeObjectStore
 	get(key)
 	{
 		const request = new FakeRequest();
-		request._succeed(this._records.has(key) ? this._records.get(key) : undefined);
+		// Cloned on the way out as well as in. A real store hands the caller its
+		// own copy, and the model repository's `read` returns the buffer straight
+		// to a loader that will hold it.
+		request._succeed(this._records.has(key) ? clone(this._records.get(key)) : undefined);
 		return request;
 	}
 
 	delete(key)
 	{
 		const request = new FakeRequest();
+		this._remember(key);
 		this._records.delete(key);
 		request._succeed(undefined);
 		return request;
+	}
+
+	/**
+	 * Record how to put one key back, so an abort can (RM-012 J3).
+	 *
+	 * @param {*} key
+	 */
+	_remember(key)
+	{
+		const records = this._records;
+		const had = records.has(key);
+		const before = records.get(key);
+		this._transaction._undo.push(function ()
+		{
+			if (had) {records.set(key, before);}
+			else {records.delete(key);}
+		});
 	}
 
 	count()
 	{
 		const request = new FakeRequest();
 		request._succeed(this._records.size);
+		return request;
+	}
+
+	/**
+	 * Every record in the store (RM-013 K1).
+	 *
+	 * Added for the project library, whose `list()` reads every card and no
+	 * document. Deep-copied on the way out for the same reason `put` copies on
+	 * the way in: a real IndexedDB hands back structured clones, and a fake that
+	 * handed back live references would let a test mutate the store by editing
+	 * what it read.
+	 */
+	getAll()
+	{
+		const request = new FakeRequest();
+		request._succeed([...this._records.values()].map((row) => clone(row)));
+		return request;
+	}
+
+	/** Empty the store. Added with `getAll` for the project library. */
+	clear()
+	{
+		const request = new FakeRequest();
+		const records = this._records;
+		const before = new Map(records);
+		this._transaction._undo.push(function ()
+		{
+			before.forEach(function (value, key) {records.set(key, value);});
+		});
+		records.clear();
+		request._succeed(undefined);
 		return request;
 	}
 }
@@ -137,6 +272,18 @@ class FakeTransaction
 		this._db = db;
 		this._storeName = storeName;
 		this._settled = false;
+		/**
+		 * How to undo every write this transaction has made, newest first.
+		 *
+		 * Added by RM-012 J3, and it is a fidelity fix rather than a new feature.
+		 * A real IndexedDB transaction is atomic: the model repository writes the
+		 * record and the bytes in ONE transaction so that a quota refusal on the
+		 * bytes leaves no record behind, and until this existed the fake left one -
+		 * so `stats()` counted a model whose blob had never been written.
+		 *
+		 * @type {Array<Function>}
+		 */
+		this._undo = [];
 		this.error = null;
 		this.oncomplete = null;
 		this.onerror = null;
@@ -168,6 +315,8 @@ class FakeTransaction
 		if (this._settled) { return; }
 		this._settled = true;
 		this.error = error || null;
+		this._undo.reverse().forEach(function (rollback) {rollback();});
+		this._undo = [];
 		later(() =>
 		{
 			if (this.onerror) { this.onerror({target: this}); }
@@ -200,13 +349,22 @@ class FakeDatabase
 		return new FakeObjectStore(this._stores.get(name), this._keyPaths.get(name), new FakeTransaction(this, name));
 	}
 
-	transaction(name)
+	/**
+	 * @param {string|Array<string>} names One store, or several in one
+	 *        transaction - which is how the project library writes a card and a
+	 *        body atomically (RM-013 K1). A real `transaction()` takes either.
+	 */
+	transaction(names)
 	{
-		if (!this._stores.has(name))
+		const wanted = Array.isArray(names) ? names : [names];
+		for (const name of wanted)
 		{
-			throw new Error(`no object store named ${name}`);
+			if (!this._stores.has(name))
+			{
+				throw new Error(`no object store named ${name}`);
+			}
 		}
-		return new FakeTransaction(this, name);
+		return new FakeTransaction(this, wanted[0]);
 	}
 
 	close()

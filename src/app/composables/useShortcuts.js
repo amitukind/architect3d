@@ -33,7 +33,17 @@ import {onBeforeUnmount, onMounted} from 'vue';
  * @property {string} label What it does, as the sheet shows it.
  * @property {function(KeyboardEvent): void} run
  * @property {boolean} [whileTyping] Fire even when a field has focus.
+ * @property {boolean} [repeats] Fire again while the key is held. Off by
+ * default, because a shortcut that adds a wall or toggles a pane should happen
+ * once per press; on for the arrow keys that walk the plan cursor, where
+ * holding the key IS the gesture (RM-014 L4).
  * @property {function(): boolean} [enabled] Checked before firing.
+ * @property {boolean} [yieldWhenDisabled] When `enabled()` is false, let the
+ * key through instead of claiming it. Off by default - see the note in
+ * `onKeydown` about why a disabled binding normally still counts as claimed.
+ * The plan cursor's arrow keys turn it on (RM-014 L4): they are live only while
+ * the plan canvas has focus, and the same four keys pan the 3D camera, scroll a
+ * panel and drive the pane splitter when it does not.
  * @property {boolean} [alias] A second key for a binding already listed. It
  * works identically; it is omitted from the shortcuts sheet, because a
  * reference that lists "Redo" twice is a reference someone has to read twice.
@@ -189,14 +199,6 @@ export function useShortcuts(bindings)
 {
 	function onKeydown(event)
 	{
-		// A held key repeats; a shortcut that adds a wall or toggles a pane should
-		// fire once per press. Arrow-key nudging would want repeats, and would opt
-		// out here if it existed.
-		if (event.repeat)
-		{
-			return;
-		}
-
 		var typing = isTyping(event);
 		var combination = describe(event);
 		var map = bindings();
@@ -212,10 +214,35 @@ export function useShortcuts(bindings)
 			{
 				continue;
 			}
+			// A held key repeats; a shortcut that adds a wall or toggles a pane
+			// should fire once per press. This check used to sit above the lookup
+			// and return before it, with a comment saying arrow-key nudging would
+			// opt out here if it existed. RM-014 L4 is that arrow-key nudging, so
+			// the check moved inside the loop and became per-binding.
+			//
+			// Returning WITHOUT preventDefault is deliberate and is exactly what
+			// the early return did: a repeat of a claimed key was never claimed
+			// before, and making it so now would be a behaviour change smuggled in
+			// beside a feature.
+			if (event.repeat && !binding.repeats)
+			{
+				return;
+			}
 			if (binding.enabled && !binding.enabled())
 			{
 				// A disabled binding still counts as claimed: Cmd+Z with an empty
 				// undo stack must not fall through to the browser's own undo.
+				//
+				// Unless it says otherwise. That rule is about *browser* defaults,
+				// and it is right for every binding that names a combination nothing
+				// else wants. An arrow key is the opposite case: three other things
+				// on this page want it, and a binding that is inactive because the
+				// plan does not have focus must not silently eat the key on their
+				// behalf (RM-014 L4).
+				if (binding.yieldWhenDisabled)
+				{
+					continue;
+				}
 				event.preventDefault();
 				return;
 			}

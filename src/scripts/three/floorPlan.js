@@ -1,5 +1,6 @@
 // @ts-check
-import {EventDispatcher} from 'three';
+import {EventDispatcher, Mesh, MeshBasicMaterial} from 'three';
+import {mergePositionGeometries} from '../core/geometry_builders.js';
 import {EVENT_CHANGESET} from '../core/events.js';
 import {CHANGE_TOPOLOGY, CHANGE_GEOMETRY} from '../core/change_set.js';
 import {Floor} from './floor.js';
@@ -96,6 +97,28 @@ export class Floorplan3D extends EventDispatcher
 		/** @type {Map<Object, Edge>} */
 		this.edgesByHalfEdge = new Map();
 		/**
+		 * Every edge's base plane, as one mesh (RM-015 M2, finding AA-3).
+		 *
+		 * AA-3 measured a 36-room plan at 802 draw calls for 2,516 triangles - 3.1
+		 * triangles per call, a scene paying overhead rather than drawing anything.
+		 * 144 of those calls were base planes: one flat quad per wall face, in one
+		 * colour, that nothing ever hides. They are now one.
+		 *
+		 * @type {?Mesh}
+		 */
+		this._baseBatch = null;
+		/**
+		 * The batch's own material, held separately so it can be released.
+		 *
+		 * `Mesh.material` is a material OR an array of them, and the checker will
+		 * not let `dispose()` be called on the union - correctly, since an array
+		 * has no such method. This field is the one thing that was constructed
+		 * here, typed as the one thing it is (RM-004 B3).
+		 *
+		 * @type {?MeshBasicMaterial}
+		 */
+		this._baseBatchMaterial = null;
+		/**
 		 * What this projection has done, for the tests that assert it did less
 		 * (RM-003 A2, M-5). Read with {@link Floorplan3D#projectionStats}.
 		 */
@@ -122,6 +145,22 @@ export class Floorplan3D extends EventDispatcher
 	/**
 	 * React to a change by doing as little as it allows.
 	 *
+	 * ## Asking for a frame
+	 *
+	 * Every branch that touches the scene sets `scene.needsUpdate`, which is the
+	 * only thing `Main.shouldRender()` will accept as a reason to draw. That was
+	 * missing until RM-019 R1, and it was missing invisibly: before A2 this class
+	 * shared `EVENT_UPDATED` with `Main.centerCamera()`, which ends in
+	 * `controls.update()`, which fires `change`, which sets the *controls*' flag -
+	 * so every rebuild was followed by a frame drawn for the camera's sake. A2
+	 * stopped recentring the camera on a drag, correctly, and the repaint went
+	 * with it. Nothing in tier 2 caught it because every test there renders with
+	 * `render(true)`, which bypasses the question entirely.
+	 *
+	 * Measured: a corner drag produced zero writes to `scene.needsUpdate`, and
+	 * the 3D pane held its last frame until something unrelated - a texture
+	 * finishing, a resize, a pointer over the viewer - asked for one.
+	 *
 	 * A ChangeSet that carries both kinds - `update(true, corners)`, which the
 	 * load path produces - takes the topology branch alone: reconciliation
 	 * rebuilds from current model state, so redrawing the moved corners' faces
@@ -141,20 +180,25 @@ export class Floorplan3D extends EventDispatcher
 			// cannot tell what", and the safe reaction is the old one.
 			this._stats.full += 1;
 			this.redraw();
+			this.scene.needsUpdate = true;
 			return;
 		}
 		if (changes.has(CHANGE_TOPOLOGY))
 		{
 			this._stats.topology += 1;
 			this.reconcile();
+			this.scene.needsUpdate = true;
 			return;
 		}
 		if (changes.has(CHANGE_GEOMETRY))
 		{
 			this._stats.geometry += 1;
 			this.refresh(changes.entities(CHANGE_GEOMETRY));
+			this.scene.needsUpdate = true;
 			return;
 		}
+		// Not `needsUpdate`: an ignored change altered nothing here, and drawing a
+		// frame to show the same picture is the cost the contract exists to avoid.
 		this._stats.ignored += 1;
 	}
 
@@ -227,6 +271,7 @@ export class Floorplan3D extends EventDispatcher
 			edge.name = 'edge_' + index;
 			return edge;
 		});
+		this._rebuildBaseBatch();
 	}
 
 	/**
@@ -246,14 +291,22 @@ export class Floorplan3D extends EventDispatcher
 	 * recomputed. Every affected face therefore touches a corner in the list, and
 	 * a face two walls away - whose prev, self and next all sit still - does not.
 	 *
-	 * Floors follow the rooms attached to those corners. Note what that redraws
-	 * and what it does not: `Floor.buildRoofVaryingHeight()` reads
-	 * `room.corners` live, so the roof follows the drag, while `buildFloor()`
-	 * reads `room.interiorCorners`, which nothing recomputes on a geometry change.
-	 * The floor polygon therefore comes back identical - which is exactly what
-	 * `redraw()` produced too, because a rebuilt Floor reads the same stale array.
-	 * Reproducing that is the point; a floor that started tracking the drag would
-	 * be a visual change, and A2 promises none.
+	 * Floors follow the rooms attached to those corners, and since RM-019 R1 they
+	 * follow them all the way. `Floor.buildRoofVaryingHeight()` reads
+	 * `room.corners` live and always tracked the drag; `buildFloor()` reads
+	 * `room.interiorCorners`, and what A2 recorded here was that nothing
+	 * recomputed that on a geometry change - so the floor polygon came back
+	 * identical, exactly as `redraw()` produced it, because a rebuilt Floor read
+	 * the same stale array. A2 reproduced that deliberately, on the grounds that
+	 * a floor which started tracking the drag would be a visual change A2 had
+	 * promised not to make.
+	 *
+	 * It was a defect in the model rather than a property of either path, and it
+	 * outlived the sprint that documented it. `Floorplan.update(false, corners)`
+	 * now re-derives the rooms those corners belong to before announcing the
+	 * change, so `interiorCorners` is current by the time this runs and the floor
+	 * tracks the drag. See `Floorplan._refreshRoomGeometry` for what that costs
+	 * and why the scope of the two is the same set of rooms.
 	 *
 	 * @param {Array<Object>} corners
 	 */
@@ -291,6 +344,17 @@ export class Floorplan3D extends EventDispatcher
 				scope._stats.floorsRedrawn += 1;
 			}
 		});
+
+		// The batch is global and this pass is not, which is the one cost of
+		// batching an incremental renderer: moving one corner rebuilds a buffer
+		// holding every wall's base. It is 4 vertices per wall face and no upload
+		// of anything else, against the alternative of one draw call per face on
+		// every frame - so the rebuild happens where an edit is, not where a frame
+		// is. M-5 is unaffected: this is not a `redraw()` and does not count as one.
+		if (walls.size)
+		{
+			this._rebuildBaseBatch();
+		}
 	}
 
 	/**
@@ -345,6 +409,99 @@ export class Floorplan3D extends EventDispatcher
 			this.edgesByHalfEdge.set(edge, threeEdge);
 			eindex+=1;
 		});
+		this._rebuildBaseBatch();
+	}
+
+	/**
+	 * Draw every edge's base plane with one mesh instead of one each.
+	 *
+	 * ## Why this and nothing else
+	 *
+	 * It is the only geometry in the plan that can be batched without changing
+	 * what is on screen, and the reason is in `Edge.updateVisibility`: that method
+	 * walks `planes` on every camera move and sets `material.opacity` per edge, so
+	 * a wall face fades when you look at its back. Geometry sharing a mesh shares
+	 * a material and therefore shares an opacity, so `planes` cannot be batched
+	 * while that behaviour exists. `basePlanes` is excluded from it - the comment
+	 * where it is pushed says *"always visible"* - which is what makes this safe
+	 * and what stops it from being the whole answer to AA-3.
+	 *
+	 * ## Why it declines rather than degrades
+	 *
+	 * {@link mergePositionGeometries} keeps positions and drops normals and uvs,
+	 * which is correct for `MeshBasicMaterial` and wrong for anything lit. A
+	 * studio render profile builds its fillers as `MeshStandardMaterial`, so this
+	 * checks and leaves that profile alone rather than quietly flattening its
+	 * shading. Batching that cannot be done correctly is not done.
+	 */
+	_rebuildBaseBatch()
+	{
+		var scope = this;
+		if (this._baseBatch)
+		{
+			this.scene.remove(this._baseBatch);
+			this._baseBatch.geometry.dispose();
+			if (this._baseBatchMaterial) { this._baseBatchMaterial.dispose(); }
+			this._baseBatch = null;
+			this._baseBatchMaterial = null;
+		}
+
+		var entries = [];
+		// Typed, because it is only ever assigned inside the callback below and the
+		// checker does not track that - without this it narrows to `never` after
+		// the guard and the two reads become errors (RM-004 B3).
+		/** @type {?MeshBasicMaterial} */
+		var material = null;
+		var batchable = this.edges.length > 0;
+		this.edges.forEach(function (edge)
+		{
+			edge.basePlanes.forEach(function (plane)
+			{
+				if (!plane.material || !plane.material.isMeshBasicMaterial) { batchable = false; return; }
+				// Colours are per plane in principle and identical in practice; a
+				// batch has one, so a plan that ever mixes them declines too.
+				if (material && plane.material.color && !plane.material.color.equals(material.color))
+				{
+					batchable = false;
+					return;
+				}
+				material = material || plane.material;
+				plane.updateMatrix();
+				entries.push({geometry: plane.geometry, matrix: plane.matrix});
+			});
+		});
+
+		if (!batchable || !entries.length || !material)
+		{
+			// Put them back the way they were. Idempotent: `add` of an object already
+			// in the scene is a no-op in three, so this is safe on every rebuild.
+			this.edges.forEach(function (edge)
+			{
+				edge.baseBatched = false;
+				edge.basePlanes.forEach(function (plane) {scope.scene.add(plane);});
+			});
+			return;
+		}
+
+		this.edges.forEach(function (edge)
+		{
+			edge.baseBatched = true;
+			edge.basePlanes.forEach(function (plane) {scope.scene.remove(plane);});
+		});
+
+		// Read into a local the checker can see. `material` is assigned only inside
+		// the callback above, which control-flow analysis does not follow, so it
+		// stays `null` in the checker's model and narrows to `never` past the guard
+		// - the same shape as the `lastNode` cast in the floorplanner (RM-004 B3).
+		var found = /** @type {MeshBasicMaterial} */ (/** @type {unknown} */ (material));
+		this._baseBatchMaterial = new MeshBasicMaterial({color: found.color.getHex(), side: found.side});
+		var batch = new Mesh(mergePositionGeometries(entries), this._baseBatchMaterial);
+		batch.name = 'wall-bases';
+		// Placed at the origin because every vertex already carries its own
+		// placement - see mergePositionGeometries, which bakes each mesh's matrix.
+		batch.matrixAutoUpdate = false;
+		this._baseBatch = batch;
+		this.scene.add(batch);
 	}
 
 	showRoof(flag)
@@ -367,6 +524,14 @@ export class Floorplan3D extends EventDispatcher
 	dispose()
 	{
 		this.floorplan.removeEventListener(EVENT_CHANGESET, this.updatedroomsevent);
+		if (this._baseBatch)
+		{
+			this.scene.remove(this._baseBatch);
+			this._baseBatch.geometry.dispose();
+			if (this._baseBatchMaterial) { this._baseBatchMaterial.dispose(); }
+			this._baseBatch = null;
+			this._baseBatchMaterial = null;
+		}
 		this.floors.forEach((floor) => {floor.dispose();});
 		this.edges.forEach((edge) => {edge.remove();});
 		this.floors = [];

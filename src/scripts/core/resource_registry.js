@@ -70,7 +70,11 @@ function isDisposable(value)
  * @param {?Object} object An Object3D, or null.
  * @param {function(Disposable): void} visit
  */
-export function forEachResource(object, visit)
+// Module-private since RM-020 S-10: exported, and used by nothing outside
+// this file. `package.json` maps `./source/*` at the module level, so an
+// export is public surface by that route - and this was public surface
+// nobody used and no document named.
+function forEachResource(object, visit)
 {
 	if (!object)
 	{

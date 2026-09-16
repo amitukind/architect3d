@@ -1,8 +1,12 @@
 // @ts-check
 import {Mesh, Matrix4, Object3D, Vector2, Vector3, Box3, BoxHelper, MeshBasicMaterial, AdditiveBlending} from 'three';
 import {CanvasTexture, PlaneGeometry, DoubleSide, SRGBColorSpace} from 'three';
-import {Color} from 'three';
+import {Color, PointLight} from 'three';
+import {isStudio, renderProfile} from '../core/render_profile.js';
+import {normaliseLamp, lampToJSON} from './lamp.js';
+import {normaliseImport, orientGeometry} from '../core/imported_model.js';
 import {Utils} from '../core/utils.js';
+import {boxOf, snapToNeighbours, stackOn} from './snapping.js';
 import {disposeObject, disposeMaterial} from '../core/resource_registry.js';
 import {Dimensioning} from '../core/dimensioning.js';
 
@@ -82,6 +86,35 @@ function singleMaterial(material)
 	return /** @type {ColorableMaterial} */ (Array.isArray(material) ? material[0] : material);
 }
 
+/**
+ * A half size is a magnitude, and a scale may be negative (RM-012 J4).
+ *
+ * Mirroring an item is a negative `scale.x`, which is the whole mechanism - it
+ * is already in the save format, it costs no new field, and three's renderer
+ * reverses the triangle winding for it by itself (`WebGLRenderer` computes
+ * `frontFaceCW` from `matrixWorld.determinantAffine() < 0`, so a mirrored mesh
+ * does not render inside out and no material's `side` has to be touched).
+ *
+ * What a negative scale must not do is make the item's *size* negative.
+ * `halfSize` is read by `getWidth`, by the two dimension canvases, by the plan's
+ * footprint projection and - the one that matters most - by
+ * `Edge.createShape`, which pushes a rectangle of it into the wall's holes. A
+ * mirrored door with a negative half width would cut a hole of negative width,
+ * and nothing would say so.
+ *
+ * @param {Vector3} half The geometry's own half size, all positive.
+ * @param {Vector3} scale Signed.
+ * @returns {Vector3}
+ */
+function absScale(half, scale)
+{
+	return new Vector3(
+		half.x * Math.abs(scale.x),
+		half.y * Math.abs(scale.y),
+		half.z * Math.abs(scale.z),
+	);
+}
+
 export class Item extends Mesh
 {
 	/**
@@ -142,6 +175,19 @@ export class Item extends Mesh
 		 * @type {string}
 		 */
 		this.designId = (metadata && metadata.designId) ? metadata.designId : Utils.guide();
+		/**
+		 * Which group this item belongs to, or null (RM-012 J4).
+		 *
+		 * A shared string rather than a `Group` entity, and that is the whole
+		 * design. A group in an interior planner is not a thing in the document -
+		 * nobody selects "the group", they select a chair and mean the six around
+		 * the table - so the only state it needs is a mark saying which items move
+		 * together. That makes it additive in the file, free to delete a member of,
+		 * and impossible to leave dangling.
+		 *
+		 * @type {?string}
+		 */
+		this.groupId = (metadata && metadata.group) ? metadata.group : null;
 
 		/** */
 		/** @type {?Mesh} The red halo shown by showError(); replaced on each use. */
@@ -190,8 +236,43 @@ export class Item extends Mesh
 		// wrong by then: it left `this.material` as the invisible box's material,
 		// which is what setMaterialColor would have painted and getMetaData
 		// serialized.
+		/**
+		 * The storey this item stands on (RM-010 G1).
+		 *
+		 * Set by `Scene.addItem` when the item joins a level, and null for an item
+		 * built by hand in a test. It exists because an item genuinely has to know
+		 * *which* plan it is on: `placeInRoom`, `isValidPosition`, `closestWallEdge`
+		 * and `closestRoofPoint` all ask a floorplan a question about this item,
+		 * and reading `model.floorplan` would ask it of whichever storey the user
+		 * happens to be looking at.
+		 *
+		 * A back-reference rather than a level field on a shared list, which is the
+		 * distinction RM-010 V-5 drew: the list is already scoped by construction,
+		 * and this is the parent link every scene-graph object has anyway.
+		 *
+		 * @type {?import('../model/level.js').Level}
+		 */
+		this.level = null;
+		/**
+		 * Where this model came from, when it came off somebody's disk (J3).
+		 *
+		 * Null for everything in the catalog, which is the ordinary case, and read
+		 * from the same two places `lamp` is: the metadata a placement builds and
+		 * the metadata `metadataFromRecord` builds from a saved record.
+		 *
+		 * @type {?import('../core/imported_model.js').ImportedModel}
+		 */
+		this.local = normaliseImport(metadata.local);
+
 		this.geometry = geometry;
 		this.material = material;
+		// Which axis the author called up, applied to the buffer before anything
+		// measures it (J3). It has to happen here and not on the object: the
+		// centring below, `objectHalfSize`, both label planes and every resize
+		// handle read the geometry, and `getMetaData` writes `rotation.y` alone -
+		// so a tilt on the object would be the wrong size now and gone on the next
+		// save. A catalog model is Y-up and nothing happens.
+		orientGeometry(this.geometry, this.local ? this.local.up : null);
 		// center in its boundingbox
 		this.geometry.computeBoundingBox();
 		var box = this.bounds();
@@ -229,6 +310,21 @@ export class Item extends Mesh
 		this._pickedColorSlots = new Set();
 
 		this.resizable = metadata.resizable;
+		/**
+		 * What this item emits, or null if it emits nothing (RM-011 H2, W-11).
+		 *
+		 * Read from the catalog row when the item is placed and from the saved
+		 * record when a design is opened, which is the same two paths `opening`,
+		 * `stair` and `structure` take - the difference being that those three
+		 * belong to one `Item` subclass each and a lamp can be any of them. A
+		 * pendant is a `RoofItem`, a standard lamp is a `FloorItem` and a sconce
+		 * is a `WallItem`, so this lives on the base class.
+		 *
+		 * @type {?import('./lamp.js').Lamp}
+		 */
+		this.lamp = metadata.lamp ? normaliseLamp(metadata.lamp) : null;
+		/** @type {?import('three').PointLight} Built by `initObject`. */
+		this.bulb = null;
 
 		this.castShadow = true;
 		this.receiveShadow = false;
@@ -283,6 +379,19 @@ export class Item extends Mesh
 			this.rotation.y = rotation;
 		}
 
+		/**
+		 * Whether the scale came from a document rather than from the catalog.
+		 *
+		 * `initObject` applies the model's unit scale to a freshly placed item and
+		 * must not apply it to a restored one - a saved design already records the
+		 * scale it was placed at, and multiplying it again would grow the item by
+		 * that factor on every open. This is the one bit that tells the two apart,
+		 * and it is a flag rather than a test on `this.scale` because a document is
+		 * perfectly entitled to record a scale of exactly 1.
+		 *
+		 * @type {boolean}
+		 */
+		this._scaleFromDocument = (scale != null);
 		if (scale != null)
 		{
 			this.setScale(scale.x, scale.y, scale.z);
@@ -546,7 +655,7 @@ export class Item extends Mesh
 	applyScale(x, y, z)
 	{
 		this.scale.set(x, y, z);
-		this.halfSize = this.objectHalfSize().multiply(this.scale);
+		this.halfSize = absScale(this.objectHalfSize(), this.scale);
 		this.resized();
 		if(this.bhelper)
 		{
@@ -564,9 +673,13 @@ export class Item extends Mesh
 	setScale(x, y, z)
 	{
 		var scaleVec = new Vector3(x, y, z);
-		this.halfSize.multiply(scaleVec);
 		scaleVec.multiply(this.scale);
 		this.scale.set(scaleVec.x, scaleVec.y, scaleVec.z);
+		// From the geometry rather than by multiplying the previous half size,
+		// which is what `applyScale` already does and for the same reason - and
+		// which is what keeps a mirrored item's size positive (RM-012 J4). See
+		// `absScale`.
+		this.halfSize = absScale(this.objectHalfSize(), this.scale);
 		this.resized();
 		if(this.bhelper)
 		{
@@ -599,7 +712,68 @@ export class Item extends Mesh
 	/** Subclass can define to take action after a resize. */
 	resized()
 	{
+		this.placeBulb();
+	}
 
+	/**
+	 * Give this item its light, if it has one (RM-011 H2).
+	 *
+	 * **Studio only, and off rather than dimmed under classic.** `classic` draws
+	 * walls with an unlit `MeshBasicMaterial` and floors with Phong: a point light
+	 * would reach the floors and nothing else, which is a lamp that lights the
+	 * carpet and not the room. H2's acceptance says every light it adds is off, or
+	 * free, under classic, and not building one is the cheapest way to be both.
+	 *
+	 * The bulb is a **child of the item**, so it moves, turns and scales with it
+	 * for free - dragging a lamp across a room takes its light with it and nothing
+	 * here has to hear about the move.
+	 *
+	 * @returns {void}
+	 */
+	buildBulb()
+	{
+		if (!this.lamp || this.bulb || !isStudio(renderProfile))
+		{
+			return;
+		}
+		// `power` is lumens; three divides by 4*pi to get the candela its shader
+		// wants. Saying it in lumens is what makes 800 checkable against a box in
+		// a shop - see the docblock in `lamp.js`.
+		var bulb = new PointLight(new Color(this.lamp.color), 1, this.lamp.range, 2);
+		bulb.power = this.lamp.brightness;
+		// Named for what it is, and findable: the browser tier counts these.
+		bulb.name = 'bulb';
+		// See `lamp.js`: a shadow-casting point light is a cube of six renders,
+		// and four lamps in a room would be twenty-four. The key casts the
+		// shadows; lamps light surfaces.
+		bulb.castShadow = false;
+		this.bulb = bulb;
+		this.add(bulb);
+		this.placeBulb();
+	}
+
+	/**
+	 * Put the bulb where the description says, as a fraction of the item's height.
+	 *
+	 * Derived on every resize rather than stored, so a lamp scaled to twice its
+	 * height keeps its bulb at the top rather than halfway up the shade. The
+	 * offset is from the item's own centre, which is where a child's local origin
+	 * sits.
+	 *
+	 * @returns {void}
+	 */
+	placeBulb()
+	{
+		if (!this.bulb || !this.lamp)
+		{
+			return;
+		}
+		// In the item's own space, so the parent's scale applies on top - which is
+		// why this divides by it. Without that a lamp scaled to 2x would put its
+		// bulb twice as far from its own centre as its own top.
+		var height = this.halfSize.y * 2;
+		var scale = this.scale.y || 1;
+		this.bulb.position.set(0, ((this.lamp.at - 0.5) * height) / scale, 0);
 	}
 
 	/** */
@@ -614,6 +788,89 @@ export class Item extends Mesh
 		return this.halfSize.x * 2.0;
 	}
 
+	/**
+	 * Put this item at a height above the floor (RM-012 J4).
+	 *
+	 * RM-007 calls elevation one of the three cheap verbs because *"elevation is
+	 * already `ypos` in the file"*, and it is - what was missing is any way to
+	 * set it. There has never been a control for it, so a lamp could be placed on
+	 * a table only by dragging it and hoping, and a picture could not be hung at
+	 * all except on a wall.
+	 *
+	 * It sticks because `FloorItem.moveToPosition` preserves `this.position.y`
+	 * rather than snapping to the floor on every move - so an item lifted here
+	 * stays lifted while it is dragged around. A wall-bound item is the exception
+	 * and is not offered this: `WallItem.boundMove` derives its height from its
+	 * own size, and would overwrite the number on the next drag.
+	 *
+	 * @param {number} y Centimetres above the floor, clamped at zero - a floor
+	 *   plan has no basement, and a negative would put furniture under the floor
+	 *   where it cannot be clicked.
+	 */
+	setElevation(y)
+	{
+		this.position.y = Math.max(0, y);
+		this.resized();
+		if (this.bhelper) { this.bhelper.update(); }
+		this.scene.needsUpdate = true;
+	}
+
+	/**
+	 * Flip this item on one horizontal axis (RM-012 J4).
+	 *
+	 * A negative scale, which is the whole mechanism and is why RM-007 calls this
+	 * one of the three cheap verbs. It costs no new field - `scale_x` has been in
+	 * the save format since the format existed - so a mirrored item round-trips
+	 * without the file version moving.
+	 *
+	 * ## The winding reversal, named up front and then measured
+	 *
+	 * RM-007 names it as the risk: *"a mirrored mesh renders inside out unless
+	 * the material's side is handled"*. Measured against the three in this tree,
+	 * it is already handled and not by us. `WebGLRenderer` computes
+	 * `frontFaceCW` from `object.matrixWorld.determinantAffine() < 0` and flips
+	 * the face winding for exactly this case. So no material's `side` is touched
+	 * here - which matters, because 139 of the 168 catalog models are
+	 * `KHR_materials_unlit` and forcing `DoubleSide` on them would change how
+	 * every one of them renders in order to fix a problem that does not exist.
+	 *
+	 * ## Y is deliberately not offered
+	 *
+	 * Mirroring vertically turns a chair upside down, which is a thing nobody
+	 * doing interior layout wants and which `boundMove` would immediately fight
+	 * over for a wall-bound item. Rotation is the verb for the other orientations.
+	 *
+	 * @param {string} [axis] `'x'` (default) or `'z'`.
+	 * @returns {boolean} whether the item is mirrored *after* the flip.
+	 */
+	mirror(axis)
+	{
+		var x = this.scale.x;
+		var z = this.scale.z;
+		if (axis === 'z') { z = -z; }
+		else { x = -x; }
+		// The absolute form, so the half size is restated from the geometry rather
+		// than accumulated - see `applyScale`, and `absScale` for why the sign is
+		// dropped on the way.
+		this.applyScale(x, this.scale.y, z);
+		return this.mirrored();
+	}
+
+	/**
+	 * Is this item mirrored?
+	 *
+	 * By the sign of the scale's product, which is what "mirrored" means: an odd
+	 * number of negative axes reverses handedness, and two of them are a
+	 * 180-degree rotation rather than a reflection. It is also exactly the
+	 * quantity the renderer tests to decide the winding.
+	 *
+	 * @returns {boolean}
+	 */
+	mirrored()
+	{
+		return (this.scale.x * this.scale.y * this.scale.z) < 0;
+	}
+
 	/** */
 	getDepth()
 	{
@@ -626,18 +883,70 @@ export class Item extends Mesh
 
 	}
 
+	/**
+	 * Bring the model into centimetres, using the number its kit declares
+	 * (RM-012 J1; RM-009 U-3 assigned the fix here).
+	 *
+	 * ## What this replaced
+	 *
+	 *     // An ugly hack to increase the size of gltf models
+	 *     if (this.halfSize.x < 1.0)
+	 *     {
+	 *         this.resize(this.getHeight()*300, this.getWidth()*300, this.getDepth()*300);
+	 *     }
+	 *
+	 * The comment was right about itself, and the number was wrong. Two guesses
+	 * were stacked in four lines. **Which models need scaling** was guessed from
+	 * one axis of one item - a wide, flat rug authored in centimetres has a
+	 * half-extent under 1.0 on no axis and a tall thin lamp authored in kit units
+	 * has one on two, so the test answers a question about units by measuring a
+	 * shape. And **how much** was guessed at 300, which RM-009 U-3 measured wrong
+	 * and J1 has now measured properly: the Kenney kit is on a 2 m grid, so the
+	 * factor is 200. At 300 that kit's dining chair is 141 cm tall.
+	 *
+	 * Both guesses are replaced by one declared number. `tools/split-catalog.mjs`
+	 * resolves each row's `unitScale` from the kit it came from and writes it into
+	 * the bundled index, so it is on the metadata by the time an item is placed
+	 * and no fetch stands between clicking a chair and having one.
+	 *
+	 * ## Why a saved design is left alone
+	 *
+	 * A document records `scale_x`, `scale_y` and `scale_z`, and those are
+	 * absolute. An item restored from one is already the size it was saved at, so
+	 * applying the unit scale again would multiply it by 200 on every open. The
+	 * constructor sets `_scaleFromDocument` when a scale is supplied, and this
+	 * returns.
+	 *
+	 * That is also why designs saved before this change do not move. A Kenney
+	 * chair placed under the old hack is recorded at scale 300 and stays at 300 -
+	 * a document is what its author saved, not what this build would have saved.
+	 * Anything placed from the catalog after this change is 200, which is the size
+	 * the model actually is.
+	 */
+	applyUnitScale()
+	{
+		var scale = this.metadata ? this.metadata.unitScale : null;
+		if (this._scaleFromDocument || !(scale > 0) || scale === 1)
+		{
+			return;
+		}
+		this.setScale(scale, scale, scale);
+	}
+
 	/** */
 	initObject()
 	{
 		this.placeInRoom();
-		// An ugly hack to increase the size of gltf models
-		if(this.halfSize.x < 1.0)
-		{
-			this.resize(this.getHeight()*300, this.getWidth()*300, this.getDepth()*300);
-		}
+		this.applyUnitScale();
 		this.bhelper = new BoxHelper(this);
 		this.scene.add(this.bhelper);
 		this.bhelper.visible = false;
+		// Guarded rather than unconditional: almost nothing in the catalog is a
+		// lamp, and an item that emits nothing should not pay a call to find out.
+		if (this.lamp)
+		{
+			this.buildBulb();
+		}
 		// select and stuff
 		this.scene.needsUpdate = true;
 
@@ -705,6 +1014,16 @@ export class Item extends Mesh
 		}
 		disposeMaterial(this.originalmaterial);
 		disposeMaterial(this.wirematerial);
+
+		// A PointLight holds no GPU resource of its own, but it is in the scene
+		// graph and the renderer counts it - an undisposed one keeps a deleted lamp
+		// lighting the room. A0's rule: whatever this object added, it removes.
+		if (this.bulb)
+		{
+			this.remove(this.bulb);
+			this.bulb.dispose();
+			this.bulb = null;
+		}
 	}
 
 	/** on is a bool */
@@ -824,11 +1143,68 @@ export class Item extends Mesh
 	// eslint-disable-next-line no-unused-vars -- see the docblock: subclasses use it
 	moveToPosition(vec3, intersection)
 	{
+		this.applySnap(vec3);
 		this.position.copy(vec3);
 		if(this.bhelper)
 		{
 			this.bhelper.update();
 		}
+	}
+
+	/**
+	 * Nudge a position onto whatever is already near it (RM-012 J4).
+	 *
+	 * Mutates the vector in place, because that is the shape every mover on this
+	 * path already has - `boundMove` and `FloorItem.moveToPosition` both do it,
+	 * and returning a new one here would leave two conventions on one call chain.
+	 *
+	 * ## Off unless the scene asks for it
+	 *
+	 * `scene.snapItems` is false by default, so nothing about a drag changes for
+	 * an embedder who has not opted in and no parity capture moves. The
+	 * application turns it on beside the grid snap it already has, because "snap"
+	 * is one idea to a person even though the two snap to different things.
+	 *
+	 * ## Never for a wall-bound item
+	 *
+	 * `WallItem.moveToPosition` derives the position along the wall from the
+	 * pointer and then calls up to here. Snapping after that would pull the item
+	 * off the wall it is bound to, which is a fight between two rules rather than
+	 * a feature. An item on a wall snaps to the wall - that is what being bound to
+	 * it already means.
+	 *
+	 * @param {Object} vec3 The position the pointer produced.
+	 */
+	applySnap(vec3)
+	{
+		// `currentWallEdge` is `WallItem`'s, and this is the base class - asked
+		// through a cast rather than declared here, because giving every item a
+		// wall edge to satisfy a type checker would be a worse lie than the cast.
+		if (!this.scene || !this.scene.snapItems || /** @type {*} */ (this).currentWallEdge)
+		{
+			return;
+		}
+		var others = (typeof this.scene.getItems === 'function' ? this.scene.getItems() : [])
+			.filter((one) => one !== this && one.halfSize && one.position);
+		if (!others.length)
+		{
+			return;
+		}
+		var boxes = others.map(boxOf);
+		var moving = boxOf({position: vec3, halfSize: this.halfSize});
+
+		var flat = snapToNeighbours(moving, boxes);
+		vec3.x = flat.x;
+		vec3.z = flat.z;
+
+		// The vertical, asked separately and after, because a snap is horizontal
+		// and a stack is not: mixing them would make an item nudged sideways onto
+		// a table suddenly jump up onto it. `stackOn` answers with a base; a
+		// position is a centre.
+		moving.x = flat.x;
+		moving.z = flat.z;
+		var rest = stackOn(moving, boxes);
+		vec3.y = rest.y + Math.abs(this.halfSize.y);
 	}
 
 	/**
@@ -995,6 +1371,21 @@ export class Item extends Mesh
 	}
 
 	/** */
+	/**
+	 * The plan this item stands on (RM-010 G1).
+	 *
+	 * Its own level's, falling back to the active one for an item that has not
+	 * joined a level yet - which is every item mid-construction and every item a
+	 * test builds by hand. Before there were levels the two were always the same
+	 * object, so the fallback is the old behaviour exactly.
+	 *
+	 * @returns {import('../model/floorplan.js').Floorplan}
+	 */
+	get floorplan()
+	{
+		return (this.level && this.level.floorplan) ? this.level.floorplan : this.model.floorplan;
+	}
+
 	objectHalfSize()
 	{
     this.geometry.computeBoundingBox();
@@ -1068,6 +1459,32 @@ export class Item extends Mesh
 		if(matattribs)
 		{
 			data.material_colors = matattribs;
+		}
+		// Additive and conditional, like every key added since E2: an item that
+		// emits nothing writes no `lamp` key, so a design of chairs is
+		// byte-identical to the file it was before H2. A lamp records its own
+		// description rather than pointing at a catalog row, for the reason
+		// `newFloorTextures` records a URL rather than a texture id - a design
+		// saved against one catalog must open the same way against the next.
+		if (this.lamp)
+		{
+			data.lamp = lampToJSON(this.lamp);
+		}
+		// Additive and conditional, like every key added since E2 (RM-012 J4). An
+		// ungrouped item writes no `group` key, so a design nobody has grouped
+		// anything in is byte-identical to the file it was before this.
+		if (this.groupId)
+		{
+			data.group = this.groupId;
+		}
+		// The reference to a model no deployment ships (RM-012 J3), additive and
+		// conditional like the five keys above it - so a design of catalog
+		// furniture is byte-identical to the file it was before this sprint, and a
+		// build that reads 2.0.0 and not this key still opens the document. What it
+		// cannot do is find the model, which is what `file` is here to let it say.
+		if (this.local)
+		{
+			data.local = {id: this.local.id, file: this.local.file, up: this.local.up};
 		}
 		return data;
 	}

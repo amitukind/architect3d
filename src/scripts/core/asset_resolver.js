@@ -31,15 +31,28 @@ import {AssetManifest} from './asset_manifest.js';
  * a manifest is a runtime input, not a bundled table. See
  * {@link module:core/asset_manifest} for why.
  *
- * ## Integrity is recorded and not enforced
+ * ## Integrity is recorded and not enforced, and since H1 not shipped either
  *
- * Every manifest entry carries a subresource-integrity hash, and
+ * A manifest entry may carry a subresource-integrity hash, and
  * {@link AssetResolver#integrityFor} hands it to a caller that wants it. It is
  * off by default, and that is a judgement rather than laziness: for same-origin
  * `public/` the hash guards against nothing the origin does not already
  * guarantee, while a mismatch after a legitimate redeploy of an unhashed file
- * is an outage. It matters for the CDN deployment this sprint makes possible,
- * so it is available for that, switched on by whoever makes that deployment.
+ * is an outage. It matters for a cross-origin CDN deployment, so it is available
+ * for that, switched on by whoever makes that deployment.
+ *
+ * **What RM-011 H1 changed is who pays for it.** M-43 added a first-load budget,
+ * and its opening measurement found that **17,065 of the served manifest's
+ * 22,208 gzipped bytes were these hashes** - 4.1 % of everything a person
+ * downloads before their first wall, on every boot, for a feature nothing turns
+ * on. So a plain `npm run manifest` now writes them to
+ * `asset-pipeline/asset-integrity.json`, which is not served, and
+ * `npm run manifest -- --integrity` writes them into the manifest as well.
+ *
+ * Nothing here changed to make that work, which is the point:
+ * {@link module:core/asset_manifest} has always read `hash` defensively and this
+ * class has always been able to return null for it. A deployment that wants SRI
+ * runs one flag and every call below answers exactly as it did.
  */
 
 /**

@@ -1,5 +1,5 @@
 // @ts-check
-import {BufferAttribute, BufferGeometry} from 'three';
+import {BufferAttribute, BufferGeometry, Vector3} from 'three';
 
 /**
  * The hand-built meshes this app makes, as BufferGeometry.
@@ -52,6 +52,124 @@ export function triangleFanGeometry(points)
 	geometry.setIndex(index);
 
 	return geometry;
+}
+
+/**
+ * Several triangle fans in one geometry (RM-015 M2, finding AA-3).
+ *
+ * AA-3 measured a 36-room plan at **802 draw calls for 2,516 triangles** - 3.1
+ * triangles per call, which is a scene paying overhead rather than drawing
+ * anything. A large share of that is four-point fillers: two per wall face for
+ * the sides, one for the base, each its own `Mesh` with its own `Material`.
+ * Geometry that shares a material and shares a visibility can share a mesh, and
+ * this is what lets it.
+ *
+ * Indexed, like {@link triangleFanGeometry}, and for the same reason: a fan of
+ * n points is n vertices and n-2 triangles, and repeating the shared corner per
+ * triangle would make a four-point quad six vertices instead of four.
+ *
+ * An empty input produces an empty (but valid) geometry, and a fan of fewer
+ * than three points contributes nothing - the same tolerance the single-fan
+ * builder has for a degenerate room mid-edit.
+ *
+ * @param {Array<Array<{x: number, y: number, z: number}>>} fans
+ * @returns {BufferGeometry} Indexed, with a `position` attribute and nothing else.
+ */
+export function fanBatchGeometry(fans)
+{
+	var total = 0;
+	var i;
+	for (i = 0; i < fans.length; i++)
+	{
+		total += fans[i].length;
+	}
+
+	var geometry = new BufferGeometry();
+	var positions = new Float32Array(total * 3);
+	var index = [];
+	var offset = 0;
+
+	for (i = 0; i < fans.length; i++)
+	{
+		var points = fans[i];
+		for (var p = 0; p < points.length; p++)
+		{
+			positions[(offset + p) * 3] = points[p].x;
+			positions[(offset + p) * 3 + 1] = points[p].y;
+			positions[(offset + p) * 3 + 2] = points[p].z;
+		}
+		// Indices are offset into the shared buffer, which is the whole trick and
+		// the whole risk: an unshifted index draws another fan's vertices, and the
+		// symptom is a stray triangle across the room rather than an error.
+		for (var t = 2; t < points.length; t++)
+		{
+			index.push(offset, offset + t - 1, offset + t);
+		}
+		offset += points.length;
+	}
+
+	geometry.setAttribute('position', new BufferAttribute(positions, 3));
+	geometry.setIndex(index);
+	return geometry;
+}
+
+/**
+ * Several placed geometries in one, keeping positions and dropping the rest
+ * (RM-015 M2, finding AA-3).
+ *
+ * Each entry is a geometry and the matrix its mesh was drawn with, because the
+ * meshes being replaced carry their placement on the object rather than in the
+ * buffer - `buildFillerUniformHeight` rotates and lifts its mesh, not its
+ * geometry. Baking the matrix in is what lets one mesh at the origin draw what
+ * n meshes at n placements drew.
+ *
+ * **Position only, and that is a precondition rather than a shortcut.** The
+ * geometry this batches is drawn with `MeshBasicMaterial`, which reads neither
+ * normals nor uvs; a caller batching anything lit or textured would lose both
+ * silently. {@link Floorplan3D} checks the material before it calls this, and
+ * declines to batch a render profile whose fillers are lit.
+ *
+ * @param {Array<{geometry: Object, matrix: Object}>} entries
+ * @returns {BufferGeometry} Indexed, with a `position` attribute and nothing else.
+ */
+export function mergePositionGeometries(entries)
+{
+	var vertices = [];
+	var index = [];
+	var offset = 0;
+	var vector = new Vector3();
+
+	for (var e = 0; e < entries.length; e++)
+	{
+		var geometry = entries[e].geometry;
+		var attribute = geometry && geometry.getAttribute ? geometry.getAttribute('position') : null;
+		if (!attribute) { continue; }
+
+		for (var v = 0; v < attribute.count; v++)
+		{
+			vector.set(attribute.getX(v), attribute.getY(v), attribute.getZ(v));
+			if (entries[e].matrix) { vector.applyMatrix4(entries[e].matrix); }
+			vertices.push(vector.x, vector.y, vector.z);
+		}
+
+		// An unindexed geometry draws its vertices in order; an indexed one draws
+		// them in its own order. Both have to end up in one index, rebased.
+		var source = geometry.getIndex();
+		if (source)
+		{
+			for (var i = 0; i < source.count; i++) { index.push(offset + source.getX(i)); }
+		}
+		else
+		{
+			for (var j = 0; j < attribute.count; j++) { index.push(offset + j); }
+		}
+		offset += attribute.count;
+	}
+
+	var merged = new BufferGeometry();
+	merged.setAttribute('position', new BufferAttribute(new Float32Array(vertices), 3));
+	merged.setIndex(index);
+	return merged;
 }
 
 /**

@@ -1,0 +1,112 @@
+# Publish architect3d to npm, with provenance.
+#
+# THIS WORKFLOW HAS NEVER RUN. The package is not on npm and there is no
+# decision to put it there; this exists so that publishing is a button rather
+# than an afternoon of research, the same way the deploy workflow exists and
+# waits on a credential (RM-018 Q3, finding AD-10).
+#
+# WHY IT IS DISPATCH-ONLY
+#
+# There is no `push` or `release` trigger on purpose. A publish is irreversible
+# in a way nothing else in this repository is - npm unpublish is limited to 72
+# hours and leaves the version permanently burned - so it is started by a person
+# who meant to, from the Actions tab, and never by a merge.
+#
+# WHAT PROVENANCE BUYS, AND WHY THERE IS NO TOKEN HERE
+#
+# `--provenance` makes npm attach a signed SLSA Build L3 attestation recording
+# which workflow, at which commit, built the tarball. npm displays it on the
+# package page and `npm audit signatures` verifies it. It is the one thing that
+# makes "this tarball came from this source" checkable by somebody who has never
+# met the maintainer.
+#
+# The `id-token: write` permission below is what makes it work without a secret:
+# npm trusted publishing exchanges a short-lived GitHub OIDC token for publish
+# rights, so there is no long-lived NPM_TOKEN in this repository to leak. That
+# requires a one-time setup on npmjs.com - the package's Settings, "Trusted
+# publisher", naming this repository and this workflow file. Until that is done
+# the publish step fails with an authentication error, which is the correct
+# failure: it means nobody has told npm to trust this workflow yet.
+#
+# WHAT RUNS BEFORE IT
+#
+# Everything tier 1 runs, in the same order, because a published version cannot
+# be taken back and CI does not run on the branch this work happens on. The
+# budget step is what catches the thing most likely to go wrong here: the
+# `package-unpacked` line measures the `files` allowlist, so a build that did
+# not produce dist/ fails before anything is uploaded rather than publishing an
+# empty package.
+name: Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Pack and check only - do not publish'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Build, verify and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        env:
+          SKIP_INSTALL_SIMPLE_GIT_HOOKS: '1'
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test with coverage
+        run: npm run test:coverage
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Advisories
+        run: npm audit --audit-level=low
+
+      - name: Build library
+        # This is what gets published: the two bundles, their maps and the
+        # emitted types. `npm run build` is iife, esm and types:emit.
+        run: npm run build
+
+      - name: Size budgets
+        # `package-unpacked` measures the files allowlist, so this is the step
+        # that notices a missing dist/ before the registry does.
+        run: npm run budget
+
+      - name: What would be published
+        # Printed to the run summary so the tarball's contents are reviewable
+        # before the publish step, and afterwards from the log.
+        run: |
+          {
+            echo '### Package contents'
+            echo '```'
+            npm pack --dry-run 2>&1 | sed 's/^npm notice //'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish
+        if: ${{ inputs.dry-run == false }}
+        # No NODE_AUTH_TOKEN: trusted publishing exchanges the OIDC token above
+        # for publish rights. See the note at the top for the one-time npm-side
+        # setup this needs.
+        run: npm publish --provenance --access public

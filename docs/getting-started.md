@@ -199,7 +199,7 @@ resolves.
 
 Since RM-003 A5 the string in a document is a **logical name**, and an
 `AssetResolver` decides what is actually fetched. `npm run manifest` generates
-`public/asset-manifest.json` — logical name to `{bytes, hash, kind}`, plus a
+`public/asset-manifest.json` — logical name to `{bytes, kind}`, plus a
 `url` for any asset that is not where its name says — and the resolver consults
 it:
 
@@ -229,12 +229,21 @@ requires renaming a file or rewriting a document**:
   ships, so a name it does not have fails *before* the network with a message
   that can name the item, rather than as a 404 in the console.
 
-The manifest also carries a subresource-integrity hash per asset.
+The manifest can also carry a subresource-integrity hash per asset.
 `resolver.integrityFor(name)` hands it over for `fetch(url, {integrity})`;
 nothing enforces it by default, because for same-origin `public/` it guards
 nothing the origin does not already guarantee, while a mismatch after a
-legitimate redeploy of an unhashed file is an outage. It matters for the CDN
-case, which is why it is recorded.
+legitimate redeploy of an unhashed file is an outage. It matters for the
+cross-origin CDN case, which is why it is recorded.
+
+**Recorded, but not served by default since RM-011 H1.** Those hashes were
+17,065 of the manifest's 22,208 gzipped bytes — 4.1% of the first-load payload,
+on every boot, for a feature nothing turns on. `npm run manifest` writes them to
+`asset-pipeline/asset-integrity.json` instead, which is never deployed;
+`npm run manifest -- --integrity` writes them into the served manifest for a
+build that wants them. Nothing in the library changed: `AssetManifest.parse`
+has always read `hash` defensively, and `integrityFor` returns `null` when there
+is none.
 
 Omit `assets` entirely and every logical name resolves to itself — exactly what
 the library did before, and what it still does by default. `npm run manifest:check`

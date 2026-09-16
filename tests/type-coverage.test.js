@@ -110,6 +110,43 @@ describe('every area that reached zero stays opted in (RM-004 B3)', () =>
 		expect(optedOut).toEqual([]);
 	});
 
+	it('and every pragma is somewhere TypeScript will read it (RM-020 S-12)', () =>
+	{
+		// `has()` above asks whether the text `@ts-check` appears in the file.
+		// TypeScript asks something stricter: the pragma is only honoured in the
+		// leading comment block - first line of a `.js`, first line inside
+		// `<script setup>` for an SFC. Put one line lower and it is an ordinary
+		// comment that happens to read like a directive.
+		//
+		// That is not hypothetical. RM-020 S-5 added injection imports to eleven
+		// components by inserting them at the top of the script block, above the
+		// pragma, and every one of the eleven silently left the type check:
+		// AppWorkspace, ImportModelDialog, LevelSwitcher, PlanOverlay,
+		// ProjectLibrary, SceneOverlay, ShareDialog, StatusBar, ToolRail, TopBar,
+		// TourGuide. `npm run typecheck` passed because it no longer looked at
+		// them; the cases above passed because the text was still there. What was
+		// hiding behind it was 36 errors and one real defect - TopBar rendered
+		// its unit dropdown from `display.unit.values`, which is undefined, so the
+		// control had no options at all.
+		//
+		// So presence is not the property. Position is.
+		const sources = [
+			...walk(join(ROOT, 'src/app'), /\.(js|vue)$/),
+			...walk(join(ROOT, 'src/scripts'), /\.js$/),
+		];
+		const misplaced = sources.filter((file) =>
+		{
+			const text = readFileSync(join(ROOT, file), 'utf8');
+			if (!text.includes('@ts-check')) { return false; }
+			const body = file.endsWith('.vue')
+				? (text.split(/<script setup[^>]*>\n/)[1] || '')
+				: text;
+			return body.split('\n')[0].trim() !== '// @ts-check';
+		});
+		expect(misplaced, `these say @ts-check where TypeScript will not read it:\n  ${misplaced.join('\n  ')}`)
+			.toEqual([]);
+	});
+
 	it('the ledger in tsconfig.json describes this tree', () =>
 	{
 		// ## Why a test and not a rule
