@@ -11,6 +11,7 @@
  * measurement.
  */
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
+import {frameBudgetMs, perDrawMs} from './frame-budget.js';
 
 import {Model} from '../../src/scripts/model/model.js';
 import {Floorplanner2D} from '../../src/scripts/floorplanner/floorplanner.js';
@@ -298,15 +299,7 @@ describe('the frame budget still holds (RM-008 T-4)', () =>
 		expect(model.floorplan.dimensions).toHaveLength(50);
 		expect(model.floorplan.annotations).toHaveLength(50);
 
-		planner.view.draw();
-		const started = performance.now();
-		for (let run = 0; run < 20; run++)
-		{
-			planner.view.draw();
-		}
-		const perDraw = (performance.now() - started) / 20;
-
-		expect(perDraw).toBeLessThan(2);
+		expect(perDrawMs(() => planner.view.draw())).toBeLessThan(frameBudgetMs());
 	});
 });
 
