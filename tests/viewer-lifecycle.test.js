@@ -20,13 +20,13 @@ import {Floorplan3D} from '../src/scripts/three/floorPlan.js';
 import {Lights} from '../src/scripts/three/lights.js';
 import {PointerLockControls} from '../src/scripts/three/pointerlockcontrols.js';
 import {Model} from '../src/scripts/model/model.js';
-import {BlueprintJS} from '../src/scripts/blueprint.js';
+import {BlueprintJS, BlueprintCore} from '../src/scripts/blueprint.js';
 import {Configuration, configDimUnit} from '../src/scripts/core/configuration.js';
 import {dimCentiMeter} from '../src/scripts/core/units.js';
 import {EVENT_CAMERA_MOVED, EVENT_CAMERA_ACTIVE_STATUS} from '../src/scripts/core/events.js';
 import {VIEW_TOP} from '../src/scripts/core/constants.js';
 import {resetAll, stubItemLoader} from './helpers/harness.js';
-import {installCanvas2D, installListenerCounter, installPointerApis, installResizeObserver, setLayout} from './helpers/dom.js';
+import {installCanvas2D, installListenerCounter, installMatchMedia, installPointerApis, installResizeObserver, setLayout} from './helpers/dom.js';
 // Shared with the S6 application suites - see tests/helpers/renderer.js.
 import {createRendererStub} from './helpers/renderer.js';
 import {readFileSync} from 'node:fs';
@@ -406,6 +406,127 @@ describe('Main lifecycle', () =>
 
 describe('BlueprintJS mount and unmount', () =>
 {
+	/**
+	 * The half of BlueprintJS that has no viewer in it (RM-015 M3).
+	 *
+	 * `BlueprintJS` is `BlueprintCore` plus a static `import {Main}`, and that
+	 * import is the whole of what an application avoids by constructing the core
+	 * and calling `attachViewer` off a dynamic one. These cases pin the two
+	 * properties the application depends on and the class it extends cannot
+	 * show: that a document is complete without a viewer, and that attaching is
+	 * idempotent - the caller is now a layout watcher, which can fire twice
+	 * before an import lands.
+	 */
+	it('builds a document and a plan with no viewer at all', () =>
+	{
+		buildViewerDom();
+
+		const core = new BlueprintCore({
+			floorplannerElement: 'floorplanner-canvas',
+			threeElement: '#viewer',
+			threeCanvasElement: 'three-canvas',
+			textureDir: 'models/textures/',
+			widget: false,
+		});
+
+		expect(core.model).toBeTruthy();
+		expect(core.floorplanner).toBeTruthy();
+		expect(core.three).toBe(null);
+		expect(renderers).toHaveLength(0);
+
+		core.dispose();
+		expect(ourLeaks()).toEqual([]);
+	});
+
+	it('attaches a viewer once, and returns the same one to a second caller', () =>
+	{
+		buildViewerDom();
+
+		const core = new BlueprintCore({
+			floorplannerElement: 'floorplanner-canvas',
+			threeElement: '#viewer',
+			threeCanvasElement: 'three-canvas',
+			textureDir: 'models/textures/',
+			widget: false,
+		});
+
+		const first = core.attachViewer(Main);
+		const second = core.attachViewer(Main);
+
+		expect(second).toBe(first);
+		expect(core.three).toBe(first);
+		expect(renderers).toHaveLength(1);
+
+		core.dispose();
+		expect(renderers.every((r) => r.disposed)).toBe(true);
+	});
+
+	it('detaches the viewer and leaves the document standing', () =>
+	{
+		buildViewerDom();
+
+		const core = new BlueprintCore({
+			floorplannerElement: 'floorplanner-canvas',
+			threeElement: '#viewer',
+			threeCanvasElement: 'three-canvas',
+			textureDir: 'models/textures/',
+			widget: false,
+		});
+
+		core.attachViewer(Main);
+		core.detachViewer();
+
+		// The inverse of attachViewer, not a teardown: the renderer is released
+		// and the design is still open, so another viewer can take its place.
+		expect(core.three).toBe(null);
+		expect(core.model).toBeTruthy();
+		expect(core.floorplanner).toBeTruthy();
+		expect(renderers).toHaveLength(1);
+		expect(renderers[0].disposed).toBe(true);
+
+		core.attachViewer(Main);
+		expect(core.three).toBeTruthy();
+		expect(renderers).toHaveLength(2);
+
+		core.dispose();
+	});
+
+	it('detaches idempotently, and with nothing attached', () =>
+	{
+		buildViewerDom();
+		const core = new BlueprintCore({
+			floorplannerElement: 'floorplanner-canvas',
+			threeElement: '#viewer',
+			threeCanvasElement: 'three-canvas',
+			textureDir: 'models/textures/',
+			widget: false,
+		});
+
+		expect(() => core.detachViewer()).not.toThrow();
+		core.attachViewer(Main);
+		core.detachViewer();
+		expect(() => core.detachViewer()).not.toThrow();
+		core.dispose();
+	});
+
+	it('still disables the widget controller, wherever the viewer comes from', () =>
+	{
+		buildViewerDom();
+		const core = new BlueprintCore({
+			threeElement: '#viewer',
+			threeCanvasElement: 'three-canvas',
+			textureDir: 'models/textures/',
+			widget: true,
+		});
+
+		// Widget mode's two halves were in one constructor and are now in two
+		// places - no floorplanner here, the disabled controller in attachViewer -
+		// so this is the case that says they did not come apart.
+		expect(core.floorplanner).toBe(null);
+		expect(core.attachViewer(Main).getController().enabled).toBe(false);
+		core.dispose();
+	});
+
 	it('creates the 2D floorplanner in normal mode and disposes both halves', () =>
 	{
 		buildViewerDom();
@@ -766,6 +887,14 @@ describe('the OrbitControls shim', () =>
 		const {three} = mount();
 		expect(typeof three.renderer.animationLoop).toBe('function');
 		three.pauseTheRendering(false);
+		// As `useCameraViews.applyBootState` does (RM-020 S-3). Before S-3 this
+		// line would have changed nothing, because `autoRotate` was set and never
+		// advanced; now the loop advances it, so a viewer left spinning draws
+		// every frame *by design* and this case would be asserting the opposite of
+		// what it means. The library default is `spin: true` - rotate until
+		// touched - and the application stops it at boot, which is the state the
+		// render-on-demand claim is about.
+		three.stopSpin();
 
 		// Let the boot frame and anything it dirtied settle.
 		for (let i = 0; i < 5; i += 1) { three.renderer.animationLoop(); }
@@ -783,6 +912,63 @@ describe('the OrbitControls shim', () =>
 		three.renderer.animationLoop();
 		expect(three.renderer.renderCount).toBe(settled + 1);
 
+		three.dispose();
+	});
+
+	it('draws exactly one frame when a corner is dragged in the plan', () =>
+	{
+		// The gap between the two cases above (RM-019 R1). One says an idle scene
+		// costs nothing; the other says a dirty flag costs one frame. Neither
+		// says that *editing the plan* raises the flag - and for a corner drag it
+		// did not.
+		//
+		// Until RM-003 A2 it did, by accident: `Main` recentred the camera on
+		// every EVENT_UPDATED, `centerCamera()` ends in `controls.update()`, and
+		// that fires `change`, which is the case below. A2 stopped recentring on a
+		// drag - correctly, it was yanking the camera on every pointermove - and
+		// took the repaint with it. The 2D pane redrew, the model moved, the
+		// projection rebuilt its meshes, and the 3D canvas held its last frame
+		// until something unrelated asked for one.
+		//
+		// It survived because the 2D and 3D panes were a card flip: switching to
+		// 3D calls `showDesign()`, which unpauses and rebuilds, so the view was
+		// always correct by the time anybody saw it. In the split layout both
+		// panes are on screen at once and the stale one is in plain sight.
+		const {three} = mount();
+		const floorplan = three.model.floorplan;
+		const corners = [[0, 0], [400, 0], [400, 300], [0, 300]]
+			.map(([x, y]) => floorplan.newCorner(x, y));
+		corners.forEach((corner, i) => floorplan.newWall(corner, corners[(i + 1) % corners.length]));
+
+		three.pauseTheRendering(false);
+		three.stopSpin();
+		// Loop until quiescent rather than for a fixed count (RM-020 S-3). Since
+		// the loop advances the orbit controls, the damping tail after the boot
+		// recentre is real and takes a few frames to fall under three's epsilon -
+		// which is the point of S-3, and is not what this case is measuring.
+		let quiet = 0;
+		let settled = three.renderer.renderCount;
+		for (let i = 0; i < 400 && quiet < 3; i += 1)
+		{
+			three.renderer.animationLoop();
+			quiet = three.renderer.renderCount === settled ? quiet + 1 : 0;
+			settled = three.renderer.renderCount;
+		}
+		// Three consecutive quiet frames, not one: the damping tail decays through
+		// three's epsilon rather than stopping at it, so a single quiet frame can
+		// be followed by one more sub-pixel move.
+		expect(quiet, 'the viewer went quiet').toBe(3);
+		// Idle, so the count below is attributable to the drag and nothing else.
+		three.renderer.animationLoop();
+		expect(three.renderer.renderCount, 'quiescent before the drag').toBe(settled);
+
+		corners[1].move(450, 40);
+
+		three.renderer.animationLoop();
+		expect(three.renderer.renderCount, 'the drag drew a frame').toBe(settled + 1);
+		// And exactly one: a repaint per edit, not a repaint per frame.
+		three.renderer.animationLoop();
+		expect(three.renderer.renderCount).toBe(settled + 1);
 		three.dispose();
 	});
 
@@ -839,14 +1025,126 @@ describe('the OrbitControls shim', () =>
 		three.dispose();
 	});
 
+	/**
+	 * RM-014 L4 moved this listener from `window` to the viewer element, and the
+	 * numbers that justified it were measured on a live instance rather than read
+	 * off three's source. Dispatching ArrowLeft and counting `_handleKeyDown`:
+	 *
+	 *   binding    key on window   key on the viewer   key in a focused <input>
+	 *   window                 1                   1                          1
+	 *   element                0                   1                          0
+	 *
+	 * The last column is why. three's handler checks `enabled` and nothing else -
+	 * not focus, not whether a caret is in a field - so with the old binding an
+	 * arrow key typed while renaming a room panned the 3D camera behind the
+	 * dialog. L4 also gives the plan canvas the same four keys, so "everywhere"
+	 * stopped being untidy and became ambiguous.
+	 */
+	it('binds its key listener to the viewer, not the window (RM-014 L4)', () =>
+	{
+		const {three, controls} = mount();
+		let hits = 0;
+		const real = controls._handleKeyDown.bind(controls);
+		controls._handleKeyDown = (event) => {hits += 1; return real(event);};
+		const arrow = (target) => target.dispatchEvent(
+			new window.KeyboardEvent('keydown', {key: 'ArrowLeft', bubbles: true, cancelable: true}));
+
+		arrow(window);
+		expect(hits, 'an arrow key anywhere on the page must not reach the camera').toBe(0);
+
+		arrow(three.domElement);
+		expect(hits, 'an arrow key on the focused viewer must reach the camera').toBe(1);
+
+		three.dispose();
+	});
+
 	it('unbinds its key listener on dispose', () =>
 	{
+		// Counted on the viewer element since L4, which is where the listener now
+		// lives. The assertion is the same one it always was - nothing this
+		// instance attached outlives it - re-pointed at the new target rather than
+		// relaxed. The `window` half is asserted too, so a future change that
+		// widens the scope back fails here instead of silently working.
 		const listeners = installListenerCounter(window);
 		const {three} = mount();
-		expect(listeners.netFor(window, 'keydown')).toBeGreaterThan(0);
-		three.dispose();
+		const element = three.domElement;
+		expect(listeners.netFor(element, 'keydown')).toBeGreaterThan(0);
 		expect(listeners.netFor(window, 'keydown')).toBe(0);
+		three.dispose();
+		expect(listeners.netFor(element, 'keydown')).toBe(0);
 		listeners.restore();
+	});
+});
+
+/**
+ * RM-014 L4, finding Z-6: the one piece of motion CSS cannot reach.
+ *
+ * Z-6 read the `prefers-reduced-motion` block in `app.css` against a count of
+ * every animation and transition in the tree - 6 animations, 4 keyframe sets, 7
+ * transitions - and found the query reaches all of them. It cannot reach
+ * OrbitControls damping, because that is not a style: it is the camera gliding
+ * on after the hand stops, produced by arithmetic in an animation frame.
+ *
+ * Read back off the controls rather than off the CSS, which is the acceptance
+ * clause: asserting that a media query exists in a stylesheet would be
+ * asserting that a constant equals itself.
+ */
+describe('reduced motion and the 3D camera', () =>
+{
+	const QUERY = '(prefers-reduced-motion: reduce)';
+	let media;
+
+	function mount()
+	{
+		const viewer = document.createElement('div');
+		viewer.id = 'viewer';
+		document.body.appendChild(viewer);
+		setLayout(viewer, {left: 0, top: 0, width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT});
+		return new Main(new Model(), viewer, 'three-canvas', {});
+	}
+
+	afterEach(() => {if (media) { media.restore(); media = null; }});
+
+	it('damps by default, because nobody has asked it not to', () =>
+	{
+		media = installMatchMedia(window, {[QUERY]: false});
+		const three = mount();
+		expect(three.controls.enableDamping).toBe(true);
+		three.dispose();
+	});
+
+	it('does not damp for somebody who asked the system to stop moving things', () =>
+	{
+		media = installMatchMedia(window, {[QUERY]: true});
+		const three = mount();
+		expect(three.controls.enableDamping).toBe(false);
+		three.dispose();
+	});
+
+	it('damps where the preference cannot be asked at all', () =>
+	{
+		// jsdom has no matchMedia, which is also every older embedding host. An
+		// environment that cannot be asked has not asked for anything, and
+		// defaulting to "reduce" would silently still every viewer on one.
+		const three = mount();
+		expect(three.controls.enableDamping).toBe(true);
+		three.dispose();
+	});
+
+	it('follows the preference changing while the tab is open, and stops when disposed', () =>
+	{
+		media = installMatchMedia(window, {[QUERY]: false});
+		const three = mount();
+		expect(three.controls.enableDamping).toBe(true);
+
+		media.set(QUERY, true);
+		expect(three.controls.enableDamping).toBe(false);
+		media.set(QUERY, false);
+		expect(three.controls.enableDamping).toBe(true);
+
+		expect(media.listenerCount(QUERY)).toBe(1);
+		three.dispose();
+		expect(media.listenerCount(QUERY)).toBe(0);
 	});
 });
 
@@ -1009,5 +1307,225 @@ describe('PointerLockControls walk physics', () =>
 		expect(listeners.netFor(document, 'keydown')).toBe(0);
 		expect(listeners.netFor(document, 'keyup')).toBe(0);
 		listeners.restore();
+	});
+});
+
+describe('the photo capture (RM-011 H2, W-11)', () =>
+{
+	/** A mounted viewer, torn down by the caller. */
+	function viewer()
+	{
+		buildViewerDom();
+		const blueprint = new BlueprintJS({
+			floorplannerElement: 'floorplanner-canvas',
+			threeElement: '#viewer',
+			threeCanvasElement: 'three-canvas',
+			textureDir: 'models/textures/',
+			widget: false,
+		});
+		return blueprint;
+	}
+
+	it('renders once and hands back a PNG data URL', () =>
+	{
+		const blueprint = viewer();
+		const before = blueprint.three.renderer.renderCount;
+
+		const url = blueprint.three.dataUrl();
+
+		expect(url.startsWith('data:image/png;base64,')).toBe(true);
+		expect(blueprint.three.renderer.renderCount).toBeGreaterThan(before);
+		blueprint.dispose();
+	});
+
+	it('leaves the pixel ratio exactly where it found it', () =>
+	{
+		// The property the `finally` exists for. A capture that raised the ratio
+		// and did not put it back would leave the viewer rendering at four times
+		// its size for the rest of the session - a bug that looks like a
+		// performance problem and is a screenshot.
+		const blueprint = viewer();
+		const before = blueprint.three.renderer.getPixelRatio();
+
+		blueprint.three.dataUrl(3);
+
+		expect(blueprint.three.renderer.getPixelRatio()).toBe(before);
+		blueprint.dispose();
+	});
+
+	it('puts it back when the read throws', () =>
+	{
+		const blueprint = viewer();
+		const before = blueprint.three.renderer.getPixelRatio();
+		const canvas = blueprint.three.renderer.domElement;
+		const original = canvas.toDataURL;
+		canvas.toDataURL = () => {throw new Error('tainted');};
+
+		expect(() => blueprint.three.dataUrl(2)).toThrow('tainted');
+		expect(blueprint.three.renderer.getPixelRatio()).toBe(before);
+
+		canvas.toDataURL = original;
+		blueprint.dispose();
+	});
+
+	it('clamps the multiplier against the GPU\'s own ceiling', () =>
+	{
+		// Exceeding MAX_TEXTURE_SIZE does not throw; it produces a buffer the
+		// driver silently declines to allocate, which is a black image. The stub
+		// reports 4096, and a 4x capture of this viewport would ask for more.
+		const blueprint = viewer();
+		const limit = blueprint.three.renderer.capabilities.maxTextureSize;
+		let asked = 0;
+		const setSize = blueprint.three.renderer.setSize.bind(blueprint.three.renderer);
+		blueprint.three.renderer.setSize = function (width, height)
+		{
+			asked = Math.max(asked, Math.max(width, height) * this.getPixelRatio());
+			setSize(width, height);
+		};
+
+		blueprint.three.dataUrl(4);
+
+		expect(asked).toBeGreaterThan(0);
+		expect(asked).toBeLessThanOrEqual(limit);
+		blueprint.dispose();
+	});
+
+	it('takes the old path exactly when nobody asked for more', () =>
+	{
+		// 1 is the behaviour the method had since the fork, which is what makes
+		// the parameter safe to add to a published method.
+		const blueprint = viewer();
+		const before = blueprint.three.renderer.getPixelRatio();
+		let resized = 0;
+		const setSize = blueprint.three.renderer.setSize.bind(blueprint.three.renderer);
+		blueprint.three.renderer.setSize = function (width, height) {resized++; setSize(width, height);};
+
+		blueprint.three.dataUrl(1);
+
+		expect(resized).toBe(0);
+		expect(blueprint.three.renderer.getPixelRatio()).toBe(before);
+		blueprint.dispose();
+	});
+
+	it('takes the plain path before the viewer has been sized', () =>
+	{
+		// `elementWidth` and `elementHeight` are null until `updateWindowSize` has
+		// run, and `setSize(null, null)` is a canvas of nothing rather than an
+		// error - so the supersampled path has to notice. Put in the state the
+		// guard describes, for the same reason as the test below.
+		const blueprint = viewer();
+		blueprint.three.elementWidth = null;
+		blueprint.three.elementHeight = null;
+		let resized = 0;
+		const setSize = blueprint.three.renderer.setSize.bind(blueprint.three.renderer);
+		blueprint.three.renderer.setSize = function (width, height) {resized++; setSize(width, height);};
+
+		expect(blueprint.three.dataUrl(4).startsWith('data:image/png')).toBe(true);
+		expect(resized).toBe(0);
+		blueprint.dispose();
+	});
+
+	it('returns an empty string with no renderer at all', () =>
+	{
+		// `renderer` is null between construction and `init()`, which is the
+		// window this guard is for. Set directly rather than reached through
+		// `dispose()`, because dispose releases the context without nulling the
+		// field - so the honest way to test the guard is to put the field in the
+		// state the guard describes.
+		const blueprint = viewer();
+		const three = blueprint.three;
+		three.renderer = null;
+		expect(three.dataUrl(2)).toBe('');
+		blueprint.dispose();
+	});
+});
+
+describe('the AO chain, from Main\'s side (RM-011 H2)', () =>
+{
+	function viewer()
+	{
+		buildViewerDom();
+		return new BlueprintJS({
+			floorplannerElement: 'floorplanner-canvas',
+			threeElement: '#viewer',
+			threeCanvasElement: 'three-canvas',
+			textureDir: 'models/textures/',
+			widget: false,
+		});
+	}
+
+	it('renders straight through the renderer when there is no chain', () =>
+	{
+		// The default, and the reason a build that never enables AO pays nothing:
+		// not an if per frame, not a full-screen copy, not the render targets.
+		const blueprint = viewer();
+		expect(blueprint.three.post).toBeNull();
+
+		const before = blueprint.three.renderer.renderCount;
+		blueprint.three.render(true);
+		expect(blueprint.three.renderer.renderCount).toBeGreaterThan(before);
+		blueprint.dispose();
+	});
+
+	it('renders through the chain when there is one, and not through the renderer', () =>
+	{
+		// `drawWith` is the single place the choice is made, so this is the whole
+		// of it. A stub rather than a real composer: what a GTAOPass does to a
+		// picture needs a GPU and is in tests/browser/ambient-occlusion.test.js.
+		const blueprint = viewer();
+		const cameras = [];
+		let composed = 0;
+		blueprint.three.post = {
+			composer: {render() {composed++;}},
+			ao: {},
+			setCamera(camera) {cameras.push(camera);},
+			setSize() {},
+			dispose() {},
+		};
+
+		const before = blueprint.three.renderer.renderCount;
+		blueprint.three.render(true);
+
+		expect(composed).toBe(1);
+		expect(blueprint.three.renderer.renderCount).toBe(before);
+		// Told which camera every frame, because three of them exist and the
+		// walkthrough swaps to its own.
+		expect(cameras[0]).toBe(blueprint.three.camera);
+		blueprint.dispose();
+	});
+
+	it('resizes the chain with the canvas', () =>
+	{
+		// The composer's render targets are sized in pixels of their own and know
+		// nothing about the canvas, so a viewer resized with AO on would keep
+		// rendering the old rectangle and stretching it.
+		const blueprint = viewer();
+		const sizes = [];
+		blueprint.three.post = {
+			composer: {render() {}}, ao: {},
+			setCamera() {}, setSize(width, height) {sizes.push([width, height]);}, dispose() {},
+		};
+
+		blueprint.three.updateWindowSize();
+
+		expect(sizes.length).toBeGreaterThan(0);
+		expect(sizes[sizes.length - 1][0]).toBeGreaterThan(0);
+		blueprint.dispose();
+	});
+
+	it('disposes the chain, and only once', () =>
+	{
+		const blueprint = viewer();
+		let disposed = 0;
+		blueprint.three.post = {
+			composer: {render() {}}, ao: {},
+			setCamera() {}, setSize() {}, dispose() {disposed++;},
+		};
+		const three = blueprint.three;
+
+		blueprint.dispose();
+
+		expect(disposed).toBe(1);
+		expect(three.post).toBeNull();
 	});
 });

@@ -2,6 +2,7 @@
 import {EventDispatcher, HemisphereLight, DirectionalLight, Vector3} from 'three';
 import {EVENT_UPDATED} from '../core/events.js';
 import {renderProfile, isStudio} from '../core/render_profile.js';
+import {sunDirection} from '../model/sun.js';
 
 export class Lights extends EventDispatcher
 {
@@ -39,6 +40,19 @@ export class Lights extends EventDispatcher
 		this.dirLight = null;
 		/** @type {?import('three').DirectionalLight} */
 		this.fillLight = null;
+		/**
+		 * The sun this building has, or null for the profile's own key placement.
+		 *
+		 * Set by `Main` rather than read from a model, because `Lights` is handed a
+		 * `Floorplan` and a sun belongs to the whole building (RM-011 W-10). A
+		 * setter keeps the one-way arrow intact: the model knows nothing about
+		 * this file, and this file knows nothing about `Model`.
+		 *
+		 * @type {?import('../model/sun.js').Sun}
+		 */
+		this._sun = null;
+		/** Degrees clockwise from up on the sheet. Meaningless without a sun. */
+		this._north = 0;
 		this._disposed = false;
 		this.updatedroomsevent = () => {this.updateShadowCamera();};
 		this.init();
@@ -47,6 +61,37 @@ export class Lights extends EventDispatcher
 	getDirLight()
 	{
 		return this.dirLight;
+	}
+
+	/**
+	 * Put the key light where the sun is (RM-011 H2).
+	 *
+	 * Null puts it back where the render profile says, which is where it has
+	 * always been - so this is additive in the same way the save key is, and a
+	 * design with no sun renders exactly as it did before H2.
+	 *
+	 * Studio-only in effect rather than by branch: `classic`'s key is a `#330000`
+	 * wash contributing essentially no shadow contrast (see `init`), so moving it
+	 * would change a frozen picture for no visible gain. The guard is in
+	 * `updateShadowCamera` beside the placement it guards, not here, because a
+	 * caller should be able to set a sun on either profile and have the model
+	 * agree with itself.
+	 *
+	 * @param {?import('../model/sun.js').Sun} sun
+	 * @param {number} [north] Degrees clockwise from up on the sheet.
+	 * @returns {void}
+	 */
+	setSun(sun, north)
+	{
+		this._sun = sun || null;
+		this._north = Number(north) || 0;
+		this.updateShadowCamera();
+	}
+
+	/** What the sun is doing, or null when this building has none. */
+	sunState()
+	{
+		return this._sun ? sunDirection(this._sun, this._north) : null;
 	}
 
 	/**
@@ -201,6 +246,34 @@ export class Lights extends EventDispatcher
 		var height = this.height * this.renderProfile.keyHeight;
 		var offset = d * this.renderProfile.keyOffset;
 		var pos = new Vector3(center.x + offset, height, center.z + offset * 0.8);
+
+		// A sun replaces that placement, under studio (RM-011 H2).
+		//
+		// The distance is the plan's own diagonal rather than a constant, for the
+		// same reason the offset above is a fraction of `d`: a directional light
+		// has no falloff, so the only thing distance decides is whether the shadow
+		// frustum computed below reaches the geometry. Scaling it with the plan
+		// keeps that true for a cupboard and for a house.
+		//
+		// **A sun below the horizon does not move the key underground.** It is
+		// held at the horizon and the light is dimmed to nothing instead - a key
+		// light beneath the floor lights the ceiling through it, which is not
+		// night, it is a bug that looks like one.
+		var sun = this.sunState();
+		// Assigned on every pass, not only inside the branch. Otherwise a design
+		// whose sun was below the horizon - intensity zero - would keep a dark key
+		// after the sun was removed, and "I turned the sun off" would turn the
+		// lights off.
+		this.dirLight.intensity = this.renderProfile.keyIntensity * Math.PI;
+		if (sun && isStudio(this.renderProfile))
+		{
+			var reach = (d * 2) + this.height;
+			var lift = Math.max(0, sun.y);
+			pos.set(center.x + sun.x * reach, center.y + lift * reach, center.z + sun.z * reach);
+			// Below the horizon the key contributes nothing; the hemisphere and the
+			// environment carry the scene, which is what a night render should be.
+			if (!sun.up) { this.dirLight.intensity = 0; }
+		}
 
 		this.dirLight.position.copy(pos);
 		this.dirLight.target.position.copy(center);

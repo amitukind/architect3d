@@ -123,14 +123,30 @@ describe('Corner.x and Corner.y setters (RM-006)', () =>
 		const floorplan = new Floorplan();
 		const corner = floorplan.newCorner(0, 0);
 		let updates = 0;
-		corner.attachRoom({updateArea: () => { updates++; }});
+		// The fake carries four methods rather than one since RM-019 R1. A move
+		// now re-derives the whole room - the interior polygon, the two hit-test
+		// planes, and only then the area - because the area is measured over the
+		// polygon and the polygon used to be built once and never again. A fake
+		// with `updateArea` alone was enough while the area was the only thing
+		// re-derived; `attachRoom` is typed `@param {Room}` and this is what
+		// standing in for one now costs.
+		corner.attachRoom({
+			updateInteriorCorners: () => {},
+			generatePlane: () => {},
+			generateRoofPlane: () => {},
+			updateArea: () => { updates++; },
+		});
 
 		corner.x = 75;
-		expect(updates).toBe(1);
+		// Twice, not once: the setter's own `updateAttachedRooms` measures the
+		// polygon it has, and `Floorplan.update(false, ...)` rebuilds the polygon
+		// and measures it again. The second is the one that lands - see
+		// `Floorplan._refreshRoomGeometry` for why the first is left alone.
+		expect(updates).toBe(2);
 
 		// Sub-epsilon: no move, so no re-derivation either.
 		corner.x = 75 + 1e-9;
-		expect(updates).toBe(1);
+		expect(updates).toBe(2);
 	});
 });
 

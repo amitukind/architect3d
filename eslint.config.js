@@ -58,6 +58,9 @@ export default [
 				FileReader: 'readonly',
 				Blob: 'readonly',
 				URL: 'readonly',
+				// Added by RM-011 H3. A 4096 x 2048 panorama is too long to hand to
+				// an anchor as a data URL, so `useDesignIO` decodes it to bytes.
+				atob: 'readonly',
 				performance: 'readonly',
 				alert: 'readonly',
 				prompt: 'readonly',
@@ -80,6 +83,30 @@ export default [
 				// annotations.
 				indexedDB: 'readonly',
 				URLSearchParams: 'readonly',
+				// Added by RM-013 K2. A design in a link is deflated by the platform
+				// rather than by a dependency - `CompressionStream` is in every
+				// browser this project targets, and its gzip output was measured
+				// byte-identical to Node's - and `btoa`/`Response` are what turn the
+				// bytes into something a person can paste. `crypto` is the zip
+				// bundle's CRC-32 seed source, `Uint8Array` and friends are already
+				// ambient.
+				CompressionStream: 'readonly',
+				DecompressionStream: 'readonly',
+				TextDecoder: 'readonly',
+				Response: 'readonly',
+				btoa: 'readonly',
+				// RM-013 K3. `src/app/sw.js` runs in a worker scope with no `window`
+				// and no `document`; `self` is what it has instead, and everything it
+				// reaches for hangs off that rather than being taken from here.
+				self: 'readonly',
+				caches: 'readonly',
+				Request: 'readonly',
+				// RM-012 J3. An imported model is stored under the digest of its own
+				// bytes, so a name can never come to mean different bytes and the
+				// same file imported twice is one record. `crypto.subtle` is the
+				// whole of it; `src/app/import/model_file.js` says why there is no
+				// fallback for a browser that has no secure context.
+				crypto: 'readonly',
 			},
 		},
 		rules: {
@@ -131,6 +158,9 @@ export default [
 				console: 'readonly',
 				navigator: 'readonly',
 				HTMLElement: 'readonly',
+				// Added by RM-008 E2: the plan overlay narrows an input event's target
+				// rather than asserting `.value` onto an EventTarget.
+				HTMLInputElement: 'readonly',
 				requestAnimationFrame: 'readonly',
 				cancelAnimationFrame: 'readonly',
 				setTimeout: 'readonly',
@@ -191,6 +221,10 @@ export default [
 			globals: {
 				window: 'readonly',
 				document: 'readonly',
+				// Added by RM-008 E1, whose frame-budget test times a draw. This tier
+				// is the only one with a real rasteriser, so it is the only place a
+				// frame cost can honestly be measured.
+				performance: 'readonly',
 				navigator: 'readonly',
 				console: 'readonly',
 				location: 'readonly',
@@ -205,6 +239,14 @@ export default [
 				Uint8Array: 'readonly',
 				DataView: 'readonly',
 				TextDecoder: 'readonly',
+				// Added by RM-013 K2. A design travels in the fragment, so the tier
+				// that proves it has to put one there and read it back;
+				// `CompressionStream` is the platform the codec is built on, and this
+				// is the only tier where it is the browser's own.
+				TextEncoder: 'readonly',
+				history: 'readonly',
+				CompressionStream: 'readonly',
+				DecompressionStream: 'readonly',
 				URL: 'readonly',
 				PointerEvent: 'readonly',
 			},
@@ -214,6 +256,32 @@ export default [
 			quotes: ['error', 'single'],
 			semi: ['error', 'always'],
 			'no-mixed-spaces-and-tabs': ['error', 'smart-tabs'],
+		},
+	},
+
+	{
+		// The one tool whose source is partly evaluated IN a page (RM-013 K3).
+		//
+		// `tools/check-offline.mjs` hands real function bodies to
+		// `page.evaluate`, so ESLint parses browser code inside a Node file - the
+		// thumbnail and icon tools avoid this only by building their page as a
+		// template string, which ESLint never reads as JavaScript.
+		//
+		// A block of its own rather than widening the Node one below, because the
+		// note there is right: a tool reaching for `navigator` is normally a
+		// mistake, and this is the single file where it is the point.
+		files: ['tools/check-offline.mjs'],
+		languageOptions: {
+			globals: {
+				navigator: 'readonly',
+				performance: 'readonly',
+				document: 'readonly',
+				requestAnimationFrame: 'readonly',
+				PointerEvent: 'readonly',
+				// Node's own too, and used on both sides of the seam here.
+				URL: 'readonly',
+				window: 'readonly',
+			},
 		},
 	},
 
@@ -238,6 +306,36 @@ export default [
 				window: 'readonly',
 				setTimeout: 'readonly',
 				clearTimeout: 'readonly',
+				// Node's own since 18, and the only network client in tools/.
+				// `tools/fetch-materials.mjs` is the one that needs it; declared
+				// here rather than per-file because a second acquisition tool
+				// should not have to rediscover this line.
+				fetch: 'readonly',
+				// RM-011 H3. `useDesignIO` decodes a panorama's data URL to bytes,
+				// and the test that checks it has to encode one to hand over.
+				btoa: 'readonly',
+				// RM-013 K2. jsdom ships no `CompressionStream`, so the headless tier
+				// puts Node's deflate behind the browser's interface - a real
+				// `TransformStream`, because the codec pipes through it and anything
+				// with only the right method names would prove that the fake was
+				// called rather than that the codec works.
+				TransformStream: 'readonly',
+				// And the pair the zip container reads and writes names with. Node's
+				// own since 11; declared because the tests reach for them directly
+				// rather than through the module under test.
+				TextEncoder: 'readonly',
+				TextDecoder: 'readonly',
+				// RM-012 J3. The IndexedDB fake stores records the way a real one
+				// does - a structured clone - because the model store holds
+				// `ArrayBuffer`s and JSON renders one as `{}`. Node's own since 17.
+				structuredClone: 'readonly',
+				// And what a file picker hands over, which the import suite has to
+				// build to drive one. jsdom's, in the suites that opt into it.
+				File: 'readonly',
+				Event: 'readonly',
+				// And the digest an imported model is keyed on, which the suite
+				// computes directly to check that the store agreed with it.
+				crypto: 'readonly',
 			},
 		},
 		rules: {

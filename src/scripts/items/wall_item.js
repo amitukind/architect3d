@@ -81,7 +81,7 @@ export class WallItem extends Item
 	 */
 	closestWallEdge()
 	{
-		var wallEdges = this.model.floorplan.wallEdges();
+		var wallEdges = this.floorplan.wallEdges();
 		/** @type {?HalfEdge} */
 		var wallEdge = null;
 		var minDistance = null;
@@ -280,7 +280,7 @@ export class WallItem extends Item
 	 * for passing intersection to clickPressed and clickDragged */
 	customIntersectionPlanes()
 	{
-		return this.model.floorplan.wallEdgePlanes();
+		return this.floorplan.wallEdgePlanes();
 	}
 
 	/** takes the move vec3, and makes sure object stays bounded on plane */

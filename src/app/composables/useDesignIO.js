@@ -1,8 +1,10 @@
 // @ts-check
 import {ref} from 'vue';
 import {EVENT_GLTF_READY} from '../../scripts/blueprint.js';
+import {exportPlanSVG, renderPlanToCanvas} from '../../scripts/blueprint.js';
 import {DEFAULT_DESIGN} from '../designs/default-design.js';
 import {useToasts} from './useToasts.js';
+import {createInjection} from './injection.js';
 
 /**
  * New / open / save, for all four formats the demo offered.
@@ -50,6 +52,51 @@ function download(data, filename, type)
 }
 
 /**
+ * A data URL as bytes, so a large export can be downloaded as a blob.
+ *
+ * `savePhoto` hands its data URL straight to an anchor and that is fine at a
+ * couple of megabytes. A 4096 x 2048 panorama is an order of magnitude past
+ * that once base64 has added its third, and a URL that long is where browsers
+ * differ - Chrome takes it, others have refused. A blob has no length to
+ * exceed, and the object URL is revoked by `download` either way.
+ *
+ * @param {string} url A `data:<type>;base64,<payload>` URL.
+ * @returns {Uint8Array}
+ */
+function dataUrlToBlob(url)
+{
+	var binary = atob(url.slice(url.indexOf(',') + 1));
+	var bytes = new Uint8Array(binary.length);
+	for (var i = 0; i < binary.length; i++)
+	{
+		bytes[i] = binary.charCodeAt(i);
+	}
+	return bytes;
+}
+
+/**
+ * A text measurer bound to the live canvas, captured BEFORE the export starts
+ * (RM-008 E4).
+ *
+ * The binding is the whole point and it cost a test to find. `renderTo` swaps
+ * `view.backend` for the duration of the export, so a measurer written as
+ * `view.backend.measureText(...)` resolves to the SVG backend once the export
+ * is under way - and `SvgBackend.measureText` delegates to its measurer, which
+ * is that closure. Straight into infinite recursion, on the first label.
+ *
+ * Reading the backend once, here, is what makes it the canvas' measurer for the
+ * whole of the render.
+ *
+ * @param {Object} planner A `Floorplanner2D`.
+ * @returns {function(string, number, string=): number}
+ */
+function liveMeasurer(planner)
+{
+	var backend = planner.view.backend;
+	return function (text, size, style) {return backend.measureText(text, size, style);};
+}
+
+/**
  * A caught value is `unknown`, and `throw 'a string'` is legal JavaScript.
  * Both call sites below want a sentence to show the user.
  *
@@ -89,11 +136,57 @@ function readAsText(file)
 }
 
 /**
- * @param {import('./useBlueprint.js').BlueprintStore} store
+ * Strip what a filesystem will not take, and keep what a person typed.
+ *
+ * Not a slug: `Loft conversion.blueprint3d` is the file somebody wants, not
+ * `loft-conversion`. Only the characters that are illegal on Windows, macOS or
+ * Linux go - the path separators, the shell wildcards, the reserved punctuation
+ * and the control range - plus a leading dot, which would make the download
+ * hidden on two of the three.
+ *
+ * @param {?string} name
+ * @returns {string}
  */
-export function useDesignIO(store)
+export function fileNameFor(name)
 {
+	// eslint-disable-next-line no-control-regex
+	var cleaned = String(name == null ? '' : name).replace(/[/\\:*?"<>|\u0000-\u001f]/g, ' ')
+		.replace(/\s+/g, ' ').replace(/^\.+/, '').trim();
+	return cleaned || 'design';
+}
+
+/**
+ * @param {import('./useBlueprint.js').BlueprintStore} store
+ * @param {Object} [options]
+ * @param {function(string): void} [options.afterLoad] Called with the document
+ *        every time one is successfully loaded, whichever route it came in by
+ *        (RM-012 J3).
+ *
+ *        A hook rather than a call at each site, because there are five sites -
+ *        a file, a project, a template, a shared link and a `.zip` bundle - and
+ *        a design's imported models have to be reported the same way in all
+ *        five. Something one of them forgot to do would be a design silently
+ *        missing an item, which is the exact failure J3's second acceptance
+ *        clause is written against.
+ */
+export function useDesignIO(store, options)
+{
+	var settings = options || {};
 	var busy = ref(false);
+	/**
+	 * What the exports are called (RM-013 K1, finding Y-2).
+	 *
+	 * Every download this application produced was named by a constant -
+	 * `design.blueprint3d`, `design.obj`, `design.gltf`, `plan-1-100.svg`,
+	 * `plan.png`, `view.png`, `panorama.png` - so seven exports of seven
+	 * different designs all arrived in a downloads folder under the same seven
+	 * names. A project has a name now, and `useProjects` writes it here.
+	 *
+	 * Owned by this composable rather than passed in, because the alternative is
+	 * a cycle: the library loads designs through `loadDesign` below, so it cannot
+	 * also be what this reads its name from.
+	 */
+	var documentName = ref('design');
 	// Kept alongside the toasts rather than replaced by them. A toast is
 	// transient by design, and a caller - a test, an embedder - that wants to
 	// know whether the last operation failed should not have to scrape a queue
@@ -108,6 +201,17 @@ export function useDesignIO(store)
 		if (error)
 		{
 			console.error(error);
+		}
+	}
+
+	/**
+	 * @param {string} text The document that just loaded.
+	 */
+	function loaded(text)
+	{
+		if (settings.afterLoad)
+		{
+			settings.afterLoad(text);
 		}
 	}
 
@@ -168,6 +272,7 @@ export function useDesignIO(store)
 				fail(`Could not open ${label || 'that design'}: ${firstProblem(result)}`, null);
 				return false;
 			}
+			loaded(text);
 			return true;
 		}
 		catch (error)
@@ -199,6 +304,7 @@ export function useDesignIO(store)
 				fail(`Could not open ${file.name}: ${firstProblem(result)}`, null);
 				return;
 			}
+			loaded(text);
 			if (result.warnings.length)
 			{
 				// A file this build can open but cannot fully vouch for - an unknown
@@ -216,16 +322,287 @@ export function useDesignIO(store)
 		}
 	}
 
+	/**
+	 * The two verbs that read the document straight out, and the guard RM-016 N2
+	 * gave them.
+	 *
+	 * Every other verb in this file declines with a sentence when the thing it
+	 * needs is absent - "There is no plan view to export", "There is no 3D view
+	 * to photograph". These two dereferenced `store.model.value` unconditionally
+	 * and threw a TypeError instead, which N2 found by writing the case that
+	 * asserts the family behaves the same way.
+	 *
+	 * It is a defensive guard rather than a bug fix: the menu that carries these
+	 * lives inside the component tree that owns the store, so the model is
+	 * non-null whenever the button exists. What is worth having is the
+	 * consistency - a person who reaches one of these in a state nobody
+	 * anticipated gets the same sentence the neighbouring verb would give them,
+	 * rather than a stack trace in a console they are not looking at.
+	 *
+	 * @returns {?Object} The model, or null having already said so.
+	 */
+	function documentOr(refusal)
+	{
+		var model = store.model.value;
+		if (!model)
+		{
+			fail(refusal);
+			return null;
+		}
+		return model;
+	}
+
 	function saveDesign()
 	{
-		download(store.model.value.exportSerialized(), 'design.blueprint3d', 'text/plain');
-		toasts.success('Saved design.blueprint3d');
+		var model = documentOr('There is no design to save.');
+		if (!model) { return; }
+		var name = `${fileNameFor(documentName.value)}.blueprint3d`;
+		download(model.exportSerialized(), name, 'text/plain');
+		toasts.success(`Saved ${name}`);
 	}
 
 	function saveMesh()
 	{
-		download(store.model.value.exportMeshAsObj(), 'design.obj', 'text/plain');
-		toasts.success('Exported design.obj');
+		var model = documentOr('There is no design to export.');
+		if (!model) { return; }
+		var name = `${fileNameFor(documentName.value)}.obj`;
+		download(model.exportMeshAsObj(), name, 'text/plain');
+		toasts.success(`Exported ${name}`);
+	}
+
+	/**
+	 * The 2D plan, as a drawing (RM-008 E4).
+	 *
+	 * The library does the drawing - `exportPlanSVG` points the live view's own
+	 * `draw()` at an SVG backend, so a sheet is the plan on screen and not a
+	 * second rendering of it. This function's whole job is the three things the
+	 * library cannot know: which floorplanner, what the file should be called,
+	 * and how to hand a string to a browser.
+	 *
+	 * The measurer is passed through, and it matters: E3's declutter pass asks
+	 * how wide a label is before deciding to draw it, and SVG has no font
+	 * metrics. Handing it the live canvas' `measureText` is what makes the sheet
+	 * hide exactly the labels the screen hides.
+	 *
+	 * @param {number} scale The denominator: 50 means 1:50.
+	 */
+	function savePlanSVG(scale)
+	{
+		var planner = store.floorplanner.value;
+		if (!planner)
+		{
+			fail('There is no plan view to export.');
+			return;
+		}
+		var svg = exportPlanSVG(planner.view, store.model.value.floorplan, {
+			scale: scale,
+			title: 'Floor plan',
+			subtitle: new Date().toISOString().slice(0, 10),
+			measure: liveMeasurer(planner),
+		});
+		if (!svg)
+		{
+			fail('There is nothing on the plan to export yet.');
+			return;
+		}
+		var name = `${fileNameFor(documentName.value)} plan 1-${scale}.svg`;
+		download(svg, name, 'image/svg+xml');
+		toasts.success(`Exported ${name}`);
+	}
+
+	/**
+	 * The 2D plan, as a PNG (RM-008 E4).
+	 *
+	 * No scale is offered and that is deliberate rather than an omission: a PNG
+	 * is pixels, and how big a pixel comes out is the printer's business. A
+	 * ratio printed on an image nothing can hold to would be worse than no ratio
+	 * at all, so the sheet carries a scale bar - which stays true through a
+	 * photocopier - and says "not to scale" beside it.
+	 *
+	 * @param {number} pixelWidth
+	 */
+	/**
+	 * A photograph of the 3D view (RM-011 H2, W-11).
+	 *
+	 * `Main.dataUrl()` has existed since the fork and **nothing called it** - W-11
+	 * measured it producing the canvas at 1024 x 768 at device pixel ratio 1, a
+	 * screenshot of a viewport rather than a picture of a design. It supersamples
+	 * now, and this is the caller.
+	 *
+	 * A data URL rather than a blob, unlike `savePlanPNG` beside it, and the
+	 * difference is not an inconsistency: that one *draws* into a canvas it owns
+	 * and can therefore hand the blob straight out, while this one reads back a
+	 * live WebGL drawing buffer, which `toDataURL` is the only synchronous way to
+	 * do. Between the render and the read the buffer must not be cleared, so
+	 * there is no callback to wait in.
+	 *
+	 * @param {number} [supersample] Multiples of the displayed resolution, 1 to 4.
+	 */
+	async function savePhoto(supersample)
+	{
+		// The engine may not be here yet (RM-015 M3): somebody can reach this from
+		// the plan-only layout, which no longer builds a viewer at boot. Waiting
+		// for it is right rather than refusing - `dataUrl` calls `render(true)`,
+		// so a viewer attached one line ago photographs the same frame one
+		// attached at boot would have.
+		var viewer = await store.ensureViewer();
+		if (!viewer)
+		{
+			fail('There is no 3D view to photograph.');
+			return;
+		}
+		var url = viewer.dataUrl(supersample || 2);
+		if (!url || url.length < 100)
+		{
+			fail('The browser could not encode the image.');
+			return;
+		}
+		var anchor = document.createElement('a');
+		anchor.href = url;
+		anchor.download = `${fileNameFor(documentName.value)} view.png`;
+		document.body.appendChild(anchor);
+		anchor.click();
+		anchor.remove();
+		toasts.success(`Exported ${fileNameFor(documentName.value)} view.png`);
+	}
+
+	/**
+	 * A 360 degree panorama of the design (RM-011 H3).
+	 *
+	 * Taken from wherever the walkthrough was left standing, which is what the
+	 * sprint means by *"any point"* - the teleport click is how a point gets
+	 * chosen, and this is what it is chosen for. Leaving the walkthrough does not
+	 * move the walker, so the sequence is: walk there, press Esc, export.
+	 *
+	 * Synchronous like `savePhoto` beside it and for the same reason - six frames
+	 * are read straight back out of the drawing buffer, and nothing may clear it
+	 * in between - but far heavier: six renders and an eight-megapixel projection.
+	 * The toast is raised first so the window has said something before it stops
+	 * answering.
+	 *
+	 * @param {number} [width] Output width in pixels. The height is half of it.
+	 */
+	async function savePanorama(width)
+	{
+		// See savePhoto: the viewer arrives on demand as of M3.
+		var viewer = await store.ensureViewer();
+		if (!viewer)
+		{
+			fail('There is no 3D view to photograph.');
+			return;
+		}
+		var url = viewer.panoramaUrl({width: width});
+		if (!url || url.length < 100)
+		{
+			fail('The browser could not encode the panorama.');
+			return;
+		}
+		var name = `${fileNameFor(documentName.value)} panorama.png`;
+		download(dataUrlToBlob(url), name, 'image/png');
+		toasts.success(`Exported ${name}`);
+	}
+
+	function savePlanPNG(pixelWidth)
+	{
+		var planner = store.floorplanner.value;
+		if (!planner)
+		{
+			fail('There is no plan view to export.');
+			return;
+		}
+		var canvas = document.createElement('canvas');
+		var drawn = renderPlanToCanvas(planner.view, store.model.value.floorplan, canvas, {
+			width: pixelWidth,
+			title: 'Floor plan',
+			subtitle: new Date().toISOString().slice(0, 10),
+		});
+		if (!drawn)
+		{
+			fail('There is nothing on the plan to export yet.');
+			return;
+		}
+		// Narrowed into a local before the callback: the checker cannot carry the
+		// null guard above across the closure boundary (RM-005 C2).
+		var size = drawn;
+		canvas.toBlob(function (blob)
+		{
+			if (!blob)
+			{
+				fail('The browser could not encode the image.');
+				return;
+			}
+			var url = URL.createObjectURL(blob);
+			var anchor = document.createElement('a');
+			anchor.href = url;
+			anchor.download = `${fileNameFor(documentName.value)} plan.png`;
+			document.body.appendChild(anchor);
+			anchor.click();
+			document.body.removeChild(anchor);
+			URL.revokeObjectURL(url);
+			toasts.success(`Exported ${fileNameFor(documentName.value)} plan.png, ${size.width}\u00d7${size.height}`);
+		}, 'image/png');
+	}
+
+	/**
+	 * Print the plan, which is how a browser makes a PDF (RM-008 E4).
+	 *
+	 * Through a hidden iframe holding the SVG, rather than a print stylesheet
+	 * over the application. The application is a full-height flex layout with a
+	 * canvas in it, and printing that means fighting every rule in it for one
+	 * page; an iframe carrying nothing but the sheet prints the sheet, at the
+	 * size the sheet says it is, in one browser dialog with a Save-as-PDF option
+	 * already in it.
+	 *
+	 * @param {number} scale
+	 */
+	function printPlan(scale)
+	{
+		var planner = store.floorplanner.value;
+		if (!planner)
+		{
+			fail('There is no plan view to print.');
+			return;
+		}
+		var svg = exportPlanSVG(planner.view, store.model.value.floorplan, {
+			scale: scale,
+			title: 'Floor plan',
+			subtitle: new Date().toISOString().slice(0, 10),
+			measure: liveMeasurer(planner),
+		});
+		if (!svg)
+		{
+			fail('There is nothing on the plan to print yet.');
+			return;
+		}
+		var frame = document.createElement('iframe');
+		frame.setAttribute('aria-hidden', 'true');
+		frame.style.position = 'fixed';
+		frame.style.right = '100%';
+		frame.style.width = '1px';
+		frame.style.height = '1px';
+		document.body.appendChild(frame);
+		var doc = frame.contentDocument;
+		if (!doc || !frame.contentWindow)
+		{
+			document.body.removeChild(frame);
+			fail('The browser would not open a print view.');
+			return;
+		}
+		doc.open();
+		doc.write(`<!doctype html><meta charset="utf-8"><title>Floor plan 1:${scale}</title>`
+			+ '<style>@page{margin:0}body{margin:0}svg{display:block}</style>' + svg);
+		doc.close();
+		var win = frame.contentWindow;
+		// The frame has to be in the document and laid out before print() will
+		// paginate it, so this waits a frame rather than calling straight away.
+		requestAnimationFrame(function ()
+		{
+			win.focus();
+			win.print();
+			// Removed on a timer rather than on afterprint: Safari does not fire it
+			// for an iframe, and a frame left behind is a leak per print.
+			setTimeout(function () {if (frame.parentNode) {frame.parentNode.removeChild(frame);}}, 1000);
+		});
 	}
 
 	/**
@@ -242,11 +619,22 @@ export function useDesignIO(store)
 	 *
 	 * @returns {Promise<string>} the glTF JSON, already downloaded.
 	 */
-	function saveGLTF()
+	async function saveGLTF()
 	{
-		var three = store.three.value;
+		// The export runs through the viewer - `Main.exportForBlender()` hides the
+		// skybox and the ground before asking the model - so it needs one, and as
+		// of M3 there may not be one yet.
+		var three = await store.ensureViewer();
 		busy.value = true;
 		lastError.value = null;
+
+		if (!three)
+		{
+			busy.value = false;
+			var absent = new Error('There is no 3D view to export.');
+			fail(absent.message, absent);
+			throw absent;
+		}
 
 		return new Promise(function (resolve, reject)
 		{
@@ -266,8 +654,9 @@ export function useDesignIO(store)
 			function onReady(event)
 			{
 				finish();
-				download(event.gltf, 'design.gltf', 'model/gltf+json');
-				toasts.success('Exported design.gltf');
+				var name = `${fileNameFor(documentName.value)}.gltf`;
+				download(event.gltf, name, 'model/gltf+json');
+				toasts.success(`Exported ${name}`);
 				resolve(event.gltf);
 			}
 
@@ -280,5 +669,37 @@ export function useDesignIO(store)
 		});
 	}
 
-	return {busy, lastError, newDesign, loadDesign, openDesign, saveDesign, saveMesh, saveGLTF};
+	return {busy, lastError, documentName, newDesign, loadDesign, openDesign, saveDesign, saveMesh,
+		saveGLTF, savePhoto, savePanorama, savePlanSVG, savePlanPNG, printPlan,
+		// Exposed for RM-013 K2's bundle, which is bytes rather than a document
+		// and so has nothing else in here to go through. One download helper, and
+		// the note at the top of this file is why there is only one.
+		download};
+}
+
+/**
+ * `useDesignIO` as an injection (RM-020 S-5). See `injection.js` for the pattern and
+ * why twelve of the twenty-two composables use it.
+ */
+const injection = createInjection('DesignIO');
+
+/** The key, for a component mounted outside the shell - a test, or another host. */
+export const DESIGN_I_O_KEY = injection.key;
+
+/**
+ * Build it and make it available to every descendant.
+ * @returns {ReturnType<typeof useDesignIO>}
+ */
+export function provideDesignIO(store, options)
+{
+	return injection.put(useDesignIO(store, options));
+}
+
+/**
+ * Take it from an ancestor that called `provideDesignIO`.
+ * @returns {ReturnType<typeof useDesignIO>}
+ */
+export function injectDesignIO()
+{
+	return injection.take();
 }

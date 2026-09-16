@@ -378,13 +378,24 @@ export class Corner extends EventDispatcher
 		{
 			if(mergeWithIntersections)
 			{
-				//The below line is crashing after makign the changes for curved walls
-				//While release v1.0.0 is stable even with this line enabled
+				// The second fossil of the kind RM-017 AC-3 found, and the reason
+				// P1's acceptance made the grep for them part of the sprint rather
+				// than an assumption: the drawing said there was one.
+				//
+				// What was here: *"The below line is crashing after makign the
+				// changes for curved walls / While release v1.0.0 is stable even
+				// with this line enabled"* - two sentences that contradict each
+				// other, left by an author who had noticed as much. Measured before
+				// deleting: this line executes 205 times across the headless suite,
+				// it is the path every corner drag takes, and nothing crashes.
 				this.mergeWithIntersected();
-				if(this.floorplan.rooms.length < 10)
-				{
-					this.updateAttachedRooms(true);
-				}
+				// The `rooms.length < 10` guard that used to wrap an
+				// `updateAttachedRooms(true)` here is gone (RM-020 S-9). It was a
+				// plan-size throttle on re-deriving the moved corner's rooms, and
+				// since RM-019 R1 the geometry branch of `Floorplan.update()` does
+				// that unconditionally and bounded by the corners that moved - so
+				// all the guard still decided was whether a *second*, redundant
+				// `updateArea()` ran over a polygon about to be rebuilt anyway.
 			}
 
 			this.dispatchEvent({type:EVENT_MOVED, item: this, position: new Vector2(newX, newY)});

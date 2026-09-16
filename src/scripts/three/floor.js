@@ -7,6 +7,8 @@ import {disposeObject} from '../core/resource_registry.js';
 import {Configuration, configWallHeight} from '../core/configuration.js';
 import {renderProfile, isStudio} from '../core/render_profile.js';
 import {runtimeOf} from '../core/design_runtime.js';
+import {applySurfaceTransform, acquireSurfaceMaps, releaseSurfaceMaps} from './surface_material.js';
+import {colorValue, normaliseSurface, multiplyHex} from '../model/surface.js';
 
 export class Floor extends EventDispatcher
 {
@@ -31,11 +33,24 @@ export class Floor extends EventDispatcher
 		this.room = room;
 		this.floorPlane = null;
 		this.roofPlane = null;
+		/**
+		 * The model's two planes, as handed over by `addToScene()` (RM-019 R1).
+		 * Borrowed, never disposed here; see the docblock on `releasePlanes()`.
+		 * @type {?import('three').Mesh}
+		 */
+		this._borrowedFloorPlane = null;
+		/** @type {?import('three').Mesh} */
+		this._borrowedRoofPlane = null;
 		// Held so redraw() can give it back. The floor is rebuilt on every
 		// EVENT_CHANGED, and before RM-002 R-04 each rebuild loaded another copy
 		// of the same image and dropped the previous one on the floor, so to speak.
 		/** @type {?import('three').Texture} */
 		this.floorTexture = null;
+		/**
+		 * The normal and roughness maps this floor carries, or nulls (RM-011 H1).
+		 * @type {?{normalMap: ?import('three').Texture, roughnessMap: ?import('three').Texture}}
+		 */
+		this.surfaceMaps = null;
 		this.changedevent = () => {this.redraw();};
 		this.init();
 	}
@@ -53,17 +68,31 @@ export class Floor extends EventDispatcher
 		this.room.addEventListener(EVENT_CHANGED, this.changedevent);
 
 		this.floorPlane = this.buildFloor();
-		// roofs look weird, so commented out
-		this.roofPlane = this.buildRoofVaryingHeight();
+		// The comment that used to sit here said "roofs look weird, so commented
+		// out" and the line under it ran on every redraw (RM-010 V-1). What this
+		// builds is a CEILING over one room, at that room's own corner elevations -
+		// it is not a roof, and the building's roof is `three/roof.js` since G2.
+		this.ceilingPlane = this.buildCeiling();
+		this.roofPlane = this.ceilingPlane;
 	}
 
+	/**
+	 * Rebuild the floor and ceiling and ask for a frame (RM-019 R1).
+	 *
+	 * Reached from the room's own EVENT_CHANGED as well as from
+	 * `Floorplan3D.refresh()`, and the former carries no ChangeSet - so changing a
+	 * room's floor texture rebuilt these two meshes and left the viewer showing
+	 * the previous ones. Measured before the fix: the frame did not change.
+	 */
 	redraw()
 	{
 		this.removeFromScene();
 		this.releasePlanes();
 		this.floorPlane = this.buildFloor();
-		this.roofPlane = this.buildRoofVaryingHeight();
+		this.ceilingPlane = this.buildCeiling();
+		this.roofPlane = this.ceilingPlane;
 		this.addToScene();
+		this.scene.needsUpdate = true;
 	}
 
 	/**
@@ -103,7 +132,22 @@ export class Floor extends EventDispatcher
 	 */
 	makeRoofMaterial()
 	{
-		return new MeshBasicMaterial({side: FrontSide, color: this.renderProfile.roofColor});
+		// The room's own ceiling surface, if it has been given one (RM-011 H1).
+		// RM-007's Q-4 names "no ceiling material" and it was literal: this
+		// returned one colour out of the profile, shared by every room in the
+		// building and settable by nobody. A ceiling with nothing said about it
+		// still gets exactly that colour, which is what keeps every existing
+		// design and the frozen r98 golden for this method unchanged.
+		var ceiling = this.room.getCeiling();
+		if (!ceiling)
+		{
+			return new MeshBasicMaterial({side: FrontSide, color: this.renderProfile.roofColor});
+		}
+		var surface = normaliseSurface(ceiling);
+		return new MeshBasicMaterial({
+			side: FrontSide,
+			color: multiplyHex(this.renderProfile.roofColor, colorValue(surface.color)),
+		});
 	}
 
 	buildFloor()
@@ -126,6 +170,12 @@ export class Floor extends EventDispatcher
 		floorTexture.wrapT = RepeatWrapping;
 		floorTexture.repeat.set(1, 1);
 
+		// What this floor is made of, beyond the image (RM-011 H1).
+		var surface = this.room.getMaterial();
+		applySurfaceTransform(floorTexture, surface);
+		this.surfaceMaps = acquireSurfaceMaps(this.runtime, surface, this.surfaceMaps,
+			() => {this.scene.needsUpdate = true;});
+
 		// Phong in classic, Standard in studio.
 		//
 		// The floor is the one surface in the scene that has always been lit, so
@@ -140,32 +190,49 @@ export class Floor extends EventDispatcher
 		// leaves it white and lets exposure and tone mapping set the level: with
 		// the classic tint the floor arrives pre-darkened and then gets darkened
 		// again by real shading.
-		var floorMaterialTop = isStudio(this.renderProfile)
-			? new MeshStandardMaterial({
+		// The surface's own tint, multiplied into whichever base colour the profile
+		// uses. Classic's 0xcccccc and studio's white are both preserved when
+		// nobody has picked anything, because a white tint multiplies to 1.
+		var tint = colorValue(surface.color);
+		var floorMaterialTop;
+		if (isStudio(this.renderProfile))
+		{
+			var studio = new MeshStandardMaterial({
 				map: floorTexture,
 				side: DoubleSide,
-				color: 0xffffff,
+				color: tint,
 				roughness: this.renderProfile.floorRoughness,
 				metalness: this.renderProfile.floorMetalness,
 				envMapIntensity: this.renderProfile.environmentIntensity,
-			})
-			: new MeshPhongMaterial({
+			});
+			// Studio only, for the reason `Edge.makeStudioWallMaterial` gives: a
+			// Phong floor has no roughness map slot and an unlit wall has no light
+			// for a normal map to bend (RM-011 W-1). Attached inside this branch
+			// rather than after the ternary, so the narrowing is the checker's
+			// rather than a comment's.
+			if (this.surfaceMaps && this.surfaceMaps.normalMap) { studio.normalMap = this.surfaceMaps.normalMap; }
+			if (this.surfaceMaps && this.surfaceMaps.roughnessMap) { studio.roughnessMap = this.surfaceMaps.roughnessMap; }
+			floorMaterialTop = studio;
+		}
+		else
+		{
+			floorMaterialTop = new MeshPhongMaterial({
 				map: floorTexture,
 				side: DoubleSide,
-				color: 0xcccccc,
+				color: multiplyHex(0xcccccc, tint),
 				specular: 0x0a0a0a
 			});
+		}
 
 		var textureScale = textureSettings.scale;
 		// http://stackoverflow.com/questions/19182298/how-to-texture-a-three-js-mesh-created-with-shapegeometry
 		// scale down coords to fit 0 -> 1, then rescale
 
-		var points = [];
-		this.room.interiorCorners.forEach((corner) => {
-			points.push(new Vector2(corner.x / textureScale,corner.y / textureScale));
-		});
-		var shape = new Shape(points);
-		var geometry = new ShapeGeometry(shape);
+		// The room's own shape, holes and all (RM-010 G2). Asked of the room rather
+		// than rebuilt here, because the picking plane the model builds and this
+		// visible one have to be the same shape - a floor you can see through and
+		// still click is worse than either.
+		var geometry = new ShapeGeometry(this.room.floorShape(textureScale));
 		var floor = new Mesh(geometry, floorMaterialTop);
 
 		floor.rotation.set(Math.PI / 2, 0, 0);
@@ -175,20 +242,47 @@ export class Floor extends EventDispatcher
 		return floor;
 	}
 
-	buildRoofVaryingHeight()
+	/**
+	 * The lid on this room, at its own corners' elevations (RM-010 V-1).
+	 *
+	 * Named for what it is. It was called `buildRoofVaryingHeight` and it is not
+	 * a roof: it is a triangle fan over one room, and a four-corner room gets two
+	 * triangles. The building's roof is `three/roof.js`, added by G2, and the two
+	 * coexist because a ceiling and a roof are different things - the ceiling is
+	 * what you see from inside the room.
+	 *
+	 * Renamed only. The geometry is what it always was, which is why the frozen
+	 * r98 golden for it still passes unchanged.
+	 *
+	 * @returns {Mesh}
+	 */
+	buildCeiling()
 	{
-		// setup texture
-		var roofMaterial = this.makeRoofMaterial();
+		var ceilingMaterial = this.makeRoofMaterial();
 		var points = this.room.corners.map((corner) => new Vector3(corner.x, corner.elevation, corner.y));
-		var geometry = triangleFanGeometry(points);
-		var roof = new Mesh(geometry, roofMaterial);
-		return roof;
+		return new Mesh(triangleFanGeometry(points), ceilingMaterial);
 	}
 
-
+	/**
+	 * A flat ceiling at the configured wall height. **Nothing calls this.**
+	 *
+	 * RM-010 V-1 found it and G2 was drawn to delete it. It stays, and the reason
+	 * is worth writing down because it overrides the tidier answer: **it carries a
+	 * frozen r98 golden** (`floor.buildRoofUniformHeight` in
+	 * `tests/fixtures/geometry-r98.json`). Three r98 is gone, so that reading
+	 * cannot be recaptured; deleting the method would delete a parity check the
+	 * project cannot get back, in exchange for removing eleven lines nobody runs.
+	 * Dead code is untidy and a lost parity check is unrecoverable.
+	 *
+	 * So what V-1 actually found here was two things and only one of them was a
+	 * defect: the comment at the call site claiming the live implementation was
+	 * commented out, which is fixed, and this, which is a pinned artefact rather
+	 * than a mistake. Recorded as a correction to G2's own bullet.
+	 *
+	 * @returns {Mesh}
+	 */
 	buildRoofUniformHeight()
 	{
-		// setup texture
 		var roofMaterial = this.makeRoofMaterial();
 		var points = [];
 		this.room.interiorCorners.forEach((corner) => {
@@ -202,21 +296,40 @@ export class Floor extends EventDispatcher
 		return roof;
 	}
 
+	/**
+	 * Put the four meshes in, and remember which two were borrowed (RM-019 R1).
+	 *
+	 * The room's two planes are the model's, added here so the raycaster has
+	 * something to hit. Until R1 the pair was re-read from the room on the way
+	 * out as well as on the way in, which is only equivalent while the model
+	 * never replaces them - and R1 makes a corner drag do exactly that. Reading
+	 * `room.floorPlane` at removal time would then detach the *new* plane, which
+	 * is not in the scene, and leave the old one in it forever, disposed.
+	 *
+	 * So what was borrowed is what is given back. The ownership boundary the
+	 * docblock on `releasePlanes()` describes is unchanged: these two are still
+	 * detached and never disposed.
+	 */
 	addToScene()
 	{
 		this.scene.add(this.floorPlane);
 		this.scene.add(this.roofPlane);
 		// hack so we can do intersect testing
-		this.scene.add(this.room.floorPlane);
-		this.scene.add(this.room.roofPlane);
+		this._borrowedFloorPlane = this.room.floorPlane;
+		this._borrowedRoofPlane = this.room.roofPlane;
+		this.scene.add(this._borrowedFloorPlane);
+		this.scene.add(this._borrowedRoofPlane);
 	}
 
 	removeFromScene()
 	{
 		this.scene.remove(this.floorPlane);
 		this.scene.remove(this.roofPlane);
-		this.scene.remove(this.room.floorPlane);
-		this.scene.remove(this.room.roofPlane);
+		// The ones that went in, not the ones the room holds now - see above.
+		this.scene.remove(this._borrowedFloorPlane || this.room.floorPlane);
+		this.scene.remove(this._borrowedRoofPlane || this.room.roofPlane);
+		this._borrowedFloorPlane = null;
+		this._borrowedRoofPlane = null;
 	}
 
 	/**
@@ -233,6 +346,9 @@ export class Floor extends EventDispatcher
 		this.releasePlanes();
 		releaseTexture(this.floorTexture);
 		this.floorTexture = null;
+		// The surface's own maps are cache handles too (RM-011 H1).
+		releaseSurfaceMaps(this.surfaceMaps);
+		this.surfaceMaps = null;
 	}
 
 	showRoof(flag)

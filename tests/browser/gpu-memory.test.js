@@ -33,6 +33,9 @@ import {BlueprintJS} from '../../src/scripts/blueprint.js';
 import {Configuration, configDimUnit} from '../../src/scripts/core/configuration.js';
 import {dimCentiMeter} from '../../src/scripts/core/units.js';
 import {textureCacheStats} from '../../src/scripts/three/texture_cache.js';
+import library from '../../src/catalog/materials.json';
+import BUDGET from '../../tools/budget.json';
+import MANIFEST from '../../public/asset-manifest.json';
 
 /** A four-metre room, as a saved design. */
 const DESIGN = JSON.stringify({
@@ -208,21 +211,24 @@ describe('the renderer gets its memory back', () =>
 
 	it('unmounting gives back everything the viewer built', async () =>
 	{
-		// ## What "everything the viewer built" excludes, and why that is right
+		// ## Zero, and it used to be two (RM-020 S-1)
 		//
-		// Not quite zero, and the remainder is the A0 ownership boundary showing up
-		// in the measurement. Two geometries survive: `room.floorPlane` and
-		// `room.roofPlane`, the invisible hit-test meshes the MODEL owns. The view
-		// borrows them - `Floor.addToScene()` puts them in the scene, which is what
-		// gets them uploaded - and `Floor.dispose()` deliberately does not release
-		// them, because the model is still holding them and picking still needs
-		// them.
+		// What this asserted before, and explained at length, was that two
+		// geometries legitimately survive: `room.floorPlane` and `room.roofPlane`,
+		// the invisible hit-test meshes the MODEL owns. The view borrows them -
+		// `Floor.addToScene()` is what gets them uploaded - and `Floor.dispose()`
+		// deliberately does not release them, which is correct and unchanged.
 		//
-		// That is `BlueprintJS.dispose()`'s documented contract: the model is left
-		// standing so a caller can serialize it, or mount a new viewer over it. So
-		// the honest assertion is not "zero" but "nothing beyond what the model
-		// still owns", and the second half of this test proves the remainder really
-		// is the model's by disposing the model too.
+		// The part that was wrong was the next step of the reasoning: that nobody
+		// else should release them either, because `BlueprintJS.dispose()` leaves
+		// the model standing. It does leave the model standing - a caller can
+		// still serialize the design afterwards, and `resource-lifecycle.test.js`
+		// pins that - but the *meshes* are not the design, and nothing else was
+		// ever going to collect them. `useBlueprint.unmount()` nulls the model
+		// straight after, so they were unreachable as well as unreleased.
+		//
+		// So the honest assertion is the plain one after all. This case had the
+		// leak measured, at two per room, and read it as a boundary.
 		const first = mount();
 		await settle(first);
 		const renderer = rendererOf(first);
@@ -230,18 +236,17 @@ describe('the renderer gets its memory back', () =>
 		expect(withViewer.geometries).toBeGreaterThan(0);
 
 		const rooms = first.model.floorplan.getRooms();
-		const modelOwned = rooms.length * 2;
-		expect(modelOwned).toBeGreaterThan(0);
+		expect(rooms.length, 'the design has rooms whose planes could leak').toBeGreaterThan(0);
 
 		first.dispose();
 
 		// Read through the same renderer: dispose() releases the context, but the
 		// info object is a plain counter and survives to be read.
 		const after = memory(renderer);
-		expect(after.geometries).toBe(modelOwned);
+		expect(after.geometries, 'including the two per room the model owns').toBe(0);
 		expect(after.textures).toBe(0);
 
-		// And the remainder really is the model's: release the rooms and it goes.
+		// Idempotent: releasing the rooms again finds nothing left to release.
 		rooms.forEach((room) => room.dispose());
 		expect(memory(renderer).geometries).toBe(0);
 	});
@@ -394,7 +399,8 @@ describe('a compressed texture shared between surfaces (RM-005 C1)', () =>
 
 		// One, not two. If this is ever 2, `texture_cache`'s clone-a-master design
 		// buys nothing for compressed textures and the honest answer for the
-		// remaining room textures is a different one - see roadmap section 27, N-2.
+		// remaining room textures is a different one: share the master rather
+		// than clone it, and pay for a per-surface transform some other way.
 		expect(uploaded, 'two clones of one compressed texture cost two GPU uploads').toBe(1);
 
 		scene.traverse((object) =>
@@ -406,5 +412,92 @@ describe('a compressed texture shared between surfaces (RM-005 C1)', () =>
 		master.dispose();
 		loader.dispose();
 		renderer.dispose();
+	});
+});
+
+/**
+ * The budget's model, held to the renderer (RM-011 W-5).
+ *
+ * `tools/check-budget.mjs:sceneVram()` computes what one scene asks a GPU for,
+ * because the tree walk it replaced was measuring 81 MB of images that no scene
+ * uploads. That is a *model*, and a model with no observation behind it is the
+ * shape of mistake B1 made when it reported 164 MB of VRAM for a tree that was
+ * mostly DOM thumbnails.
+ *
+ * So this is the observation. It is stated as an inequality on purpose: the
+ * model has to be an **upper bound** on what the renderer reports, and a test
+ * that pinned it to an exact figure would fail on the next material added
+ * without anything being wrong.
+ */
+describe('what a scene really holds (RM-011 W-5)', () =>
+{
+	/** Every distinct texture the scene graph can reach, and what it cost. */
+	function uploaded(blueprint)
+	{
+		const SLOTS = ['map', 'lightMap', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'alphaMap', 'emissiveMap', 'envMap'];
+		const seen = new Map();
+		blueprint.three.scene.getScene().traverse((object) =>
+		{
+			if (!object.isMesh) { return; }
+			for (const material of (Array.isArray(object.material) ? object.material : [object.material]))
+			{
+				if (!material) { continue; }
+				for (const slot of SLOTS)
+				{
+					const texture = material[slot];
+					if (!texture || !texture.image || seen.has(texture.source)) { continue; }
+					const {width, height} = texture.image;
+					// The same model check-budget uses: four bytes a texel, 4/3 for
+					// the mip chain. Keeping the arithmetic identical is what makes
+					// the two numbers comparable at all.
+					seen.set(texture.source, Math.round((width || 0) * (height || 0) * 4 * 4 / 3));
+				}
+			}
+		});
+		return {count: seen.size, bytes: [...seen.values()].reduce((sum, cost) => sum + cost, 0)};
+	}
+
+	it('holds a handful of textures, not a tree full', async () =>
+	{
+		const blueprint = mount();
+		const renderer = rendererOf(blueprint);
+		await settle(blueprint);
+
+		const held = uploaded(blueprint);
+		const images = Object.values(MANIFEST.assets)
+			.filter((entry) => ['texture', 'model-texture', 'environment'].includes(entry.kind)).length;
+
+		// W-5's claim, re-measured: a scene holds a fraction of the tree. The
+		// renderer's own count is the honest instrument and it counts a few things
+		// the scene graph cannot reach - a render target, the default white - so it
+		// is asserted as a bound rather than as an equality with `held.count`.
+		expect(held.count).toBeGreaterThan(0);
+		expect(renderer.info.memory.textures).toBeLessThan(images / 4);
+	});
+
+	it('costs less than the ceiling the budget models for it', async () =>
+	{
+		const blueprint = mount();
+		await settle(blueprint);
+
+		// The costliest thing the pickers can put on a wall and on a floor, which
+		// is exactly what sceneVram's `surfaces` term prices. Every library albedo
+		// is 512 and every roughness map 256, so any entry is the worst one.
+		const wall = library.wall[0];
+		const floor = library.floor[0];
+		blueprint.model.floorplan.getRooms()[0].setRoomWallsTexture(wall.url, wall.stretch, wall.scale);
+		blueprint.model.floorplan.getRooms()[0].setRoomWallsMaterial({roughnessMap: wall.roughnessMap});
+		blueprint.model.floorplan.getRooms()[0].setTexture(floor.url, floor.stretch, floor.scale);
+		blueprint.model.floorplan.update();
+		await settle(blueprint);
+
+		const held = uploaded(blueprint);
+		const modelled = BUDGET.budgets['texture-vram'].measured;
+
+		// The inequality that keeps the tier-1 gate honest. A furnished scene adds
+		// the catalog items' textures on top of this, which is why the model is
+		// well above what a bare room reports rather than close to it.
+		expect(held.bytes).toBeLessThan(modelled);
+		expect(held.bytes).toBeGreaterThan(0);
 	});
 });

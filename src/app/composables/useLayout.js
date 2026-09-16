@@ -1,5 +1,6 @@
 // @ts-check
 import {computed, ref, watch} from 'vue';
+import {createInjection} from './injection.js';
 
 /**
  * Which viewports are on screen, and how the workspace is divided.
@@ -133,4 +134,31 @@ export function useLayout()
 		planVisible, viewVisible, isSplit,
 		setLayout, setSplitRatio, toggleInspector,
 	};
+}
+
+/**
+ * `useLayout` as an injection (RM-020 S-5). See `injection.js` for the pattern and
+ * why twelve of the twenty-two composables use it.
+ */
+const injection = createInjection('Layout');
+
+/** The key, for a component mounted outside the shell - a test, or another host. */
+export const LAYOUT_KEY = injection.key;
+
+/**
+ * Build it and make it available to every descendant.
+ * @returns {ReturnType<typeof useLayout>}
+ */
+export function provideLayout()
+{
+	return injection.put(useLayout());
+}
+
+/**
+ * Take it from an ancestor that called `provideLayout`.
+ * @returns {ReturnType<typeof useLayout>}
+ */
+export function injectLayout()
+{
+	return injection.take();
 }

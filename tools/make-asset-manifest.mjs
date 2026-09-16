@@ -41,6 +41,24 @@ import {dirname, join, relative, sep} from 'node:path';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC = join(ROOT, 'public');
 const OUTPUT = join(PUBLIC, 'asset-manifest.json');
+const INTEGRITY_OUTPUT = join(ROOT, 'asset-pipeline', 'asset-integrity.json');
+
+/**
+ * Whether the served manifest carries its hashes (RM-011 H1, M-43).
+ *
+ * Off by default, and the number is why. H1 added the first-load budget and its
+ * opening measurement found that **17,065 of the manifest's 22,208 gzipped
+ * bytes were subresource-integrity hashes** - 4.1 % of everything a person
+ * downloads before their first wall, on every boot, for a feature `AssetResolver`
+ * documents as off by default and that guards nothing for a same-origin
+ * `public/`. It matters for a cross-origin CDN deployment, which is exactly the
+ * build that should pass this flag.
+ *
+ * Nothing about the schema changed: `AssetManifest.parse` has always read `hash`
+ * defensively and `integrityFor` has always been able to return null. What
+ * changed is which builds pay for it.
+ */
+const INTEGRITY = process.argv.includes('--integrity');
 
 /** The schema `AssetManifest.parse` understands. */
 const MANIFEST_VERSION = 1;
@@ -78,6 +96,18 @@ function kindOf(name)
 	// `<img>` sources that never reach the GPU, and calling them textures made
 	// every consumer that branches on kind wrong about them - including B1's
 	// texture-vram budget, which was measuring 60 MB of memory nothing uploads.
+	// A file that is not an image is not a texture, whatever directory it is in.
+	// The fall-through at the bottom of this function has decided `texture` since
+	// A5, which was true while every file down here was one - and stopped being
+	// true the moment H1 put a CREDITS.md beside the material library. The same
+	// shape of mislabelling B4 found twice before, caught this time by
+	// `tests/asset-integrity.test.js` before it reached a budget: the VRAM line
+	// asks every `texture` for its dimensions, and a markdown file has none.
+	if (!/\.(png|jpe?g|ktx2|webp|avif|basis)$/i.test(name)) { return 'document'; }
+	// `_new` is kept in the pattern although RM-012 J1 emptied that directory -
+	// every catalog thumbnail is now a render under `models/thumbnails/`. A
+	// classifier that stops recognising a name is a classifier that mislabels the
+	// day somebody restores one, and this costs two characters.
 	if (/(^|\/)thumbnails(_new)?\//.test(name)) { return 'thumbnail'; }
 	if (name.startsWith('rooms/textures/envs/')) { return 'environment'; }
 	if (name.startsWith('models/')) { return 'model-texture'; }
@@ -177,6 +207,62 @@ function sriHash(bytes)
  * old name keeps resolving forever, and the entry carries the hash and size of
  * the file it now points at, so nothing downstream has to special-case it.
  */
+/**
+ * Names that deliberately no longer resolve, and why (RM-012 J2).
+ *
+ * ## Why this is not a retirement
+ *
+ * A retirement above says *the old name keeps working, it just points somewhere
+ * new*. That is a rename, and A5's rule - an asset URL is a published contract -
+ * is honoured by it. This is the other thing, and RM-012 J2 is the first time
+ * this project has done it: an asset **withdrawn**, whose name resolves to
+ * nothing because the file is gone on purpose.
+ *
+ * It breaks the contract, which is why it needs to be written down rather than
+ * done. A design that named one of these shows a missing model. That is the
+ * cost, it was weighed, and the reason is recorded per name rather than in a
+ * commit message nobody will find from here.
+ *
+ * The rule for adding one: it must be a decision somebody took with a reason
+ * that outlives them, not an asset that got tidied. Anything that merely moved
+ * belongs in `RETIRED` above, where it keeps resolving.
+ *
+ * ## WITHDRAWING THE FILE IS NOT WITHDRAWING THE ASSET (RM-020 S-12)
+ *
+ * J2's reason was that a deploy should not carry a file nobody can license. It
+ * deleted the two `.glb`/`.gltf` files and stopped there, and for eight
+ * programmes the repository went on tracking 21.95 MB of `.blend` beside them -
+ * `SimpleCabinet_GLTF.blend`, whose node, mesh and material names are exactly
+ * the withdrawn `SimpleCabinet.glb`'s; an earlier revision of it under
+ * `legacy-json/`; and a 20.8 MB scene that `src/catalog/sources.json` does not
+ * mention at all, so with no licence even claimed for it.
+ *
+ * Nothing hid them. `tests/asset-integrity.test.js` asserted that a withdrawn
+ * name "is really gone" and looked only in `public/`, which is where the
+ * derived file had been - so the check passed while the original sat one
+ * directory away. The test now also asserts that the repository tracks no
+ * `.blend` at all, stated that way rather than per name because a per-name list
+ * can only refuse the files somebody already thought of, which is the shape
+ * that failed here.
+ *
+ * The deletion costs nothing an auditor needs: `git rm` leaves every blob in
+ * history, so the evidence behind J1's `unknown` is still recoverable, and the
+ * reasons below are what a reader finds first.
+ */
+export const WITHDRAWN = {
+	'models/gltf/SimpleCabinet.glb':
+		'RM-012 J2. Licence never established. J1 recorded it as `unknown` rather than assuming CC0 by '
+		+ 'resemblance - foreign material names, the only PascalCase filename in the directory, the only '
+		+ 'catalog row with no thumbnail of its own - and J2 decided a deploy should not carry a file '
+		+ 'nobody can license. The admission gate built in the same sprint refuses an unestablished '
+		+ 'licence, and shipping one while refusing the next would be a rule that applies to strangers.',
+	'models/gltf/chandelier.gltf':
+		'RM-012 J2, with SimpleCabinet.glb and for the same reason. It was also the row whose material '
+		+ 'was called `black metal` and rendered white, found by J2\'s material-name rule and painted in '
+		+ 'that commit; the paint is recorded in tools/material-audit.mjs as withdrawn rather than '
+		+ 'deleted, because the finding stands even though the file does not.',
+};
+
 const RETIRED = {
 	// The only one. `rooms/textures/hardwood.png` was re-encoded as JPEG, and it
 	// is the DEFAULT room texture, so its name is in every design that kept the
@@ -207,8 +293,10 @@ const RETIRED = {
 
 function build()
 {
-	/** @type {Record<string, {bytes: number, hash: string, kind: string, codec?: string, url?: string}>} */
+	/** @type {Record<string, {bytes: number, kind: string, hash?: string, codec?: string, url?: string}>} */
 	const assets = {};
+	/** @type {Record<string, string>} Every hash, whether or not one is served. */
+	const integrity = {};
 
 	for (const path of walk(PUBLIC))
 	{
@@ -220,9 +308,12 @@ function build()
 		const bytes = readFileSync(path);
 		const entry = {
 			bytes: bytes.length,
-			hash: sriHash(bytes),
 			kind: kindOf(name),
 		};
+		// The hash goes into the served manifest only when somebody asks for it.
+		// See INTEGRITY below for the measurement that moved it.
+		if (INTEGRITY) { entry.hash = sriHash(bytes); }
+		integrity[name] = sriHash(bytes);
 		// Omitted rather than written as null when there is none, for the same
 		// reason `url` is omitted when it equals the key: a generated file that
 		// states every default is a file nobody reads.
@@ -254,31 +345,59 @@ function build()
 		sorted[name] = assets[name];
 	}
 
+	const sortedIntegrity = {};
+	for (const name of Object.keys(assets).sort())
+	{
+		// A retired name inherits the file's hash, the same way it inherits its
+		// bytes: it is the same bytes.
+		sortedIntegrity[name] = integrity[name] || integrity[assets[name].url];
+	}
+
 	return {
-		version: MANIFEST_VERSION,
-		_comment: [
-			'Generated by tools/make-asset-manifest.mjs. Do not edit by hand;',
-			'run `npm run manifest`. An entry carries a `url` when the physical',
-			'file is not at the logical name - that is the whole point of the',
-			'indirection - and it is omitted wherever the two are equal, which is',
-			'everywhere except the retired names listed in the generator.',
-			'Hashes are subresource-integrity form and are recorded, not enforced;',
-			'see AssetResolver for why that is a deployment decision.',
-		].join(' '),
-		assets: sorted,
+		manifest: {
+			version: MANIFEST_VERSION,
+			_comment: [
+				'Generated by tools/make-asset-manifest.mjs. Do not edit by hand;',
+				'run `npm run manifest`. An entry carries a `url` when the physical',
+				'file is not at the logical name - that is the whole point of the',
+				'indirection - and it is omitted wherever the two are equal, which is',
+				'everywhere except the retired names listed in the generator.',
+				INTEGRITY
+					? 'Hashes are subresource-integrity form, written because this build asked for them with --integrity.'
+					: 'Hashes are NOT here: they are in asset-pipeline/asset-integrity.json, and `npm run manifest -- --integrity` puts them back. See AssetResolver.',
+			].join(' '),
+			assets: sorted,
+		},
+		integrity: {
+			version: MANIFEST_VERSION,
+			_comment: [
+				'Generated beside public/asset-manifest.json by tools/make-asset-manifest.mjs.',
+				'Subresource-integrity hashes for every asset, kept OUT of the served',
+				'manifest since RM-011 H1: they were 17,065 of its 22,208 gzipped bytes,',
+				'on every boot, for a feature that is off by default and matters only to a',
+				'cross-origin deployment. `npm run manifest -- --integrity` writes them into',
+				'the served file for a build that wants them; this file is never served.',
+			].join(' '),
+			assets: sortedIntegrity,
+		},
 	};
 }
 
-const manifest = build();
+const {manifest, integrity} = build();
 const text = JSON.stringify(manifest, null, '\t') + '\n';
+const integrityText = JSON.stringify(integrity, null, '\t') + '\n';
 
 if (process.argv.includes('--check'))
 {
-	let current = null;
-	try {current = readFileSync(OUTPUT, 'utf8');} catch { /* reported below */ }
-	if (current !== text)
+	const stale = [];
+	const read = (path) => {try {return readFileSync(path, 'utf8');} catch {return null;}};
+	if (read(OUTPUT) !== text) { stale.push('public/asset-manifest.json'); }
+	// Both, because the integrity file is what `tests/asset-integrity.test.js`
+	// verifies the tree against - a stale one would pass a check of nothing.
+	if (read(INTEGRITY_OUTPUT) !== integrityText) { stale.push('asset-pipeline/asset-integrity.json'); }
+	if (stale.length)
 	{
-		console.error('public/asset-manifest.json is out of date. Run `npm run manifest`.');
+		console.error(`${stale.join(' and ')} out of date. Run \`npm run manifest\`.`);
 		process.exit(1);
 	}
 	console.log(`asset manifest is up to date (${Object.keys(manifest.assets).length} assets).`);
@@ -286,6 +405,9 @@ if (process.argv.includes('--check'))
 else
 {
 	writeFileSync(OUTPUT, text);
+	writeFileSync(INTEGRITY_OUTPUT, integrityText);
 	const total = Object.values(manifest.assets).reduce((sum, entry) => sum + entry.bytes, 0);
 	console.log(`Wrote ${Object.keys(manifest.assets).length} assets, ${(total / 1048576).toFixed(2)} MB, to public/asset-manifest.json`);
+	console.log(`Wrote ${Object.keys(integrity.assets).length} hashes to asset-pipeline/asset-integrity.json`
+		+ (INTEGRITY ? ' and into the manifest (--integrity).' : '.'));
 }

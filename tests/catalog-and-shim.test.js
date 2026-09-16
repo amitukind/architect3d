@@ -62,7 +62,7 @@ describe('the unified catalog', () =>
 	{
 		// 27 legacy entries + 142 glTF entries, less the one that pointed at a
 		// cabinet.json that has never existed in this repository.
-		expect(CATALOG.items.length).toBe(168);
+		expect(CATALOG.items.length).toBe(217);
 	});
 
 	it('has dropped the entry whose model file was never in the repository', () =>

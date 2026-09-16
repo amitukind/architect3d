@@ -8,9 +8,9 @@
  *
  * The numbers are in METRES, because the coordinates in a saved design are in
  * whatever display unit was active when it was saved and BlueprintJS
- * constructs with `dimMeter`. That is a load-bearing quirk, not a bug - see
- * the preserve list in docs/roadmap.html section 01 - so this string is copied,
- * never regenerated.
+ * constructs with `dimMeter`. That is a load-bearing quirk that was preserved
+ * deliberately at the migration rather than corrected, because saved designs
+ * already existed in that form - so this string is copied, never regenerated.
  *
  * Kept as a string rather than a JSON import: `Model.loadSerialized` takes
  * JSON text, and round-tripping it through an object and back would put this

@@ -1,0 +1,1437 @@
+{
+	"note": [
+		"RM-011 H1. The material library, at the size H1's encode trial allowed.",
+		"",
+		"Thirty CC0 materials from Poly Haven, albedo and roughness, resized in",
+		"linear light and gated by tools/resize-textures.mjs's own two gates. See",
+		"tools/fetch-materials.mjs for why JPEG rather than the KTX2 the trial",
+		"measured, and why the two maps ship at different resolutions.",
+		"",
+		"Every number here was produced by running the tool. `hash` is what",
+		"--check verifies the committed tree against, with no network."
+	],
+	"license": {
+		"name": "CC0 1.0 Universal",
+		"url": "https://creativecommons.org/publicdomain/zero/1.0/",
+		"source": "Poly Haven",
+		"sourceUrl": "https://polyhaven.com/textures"
+	},
+	"settings": {
+		"albedoEdge": 512,
+		"roughnessEdge": 256,
+		"thumbnailEdge": 128,
+		"quality": 95,
+		"resizeCap": 1024
+	},
+	"gates": {
+		"lowFrequencyRms": 2,
+		"lowFrequencyMax": 8,
+		"codecRms": 3
+	},
+	"totals": {
+		"materials": 30,
+		"files": 90,
+		"bytes": 4501341,
+		"measuredImages": 60,
+		"worstLowFrequencyRms": 0.72,
+		"worstCodecRms": 2.802,
+		"meanAlbedoBytes": 122749,
+		"meanRoughnessBytes": 18794,
+		"sourceBytes": 28526715
+	},
+	"refused": [],
+	"materials": [
+		{
+			"slug": "wood_floor",
+			"name": "Oak Boards",
+			"published": "Wood Floor",
+			"family": "Wood",
+			"surfaces": [
+				"floor"
+			],
+			"authors": [
+				"Dimitrios Savva"
+			],
+			"scale": 170,
+			"sourceBytes": {
+				"albedo": 734493,
+				"roughness": 527754
+			},
+			"files": [
+				{
+					"name": "materials/wood_floor/albedo.jpg",
+					"bytes": 110058,
+					"hash": "f9c1fd98a17be6bb",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.51,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.912
+				},
+				{
+					"name": "materials/wood_floor/rough.jpg",
+					"bytes": 13913,
+					"hash": "941c1790a7ec3050",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.295,
+					"lowFrequencyMax": 1,
+					"codecRms": 0.952
+				},
+				{
+					"name": "materials/thumbnails/wood_floor.jpg",
+					"bytes": 6075,
+					"hash": "47c9b22872c79d1f",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "laminate_floor_02",
+			"name": "Laminate",
+			"published": "Laminate Floor 02",
+			"family": "Wood",
+			"surfaces": [
+				"floor"
+			],
+			"authors": [
+				"Charlotte Baglioni",
+				"Dario Barresi"
+			],
+			"scale": 170,
+			"sourceBytes": {
+				"albedo": 721641,
+				"roughness": 560815
+			},
+			"files": [
+				{
+					"name": "materials/laminate_floor_02/albedo.jpg",
+					"bytes": 97045,
+					"hash": "d9667cbaca6a0d03",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.467,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.709
+				},
+				{
+					"name": "materials/laminate_floor_02/rough.jpg",
+					"bytes": 14234,
+					"hash": "b62cc73751135408",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.287,
+					"lowFrequencyMax": 1,
+					"codecRms": 0.952
+				},
+				{
+					"name": "materials/thumbnails/laminate_floor_02.jpg",
+					"bytes": 5463,
+					"hash": "c17e1625fc57c33a",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "herringbone_parquet",
+			"name": "Herringbone Parquet",
+			"published": "Herringbone Parquet",
+			"family": "Wood",
+			"surfaces": [
+				"floor"
+			],
+			"authors": [
+				"Jenelle van Heerden",
+				"Sergej Majboroda"
+			],
+			"scale": 340,
+			"sourceBytes": {
+				"albedo": 829046,
+				"roughness": 515202
+			},
+			"files": [
+				{
+					"name": "materials/herringbone_parquet/albedo.jpg",
+					"bytes": 136137,
+					"hash": "a5b6f466b3ab67d4",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.494,
+					"lowFrequencyMax": 1,
+					"codecRms": 2.214
+				},
+				{
+					"name": "materials/herringbone_parquet/rough.jpg",
+					"bytes": 16360,
+					"hash": "db6457b242e6d47f",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.291,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.167
+				},
+				{
+					"name": "materials/thumbnails/herringbone_parquet.jpg",
+					"bytes": 9006,
+					"hash": "94a580f448cfe85c",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "rectangular_parquet",
+			"name": "Rectangular Parquet",
+			"published": "Rectangular Parquet",
+			"family": "Wood",
+			"surfaces": [
+				"floor"
+			],
+			"authors": [
+				"Jenelle van Heerden",
+				"Sergej Majboroda"
+			],
+			"scale": 225,
+			"sourceBytes": {
+				"albedo": 632054,
+				"roughness": 393057
+			},
+			"files": [
+				{
+					"name": "materials/rectangular_parquet/albedo.jpg",
+					"bytes": 97392,
+					"hash": "f177f9ae3fb8ff67",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.543,
+					"lowFrequencyMax": 2,
+					"codecRms": 1.519
+				},
+				{
+					"name": "materials/rectangular_parquet/rough.jpg",
+					"bytes": 11437,
+					"hash": "9bce564ffe0c1019",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.299,
+					"lowFrequencyMax": 1,
+					"codecRms": 0.668
+				},
+				{
+					"name": "materials/thumbnails/rectangular_parquet.jpg",
+					"bytes": 6605,
+					"hash": "bd95a535066fc86f",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "diagonal_parquet",
+			"name": "Diagonal Parquet",
+			"published": "Diagonal Parquet",
+			"family": "Wood",
+			"surfaces": [
+				"floor"
+			],
+			"authors": [
+				"Jenelle van Heerden",
+				"Sergej Majboroda"
+			],
+			"scale": 236,
+			"sourceBytes": {
+				"albedo": 734933,
+				"roughness": 269275
+			},
+			"files": [
+				{
+					"name": "materials/diagonal_parquet/albedo.jpg",
+					"bytes": 134210,
+					"hash": "2c19228a13672974",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.53,
+					"lowFrequencyMax": 1,
+					"codecRms": 2.05
+				},
+				{
+					"name": "materials/diagonal_parquet/rough.jpg",
+					"bytes": 9121,
+					"hash": "f055d1a7a6fc3977",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.274,
+					"lowFrequencyMax": 1,
+					"codecRms": 0.568
+				},
+				{
+					"name": "materials/thumbnails/diagonal_parquet.jpg",
+					"bytes": 11007,
+					"hash": "b89ec9c58f26c2b4",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "plank_flooring_03",
+			"name": "Pine Planks",
+			"published": "Plank Flooring 03",
+			"family": "Wood",
+			"surfaces": [
+				"floor"
+			],
+			"authors": [
+				"Jenelle van Heerden",
+				"Matterfield"
+			],
+			"scale": 225,
+			"sourceBytes": {
+				"albedo": 852244,
+				"roughness": 440326
+			},
+			"files": [
+				{
+					"name": "materials/plank_flooring_03/albedo.jpg",
+					"bytes": 154281,
+					"hash": "03904ecd0a8fb6e4",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.533,
+					"lowFrequencyMax": 2,
+					"codecRms": 2.024
+				},
+				{
+					"name": "materials/plank_flooring_03/rough.jpg",
+					"bytes": 16424,
+					"hash": "d6a0f627be8a3e34",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.3,
+					"lowFrequencyMax": 1,
+					"codecRms": 0.916
+				},
+				{
+					"name": "materials/thumbnails/plank_flooring_03.jpg",
+					"bytes": 12137,
+					"hash": "88d5eb12ab809121",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "dark_wooden_planks",
+			"name": "Dark Planks",
+			"published": "Dark Wooden Planks",
+			"family": "Wood",
+			"surfaces": [
+				"floor"
+			],
+			"authors": [
+				"Amal Kumar"
+			],
+			"scale": 200,
+			"sourceBytes": {
+				"albedo": 701221,
+				"roughness": 673968
+			},
+			"files": [
+				{
+					"name": "materials/dark_wooden_planks/albedo.jpg",
+					"bytes": 106176,
+					"hash": "1fdef04e917515c9",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.509,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.73
+				},
+				{
+					"name": "materials/dark_wooden_planks/rough.jpg",
+					"bytes": 25780,
+					"hash": "db5765e1aa840cea",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.311,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.467
+				},
+				{
+					"name": "materials/thumbnails/dark_wooden_planks.jpg",
+					"bytes": 6543,
+					"hash": "c76e21dd0b1549d5",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "brown_planks_03",
+			"name": "Timber Cladding",
+			"published": "Brown Planks 03",
+			"family": "Wood",
+			"surfaces": [
+				"wall"
+			],
+			"authors": [
+				"Rob Tuytel"
+			],
+			"scale": 100,
+			"sourceBytes": {
+				"albedo": 570668,
+				"roughness": 222197
+			},
+			"files": [
+				{
+					"name": "materials/brown_planks_03/albedo.jpg",
+					"bytes": 140453,
+					"hash": "b442f3ed54d4e258",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.511,
+					"lowFrequencyMax": 2,
+					"codecRms": 1.862
+				},
+				{
+					"name": "materials/brown_planks_03/rough.jpg",
+					"bytes": 16841,
+					"hash": "a1e94f03219d65af",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.299,
+					"lowFrequencyMax": 1,
+					"codecRms": 0.931
+				},
+				{
+					"name": "materials/thumbnails/brown_planks_03.jpg",
+					"bytes": 8368,
+					"hash": "41855d5c2a9a996b",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "floor_tiles_06",
+			"name": "Ceramic Tile",
+			"published": "Floor Tiles 06",
+			"family": "Tile",
+			"surfaces": [
+				"floor"
+			],
+			"authors": [
+				"Rob Tuytel"
+			],
+			"scale": 300,
+			"sourceBytes": {
+				"albedo": 356257,
+				"roughness": 114013
+			},
+			"files": [
+				{
+					"name": "materials/floor_tiles_06/albedo.jpg",
+					"bytes": 105972,
+					"hash": "eaeddb6c1a5b2f0a",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.504,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.595
+				},
+				{
+					"name": "materials/floor_tiles_06/rough.jpg",
+					"bytes": 12031,
+					"hash": "adcbb220a03c57ee",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.272,
+					"lowFrequencyMax": 1,
+					"codecRms": 0.711
+				},
+				{
+					"name": "materials/thumbnails/floor_tiles_06.jpg",
+					"bytes": 8158,
+					"hash": "4bd6d529a09c0318",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "floor_tiles_02",
+			"name": "Stone Tile",
+			"published": "Floor Tiles 02",
+			"family": "Tile",
+			"surfaces": [
+				"floor",
+				"wall"
+			],
+			"authors": [
+				"Rob Tuytel"
+			],
+			"scale": 400,
+			"sourceBytes": {
+				"albedo": 354550,
+				"roughness": 304724
+			},
+			"files": [
+				{
+					"name": "materials/floor_tiles_02/albedo.jpg",
+					"bytes": 91908,
+					"hash": "fd1b206021a022fa",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.543,
+					"lowFrequencyMax": 2,
+					"codecRms": 1.547
+				},
+				{
+					"name": "materials/floor_tiles_02/rough.jpg",
+					"bytes": 24592,
+					"hash": "39d402ebe51f8ceb",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.298,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.426
+				},
+				{
+					"name": "materials/thumbnails/floor_tiles_02.jpg",
+					"bytes": 6763,
+					"hash": "a366cbad6417e465",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "terracotta_floor_tiles",
+			"name": "Terracotta",
+			"published": "Terracotta Floor Tiles",
+			"family": "Tile",
+			"surfaces": [
+				"floor"
+			],
+			"authors": [
+				"Dimitrios Savva"
+			],
+			"scale": 208,
+			"sourceBytes": {
+				"albedo": 649304,
+				"roughness": 626503
+			},
+			"files": [
+				{
+					"name": "materials/terracotta_floor_tiles/albedo.jpg",
+					"bytes": 93900,
+					"hash": "36f3414f72baf4a1",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.563,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.786
+				},
+				{
+					"name": "materials/terracotta_floor_tiles/rough.jpg",
+					"bytes": 21806,
+					"hash": "b779b1d5f9ab2d90",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.308,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.316
+				},
+				{
+					"name": "materials/thumbnails/terracotta_floor_tiles.jpg",
+					"bytes": 7305,
+					"hash": "f21e700117e7e71a",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "grey_cartago_01",
+			"name": "Grey Porcelain",
+			"published": "Grey Cartago 01",
+			"family": "Tile",
+			"surfaces": [
+				"floor"
+			],
+			"authors": [
+				"Jenelle van Heerden",
+				"Lucas Sánchez Ros"
+			],
+			"scale": 75,
+			"sourceBytes": {
+				"albedo": 831197,
+				"roughness": 464034
+			},
+			"files": [
+				{
+					"name": "materials/grey_cartago_01/albedo.jpg",
+					"bytes": 170153,
+					"hash": "d5ec79a6e0c3e036",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.49,
+					"lowFrequencyMax": 2,
+					"codecRms": 2.394
+				},
+				{
+					"name": "materials/grey_cartago_01/rough.jpg",
+					"bytes": 18954,
+					"hash": "9bfaf621e689a762",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.304,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.164
+				},
+				{
+					"name": "materials/thumbnails/grey_cartago_01.jpg",
+					"bytes": 15545,
+					"hash": "74321afc81e27620",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "marble_01",
+			"name": "Marble",
+			"published": "Marble 01",
+			"family": "Stone",
+			"surfaces": [
+				"floor",
+				"wall"
+			],
+			"authors": [
+				"Rob Tuytel"
+			],
+			"scale": 150,
+			"sourceBytes": {
+				"albedo": 305029,
+				"roughness": 91848
+			},
+			"files": [
+				{
+					"name": "materials/marble_01/albedo.jpg",
+					"bytes": 75901,
+					"hash": "e84341798ddf0fb4",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.61,
+					"lowFrequencyMax": 2,
+					"codecRms": 1.425
+				},
+				{
+					"name": "materials/marble_01/rough.jpg",
+					"bytes": 12941,
+					"hash": "2aad0570ea6d5fc9",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.278,
+					"lowFrequencyMax": 1,
+					"codecRms": 0.77
+				},
+				{
+					"name": "materials/thumbnails/marble_01.jpg",
+					"bytes": 4767,
+					"hash": "9577b39563c2f020",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "slate_floor_03",
+			"name": "Slate",
+			"published": "Slate Floor 03",
+			"family": "Stone",
+			"surfaces": [
+				"floor"
+			],
+			"authors": [
+				"Dimitrios Savva"
+			],
+			"scale": 200,
+			"sourceBytes": {
+				"albedo": 677347,
+				"roughness": 448944
+			},
+			"files": [
+				{
+					"name": "materials/slate_floor_03/albedo.jpg",
+					"bytes": 113627,
+					"hash": "123e65b6b1606011",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.536,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.856
+				},
+				{
+					"name": "materials/slate_floor_03/rough.jpg",
+					"bytes": 17576,
+					"hash": "4e45cdbaf0dfc74b",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.307,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.107
+				},
+				{
+					"name": "materials/thumbnails/slate_floor_03.jpg",
+					"bytes": 8651,
+					"hash": "d656a7e32e012cbb",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "smooth_concrete_floor",
+			"name": "Polished Concrete",
+			"published": "Smooth Concrete Floor",
+			"family": "Concrete",
+			"surfaces": [
+				"floor"
+			],
+			"authors": [
+				"Dimitrios Savva"
+			],
+			"scale": 200,
+			"sourceBytes": {
+				"albedo": 861674,
+				"roughness": 488628
+			},
+			"files": [
+				{
+					"name": "materials/smooth_concrete_floor/albedo.jpg",
+					"bytes": 137326,
+					"hash": "4e3a110d168609fe",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.533,
+					"lowFrequencyMax": 1,
+					"codecRms": 2.294
+				},
+				{
+					"name": "materials/smooth_concrete_floor/rough.jpg",
+					"bytes": 12309,
+					"hash": "9fc002d999fc9d03",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.302,
+					"lowFrequencyMax": 1,
+					"codecRms": 0.883
+				},
+				{
+					"name": "materials/thumbnails/smooth_concrete_floor.jpg",
+					"bytes": 7863,
+					"hash": "eedb3ada05a05183",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "concrete_floor_worn_001",
+			"name": "Worn Concrete",
+			"published": "Concrete Floor Worn 001",
+			"family": "Concrete",
+			"surfaces": [
+				"floor"
+			],
+			"authors": [
+				"Dimitrios Savva",
+				"Rico Cilliers"
+			],
+			"scale": 300,
+			"sourceBytes": {
+				"albedo": 118806,
+				"roughness": 181942
+			},
+			"files": [
+				{
+					"name": "materials/concrete_floor_worn_001/albedo.jpg",
+					"bytes": 65897,
+					"hash": "7befd706210223c3",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.251,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.149
+				},
+				{
+					"name": "materials/concrete_floor_worn_001/rough.jpg",
+					"bytes": 22283,
+					"hash": "5322e078a46fc933",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.306,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.46
+				},
+				{
+					"name": "materials/thumbnails/concrete_floor_worn_001.jpg",
+					"bytes": 3804,
+					"hash": "6c901173822d76a3",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "concrete_brick_wall_001",
+			"name": "Concrete Block",
+			"published": "Concrete Brick Wall 001",
+			"family": "Concrete",
+			"surfaces": [
+				"wall"
+			],
+			"authors": [
+				"Dimitrios Savva",
+				"Rico Cilliers"
+			],
+			"scale": 300,
+			"sourceBytes": {
+				"albedo": 131890,
+				"roughness": 182790
+			},
+			"files": [
+				{
+					"name": "materials/concrete_brick_wall_001/albedo.jpg",
+					"bytes": 75999,
+					"hash": "e0cb5a24faf1f83a",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.51,
+					"lowFrequencyMax": 2,
+					"codecRms": 1.245
+				},
+				{
+					"name": "materials/concrete_brick_wall_001/rough.jpg",
+					"bytes": 25727,
+					"hash": "39a3ebcc463bc8b3",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.302,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.457
+				},
+				{
+					"name": "materials/thumbnails/concrete_brick_wall_001.jpg",
+					"bytes": 6706,
+					"hash": "035c60639589b9e3",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "beige_wall_001",
+			"name": "Beige Paint",
+			"published": "Beige Wall 001",
+			"family": "Plaster",
+			"surfaces": [
+				"wall"
+			],
+			"authors": [
+				"Dimitrios Savva",
+				"Rico Cilliers"
+			],
+			"scale": 300,
+			"sourceBytes": {
+				"albedo": 33074,
+				"roughness": 151256
+			},
+			"files": [
+				{
+					"name": "materials/beige_wall_001/albedo.jpg",
+					"bytes": 22651,
+					"hash": "3e828a74b4f7e3e7",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.72,
+					"lowFrequencyMax": 2,
+					"codecRms": 0.814
+				},
+				{
+					"name": "materials/beige_wall_001/rough.jpg",
+					"bytes": 15253,
+					"hash": "75cc07c2b01d2c21",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.296,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.197
+				},
+				{
+					"name": "materials/thumbnails/beige_wall_001.jpg",
+					"bytes": 2768,
+					"hash": "dd4027c598e52fb2",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "white_plaster_02",
+			"name": "White Plaster",
+			"published": "White Plaster 02",
+			"family": "Plaster",
+			"surfaces": [
+				"wall"
+			],
+			"authors": [
+				"Rob Tuytel"
+			],
+			"scale": 100,
+			"sourceBytes": {
+				"albedo": 527219,
+				"roughness": 295900
+			},
+			"files": [
+				{
+					"name": "materials/white_plaster_02/albedo.jpg",
+					"bytes": 118469,
+					"hash": "05b5a920f9a431a5",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.583,
+					"lowFrequencyMax": 2,
+					"codecRms": 1.871
+				},
+				{
+					"name": "materials/white_plaster_02/rough.jpg",
+					"bytes": 12762,
+					"hash": "e3da675646f753fd",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.305,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.051
+				},
+				{
+					"name": "materials/thumbnails/white_plaster_02.jpg",
+					"bytes": 5380,
+					"hash": "73c9067609f921cb",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "grey_plaster",
+			"name": "Grey Plaster",
+			"published": "Grey Plaster",
+			"family": "Plaster",
+			"surfaces": [
+				"wall"
+			],
+			"authors": [
+				"Rob Tuytel"
+			],
+			"scale": 100,
+			"sourceBytes": {
+				"albedo": 704079,
+				"roughness": 635335
+			},
+			"files": [
+				{
+					"name": "materials/grey_plaster/albedo.jpg",
+					"bytes": 155901,
+					"hash": "963c40658e637000",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.55,
+					"lowFrequencyMax": 2,
+					"codecRms": 2.186
+				},
+				{
+					"name": "materials/grey_plaster/rough.jpg",
+					"bytes": 36842,
+					"hash": "95fa145ba869d0d3",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.306,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.7
+				},
+				{
+					"name": "materials/thumbnails/grey_plaster.jpg",
+					"bytes": 7853,
+					"hash": "a4f827cca7b33b20",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "plaster_grey_04",
+			"name": "Fine Grey Plaster",
+			"published": "Plaster Grey 04",
+			"family": "Plaster",
+			"surfaces": [
+				"wall"
+			],
+			"authors": [
+				"Rob Tuytel"
+			],
+			"scale": 150,
+			"sourceBytes": {
+				"albedo": 456938,
+				"roughness": 370366
+			},
+			"files": [
+				{
+					"name": "materials/plaster_grey_04/albedo.jpg",
+					"bytes": 109387,
+					"hash": "81390e218afbbb2e",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.572,
+					"lowFrequencyMax": 2,
+					"codecRms": 1.811
+				},
+				{
+					"name": "materials/plaster_grey_04/rough.jpg",
+					"bytes": 19501,
+					"hash": "788c90e41848d2d4",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.303,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.371
+				},
+				{
+					"name": "materials/thumbnails/plaster_grey_04.jpg",
+					"bytes": 5736,
+					"hash": "1775db8f235fe03a",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "plastered_wall_04",
+			"name": "Rough Plaster",
+			"published": "Plastered Wall 04",
+			"family": "Plaster",
+			"surfaces": [
+				"wall"
+			],
+			"authors": [
+				"Rob Tuytel"
+			],
+			"scale": 320,
+			"sourceBytes": {
+				"albedo": 299230,
+				"roughness": 243061
+			},
+			"files": [
+				{
+					"name": "materials/plastered_wall_04/albedo.jpg",
+					"bytes": 33031,
+					"hash": "744b630535d089dd",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.568,
+					"lowFrequencyMax": 2,
+					"codecRms": 0.841
+				},
+				{
+					"name": "materials/plastered_wall_04/rough.jpg",
+					"bytes": 7081,
+					"hash": "42f7714d9b936266",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.289,
+					"lowFrequencyMax": 1,
+					"codecRms": 0.459
+				},
+				{
+					"name": "materials/thumbnails/plastered_wall_04.jpg",
+					"bytes": 2962,
+					"hash": "1d66fbaf92fe2a8b",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "white_stucco",
+			"name": "White Stucco",
+			"published": "White Stucco",
+			"family": "Plaster",
+			"surfaces": [
+				"wall"
+			],
+			"authors": [
+				"Amal Kumar"
+			],
+			"scale": 200,
+			"sourceBytes": {
+				"albedo": 557550,
+				"roughness": 347861
+			},
+			"files": [
+				{
+					"name": "materials/white_stucco/albedo.jpg",
+					"bytes": 61257,
+					"hash": "a349632b3aa0fb58",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.423,
+					"lowFrequencyMax": 2,
+					"codecRms": 1.405
+				},
+				{
+					"name": "materials/white_stucco/rough.jpg",
+					"bytes": 7916,
+					"hash": "e9868fe3ebe0e3f2",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.308,
+					"lowFrequencyMax": 1,
+					"codecRms": 0.701
+				},
+				{
+					"name": "materials/thumbnails/white_stucco.jpg",
+					"bytes": 1782,
+					"hash": "576d1e64dfc8aedb",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "yellow_plaster",
+			"name": "Yellow Plaster",
+			"published": "Yellow Plaster",
+			"family": "Plaster",
+			"surfaces": [
+				"wall"
+			],
+			"authors": [
+				"Rob Tuytel"
+			],
+			"scale": 200,
+			"sourceBytes": {
+				"albedo": 376961,
+				"roughness": 243457
+			},
+			"files": [
+				{
+					"name": "materials/yellow_plaster/albedo.jpg",
+					"bytes": 105657,
+					"hash": "e6f36a9801e0ee1c",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.564,
+					"lowFrequencyMax": 2,
+					"codecRms": 1.775
+				},
+				{
+					"name": "materials/yellow_plaster/rough.jpg",
+					"bytes": 17628,
+					"hash": "437f72459f989eea",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.318,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.177
+				},
+				{
+					"name": "materials/thumbnails/yellow_plaster.jpg",
+					"bytes": 6583,
+					"hash": "33e318057fe0b320",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "brick_wall_001",
+			"name": "Red Brick",
+			"published": "Brick Wall 001",
+			"family": "Brick",
+			"surfaces": [
+				"wall"
+			],
+			"authors": [
+				"Dimitrios Savva",
+				"Rob Tuytel"
+			],
+			"scale": 300,
+			"sourceBytes": {
+				"albedo": 574381,
+				"roughness": 211093
+			},
+			"files": [
+				{
+					"name": "materials/brick_wall_001/albedo.jpg",
+					"bytes": 165316,
+					"hash": "c88e8add7474b965",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.534,
+					"lowFrequencyMax": 2,
+					"codecRms": 2.256
+				},
+				{
+					"name": "materials/brick_wall_001/rough.jpg",
+					"bytes": 19935,
+					"hash": "f859f6f92825d243",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.311,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.171
+				},
+				{
+					"name": "materials/thumbnails/brick_wall_001.jpg",
+					"bytes": 13631,
+					"hash": "3e045f029aac9efe",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "large_red_bricks",
+			"name": "Large Red Brick",
+			"published": "Large Red Bricks",
+			"family": "Brick",
+			"surfaces": [
+				"wall"
+			],
+			"authors": [
+				"Rob Tuytel"
+			],
+			"scale": 200,
+			"sourceBytes": {
+				"albedo": 616870,
+				"roughness": 110868
+			},
+			"files": [
+				{
+					"name": "materials/large_red_bricks/albedo.jpg",
+					"bytes": 184081,
+					"hash": "b308745ecd1569cb",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.526,
+					"lowFrequencyMax": 2,
+					"codecRms": 2.368
+				},
+				{
+					"name": "materials/large_red_bricks/rough.jpg",
+					"bytes": 12092,
+					"hash": "1beaecc48b4b9ab3",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.25,
+					"lowFrequencyMax": 1,
+					"codecRms": 0.666
+				},
+				{
+					"name": "materials/thumbnails/large_red_bricks.jpg",
+					"bytes": 14799,
+					"hash": "bd862419cddfcb8b",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "painted_brick",
+			"name": "Painted Brick",
+			"published": "Painted Brick",
+			"family": "Brick",
+			"surfaces": [
+				"wall"
+			],
+			"authors": [
+				"Amal Kumar"
+			],
+			"scale": 180,
+			"sourceBytes": {
+				"albedo": 842226,
+				"roughness": 370213
+			},
+			"files": [
+				{
+					"name": "materials/painted_brick/albedo.jpg",
+					"bytes": 170364,
+					"hash": "450a806919115b56",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.531,
+					"lowFrequencyMax": 1,
+					"codecRms": 2.463
+				},
+				{
+					"name": "materials/painted_brick/rough.jpg",
+					"bytes": 15167,
+					"hash": "dab34fcd7e871212",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.295,
+					"lowFrequencyMax": 1,
+					"codecRms": 0.925
+				},
+				{
+					"name": "materials/thumbnails/painted_brick.jpg",
+					"bytes": 13538,
+					"hash": "84eb11f39671040e",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "yellow_brick",
+			"name": "Yellow Brick",
+			"published": "Yellow Brick",
+			"family": "Brick",
+			"surfaces": [
+				"wall"
+			],
+			"authors": [
+				"Rob Tuytel"
+			],
+			"scale": 200,
+			"sourceBytes": {
+				"albedo": 1176449,
+				"roughness": 1024165
+			},
+			"files": [
+				{
+					"name": "materials/yellow_brick/albedo.jpg",
+					"bytes": 238585,
+					"hash": "53a16e10f3326143",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.511,
+					"lowFrequencyMax": 2,
+					"codecRms": 2.802
+				},
+				{
+					"name": "materials/yellow_brick/rough.jpg",
+					"bytes": 46675,
+					"hash": "bafbc6c90498297e",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.559,
+					"lowFrequencyMax": 3,
+					"codecRms": 1.634
+				},
+				{
+					"name": "materials/thumbnails/yellow_brick.jpg",
+					"bytes": 16333,
+					"hash": "db6d2777d3f8b513",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "castle_brick_02_white",
+			"name": "Whitewashed Brick",
+			"published": "Castle Brick 02 White",
+			"family": "Brick",
+			"surfaces": [
+				"wall"
+			],
+			"authors": [
+				"Rob Tuytel"
+			],
+			"scale": 250,
+			"sourceBytes": {
+				"albedo": 703877,
+				"roughness": 434938
+			},
+			"files": [
+				{
+					"name": "materials/castle_brick_02_white/albedo.jpg",
+					"bytes": 213731,
+					"hash": "859b179bd1774a45",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.537,
+					"lowFrequencyMax": 2,
+					"codecRms": 2.576
+				},
+				{
+					"name": "materials/castle_brick_02_white/rough.jpg",
+					"bytes": 36505,
+					"hash": "d0f1e971b01598a7",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.307,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.66
+				},
+				{
+					"name": "materials/thumbnails/castle_brick_02_white.jpg",
+					"bytes": 15284,
+					"hash": "e5cd8c3d6fb11e0e",
+					"width": 128,
+					"height": 128
+				}
+			]
+		},
+		{
+			"slug": "brown_brick_02",
+			"name": "Brown Brick",
+			"published": "Brown Brick 02",
+			"family": "Brick",
+			"surfaces": [
+				"wall"
+			],
+			"authors": [
+				"Rob Tuytel"
+			],
+			"scale": 100,
+			"sourceBytes": {
+				"albedo": 425513,
+				"roughness": 225461
+			},
+			"files": [
+				{
+					"name": "materials/brown_brick_02/albedo.jpg",
+					"bytes": 197613,
+					"hash": "f189271d9f86d48c",
+					"width": 512,
+					"height": 512,
+					"lowFrequencyRms": 0.504,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.912
+				},
+				{
+					"name": "materials/brown_brick_02/rough.jpg",
+					"bytes": 24127,
+					"hash": "49463c0d87d2becc",
+					"width": 256,
+					"height": 256,
+					"lowFrequencyRms": 0.31,
+					"lowFrequencyMax": 1,
+					"codecRms": 1.551
+				},
+				{
+					"name": "materials/thumbnails/brown_brick_02.jpg",
+					"bytes": 13635,
+					"hash": "45a30ee20ea24e48",
+					"width": 128,
+					"height": 128
+				}
+			]
+		}
+	]
+}

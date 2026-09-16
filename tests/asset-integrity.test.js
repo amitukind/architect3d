@@ -47,12 +47,15 @@ import {readFileSync, readdirSync, existsSync, statSync, mkdtempSync, copyFileSy
 import {fileURLToPath} from 'node:url';
 import {dirname, join, sep, basename} from 'node:path';
 import {tmpdir} from 'node:os';
+import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {textureVram} from '../tools/check-budget.mjs';
+import {sceneVram, textureVram} from '../tools/check-budget.mjs';
 import {resolveModelUrl} from '../src/scripts/core/legacy_models.js';
 import {AssetManifest, MANIFEST_VERSION} from '../src/scripts/core/asset_manifest.js';
 import {AssetResolver} from '../src/scripts/core/asset_resolver.js';
 import {defaultRoomTexture} from '../src/scripts/model/room.js';
+import {WITHDRAWN} from '../tools/make-asset-manifest.mjs';
+import * as SPLIT_VOCABULARY from '../tools/split-catalog.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC = join(ROOT, 'public');
@@ -60,9 +63,19 @@ const FIXTURES = join(ROOT, 'tests/fixtures');
 
 const CATALOG = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog.json'), 'utf8'));
 const TEXTURES = JSON.parse(readFileSync(join(ROOT, 'src/catalog/textures.json'), 'utf8'));
+const SOURCES = JSON.parse(readFileSync(join(ROOT, 'src/catalog/sources.json'), 'utf8'));
+const PACK_MANIFEST = JSON.parse(readFileSync(join(ROOT, 'src/catalog/catalog-manifest.json'), 'utf8'));
+/** @param {string} name A generated file under `public/catalog/` (RM-012 J2). */
+const packFile = (name) => JSON.parse(readFileSync(join(ROOT, 'public/catalog', name), 'utf8'));
+/** The detail tier, reassembled from the packs the deployment serves. */
+const DETAIL = {
+	items: Object.assign({}, ...PACK_MANIFEST.packs.map((entry) => packFile(entry.id + '.detail.json').items)),
+};
+const THUMBNAILS = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/thumbnails.json'), 'utf8'));
 const COMPRESSION = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/texture-compression.json'), 'utf8'));
 const MANIFEST_FILE = join(PUBLIC, 'asset-manifest.json');
 const MANIFEST_JSON = JSON.parse(readFileSync(MANIFEST_FILE, 'utf8'));
+const INTEGRITY_JSON = JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/asset-integrity.json'), 'utf8'));
 
 /** Anything that looks like a path into public/, wherever it appears. */
 const ASSET_URL = /(?:models|rooms)\/[A-Za-z0-9_./-]+\.(?:png|jpg|jpeg|glb|gltf|js)/g;
@@ -140,7 +153,16 @@ describe('saved designs still resolve', () =>
 		const liveResolver = new AssetResolver({manifest: liveManifest});
 		const physical = (url) => liveResolver.resolve(url).url;
 
+		// And one indirection more, added by RM-012 J2: a name may be WITHDRAWN.
+		// A retirement says "the old name keeps working, it just points somewhere
+		// new", which honours A5's contract. A withdrawal is the other thing and
+		// J2 is the first time this project has done it - two models whose licence
+		// nobody could establish, deleted on purpose, whose names now resolve to
+		// nothing. That breaks the contract, which is exactly why it is a register
+		// with a reason per name rather than a deletion. A fixture naming one is
+		// a record of what shipped then, not a claim about what ships now.
 		const broken = [...urls.entries()]
+			.filter(([url]) => !WITHDRAWN[url])
 			.map(([url, where]) => [physical(resolveModelUrl(url).url), url, where])
 			.filter(([resolved]) => !existsSync(join(PUBLIC, resolved)))
 			.map(([resolved, url, where]) => (resolved === url
@@ -148,6 +170,54 @@ describe('saved designs still resolve', () =>
 				: `${url} -> ${resolved}  (${where[0]})`));
 
 		expect(broken, `saved designs name files that no longer exist:\n  ${broken.join('\n  ')}`).toEqual([]);
+	});
+
+	it('withdraws a name only with a reason, and only when it is really gone', () =>
+	{
+		// The register is not a place to park an inconvenient assertion. Every
+		// entry has to name a file that is actually absent - otherwise it is
+		// hiding a live asset from the check - and carry a reason long enough to
+		// be one.
+		const names = Object.keys(WITHDRAWN);
+		expect(names).toHaveLength(2);
+		names.forEach((name) =>
+		{
+			expect(existsSync(join(PUBLIC, name)), `${name} is withdrawn but still in the tree`).toBe(false);
+			expect(CATALOG.items.some((item) => item.model === name),
+				`${name} is withdrawn but still a catalog row`).toBe(false);
+			expect(WITHDRAWN[name].length, `${name} needs a reason, not a label`).toBeGreaterThan(80);
+			expect(WITHDRAWN[name]).toContain('RM-012 J2');
+		});
+	});
+
+	it('and does not keep the authoring source of what it withdrew', () =>
+	{
+		// RM-020 S-12. The case above looks in `public/`, which is where a shipped
+		// model lives - and that is precisely why it missed this. J2 deleted the
+		// two files whose licence nobody could establish and left three `.blend`
+		// files sitting in `asset-pipeline/`:
+		//
+		//   SimpleCabinet_GLTF.blend        the authoring source of the withdrawn
+		//                                   SimpleCabinet.glb, carrying exactly its
+		//                                   node, mesh and material names - Cabinet1,
+		//                                   Cabinet1_Door_L/R, Countertop1,
+		//                                   HandleLeft/Right, Body/Door/Handle
+		//   legacy-json/SimpleCabinet.blend an earlier revision of the same asset
+		//   test_gltf_models.blend          20.8 MB, named in `sources.json` nowhere
+		//                                   at all, so with no licence even claimed
+		//
+		// 21.95 MB of the exact material J2 decided a deploy could not carry, kept
+		// in the checkout from RM-012 to RM-020 because the assertion was pointed at
+		// the directory the DERIVED file had been deleted from. A blind audit then
+		// filed all three as stale build artifacts - the right answer for the wrong
+		// reason, which is why the reason is written here.
+		//
+		// Stated as "no `.blend` is tracked" rather than per name, because the
+		// per-name form is the shape that just failed: it can only refuse the files
+		// somebody already thought to list.
+		const tracked = execFileSync('git', ['ls-files', '*.blend'], {cwd: ROOT, encoding: 'utf8'})
+			.split('\n').filter(Boolean);
+		expect(tracked, `authoring sources nobody can license:\n  ${tracked.join('\n  ')}`).toEqual([]);
 	});
 
 	it('nothing under rooms/textures was renamed by the compression pass', () =>
@@ -216,6 +286,152 @@ describe('the catalogs point at real files', () =>
 	});
 });
 
+/**
+ * M-29, and the reason it is here rather than beside the splitter.
+ *
+ * `tools/split-catalog.mjs` validates the same vocabulary before it writes
+ * anything, which stops a bad row reaching the generated files. That is a gate
+ * on the *generator*, and a generator can be bypassed by editing what it
+ * produced. This is the gate on the *tree*: it reads the authored catalog, the
+ * provenance table and the generated detail, and asserts the property M-29
+ * actually states - that every row says what it is, where it belongs, how big
+ * it is and who made it - from a measured baseline of zero, which is what
+ * RM-012 X-1 counted before J1 started.
+ */
+describe('every catalog row carries its metadata (RM-012 J1, M-29)', () =>
+{
+	// Imported rather than restated. These were a second copy of the splitter's
+	// two lists, and RM-012 J2 found out the hard way what a second copy is for:
+	// adding `kitchenware` to the vocabulary that refuses to write a bad row left
+	// this one behind, and 51 valid rows failed against a list that was simply
+	// out of date. The counts below are what actually pin the vocabulary - a
+	// fifteenth tag has to be a deliberate edit in two places, which is the point,
+	// and neither of them is a silent copy of the other.
+	const {ROOMS, TAGS} = SPLIT_VOCABULARY;
+
+	it('names a room from the closed list, on 100 % of rows', () =>
+	{
+		const without = CATALOG.items.filter((item) => ROOMS.indexOf(item.room) === -1);
+		expect(without.map((item) => item.name)).toEqual([]);
+		// 168 at J1, then J2: 51 admitted from the Food Kit and 2 withdrawn with
+		// the pack whose licence nobody could establish.
+		expect(CATALOG.items).toHaveLength(217);
+
+		// The vocabulary is closed for a reason X-3 priced rather than for tidiness:
+		// eight words repeated is what makes the key affordable. A ninth room is
+		// allowed - it just has to be a deliberate edit to this number, which is
+		// the point.
+		expect(ROOMS).toHaveLength(8);
+		expect(new Set(CATALOG.items.map((item) => item.room)).size).toBe(8);
+	});
+
+	it('carries at least one tag, all from the closed list', () =>
+	{
+		const bad = CATALOG.items.filter((item) => !Array.isArray(item.tags) || !item.tags.length
+			|| item.tags.some((tag) => TAGS.indexOf(tag) === -1));
+		expect(bad.map((item) => `${item.name}: ${JSON.stringify(item.tags)}`)).toEqual([]);
+		// Fifteen since RM-012 J2 added `kitchenware` with the Food Kit. Its own
+		// word rather than `decor` or `appliance`, because somebody looking for a
+		// saucepan is looking for neither.
+		expect(TAGS).toHaveLength(15);
+		expect(TAGS).toContain('kitchenware');
+	});
+
+	it('names a source that resolves, on 100 % of rows', () =>
+	{
+		const unresolved = CATALOG.items.filter((item) => !SOURCES.sources[item.source]);
+		expect(unresolved.map((item) => `${item.name} -> ${item.source}`)).toEqual([]);
+	});
+
+	it('and every source states a licence, an author, a link and its evidence', () =>
+	{
+		for (const [key, source] of Object.entries(SOURCES.sources))
+		{
+			expect(source.name, key).toBeTruthy();
+			expect(source.licence, key).toBeTruthy();
+			expect(source.licence.name, key).toBeTruthy();
+			expect(source.evidence, key).toBeTruthy();
+			// `author` and `url` may be null and the licence may be `unknown`, but
+			// only for a source that says so in its evidence. A row is never allowed
+			// to have *no* answer; it is allowed to have the answer "not established",
+			// which is a different thing and is the one J2 has to decide about.
+			expect(Object.prototype.hasOwnProperty.call(source, 'author'), key).toBe(true);
+			expect(Object.prototype.hasOwnProperty.call(source, 'url'), key).toBe(true);
+		}
+	});
+
+	it('ships nothing on a licence nobody could establish, and says which two went', () =>
+	{
+		// This used to name the two and assert they were still exactly two - a
+		// pass/fail on whether the number was the one anybody agreed to, not on
+		// the licence. RM-012 J2 took the decision the other way and the number is
+		// zero, so the assertion is the stronger one now: none at all.
+		const unknown = Object.entries(SOURCES.sources)
+			.filter(([, source]) => source.licence.name === 'unknown')
+			.map(([key]) => key);
+		expect(unknown).toEqual([]);
+		expect(CATALOG.items.filter((item) => unknown.indexOf(item.source) !== -1)).toEqual([]);
+
+		// And the two that went are named where a name that no longer resolves has
+		// to be named. A withdrawal breaks A5's contract - a design that used one
+		// shows a missing model - so it is a register with a reason per entry
+		// rather than a deletion.
+		expect(Object.keys(WITHDRAWN).sort())
+			.toEqual(['models/gltf/SimpleCabinet.glb', 'models/gltf/chandelier.gltf']);
+	});
+
+	it('has a measured size for 100 % of rows, in the detail rather than the payload', () =>
+	{
+		const missing = CATALOG.items.filter((item) =>
+		{
+			const detail = DETAIL.items[item.model];
+			return !detail || !detail.size || !(detail.size.w > 0) || !(detail.size.h > 0) || !(detail.size.d > 0);
+		});
+		expect(missing.map((item) => item.name)).toEqual([]);
+
+		// And the expensive half is on the far side of the split: nothing a person
+		// reads about one item is in the tier the grid draws from. Nor, since J2,
+		// is any of it in the payload - the bundle carries a manifest of kits and
+		// every row of both tiers is fetched.
+		const rows = PACK_MANIFEST.packs.flatMap((entry) => packFile(entry.id + '.json').items);
+		expect(rows.every((row) => row.size === undefined && row.source === undefined)).toBe(true);
+		expect(PACK_MANIFEST.items, 'a row in the manifest is a row in the payload').toBeUndefined();
+	});
+
+	it('gives every row a name no other row has', () =>
+	{
+		// RM-012 X-1 found two rows both called Chair by counting. A name is what
+		// the drawer shows and what a saved design records, so two of them are two
+		// things a person cannot tell apart. Both were renamed from what their own
+		// thumbnail files are called, which is where the evidence was.
+		const names = CATALOG.items.map((item) => item.name);
+		expect(names.length - new Set(names).size).toBe(0);
+	});
+
+	it('took the building out of the furniture', () =>
+	{
+		// The twelve wall and floor segments RM-012 measured, plus the openings, the
+		// panel and the flights that are the same argument: part of the building
+		// rather than something you furnish it with.
+		const structure = CATALOG.items.filter((item) => item.room === 'structure');
+		expect(structure).toHaveLength(23);
+
+		// Thirteen carry `panel`: RM-012's twelve - eight typed `Item` and four
+		// in-wall, which is how it identified them - and `Paneling`, a wall item,
+		// which is the same kind of thing and came with them.
+		const segments = structure.filter((item) => item.tags.indexOf('panel') !== -1);
+		expect(segments).toHaveLength(13);
+		expect(segments.filter((item) => item.type === 0)).toHaveLength(8);
+		expect(segments.filter((item) => item.type === 3)).toHaveLength(4);
+		expect(segments.filter((item) => item.type === 2).map((item) => item.name)).toEqual(['Paneling']);
+
+		// Nothing in structure is in a room, and nothing in a room claims to be
+		// structure - which is the whole content of "came out of furniture".
+		expect(CATALOG.items.filter((item) => item.room !== 'structure'
+			&& item.tags.indexOf('panel') !== -1)).toEqual([]);
+	});
+});
+
 describe('the model files point at real files', () =>
 {
 	it('every image URI in every glb resolves beside it', () =>
@@ -276,12 +492,16 @@ describe('the compression pass left nothing behind', () =>
 	it('every file it produced exists and every original is gone', () =>
 	{
 		// A file P6 produced may since have been replaced under a new name - B5
-		// transcoded twelve of them to KTX2. Present means "present under the
-		// name the LAST pass gave it", which is the same rule `reports honest
-		// numbers` applies below and the same one that keeps the chain honest.
-		const TRANSCODED = new Map(JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/texture-transcode.json'), 'utf8'))
-			.textures.map((entry) => [entry.from, entry.to]));
-		const nowAt = (name) => TRANSCODED.get(name) || name;
+		// transcoded twelve of them to KTX2, and RM-012 J1 replaced five of its
+		// thumbnails with renders. Present means "present under the name the LAST
+		// pass gave it", which is the same rule `reports honest numbers` applies
+		// below and the same one that keeps the chain honest.
+		const MOVED = new Map([
+			...JSON.parse(readFileSync(join(ROOT, 'asset-pipeline/texture-transcode.json'), 'utf8'))
+				.textures.map((entry) => [entry.from, entry.to]),
+			...THUMBNAILS.thumbnails.filter((row) => row.replaced).map((row) => [row.replaced, row.image]),
+		]);
+		const nowAt = (name) => MOVED.get(name) || name;
 
 		const missing = COMPRESSION.converted.filter((entry) => !existsSync(join(PUBLIC, nowAt(entry.to))));
 		expect(missing.map((entry) => entry.to), 'converted files that are not there').toEqual([]);
@@ -325,6 +545,16 @@ describe('the compression pass left nothing behind', () =>
 				// where to look as well as what to expect.
 				name: 'RM-004 B5 KTX2 transcode',
 				entries: (report) => report.textures.map((entry) => [entry.from, {bytes: entry.bytesAfter, at: entry.to}]),
+			},
+			{
+				report: THUMBNAILS,
+				// The third pass, and the same shape as B5's: a rendered thumbnail
+				// both replaces the bytes and moves them to a name derived from the
+				// model rather than from whatever the file was called when somebody
+				// downloaded it (RM-012 J1, X-8).
+				name: 'RM-012 J1 thumbnail render',
+				entries: (report) => report.thumbnails.filter((row) => row.replaced)
+					.map((row) => [row.replaced, {bytes: row.bytes, at: row.image}]),
 			},
 		];
 		/** @type {Map<string, {bytes: number, at: string, pass: string}>} */
@@ -406,6 +636,13 @@ describe('the asset manifest describes the tree it ships with (RM-003 A5)', () =
 		// Not a spot check: a stale byte count makes the prefetch budget and the
 		// per-item ceiling lie, and a stale hash makes integrity enforcement - the
 		// thing A5 records it for - reject a file that is perfectly good.
+		//
+		// The two halves come from two files since RM-011 H1. The byte counts are
+		// still in the served manifest because the runtime weighs assets with
+		// them; the hashes moved to `asset-pipeline/asset-integrity.json`, which
+		// is generated in the same pass and never served. M-43 is why: they were
+		// 17,065 of the manifest's 22,208 gzipped bytes, downloaded by everybody
+		// on every boot for a feature that is off by default.
 		const wrong = [];
 		for (const [name, entry] of Object.entries(MANIFEST_JSON.assets))
 		{
@@ -416,13 +653,35 @@ describe('the asset manifest describes the tree it ships with (RM-003 A5)', () =
 				continue;
 			}
 			const hash = 'sha256-' + createHash('sha256').update(bytes).digest('base64');
-			if (hash !== entry.hash)
+			if (hash !== INTEGRITY_JSON.assets[name])
 			{
 				wrong.push(`${name}: hash does not match`);
 			}
 		}
 
 		expect(wrong, `run \`npm run manifest\`:\n  ${wrong.join('\n  ')}`).toEqual([]);
+	});
+
+	it('hashes every name the manifest declares, retired ones included', () =>
+	{
+		// The split's own risk: two generated files that can disagree about which
+		// names exist. A retired name inherits its target's hash the same way it
+		// inherits its bytes, and nothing else may be missing from either side.
+		expect(Object.keys(INTEGRITY_JSON.assets).sort()).toEqual(Object.keys(MANIFEST_JSON.assets).sort());
+		for (const [name, hash] of Object.entries(INTEGRITY_JSON.assets))
+		{
+			expect(hash, `${name} has no hash`).toMatch(/^sha256-/);
+		}
+	});
+
+	it('serves no hashes, which is what makes the first load smaller', () =>
+	{
+		// The property M-43 bought, asserted rather than assumed: a plain
+		// `npm run manifest` writes no `hash` into the file a browser downloads.
+		// `npm run manifest -- --integrity` puts them back for a cross-origin
+		// deployment that wants `fetch(url, {integrity})`.
+		const served = Object.values(MANIFEST_JSON.assets).filter((entry) => entry.hash);
+		expect(served).toEqual([]);
 	});
 
 	it('parses through the library, at the version the library understands', () =>
@@ -450,6 +709,7 @@ describe('the asset manifest describes the tree it ships with (RM-003 A5)', () =
 		const resolver = new AssetResolver({manifest});
 
 		const broken = [...fixtureUrls().keys()]
+			.filter((url) => !WITHDRAWN[url])
 			.map((url) => resolveModelUrl(url).url)
 			.filter((url) => resolver.missing(url) || !existsSync(join(PUBLIC, resolver.resolve(url).url)));
 
@@ -474,7 +734,14 @@ describe('the asset manifest describes the tree it ships with (RM-003 A5)', () =
 		expect(resolution.name).toBe(name);
 		expect(resolution.url).toBe('https://cdn.example.com/a3d/rooms/textures/hardwood.jpg');
 		expect(resolution.known).toBe(true);
-		expect(resolution.hash).toMatch(/^sha256-/);
+		// Null on a plain build since H1, and that is the point of the change
+		// rather than a gap: `integrityFor` answers when a deployment asks for
+		// hashes with `npm run manifest -- --integrity`, and costs nobody 17 KB
+		// when it does not. The parse path is unchanged and still reads them.
+		expect(resolution.hash).toBeNull();
+		expect(AssetManifest.parse({version: MANIFEST_VERSION, assets: {
+			[name]: {bytes: 1, hash: 'sha256-abc', kind: 'texture'},
+		}}).manifest.entry(name).hash).toBe('sha256-abc');
 
 		// And a live name still behaves the plain way, so the indirection is not
 		// quietly rewriting everything.
@@ -589,13 +856,29 @@ describe('the VRAM budget can see every format the tree uploads (RM-005 C1)', ()
 			.toEqual([]);
 	});
 
-	it('reports the whole tree at the figure tools/budget.json records', () =>
+	it('reports a scene at the figure tools/budget.json records', () =>
 	{
 		// Ties the per-file property above to the number the gate actually prints,
 		// so a measurement that is right file-by-file and wrong in aggregate - a
 		// double count, a directory skipped - still fails.
+		//
+		// RM-011 H1 re-pointed the line from the tree to a scene (W-5), so this
+		// reads `sceneVram` where it used to read `textureVram`. The per-file
+		// property above still walks the whole tree, because "can this budget see
+		// this format" is a question about the measurement and not about which
+		// files a scene happens to name.
 		const recorded = JSON.parse(readFileSync(join(ROOT, 'tools/budget.json'), 'utf8'));
-		expect(textureVram(PUBLIC)).toBe(recorded.budgets['texture-vram'].measured);
+		expect(sceneVram()).toBe(recorded.budgets['texture-vram'].measured);
+	});
+
+	it('measures a scene well below the tree it is drawn from', () =>
+	{
+		// The claim W-5 made and the reason the line moved: a scene holds a
+		// fraction of what the tree contains, and after the material library the
+		// gap is wide enough that measuring the tree would have refused a feature
+		// for a cost nobody pays. Stated as an inequality rather than a figure so
+		// it survives the next texture added to either side.
+		expect(sceneVram()).toBeLessThan(textureVram(PUBLIC) / 2);
 	});
 });
 

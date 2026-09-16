@@ -7,6 +7,7 @@ import {EventDispatcher, Vector2} from 'three';
 import {Bezier} from 'bezier-js';
 import {WallTypes} from '../core/constants.js';
 import {EVENT_ACTION,EVENT_MOVED,EVENT_DELETED} from '../core/events.js';
+import {EVENT_WALL_ATTRIBUTES_CHANGED} from '../core/events.js';
 import {configurationOf,configWallThickness,configWallHeight} from '../core/configuration.js';
 import {Utils} from '../core/utils.js';
 
@@ -126,14 +127,83 @@ export class Wall extends EventDispatcher
 
 		// A Wall has no floorplan of its own; it reaches one through its start
 		// corner, which is what makes the model layer need no new plumbing for
-		// P7. `Floorplan.newWall` is the only construction site.
-		var configuration = configurationOf(start && start.floorplan);
+		// P7. `Floorplan.newWall` is the only construction site. Read on demand by
+		// the accessors below rather than captured here, since RM-008 E2: a wall
+		// that follows the document has to keep following it when it changes.
 
-		/** Wall thickness. */
-		this.thickness = configuration.getNumericValue(configWallThickness);
+		/**
+		 * Wall thickness, in centimetres.
+		 *
+		 * Still snapshotted from the configuration at construction, which is a
+		 * PRESERVED QUIRK pinned by two tests in `tests/dimensioning.test.js`:
+		 * changing the document's wall thickness does not reach walls that already
+		 * exist. RM-008 E2 tried making it follow the configuration instead - the
+		 * behaviour a user expects from a settings panel - and left it alone,
+		 * because the quirk is characterised and re-baselining it is a deliberate
+		 * change with its own tests, not a side effect of adding a control.
+		 *
+		 * What E2 adds is the flag below: whether this number was *chosen* for
+		 * this wall or inherited from the document at the moment it was drawn.
+		 *
+		 * @type {number}
+		 */
+		this._thickness = configurationOf(start && start.floorplan).getNumericValue(configWallThickness);
+		/**
+		 * Whether `_thickness` was set for this wall specifically (RM-008 E2).
+		 *
+		 * The save file records a wall's thickness only when this is true, which
+		 * is what makes the field additive: a design drawn before E2, or one where
+		 * nobody touched a thickness, writes exactly the bytes it wrote before.
+		 * Without the flag there is no way to tell "150 because somebody chose
+		 * it" from "150 because that was the default", and every file would grow a
+		 * field nobody asked for.
+		 *
+		 * @type {boolean}
+		 */
+		this._thicknessIsOwn = false;
+		/**
+		 * Where this wall's faces stop, or null for the corners (RM-008 F2).
+		 * See {@link Wall#partialHeight}.
+		 * @type {?number}
+		 */
+		this._partialHeight = null;
 
-		/** Wall height. */
-		this.height = configuration.getNumericValue(configWallHeight);
+		/**
+		 * Wall height, in centimetres, snapshotted from the configuration.
+		 *
+		 * ## It is not the height of the wall
+		 *
+		 * Measured under RM-008 E2 rather than reasoned about: a wall whose
+		 * `height` was set to 400 with its corners left at 250 still drew a mesh
+		 * 250 tall, and raising the corners to 400 drew one 400 tall while this
+		 * still said 250. The 3D wall's top comes from the two corners'
+		 * `elevation` (`three/edge.js:461`), and nothing else does.
+		 *
+		 * So this feeds three things, and is wrong in all three whenever a corner
+		 * has been raised: the wall texture's vertical repeat (`edge.js:308`),
+		 * which tiles as though the wall were shorter than it is; the initial
+		 * vertical placement of a wall item (`items/wall_item.js:194`), which puts
+		 * a picture below the middle of a raised wall; and `HalfEdge.height`,
+		 * which nothing reads at all.
+		 *
+		 * ## Why E2 did not fix it
+		 *
+		 * Deriving it from the corners - `Math.max(start.elevation,
+		 * end.elevation)` - fixes all three and stores nothing new. It was written,
+		 * and it failed `tests/geometry-rewrites.test.js`: the frozen r98 golden
+		 * for `edge.plain` records a UV of 1.24 where the derivation produces 1.00,
+		 * because the captured wall had a corner at 310 against a height of 250 and
+		 * the texture tiled past its top. The golden is the r98 renderer and cannot
+		 * be regenerated - three r98 is gone.
+		 *
+		 * That makes this a parity change with a fresh capture attached, exactly as
+		 * `three/lights.js` says of its own 300 vs 250: a deliberate change, not a
+		 * tidy-up. The finding is recorded here and in RM-008 so the next person
+		 * starts from a measurement instead of rediscovering it.
+		 *
+		 * @type {number}
+		 */
+		this.height = configurationOf(start && start.floorplan).getNumericValue(configWallHeight);
 
 		/** Actions to be applied after movement. */
 
@@ -308,6 +378,153 @@ export class Wall extends EventDispatcher
 		}
 	}
 	
+	/**
+	 * How thick this wall is, in centimetres (RM-008 E2).
+	 *
+	 * Genuinely per-wall and genuinely geometric: `HalfEdge` sets its `offset` to
+	 * half of this, which is what pushes the interior and exterior faces apart, so
+	 * changing it moves the plan, the 3D geometry and the rooms derived from the
+	 * graph. That is the difference between this and `height`, which is a stored
+	 * number that does not describe the wall - see the note in the constructor.
+	 *
+	 * @returns {number}
+	 */
+	get thickness()
+	{
+		return this._thickness;
+	}
+
+	/**
+	 * @param {?number} value Centimetres. Null or undefined puts the wall back on
+	 *        the document's setting as it stands now.
+	 * @emits {EVENT_WALL_ATTRIBUTES_CHANGED}
+	 */
+	set thickness(value)
+	{
+		var before = this._thickness;
+		if (value === null || value === undefined)
+		{
+			this._thickness = configurationOf(this.start && this.start.floorplan).getNumericValue(configWallThickness);
+			this._thicknessIsOwn = false;
+		}
+		else
+		{
+			var next = Number(value);
+			// A zero or negative thickness collapses both half edges onto the wall
+			// centreline, and every room derived from them with it. Refused rather
+			// than clamped: a caller that asked for 0 has a bug, and quietly
+			// substituting 1 hides it.
+			if (!isFinite(next) || next <= 0)
+			{
+				return;
+			}
+			this._thickness = next;
+			this._thicknessIsOwn = true;
+		}
+		if (this._thickness === before)
+		{
+			return;
+		}
+		this.dispatchEvent({type: EVENT_WALL_ATTRIBUTES_CHANGED, item: this, info: {from: before, to: this._thickness}});
+	}
+
+	/**
+	 * Whether this wall's thickness was chosen for it, rather than inherited from
+	 * the document when it was drawn. The save file writes the field only when
+	 * this is true, which is what keeps it additive (RM-008 E2, T-6).
+	 *
+	 * @returns {boolean}
+	 */
+	get hasOwnThickness()
+	{
+		return this._thicknessIsOwn;
+	}
+
+	/**
+	 * Where this wall's faces stop, in centimetres, or null for the corners
+	 * (RM-008 F2).
+	 *
+	 * ## Why this exists when `height` looks like it should
+	 *
+	 * RM-007 priced half walls as "per-wall height", and `Wall.height` looks like
+	 * exactly that field. RM-008 E2 measured that it is not: a wall with `height`
+	 * 400 and its corners at 250 draws a mesh 250 tall, because the drawn top
+	 * comes from the corner elevations. Deriving `height` from them was written
+	 * and reverted - it fails the frozen r98 golden for `edge.plain`, which
+	 * records a texture tiling past the top of a raised wall, and three r98 is
+	 * gone. `height` still feeds the texture repeat and the initial placement of a
+	 * wall item, and is pinned with that measurement beside it.
+	 *
+	 * ## And why not a corner split
+	 *
+	 * RM-009 F2's own drawing said half walls should be built on the corners,
+	 * giving the wall its own pair so lowering it does not lower its neighbour.
+	 * That was built, and measured, and it does not work: **two coincident corners
+	 * break the cycle the room detector walks**, so a half wall inside a room
+	 * deleted the room - and `newCorner` merges corners within `cornerTolerance`
+	 * on load, so the split did not survive a save either. Both measured rather
+	 * than reasoned, which is why the approach changed and the estimate did not.
+	 *
+	 * This field touches neither. The wall graph is unchanged, so every room stays
+	 * as it was; the corners are unchanged, so a neighbour is unaffected; `height`
+	 * is unchanged, so every r98 golden is unaffected. It caps the drawn top of
+	 * this wall's faces and nothing else, which is the whole of what a half wall
+	 * is.
+	 *
+	 * Null - and absent from the file - for every wall anybody has ever drawn.
+	 *
+	 * @returns {?number}
+	 */
+	get partialHeight()
+	{
+		return this._partialHeight;
+	}
+
+	/**
+	 * @param {?number} value Centimetres, or null to go back to the corners.
+	 */
+	set partialHeight(value)
+	{
+		if (value === null || value === undefined)
+		{
+			if (this._partialHeight === null)
+			{
+				return;
+			}
+			var was = this._partialHeight;
+			this._partialHeight = null;
+			this.dispatchEvent({type: EVENT_WALL_ATTRIBUTES_CHANGED, item: this, info: {from: was, to: null}});
+			return;
+		}
+		// A wall with no height is not a wall. Refused rather than clamped, for the
+		// reason the thickness setter gives: a caller that asked for zero has a
+		// bug, and quietly substituting one hides it.
+		if (typeof value !== 'number' || !isFinite(value) || value <= 0 || value === this._partialHeight)
+		{
+			return;
+		}
+		var previous = this._partialHeight;
+		this._partialHeight = value;
+		this.dispatchEvent({type: EVENT_WALL_ATTRIBUTES_CHANGED, item: this, info: {from: previous, to: value}});
+	}
+
+	/**
+	 * How high this wall is drawn at one of its ends (RM-008 F2).
+	 *
+	 * The corner's elevation, or the cap when there is one and it is lower. Never
+	 * higher: a partial height that raised a wall above its corners would leave a
+	 * gap where it meets the next one, and "half wall" is the feature.
+	 *
+	 * @param {import('./corner.js').Corner} corner One of this wall's two.
+	 * @returns {number} Centimetres.
+	 */
+	drawnHeightAt(corner)
+	{
+		var elevation = corner ? corner.elevation : 0;
+		return (this._partialHeight === null) ? elevation : Math.min(elevation, this._partialHeight);
+	}
+
+
 	set wallSize(value)
 	{
 		if(this.wallType == WallTypes.STRAIGHT)

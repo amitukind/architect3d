@@ -1,20 +1,16 @@
 // @ts-check
 import {EventDispatcher, Color} from 'three';
-// three's own addons since S4, replacing the three-gltf-loader and
-// @calvinscofield/three-objloader repacks. Each of those bundled its own copy
-// of three (r105 and r94), so `instanceof` silently failed across the seam and
-// the bundle carried three full engines.
-import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
-import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';
-import {DRACOLoader} from 'three/addons/loaders/DRACOLoader.js';
-import {KTX2Loader} from 'three/addons/loaders/KTX2Loader.js';
-import {formatSupport} from '../core/texture_formats.js';
-import {Scene as ThreeScene, LoadingManager} from 'three';
+import {Scene as ThreeScene, LoadingManager, Group, Box3, Vector3} from 'three';
 import {runtimeOf} from '../core/design_runtime.js';
-import {disposeMaterial} from '../core/resource_registry.js';
+import {disposeMaterial, disposeObject} from '../core/resource_registry.js';
 import {Utils} from '../core/utils.js';
 import {mergeMeshes} from '../core/geometry_merge.js';
 import {resolveModelUrl} from '../core/legacy_models.js';
+import {formatSupport} from '../core/texture_formats.js';
+import {ITEM_TYPE_PARAMETRIC_OPENING, ITEM_TYPE_PARAMETRIC_STAIR, ITEM_TYPE_PARAMETRIC_STRUCTURE} from '../items/factory.js';
+import {buildOpeningGeometry, normaliseOpening} from '../items/opening.js';
+import {buildStairGeometry, normaliseStair} from '../items/stair.js';
+import {buildStructureGeometry, normaliseStructure} from '../items/structure.js';
 import {Factory} from '../items/factory.js';
 import {EVENT_ITEM_LOADING, EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED} from '../core/events.js';
 
@@ -37,8 +33,31 @@ export class Scene extends EventDispatcher
 
 		this.scene = new ThreeScene();
 		this.scene.background = new Color(0xffffff);
-		this.items = [];
+		/**
+		 * One three.js `Group` per storey, keyed by level id (RM-010 G1).
+		 *
+		 * This is where a level's base elevation is applied and the only place it
+		 * is: `Floor`, `Edge` and `Item` each build their geometry relative to a
+		 * plan they are handed and know nothing about storeys, which is what makes
+		 * a level a translation rather than a change to how anything is computed
+		 * (V-4). The GPU stops here too - a `Level` is plain data and does not hold
+		 * one of these.
+		 *
+		 * @type {Map<string, import('three').Group>}
+		 */
+		this.levelGroups = new Map();
 		this.needsUpdate = false;
+
+		/**
+		 * Whether a dragged item snaps to the furniture around it (RM-012 J4).
+		 *
+		 * Off by default, so nothing about a drag changes for an embedder who has
+		 * not asked for it and no parity capture moves. `Item.applySnap` reads it;
+		 * the application turns it on beside the grid snap it already offers.
+		 *
+		 * @type {boolean}
+		 */
+		this.snapItems = false;
 
 		/**
 		 * This design's services (RM-003 A4). Read off the model's floorplan,
@@ -84,59 +103,19 @@ export class Scene extends EventDispatcher
 		 */
 		this.loadingManager = new LoadingManager();
 
-		// init item loader
-		this.gltfloader = new GLTFLoader(this.loadingManager);
-		this.objloader = new OBJLoader(this.loadingManager);
-		this.gltfloader.setCrossOrigin('');
-
 		/**
-		 * The Draco decoder for this scene (RM-004 B1).
+		 * This scene's glTF, OBJ, Draco and KTX2 loaders - once something has
+		 * asked for them (RM-015 M3).
 		 *
-		 * Every model in the catalog is `KHR_draco_mesh_compression` now, and
-		 * `GLTFLoader` throws on one unless a `DRACOLoader` is attached BEFORE the
-		 * parse - it cannot be supplied on demand once a compressed file has
-		 * arrived. So it is attached here, unconditionally, and the cost of that
-		 * is nothing until it decodes: `DRACOLoader` fetches its 73 KB of WASM and
-		 * starts its worker on the FIRST compressed mesh, not on construction. A
-		 * session that places no furniture never pays for it.
+		 * A promise rather than the loaders, because getting them now involves a
+		 * network fetch: they live behind a dynamic import, and `model/loaders.js`
+		 * carries the measurement that put them there. Held so the second model
+		 * load reuses the first one's import rather than racing it.
 		 *
-		 * The decoder path is resolved through the runtime's asset resolver rather
-		 * than hard-coded, so `?assetBase=` relocates the decoder alongside
-		 * everything else it relocates. A build that serves no decoder is not a
-		 * broken build - it is a build whose models are uncompressed, which is
-		 * every build before this sprint and any embedder shipping their own
-		 * catalog.
-		 *
-		 * @type {DRACOLoader}
+		 * @type {?Promise<import('./loaders.js').ModelLoaders>}
+		 * @private
 		 */
-		this.dracoLoader = new DRACOLoader(this.loadingManager);
-		this.dracoLoader.setDecoderPath(this.runtime.assets.decoderPath());
-		this.gltfloader.setDRACOLoader(this.dracoLoader);
-
-		/**
-		 * The KTX2 transcoder for model textures (RM-004 B5).
-		 *
-		 * 18 of the catalog's textures are KTX2 inside their `.glb`, and the
-		 * containers declare `KHR_texture_basisu` as REQUIRED - so a GLTFLoader
-		 * without this attached does not render them untextured, it refuses the
-		 * file outright. Attached beside the Draco loader and for the same
-		 * reason: it must be in place before the first parse, and it costs
-		 * nothing until something needs it, because three fetches the
-		 * transcoder on the first compressed texture rather than at
-		 * construction.
-		 *
-		 * `workerConfig` is set from the device rather than by calling
-		 * `detectSupport(renderer)`, because a `Scene` has no renderer - it is
-		 * the model layer. `core/texture_formats.js` explains why that is the
-		 * right dependency rather than a workaround.
-		 *
-		 * @type {KTX2Loader}
-		 */
-		this.ktx2Loader = new KTX2Loader(this.loadingManager);
-		this.ktx2Loader.setTranscoderPath(this.runtime.assets.transcoderPath());
-		var support = formatSupport();
-		if (support) { this.ktx2Loader.workerConfig = support; }
-		this.gltfloader.setKTX2Loader(this.ktx2Loader);
+		this._loaders = null;
 
 		/**
 		 * Optional loader override, used by tests to run the model layer without
@@ -183,7 +162,127 @@ export class Scene extends EventDispatcher
 	remove(mesh)
 	{
 		this.scene.remove(mesh);
-		Utils.removeValue(this.items, mesh);
+		this.model.levels.forEach((level) => {Utils.removeValue(level.items, mesh);});
+	}
+
+	/**
+	 * The container a level's geometry goes into, made on demand (RM-010 G1).
+	 *
+	 * Positioned at the level's base elevation, which `Model` derives from the
+	 * heights below it. Every caller goes through here rather than holding a
+	 * group, so a level whose height changed is re-placed by `syncLevels()` and
+	 * nothing else has to know.
+	 *
+	 * @param {import('./level.js').Level} level
+	 * @returns {import('three').Group}
+	 */
+	levelGroup(level)
+	{
+		var existing = this.levelGroups.get(level.id);
+		if (existing)
+		{
+			return existing;
+		}
+		var group = new Group();
+		group.name = `level:${level.id}`;
+		group.position.y = this.model.levelBase(this.model.levels.indexOf(level));
+		this.levelGroups.set(level.id, group);
+		this.scene.add(group);
+		return group;
+	}
+
+	/**
+	 * A scene-shaped façade onto one level's group (RM-010 G1).
+	 *
+	 * `Floorplan3D`, `Floor` and `Edge` ask a scene for exactly three things -
+	 * `add`, `remove` and `needsUpdate` - measured before this was written. So a
+	 * level's 3D projection is built by handing it one of these instead of the
+	 * scene, and not one line of those three files changes. That is the whole of
+	 * why the base elevation lands here.
+	 *
+	 * @param {import('./level.js').Level} level
+	 * @returns {{add: Function, remove: Function, needsUpdate: boolean}}
+	 */
+	levelScene(level)
+	{
+		var scope = this;
+		var group = this.levelGroup(level);
+		return {
+			add: function (mesh) {group.add(mesh);},
+			remove: function (mesh) {group.remove(mesh);},
+			get needsUpdate() {return scope.needsUpdate;},
+			set needsUpdate(value) {scope.needsUpdate = value;},
+		};
+	}
+
+	/**
+	 * Put every level's group where its level now is, and show or hide it.
+	 *
+	 * Called when a level is added, removed, re-sized or switched to - editing
+	 * the ground floor's height moves every storey above it, and nothing stores
+	 * the old base to go stale.
+	 *
+	 * @param {Object} [options] `activeOnly` hides every level but the active one.
+	 * @returns {void}
+	 */
+	syncLevels(options)
+	{
+		var settings = options || {};
+		var scope = this;
+		this.model.levels.forEach(function (level, index)
+		{
+			var group = scope.levelGroup(level);
+			group.position.y = scope.model.levelBase(index);
+			group.visible = settings.activeOnly
+				? (index === scope.model.activeLevelIndex) : true;
+		});
+		this.needsUpdate = true;
+	}
+
+	/**
+	 * Move an item that is already here onto another storey (RM-010 G1).
+	 *
+	 * Only the reconciliation in `Model.newRoom` needs it, and only in one case:
+	 * an item that survived a document load because its id and model matched, but
+	 * whose record is now on a different floor. Rare, and silent if it were left
+	 * out - the item would keep its mesh at the old storey's elevation while the
+	 * file said otherwise.
+	 *
+	 * @param {Object} item
+	 * @param {import('./level.js').Level} level
+	 * @returns {void}
+	 */
+	moveItemToLevel(item, level)
+	{
+		if (item.level === level)
+		{
+			return;
+		}
+		this.model.levels.forEach((other) => {Utils.removeValue(other.items, item);});
+		item.level = level;
+		level.items.push(item);
+		this.levelGroup(level).add(item);
+	}
+
+	/**
+	 * Drop a level's container, with whatever is still in it.
+	 *
+	 * `Model.removeLevel` takes the items out first, so what is left here is the
+	 * walls and floors the 3D projection built - and those belong to a
+	 * `Floorplan3D` that is about to be disposed. Removing the group rather than
+	 * emptying it means the projection's own dispose still finds its meshes.
+	 *
+	 * @param {import('./level.js').Level} level
+	 * @returns {void}
+	 */
+	forgetLevel(level)
+	{
+		var group = this.levelGroups.get(level.id);
+		if (group)
+		{
+			this.scene.remove(group);
+			this.levelGroups.delete(level.id);
+		}
 	}
 
 	/** Gets the scene.
@@ -194,30 +293,85 @@ export class Scene extends EventDispatcher
 		return this.scene;
 	}
 
-	/** Gets the items.
-	 * @returns The items.
+	/**
+	 * The furniture on the storey being edited (RM-010 G1).
+	 *
+	 * Scoped to the active level, which is what every one of this method's
+	 * callers wants and each of them was checked: the plan's item count, the
+	 * projection the 2D view draws, and the raycast that decides what a click in
+	 * the 3D view hits. All three are about the storey somebody is working on.
+	 *
+	 * The two that are not - the save file and resolving an id - call
+	 * {@link Scene#allItems} instead, because a file holds the whole building and
+	 * an id names one item in it.
+	 *
+	 * @returns {Array<Object>}
 	 */
 	getItems()
 	{
-		return this.items;
+		return this.model.level.items;
 	}
 
-	/** Gets the count of items.
+	/**
+	 * The furniture on every storey.
+	 * @returns {Array<Object>}
+	 */
+	allItems()
+	{
+		return this.model.levels.reduce(
+			(all, level) => all.concat(level.items), /** @type {Array<Object>} */ ([]));
+	}
+
+	/** Gets the count of items on the active storey.
 	 * @returns The count.
 	 */
 	itemCount()
 	{
-		return this.items.length;
+		return this.getItems().length;
 	}
 
-	/** Removes all items. */
+	/** Removes all items, on every storey. */
 	clearItems()
 	{
 		var scope = this;
-		this.items.forEach((item) => {
+		this.allItems().forEach((item) => {
 			scope.removeItem(item, true);
 		});
-		this.items = [];
+		this.model.levels.forEach((level) => {level.items = [];});
+	}
+
+	/**
+	 * Give every item's GPU resources back without forgetting the items
+	 * (RM-020 S-1).
+	 *
+	 * `clearItems()` does the disposal half and then empties each level's list,
+	 * which is right when a document is being replaced and wrong at teardown:
+	 * `BlueprintJS.dispose()` promises the design stays serializable afterwards,
+	 * and a level with no items serializes as a level with no items.
+	 *
+	 * So this is `clearItems()` without the forgetting. Each item's meshes,
+	 * textures and label canvases go back through `removeItem(item, true)` - the
+	 * same path a single removal takes - and the records stay where they are.
+	 * What is left behind is data, which is what the teardown contract says the
+	 * model is.
+	 *
+	 * @returns {void}
+	 */
+	releaseItemResources()
+	{
+		var scope = this;
+		this.allItems().forEach((item) => {
+			// Anything in the list that is not an `Item` is skipped rather than
+			// thrown over. This is the last code that runs before a document is
+			// dropped: a throw here does not surface a problem, it abandons
+			// everything after it - and what comes after it is the rest of the
+			// release. `clearItems()` deliberately does not guard, because there a
+			// malformed item is a live-document bug worth hearing about.
+			if (item && typeof item.removed === 'function')
+			{
+				scope.removeItem(item, true);
+			}
+		});
 	}
 
 	/**
@@ -235,10 +389,17 @@ export class Scene extends EventDispatcher
 		// use this for item meshes
 		this.dispatchEvent({type: EVENT_ITEM_REMOVED, item:item});
 		item.removed();
+		// From whichever level's group it is in. `Object3D.remove` on the wrong
+		// parent is a no-op, so this is a search rather than a guess, and an item
+		// added before levels existed may still be a child of the scene itself.
+		if (item.parent)
+		{
+			item.parent.remove(item);
+		}
 		this.scene.remove(item);
 		if (!keepInList)
 		{
-			Utils.removeValue(this.items, item);
+			this.model.levels.forEach((level) => {Utils.removeValue(level.items, item);});
 		}
 	}
 
@@ -290,7 +451,7 @@ export class Scene extends EventDispatcher
 
 	switchWireframe(flag)
 	{
-		this.items.forEach((item)=>{
+		this.allItems().forEach((item)=>{
 			item.switchWireframe(flag);
 		});
 	}
@@ -334,6 +495,138 @@ export class Scene extends EventDispatcher
 	}
 
 	/**
+	 * This scene's loaders, importing them if this is the first ask (M3).
+	 *
+	 * Every caller of this is already asynchronous - a model load is a network
+	 * fetch - so the import adds a hop to a path that had several, and adds
+	 * nothing at all to a session that never loads a model. The promise is
+	 * cached, not the loaders: two items placed in the same tick share one
+	 * import rather than starting two.
+	 *
+	 * ## The device question is answered here, before the import (RM-018 Q1)
+	 *
+	 * `formatSupport()` is read synchronously, on this line, and handed to
+	 * `createModelLoaders`. It used to be read inside that function, which is to
+	 * say whenever the chunk above finished arriving - and because
+	 * `describeFrom` is first-caller-wins, that made the answer depend on
+	 * whether a viewer happened to attach during the download. M3 introduced
+	 * that when it made the viewer lazy; before M3 the renderer always won,
+	 * because `Main` was built in the `BlueprintJS` constructor.
+	 *
+	 * Reading it here does not restore the old guarantee - a plan-only session
+	 * that places an item before ever opening the 3D view still answers from
+	 * `probe()`, and that is now a property of what the user did rather than of
+	 * how fast a file downloaded. What it restores is that the answer is decided
+	 * at a nameable moment, which is the part a test can hold.
+	 *
+	 * @returns {Promise<import('./loaders.js').ModelLoaders>}
+	 * @private
+	 */
+	_ensureLoaders()
+	{
+		if (!this._loaders)
+		{
+			var scope = this;
+			var support = formatSupport();
+			this._loaders = import('./loaders.js').then(function (module)
+			{
+				return module.createModelLoaders(scope.loadingManager, scope.runtime.assets, support);
+			});
+		}
+		return this._loaders;
+	}
+
+	/**
+	 * Bytes in, an Object3D out, through the loader the format names (J3).
+	 *
+	 * The one place model bytes are parsed rather than fetched, shared by the
+	 * import branch of `addItem` and by `measureModel`. It is a method rather
+	 * than a function because the loaders it uses are this scene's: the
+	 * `GLTFLoader` here has a `DRACOLoader` and a `KTX2Loader` attached to it,
+	 * pointed at this deployment's decoder paths, and a compressed model parsed
+	 * by a bare loader throws rather than decompressing.
+	 *
+	 * @param {ArrayBuffer} bytes
+	 * @param {?string} format `gltf` or `obj`.
+	 * @returns {Promise<Object>} The parsed root, which the caller owns and must
+	 *          dispose or merge.
+	 * @private
+	 */
+	_parseModel(bytes, format)
+	{
+		return this._ensureLoaders().then((loaders) => new Promise(function (resolve, reject)
+		{
+			if (format == 'obj')
+			{
+				// `OBJLoader.parse` is synchronous and throws on bytes that are not
+				// an OBJ; inside the executor, that rejects.
+				resolve(loaders.objloader.parse(new TextDecoder().decode(new Uint8Array(bytes))));
+				return;
+			}
+			if (format != 'gltf')
+			{
+				reject(new Error(`no loader in this build reads the "${format}" format.`));
+				return;
+			}
+			// The empty path is deliberate, and the limit it imposes is real: a
+			// model whose textures sit beside it as separate files cannot resolve
+			// them from bytes alone, because there is no directory to be relative
+			// to. That is NOT only a `.gltf` problem - `ik_nordli_full.glb` in this
+			// repository names `textures/white_wood.ktx2` as an external image, and
+			// it is a `.glb`. Such a model loads with its geometry and without its
+			// texture, which is the right failure and a silent one; the application
+			// reads the file's own reference list at import and says so
+			// (`externalRefsIn` in `src/app/import/model_file.js`).
+			loaders.gltfloader.parse(bytes, '', function (gltf) {resolve(gltf.scene);}, reject);
+		}));
+	}
+
+	/**
+	 * How big a model is, in the units its author used (J3).
+	 *
+	 * The import step needs this before anything is placed: a file states no unit
+	 * anywhere, so the only way to ask *"is 1 unit a metre or a centimetre?"* in
+	 * terms a person can answer is to show them what each choice would make the
+	 * model, and that needs the bounds.
+	 *
+	 * Measured with the loader that will do the real load, which is the point:
+	 * a second reader agreeing with this one is an assumption, and RM-013 K1
+	 * found that assumption wrong on 4 of 15 rows when a bounds walk was written
+	 * beside three.js rather than through it.
+	 *
+	 * The parsed graph is disposed here. Nothing is added to the scene, and a
+	 * measurement that leaked a `BufferGeometry` per import would undo RM-003 A0
+	 * one file at a time.
+	 *
+	 * @param {ArrayBuffer} bytes
+	 * @param {?string} format
+	 * @returns {Promise<{min: Array<number>, max: Array<number>, size: Array<number>, empty: boolean}>}
+	 */
+	async measureModel(bytes, format)
+	{
+		var object = await this._parseModel(bytes, format);
+		try
+		{
+			var box = new Box3().setFromObject(object);
+			var size = box.getSize(new Vector3());
+			// `Box3` reports an inverted box for an object with no geometry at all,
+			// which would arrive as a size of -Infinity and make every derived
+			// number nonsense. Saying it is empty is the honest answer.
+			var empty = box.isEmpty();
+			return {
+				min: empty ? [0, 0, 0] : box.min.toArray(),
+				max: empty ? [0, 0, 0] : box.max.toArray(),
+				size: empty ? [0, 0, 0] : size.toArray(),
+				empty: empty,
+			};
+		}
+		finally
+		{
+			disposeObject(object);
+		}
+	}
+
+	/**
 	 * Creates an item and adds it to the scene.
 	 * @param itemType The type of the item given by an enumerator.
 	 * @param fileName The name of the file to load.
@@ -358,28 +651,44 @@ export class Scene extends EventDispatcher
 		
 		var scope = this;
 
+		// A parametric item has no file to name - an opening (RM-008 F1), a flight
+		// of stairs (F3) or a column or beam (F2) - so the legacy URL shim below is
+		// skipped for it; `resolveModelUrl` on an absent filename would invent one.
+		var parametric = (itemType === ITEM_TYPE_PARAMETRIC_OPENING
+			|| itemType === ITEM_TYPE_PARAMETRIC_STAIR
+			|| itemType === ITEM_TYPE_PARAMETRIC_STRUCTURE);
+
 		// Designs saved before S3 name models in the retired three.js JSON
 		// format. Rewriting here rather than in Model.newRoom covers every way an
 		// item can be created, and mutating metadata means the item carries the
 		// new URL into its next save - so a file needs the shim exactly once.
-		var resolved = resolveModelUrl(fileName, metadata.format);
-		fileName = resolved.url;
-		metadata.format = resolved.format;
-		if (resolved.converted)
+		if (!parametric)
 		{
-			// modelUrl is what Item.getMetaData() writes back out, so updating it
-			// here is what makes the next save glb-native. A design therefore needs
-			// the shim exactly once, however many times it is opened.
-			metadata.modelUrl = fileName;
-			metadata.legacyConverted = true;
+			var resolved = resolveModelUrl(fileName, metadata.format);
+			fileName = resolved.url;
+			metadata.format = resolved.format;
+			if (resolved.converted)
+			{
+				// modelUrl is what Item.getMetaData() writes back out, so updating it
+				// here is what makes the next save glb-native. A design therefore needs
+				// the shim exactly once, however many times it is opened.
+				metadata.modelUrl = fileName;
+				metadata.legacyConverted = true;
+			}
 		}
+
+		// Which storey asked, captured before the load starts and used when it
+		// comes back (RM-010 G1). The same argument as the generation below: an
+		// item placed on the ground floor whose model was still downloading when
+		// somebody switched to the first floor belongs to the ground floor.
+		var level = this.model.level;
 
 		// Which document asked (RM-003 A1). Stamped before the load starts, checked
 		// when it comes back. Every exit below - success, failure, and the stale
 		// path - goes through the session exactly once.
 		var generation = this.loadSession.started();
 
-		var loaderCallback = function (geometry, materials)
+		var buildItem = function (geometry, materials)
 		{
 			if (!scope.loadSession.finished(generation))
 			{
@@ -401,8 +710,14 @@ export class Scene extends EventDispatcher
 
 			var item = new (Factory.getClass(itemType))(scope.model, metadata, geometry, materials, position, rotation, scale);
 			item.fixed = fixed || false;
-			scope.items.push(item);
-			scope.add(item);
+			// Onto the storey being edited, and into that storey's group - which is
+			// what puts it at the right height without `Item` knowing there are
+			// storeys (RM-010 G1). `level` is captured before the load starts, so an
+			// item whose model was still downloading when somebody switched floors
+			// lands where it was placed rather than where they are now.
+			item.level = level;
+			level.items.push(item);
+			scope.levelGroup(level).add(item);
 			item.initObject();
 			scope.dispatchEvent({type:EVENT_ITEM_LOADED, item: item});
 			if(newItemDefinitions)
@@ -411,6 +726,36 @@ export class Scene extends EventDispatcher
 				item.placeInRoom();
 			}
 		};
+		// Its mesh is built from its own numbers rather than downloaded, and then
+		// it takes exactly the path every other item takes (RM-008 F1, F3). One
+		// construction site, one placement, one event, one session check - which
+		// is why this is a short-circuit into the callback and not a second
+		// version of it. F3 added a second generator and did not add a second
+		// short-circuit: what differs between a door and a staircase is one
+		// expression, and everything after it is shared.
+		if (parametric)
+		{
+			var built;
+			if (itemType === ITEM_TYPE_PARAMETRIC_STAIR)
+			{
+				built = buildStairGeometry(normaliseStair(metadata.stair));
+			}
+			else if (itemType === ITEM_TYPE_PARAMETRIC_STRUCTURE)
+			{
+				built = buildStructureGeometry(normaliseStructure(metadata.structure));
+			}
+			else
+			{
+				var wall = newItemDefinitions && newItemDefinitions.edge && newItemDefinitions.edge.wall;
+				metadata.wallThickness = wall ? wall.thickness : undefined;
+				built = buildOpeningGeometry(normaliseOpening(metadata.opening), metadata.wallThickness);
+			}
+			this.dispatchEvent({type: EVENT_ITEM_LOADING});
+			buildItem(built.geometry, built.materials);
+			return;
+		}
+
+		var loaderCallback = buildItem;
 		var gltfCallback = function(gltfModel)
 		{
 			// S3 built a restoreLegacyTextureEncoding() here, undoing GLTFLoader's
@@ -486,6 +831,46 @@ export class Scene extends EventDispatcher
 		this.dispatchEvent({type:EVENT_ITEM_LOADING});
 
 		/**
+		 * A model that is in no deployment, because somebody imported it
+		 * (RM-012 J3).
+		 *
+		 * Asked **before** the availability check below, and the ordering is the
+		 * whole of the change: a manifest is a statement about what this build
+		 * ships, and an imported model is by definition not that. Without this the
+		 * next line would refuse every imported item in any build that fetched a
+		 * manifest - which is every deployment of the application.
+		 *
+		 * Asked **after** `itemLoader`, so an embedder's own pipeline keeps the
+		 * precedence its documentation promises.
+		 *
+		 * It parses rather than fetching. The store hands over bytes; wrapping
+		 * them in a blob URL so the network layer can hand the same bytes back is
+		 * a detour with an object lifetime to manage, and a revoked URL is a class
+		 * of bug that simply does not exist here. What it costs is
+		 * `LoadingManager.abort()`, which cannot reach a `parse` - the generation
+		 * check in `buildItem` still can, and that is the one that decides whether
+		 * a superseded item joins the scene.
+		 */
+		var local = this.runtime.localModels;
+		if (!this.itemLoader && local && local.has(fileName))
+		{
+			Promise.resolve(local.read(fileName)).then(function (bytes)
+			{
+				if (!bytes)
+				{
+					failed('this design names an imported model that is no longer in the store.');
+					return;
+				}
+				return scope._parseModel(bytes, metadata.format).then(function (object)
+				{
+					var merged = mergeMeshes(object);
+					loaderCallback(merged.geometry, merged.materials);
+				});
+			}).catch(function (error) {failed(describeError(error));});
+			return;
+		}
+
+		/**
 		 * Availability as a policy rather than a console line (RM-003 A5).
 		 *
 		 * A resolver carrying a manifest knows what this build ships, so a name
@@ -496,6 +881,16 @@ export class Scene extends EventDispatcher
 		 */
 		if (this.runtime.assets.missing(fileName))
 		{
+			if (metadata.local)
+			{
+				// Reached when a design carrying an import is opened where the store
+				// is not - another computer, another browser, a cleared profile. The
+				// document carries the original filename for exactly this sentence,
+				// which is why `normaliseImport` keeps a field that is otherwise
+				// redundant with the store.
+				failed(`"${metadata.local.file || metadata.local.id}" was imported from a file, and that file is not on this computer.`);
+				return;
+			}
 			failed(`this build does not ship that asset. "${metadata.itemName || 'The item'}" names a file the asset manifest does not declare.`);
 			return;
 		}
@@ -523,20 +918,34 @@ export class Scene extends EventDispatcher
 		}
 		else if(metadata.format == 'gltf' || metadata.format == 'obj')
 		{
-			var loader = (metadata.format == 'gltf') ? this.gltfloader : this.objloader;
-			var onLoad = (metadata.format == 'gltf') ? gltfCallback : objCallback;
-			try
+			// One `await` in front of the load, and nothing else about this branch
+			// moves (M3). The loaders arrive over the network the first time
+			// anything is placed; on every load after that the promise is already
+			// settled and this is a microtask.
+			//
+			// The `try` still covers starting the load and nothing else, which is
+			// the property the DOM-boundary test in tests/items-and-scene.test.js
+			// pins - so it stays wrapped around exactly the same call rather than
+			// around the import.
+			this._ensureLoaders().then(function (loaders)
 			{
-				// The try covers starting the load and nothing else. three's
-				// FileLoader builds a Request up front, and a URL the environment
-				// cannot parse throws there - synchronously, past the onError
-				// callback that exists for exactly this and never sees it.
-				loader.load(physicalUrl, onLoad, undefined, function (error) {failed(describeError(error));});
-			}
-			catch (error)
-			{
-				failed(describeError(error));
-			}
+				var loader = (metadata.format == 'gltf') ? loaders.gltfloader : loaders.objloader;
+				var onLoad = (metadata.format == 'gltf') ? gltfCallback : objCallback;
+				try
+				{
+					// three's FileLoader builds a Request up front, and a URL the
+					// environment cannot parse throws there - synchronously, past the
+					// onError callback that exists for exactly this and never sees it.
+					loader.load(physicalUrl, onLoad, undefined, function (error) {failed(describeError(error));});
+				}
+				catch (error)
+				{
+					failed(describeError(error));
+				}
+			// A failed import is a failed load: no loader arrived, so nothing can
+			// be parsed, and the item has to be reported as unloadable rather than
+			// left pending forever.
+			}, function (error) {failed(describeError(error));});
 		}
 		else
 		{

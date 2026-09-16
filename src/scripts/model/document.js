@@ -108,6 +108,36 @@ export class DesignDocument
 		this.floorplan = data.floorplan;
 		/** The item records, as the file carried them. */
 		this.items = data.items;
+		/**
+		 * The storeys, ground floor first, or null on a design that has one
+		 * (RM-010 G1).
+		 *
+		 * Null rather than a one-entry array, because "this file says nothing about
+		 * levels" and "this file says it has one level" are different statements
+		 * and only the first is true of every design written before G1.
+		 *
+		 * `levels[0]` carries a name and a height only - the ground floor's plan
+		 * and furniture stay at `floorplan` and `items`, which is what lets a build
+		 * that has never heard of storeys open a three-storey house and get the
+		 * ground floor rather than an error.
+		 *
+		 * @type {?Array<Object>}
+		 */
+		this.levels = Array.isArray(data.levels) && data.levels.length ? data.levels : null;
+		/**
+		 * The building's roof, or null (RM-010 G2). Absent from every design
+		 * written before it, which is what keeps those files byte-identical.
+		 * @type {?Object}
+		 */
+		this.roof = isPlainObject(data.roof) ? data.roof : null;
+		/**
+		 * The sun over the building, or null (RM-011 H2). Absent from every design
+		 * written before it. `{}` is meaningful and not empty: it says the building
+		 * has a sun and takes the defaults, which is why presence is tested rather
+		 * than content.
+		 * @type {?Object}
+		 */
+		this.sun = isPlainObject(data.sun) ? data.sun : null;
 		/** The `version` stamp, or null on a pre-2.0.0 file. */
 		this.version = (typeof data.floorplan.version === 'string') ? data.floorplan.version : null;
 		/**
@@ -126,6 +156,7 @@ export class DesignDocument
 			corners: Object.keys(this.floorplan.corners).length,
 			walls: this.floorplan.walls.length,
 			items: this.items.length,
+			levels: this.levels ? this.levels.length : 1,
 			version: this.version,
 			units: this.units,
 		};
@@ -179,6 +210,9 @@ export class DesignDocument
 
 		validateFloorplan(data.floorplan, errors, warnings);
 		validateItems(data.items, errors);
+		validateLevels(data.levels, data.floorplan, errors, warnings);
+		validateRoof(data.roof, errors);
+		validateSun(data.sun, errors);
 
 		if (errors.length)
 		{
@@ -264,7 +298,84 @@ function validateFloorplan(floorplan, errors, warnings)
 				errors.push({path: `floorplan.walls[${index}].${end}`, message: `names corner "${id}", which is not in this file`});
 			}
 		});
+
+		// Optional since RM-008 E2 - absent means "follow the document" - so its
+		// absence is never a defect. Present and unusable is, and loudly: a zero
+		// or negative thickness collapses both half edges onto the wall centreline
+		// and takes every room derived from them with it, which is a design that
+		// opens looking empty rather than one that fails to open.
+		if (wall.thickness !== undefined && wall.thickness !== null
+			&& (typeof wall.thickness !== 'number' || !isFinite(wall.thickness) || wall.thickness <= 0))
+		{
+			errors.push({
+				path: `floorplan.walls[${index}].thickness`,
+				message: `must be a positive finite number of centimetres when present, not ${JSON.stringify(wall.thickness)}`,
+			});
+		}
+
+		// Optional since RM-008 F2 - absent means "as high as its corners", which
+		// is every wall in every older file. A zero or negative one is a wall with
+		// no height, which draws nothing where a wall should be.
+		if (wall.partialHeight !== undefined && wall.partialHeight !== null
+			&& (typeof wall.partialHeight !== 'number' || !isFinite(wall.partialHeight) || wall.partialHeight <= 0))
+		{
+			errors.push({
+				path: `floorplan.walls[${index}].partialHeight`,
+				message: `must be a positive finite number of centimetres when present, not ${JSON.stringify(wall.partialHeight)}`,
+			});
+		}
 	});
+
+	// Authored collections, additive since RM-008 E3 and absent from every older
+	// file, so their absence is never a defect. What is checked is only what
+	// would draw wrongly or throw: a dimension needs two finite points, a label
+	// needs a position. Everything else - a missing offset, a missing size, a
+	// corner id naming a corner that is not here - has a documented default or a
+	// documented fallback in `model/annotation.js`, and inventing requirements
+	// for them would refuse files that open perfectly well.
+	validateAnnotations(floorplan.dimensions, 'floorplan.dimensions', errors, function (record, path)
+	{
+		[['a', 'x'], ['a', 'y'], ['b', 'x'], ['b', 'y']].forEach(function (pair)
+		{
+			var end = record[pair[0]];
+			if (!isPlainObject(end) || !isFiniteNumber(end[pair[1]]))
+			{
+				errors.push({path: `${path}.${pair[0]}.${pair[1]}`, message: 'a dimension must carry finite x and y at each end'});
+			}
+		});
+		if (record.offset !== undefined && record.offset !== null && !isFiniteNumber(record.offset))
+		{
+			errors.push({path: `${path}.offset`, message: `must be a finite number of centimetres when present, not ${JSON.stringify(record.offset)}`});
+		}
+	});
+
+	validateAnnotations(floorplan.annotations, 'floorplan.annotations', errors, function (record, path)
+	{
+		['x', 'y'].forEach(function (axis)
+		{
+			if (!isFiniteNumber(record[axis]))
+			{
+				errors.push({path: `${path}.${axis}`, message: `must be a finite number, not ${JSON.stringify(record[axis])}`});
+			}
+		});
+		if (record.text !== undefined && record.text !== null && typeof record.text !== 'string')
+		{
+			errors.push({path: `${path}.text`, message: `must be a string when present, not ${JSON.stringify(record.text)}`});
+		}
+		if (record.size !== undefined && record.size !== null
+			&& (!isFiniteNumber(record.size) || record.size <= 0))
+		{
+			errors.push({path: `${path}.size`, message: `must be a positive number of pixels when present, not ${JSON.stringify(record.size)}`});
+		}
+	});
+
+	// Degrees clockwise from up. A value outside 0-360 is normalised on load
+	// rather than refused - it is the same bearing written differently, and
+	// refusing to open a design over it would be absurd.
+	if (floorplan.north !== undefined && floorplan.north !== null && !isFiniteNumber(floorplan.north))
+	{
+		errors.push({path: 'floorplan.north', message: `must be a finite number of degrees when present, not ${JSON.stringify(floorplan.north)}`});
+	}
 
 	// `rooms` holds room metadata keyed by corner-id string. Absent on some files
 	// and merely assigned by loadFloorplan, so its absence is not a defect - but a
@@ -281,6 +392,40 @@ function validateFloorplan(floorplan, errors, warnings)
 			message: `declares units "${floorplan.units}", which this build does not know. Reading coordinates as ${SAVE_UNITS}.`,
 		});
 	}
+}
+
+/**
+ * The shape both authored collections share, checked once (RM-008 E3).
+ *
+ * Absent is fine, an array of objects is fine, anything else is not - and the
+ * per-kind check only runs on records that are objects, so a caller never has to
+ * defend against reading a field off a number.
+ *
+ * @param {*} collection
+ * @param {string} path Dotted path to the collection, for the messages.
+ * @param {Array<DocumentProblem>} errors
+ * @param {function(Record<string, any>, string): void} checkRecord
+ */
+function validateAnnotations(collection, path, errors, checkRecord)
+{
+	if (collection === undefined || collection === null)
+	{
+		return;
+	}
+	if (!Array.isArray(collection))
+	{
+		errors.push({path: path, message: 'must be an array when present'});
+		return;
+	}
+	collection.forEach(function (record, index)
+	{
+		if (!isPlainObject(record))
+		{
+			errors.push({path: `${path}[${index}]`, message: 'is not an object'});
+			return;
+		}
+		checkRecord(record, `${path}[${index}]`);
+	});
 }
 
 /**
@@ -305,7 +450,12 @@ function validateItems(items, errors)
 		// Only the fields whose absence breaks the load. Everything else has a
 		// documented default in Model.newRoom, and inventing requirements here
 		// would refuse files that open perfectly well today.
-		if (typeof item.model_url !== 'string' || item.model_url === '')
+		// A parametric item names no model, because it has none to name: an
+		// opening's mesh is built from `opening` (RM-008 F1), a flight's from
+		// `stair` (F3) and a column or beam's from `structure` (F2). Every other
+		// item must still say what to load, which is the check this has always been.
+		if (!isPlainObject(item.opening) && !isPlainObject(item.stair) && !isPlainObject(item.structure)
+			&& (typeof item.model_url !== 'string' || item.model_url === ''))
 		{
 			errors.push({path: `items[${index}].model_url`, message: 'missing - an item must name the model to load'});
 		}
@@ -316,5 +466,270 @@ function validateItems(items, errors)
 				errors.push({path: `items[${index}].${axis}`, message: `must be a finite number, not ${JSON.stringify(item[axis])}`});
 			}
 		});
+
+		// The reference to an imported model, additive since RM-012 J3 and absent
+		// from every older file. Only `id` is checked, because it is the only field
+		// whose absence cannot be defaulted: `normaliseImport` falls back to the id
+		// for a missing filename and to Y-up for a missing axis, but a reference
+		// with nothing to look up is a file naming an import it cannot name.
+		//
+		// This does NOT check that the model is in the store. A design that names
+		// an import this computer has never seen is a perfectly valid document -
+		// it is somebody else's design, and refusing to open it is precisely the
+		// failure J3's second acceptance clause forbids. The item reports itself
+		// missing, by name, and the other nineteen load.
+		if (item.local !== undefined && item.local !== null)
+		{
+			if (!isPlainObject(item.local))
+			{
+				errors.push({path: `items[${index}].local`, message: 'must be an object when present'});
+			}
+			else if (typeof item.local.id !== 'string' || item.local.id === '')
+			{
+				errors.push({
+					path: `items[${index}].local.id`,
+					message: 'missing - an imported model must name what the store keys it on',
+				});
+			}
+		}
+
+		// The opening description, additive since RM-008 F1 and absent from every
+		// older file. Only the two numbers whose absence cannot be defaulted are
+		// checked: `normaliseOpening` fills in a missing width or hinge from the
+		// kind, but a width of "wide" or a height of -50 is a file saying something
+		// it cannot mean, and a hole with no area cuts nothing and draws nothing.
+		if (item.opening !== undefined && item.opening !== null)
+		{
+			if (!isPlainObject(item.opening))
+			{
+				errors.push({path: `items[${index}].opening`, message: 'must be an object when present'});
+			}
+			else
+			{
+				['width', 'height'].forEach(function (field)
+				{
+					var value = item.opening[field];
+					if (value !== undefined && value !== null && (!isFiniteNumber(value) || value <= 0))
+					{
+						errors.push({
+							path: `items[${index}].opening.${field}`,
+							message: `must be a positive number of centimetres when present, not ${JSON.stringify(value)}`,
+						});
+					}
+				});
+			}
+		}
+
+		// The flight description, additive since RM-008 F3 and absent from every
+		// older file. Same rule as the opening above: `normaliseStair` fills in a
+		// missing going or handrail from the defaults and clamps a going of 4 cm
+		// to the minimum, but a rise of "steep" or a tread count of -3 is a file
+		// saying something it cannot mean.
+		if (item.stair !== undefined && item.stair !== null)
+		{
+			if (!isPlainObject(item.stair))
+			{
+				errors.push({path: `items[${index}].stair`, message: 'must be an object when present'});
+			}
+			else
+			{
+				['treads', 'rise', 'going', 'width'].forEach(function (field)
+				{
+					var value = item.stair[field];
+					if (value !== undefined && value !== null && (!isFiniteNumber(value) || value <= 0))
+					{
+						errors.push({
+							path: `items[${index}].stair.${field}`,
+							message: `must be a positive number when present, not ${JSON.stringify(value)}`,
+						});
+					}
+				});
+			}
+		}
+
+		// The column or beam description, additive since RM-008 F2. Same rule
+		// again: `normaliseStructure` fills in a missing soffit and clamps a width
+		// of 900 cm, but a depth of "deep" or a length of -3 is a file saying
+		// something it cannot mean. `soffit` is checked separately because zero is
+		// the correct and usual value for a column.
+		if (item.structure !== undefined && item.structure !== null)
+		{
+			if (!isPlainObject(item.structure))
+			{
+				errors.push({path: `items[${index}].structure`, message: 'must be an object when present'});
+			}
+			else
+			{
+				['width', 'depth', 'length'].forEach(function (field)
+				{
+					var value = item.structure[field];
+					if (value !== undefined && value !== null && (!isFiniteNumber(value) || value <= 0))
+					{
+						errors.push({
+							path: `items[${index}].structure.${field}`,
+							message: `must be a positive number of centimetres when present, not ${JSON.stringify(value)}`,
+						});
+					}
+				});
+				var soffit = item.structure.soffit;
+				if (soffit !== undefined && soffit !== null && (!isFiniteNumber(soffit) || soffit < 0))
+				{
+					errors.push({
+						path: `items[${index}].structure.soffit`,
+						message: `must be zero or a positive number of centimetres when present, not ${JSON.stringify(soffit)}`,
+					});
+				}
+			}
+		}
+	});
+}
+
+/**
+ * The storeys, additive since RM-010 G1 and absent from every older file.
+ *
+ * Every storey above the ground floor is a whole design in miniature - it has a
+ * plan and furniture of its own - so each is checked by exactly the two
+ * functions that check the ground floor's, and the paths they report are
+ * prefixed so a person reading an error knows which floor it is on.
+ *
+ * `levels[0]` is deliberately NOT checked for a plan or items: the ground
+ * floor's are at `floorplan` and `items`, and `levels[0]` carries only its name
+ * and height. A file that repeats them there is saying something this format
+ * does not mean, which is a warning rather than a refusal - it opens fine and
+ * the duplicate is ignored.
+ *
+ * @param {*} levels
+ * @param {*} floorplan The ground floor's plan, for the shape comparison.
+ * @param {Array<DocumentProblem>} errors
+ * @param {Array<DocumentProblem>} warnings
+ */
+function validateLevels(levels, floorplan, errors, warnings)
+{
+	if (levels === undefined || levels === null)
+	{
+		return;
+	}
+	if (!Array.isArray(levels))
+	{
+		errors.push({path: 'levels', message: 'must be an array when present'});
+		return;
+	}
+	levels.forEach(function (level, index)
+	{
+		if (!isPlainObject(level))
+		{
+			errors.push({path: `levels[${index}]`, message: 'is not an object'});
+			return;
+		}
+		if (level.height !== undefined && level.height !== null
+			&& (!isFiniteNumber(level.height) || level.height <= 0))
+		{
+			errors.push({
+				path: `levels[${index}].height`,
+				message: `must be a positive number of centimetres when present, not ${JSON.stringify(level.height)}`,
+			});
+		}
+		if (index === 0)
+		{
+			if (level.floorplan !== undefined || level.items !== undefined)
+			{
+				warnings.push({
+					path: 'levels[0]',
+					message: 'carries a plan or items; the ground floor\'s are read from the design\'s own "floorplan" and "items", and these are ignored',
+				});
+			}
+			return;
+		}
+		// Above the ground floor: a whole design, checked the same way.
+		var problems = [];
+		validateFloorplan(level.floorplan, problems, warnings);
+		validateItems(level.items, problems);
+		problems.forEach(function (problem)
+		{
+			errors.push({path: `levels[${index}].${problem.path}`, message: problem.message});
+		});
+	});
+	// The ground floor's own record is not optional once there is a list, because
+	// its position is what "the floor above" means.
+	if (levels.length && !isPlainObject(levels[0]) === false && floorplan === undefined)
+	{
+		errors.push({path: 'floorplan', message: 'missing - the ground floor is the design\'s own "floorplan"'});
+	}
+}
+
+/**
+ * The sun, additive since RM-011 H2 and absent from every older file.
+ *
+ * @param {*} sun
+ * @param {Array<DocumentProblem>} errors
+ */
+function validateSun(sun, errors)
+{
+	if (sun === undefined || sun === null)
+	{
+		return;
+	}
+	if (!isPlainObject(sun))
+	{
+		errors.push({path: 'sun', message: 'must be an object when present'});
+		return;
+	}
+	// Ranges rather than mere finiteness, because all three of these are refused
+	// by physics and not only by taste: there is no latitude 200, no 400th day
+	// and no 30 o'clock. `normaliseSun` clamps and wraps so a live edit cannot
+	// produce one; a *file* that carries one is saying something it cannot mean,
+	// and that is the distinction this layer exists to draw.
+	var ranges = {latitude: [-90, 90], dayOfYear: [1, 365], hour: [0, 24]};
+	Object.keys(ranges).forEach(function (field)
+	{
+		var value = sun[field];
+		if (value === undefined || value === null)
+		{
+			return;
+		}
+		var range = ranges[field];
+		if (!isFiniteNumber(value) || value < range[0] || value > range[1])
+		{
+			errors.push({
+				path: `sun.${field}`,
+				message: `must be a number from ${range[0]} to ${range[1]} when present, not ${JSON.stringify(value)}`,
+			});
+		}
+	});
+}
+
+/**
+ * The roof, additive since RM-010 G2 and absent from every older file.
+ *
+ * Only the two numbers whose absence cannot be defaulted: `normaliseRoof` fills
+ * in a missing kind and clamps a 90-degree pitch, but a pitch of "steep" or a
+ * negative overhang is a file saying something it cannot mean. Zero is a valid
+ * pitch - that is a flat roof described the long way round - and a valid
+ * overhang, so both floors are zero rather than one.
+ *
+ * @param {*} roof
+ * @param {Array<DocumentProblem>} errors
+ */
+function validateRoof(roof, errors)
+{
+	if (roof === undefined || roof === null)
+	{
+		return;
+	}
+	if (!isPlainObject(roof))
+	{
+		errors.push({path: 'roof', message: 'must be an object when present'});
+		return;
+	}
+	['pitch', 'overhang', 'thickness'].forEach(function (field)
+	{
+		var value = roof[field];
+		if (value !== undefined && value !== null && (!isFiniteNumber(value) || value < 0))
+		{
+			errors.push({
+				path: `roof.${field}`,
+				message: `must be zero or a positive number when present, not ${JSON.stringify(value)}`,
+			});
+		}
 	});
 }

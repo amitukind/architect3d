@@ -1,6 +1,7 @@
 // @ts-check
 import {onScopeDispose, ref, watch} from 'vue';
 import {EVENT_UPDATED, EVENT_LOADED, EVENT_ITEM_LOADED, EVENT_ITEM_REMOVED, EVENT_ITEM_MOVE_FINISH} from '../../scripts/blueprint.js';
+import {EVENT_ANNOTATIONS_CHANGED} from '../../scripts/blueprint.js';
 import {createDraftRepository, REASON_QUOTA, REASON_UNAVAILABLE, REASON_VERSION} from '../persistence/draft_repository.js';
 import {writePointer, readPointer, clearPointer, compareRecovery, RECOVERY_LOST_TAIL} from '../persistence/recovery_pointer.js';
 
@@ -332,6 +333,12 @@ export function useAutosave(store_)
 		};
 
 		attached.floorplan.addEventListener(EVENT_UPDATED, attached.onChange);
+		// A dimension placed, a note typed, north turned (RM-008 E3). Its own
+		// event because EVENT_UPDATED means the wall graph moved and costs a full
+		// 3D rebuild - but as far as THIS is concerned the two are the same thing:
+		// the document changed and the change is worth keeping. Coalesced by the
+		// same debounce, so dragging a label across the plan is one entry.
+		attached.floorplan.addEventListener(EVENT_ANNOTATIONS_CHANGED, attached.onChange);
 		attached.scene.addEventListener(EVENT_ITEM_LOADED, attached.onChange);
 		attached.scene.addEventListener(EVENT_ITEM_REMOVED, attached.onChange);
 		attached.scene.addEventListener(EVENT_ITEM_MOVE_FINISH, attached.onChange);
@@ -352,6 +359,7 @@ export function useAutosave(store_)
 			return;
 		}
 		attached.floorplan.removeEventListener(EVENT_UPDATED, attached.onChange);
+		attached.floorplan.removeEventListener(EVENT_ANNOTATIONS_CHANGED, attached.onChange);
 		attached.scene.removeEventListener(EVENT_ITEM_LOADED, attached.onChange);
 		attached.scene.removeEventListener(EVENT_ITEM_REMOVED, attached.onChange);
 		attached.scene.removeEventListener(EVENT_ITEM_MOVE_FINISH, attached.onChange);

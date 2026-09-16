@@ -1,9 +1,14 @@
 <script setup>
 // @ts-check
+import {injectLayout} from '../composables/useLayout.js';
+import {injectDisplayUnit} from '../composables/useDisplayUnit.js';
+import {injectHistory} from '../composables/useHistory.js';
+import {injectDesignIO} from '../composables/useDesignIO.js';
 import {PopoverRoot, PopoverTrigger, PopoverPortal, PopoverContent} from 'reka-ui';
 import {
-	FilePlus2, FolderOpen, Save, Undo2, Redo2, Box, Share2,
-	Moon, Sun, Keyboard, PanelRight, ChevronDown, Ruler,
+	FilePlus2, FolderOpen, Save, Undo2, Redo2, Box, Share2, Printer, Camera, Globe,
+	Image as ImageIcon, LibraryBig, Link2, Package,
+	Moon, Sun, Keyboard, PanelRight, ChevronDown, Ruler, CircleQuestionMark, Compass, BookOpen,
 } from '@lucide/vue';
 
 import AppTip from './AppTip.vue';
@@ -34,23 +39,45 @@ import {THEME_DARK} from '../composables/useTheme.js';
  * in the same place regardless of how wide the window is.
  */
 
+/**
+ * Four composables, injected (RM-020 S-5).
+ *
+ * This element carried twelve props and twenty-one events in `App.vue`, more
+ * than any other, and most of them were a composable's own state going out and
+ * the composable's own method coming back. `useLayout`, `useDisplayUnit`,
+ * `useHistory` and `useDesignIO` are read directly now.
+ *
+ * What is still a prop or an event is what the *shell* owns, and the split is
+ * worth stating because it is the whole point of the exercise:
+ *
+ *   helpUrl        a deployment fact; a top bar should not know the base
+ *   theme          two bindings, and `useTheme` has no other consumer
+ *   projectName    read off `useProjects`, which the library dialog owns
+ *   new/open, the two save flows that need more than one composable, and the
+ *   four dialogs this bar opens - all of them the shell's to coordinate
+ */
+const workspace = injectLayout();
+const display = injectDisplayUnit();
+const history = injectHistory();
+const io = injectDesignIO();
+
 const props = defineProps({
-	layout: {type: String, required: true},
+	/**
+	 * Where the help pages are, resolved against this deployment's base.
+	 *
+	 * A prop rather than an import, because the base is a deployment fact and a
+	 * top bar should not know one. `src/app/tour/help.js` computes it and
+	 * `tools/check-help.mjs` checks that what it points at exists.
+	 */
+	helpUrl: {type: String, required: true},
 	theme: {type: String, required: true},
-	unit: {type: String, required: true},
-	units: {
-		/**
-		 * Typed so the template can read `.value` and `.label` off each entry.
-		 *
-		 * @type {import('vue').PropType<Array<import('../composables/useDisplayUnit.js').UnitChoice>>}
-		 */
-		type: Array,
-		required: true,
+	/** The open project's name, or null for a design nobody has kept (RM-013 K1). */
+	projectName: {
+		/** @type {import('vue').PropType<?string>} */
+		type: String,
+		default: null,
 	},
-	canUndo: {type: Boolean, default: false},
-	canRedo: {type: Boolean, default: false},
-	exporting: {type: Boolean, default: false},
-	inspectorOpen: {type: Boolean, default: true},
+	projectDirty: {type: Boolean, default: false},
 	savedAt: {
 		/**
 		 * `type: X` with `default: null` still infers `X | undefined` - the default
@@ -65,10 +92,18 @@ const props = defineProps({
 });
 
 const emit = defineEmits([
-	'new-design', 'open-design', 'save-design', 'save-mesh', 'save-gltf',
-	'undo', 'redo', 'set-layout', 'set-unit', 'toggle-theme',
-	'toggle-inspector', 'show-shortcuts',
+	'new-design', 'open-design', 'save-bundle', 'undo', 'redo', 'toggle-theme',
+	'show-shortcuts', 'show-library', 'show-share', 'start-tour',
 ]);
+
+/**
+ * The scales the plan can be exported at (RM-008 E4).
+ *
+ * A short list rather than a free number, because these are the ratios building
+ * drawings are actually issued at - 1:50 for a room, 1:100 for a floor - and a
+ * sheet at 1:73 is a sheet nobody can check with a scale rule.
+ */
+const PLAN_SCALES = [20, 50, 100, 200];
 
 function onFile(event)
 {
@@ -102,18 +137,49 @@ function savedLabel(stamp)
 function onUnitChange(event)
 {
 	const select = /** @type {HTMLSelectElement} */ (event.target);
-	emit('set-unit', select.value);
+	display.setUnit(select.value);
 }
 </script>
 
 <template>
-	<header class="relative z-[300] flex h-12 flex-none items-center gap-1 border-b border-line bg-surface px-2.5">
+	<header id="top-bar" class="relative z-[300] flex h-12 flex-none items-center gap-1 border-b border-line bg-surface px-2.5">
+		<!--
+			The page's one level-one heading (RM-017 P2, M-60).
+
+			Visually hidden, because the application's name is rendered as the
+			wordmark below and a second copy of it in text would be chrome nobody
+			asked for. It is not a workaround - a page whose top-level heading is a
+			logo still needs the heading in the accessibility tree - and it is
+			inside the banner rather than loose in the shell, because a heading
+			outside every landmark fails `region`, which is how the first attempt
+			at this was placed and what axe said about it.
+
+			Found by pointing axe at the whole document. The six cases that existed
+			before P2 scoped to `#app-root` and could not see a page-level rule at
+			all, and the one that did scope to the document only ever ran with a
+			modal open, where axe evaluates the dialog rather than the page. So
+			this application has had no `h1` since S6, with an accessibility gate
+			running over it the whole time.
+		-->
+		<h1 class="sr-only">Architect3D</h1>
 		<!-- identity -->
 		<div class="mr-1 flex items-center gap-2 pr-2">
 			<span class="grid h-6 w-6 place-items-center rounded-md bg-accent text-accent-ink">
 				<Ruler :size="14" :stroke-width="2.2" />
 			</span>
 			<span class="hidden text-[13px] font-semibold tracking-tight sm:inline">Architect<span class="text-accent">3D</span></span>
+			<!--
+				What am I working on (RM-013 K1). Before the library there was nothing
+				to say here, because there was one design and it had no name; now the
+				answer is a record or the absence of one, and the dot is the only place
+				the application admits to unsaved work outside the library dialog.
+			-->
+			<span
+				v-if="props.projectName" class="hidden min-w-0 max-w-[220px] items-center gap-1.5 border-l border-line pl-2 lg:flex"
+				:title="props.projectDirty ? `${props.projectName} — unsaved changes` : props.projectName">
+				<span class="truncate text-[12px] text-ink-soft">{{ props.projectName }}</span>
+				<span v-if="props.projectDirty" class="h-1.5 w-1.5 flex-none rounded-full bg-accent" aria-label="Unsaved changes" />
+			</span>
 		</div>
 
 		<!-- document -->
@@ -126,12 +192,22 @@ function onUnitChange(event)
 			<AppTip label="Open layout" keys="mod+o">
 				<label class="btn btn-icon btn-file" title="Open layout">
 					<FolderOpen :size="15" />
-					<input type="file" accept=".blueprint3d,application/json" aria-label="Open layout" @change="onFile">
+					<input type="file" accept=".blueprint3d,.zip,application/json,application/zip" aria-label="Open layout" @change="onFile">
 				</label>
 			</AppTip>
 			<AppTip label="Save layout" keys="mod+s">
-				<button type="button" class="btn btn-icon" title="Save layout" @click="emit('save-design')">
+				<button type="button" class="btn btn-icon" title="Save layout" @click="io.saveDesign()">
 					<Save :size="15" />
+				</button>
+			</AppTip>
+			<AppTip label="Designs" keys="mod+shift+o">
+				<button type="button" class="btn btn-icon" title="Designs" @click="emit('show-library')">
+					<LibraryBig :size="15" />
+				</button>
+			</AppTip>
+			<AppTip label="Share a link" keys="mod+shift+c">
+				<button type="button" class="btn btn-icon" title="Share a link" @click="emit('show-share')">
+					<Link2 :size="15" />
 				</button>
 			</AppTip>
 
@@ -147,14 +223,40 @@ function onUnitChange(event)
 						side="bottom" align="start" :side-offset="6"
 						class="a3d-pop z-[600] w-56 rounded-panel border border-line bg-overlay p-1 shadow-float">
 						<p class="eyebrow px-2 py-1.5">Export the model</p>
-						<button type="button" class="btn w-full justify-start" @click="emit('save-mesh')">
+						<button type="button" class="btn w-full justify-start" @click="io.saveMesh()">
 							<Box :size="15" /> Wavefront OBJ
 						</button>
 						<button
-							type="button" class="btn w-full justify-start" :disabled="props.exporting"
-							@click="emit('save-gltf')">
+							type="button" class="btn w-full justify-start" :disabled="io.busy.value"
+							@click="io.saveGLTF()">
 							<Share2 :size="15" />
-							{{ props.exporting ? 'Exporting glTF…' : 'glTF 2.0' }}
+							{{ io.busy.value ? 'Exporting glTF…' : 'glTF 2.0' }}
+						</button>
+
+						<button type="button" class="btn w-full justify-start" @click="emit('save-bundle')">
+							<Package :size="15" /> Bundle (.zip)
+						</button>
+
+						<p class="eyebrow px-2 py-1.5">Export the view</p>
+						<button type="button" class="btn w-full justify-start" @click="io.savePhoto(2)">
+							<Camera :size="15" /> Photo, 2&times; resolution
+						</button>
+						<button type="button" class="btn w-full justify-start" @click="io.savePanorama(4096)">
+							<Globe :size="15" /> 360&deg; panorama, from the walk
+						</button>
+
+						<p class="eyebrow px-2 py-1.5">Export the plan</p>
+						<button
+							v-for="ratio in PLAN_SCALES" :key="ratio"
+							type="button" class="btn w-full justify-start"
+							@click="io.savePlanSVG(ratio)">
+							<Ruler :size="15" /> SVG at 1:{{ ratio }}
+						</button>
+						<button type="button" class="btn w-full justify-start" @click="io.savePlanPNG(2400)">
+							<ImageIcon :size="15" /> PNG, 2400&nbsp;px wide
+						</button>
+						<button type="button" class="btn w-full justify-start" @click="io.printPlan(100)">
+							<Printer :size="15" /> Print at 1:100&hellip;
 						</button>
 					</PopoverContent>
 				</PopoverPortal>
@@ -168,14 +270,14 @@ function onUnitChange(event)
 			<AppTip label="Undo" keys="mod+z">
 				<button
 					type="button" class="btn btn-icon" title="Undo"
-					:disabled="!props.canUndo" @click="emit('undo')">
+					:disabled="!history.canUndo.value" @click="emit('undo')">
 					<Undo2 :size="15" />
 				</button>
 			</AppTip>
 			<AppTip label="Redo" keys="mod+shift+z">
 				<button
 					type="button" class="btn btn-icon" title="Redo"
-					:disabled="!props.canRedo" @click="emit('redo')">
+					:disabled="!history.canRedo.value" @click="emit('redo')">
 					<Redo2 :size="15" />
 				</button>
 			</AppTip>
@@ -186,10 +288,10 @@ function onUnitChange(event)
 			<div class="segmented pointer-events-auto" role="group" aria-label="Workspace layout">
 				<button
 					v-for="entry in LAYOUTS" :key="entry.id" type="button"
-					class="segment" :class="{'is-active': props.layout === entry.id}"
-					:aria-pressed="props.layout === entry.id"
+					class="segment" :class="{'is-active': workspace.layout.value === entry.id}"
+					:aria-pressed="workspace.layout.value === entry.id"
 					:title="`${entry.title} (${entry.key})`"
-					@click="emit('set-layout', entry.id)">
+					@click="workspace.setLayout(entry.id)">
 					{{ entry.label }}
 				</button>
 			</div>
@@ -202,8 +304,8 @@ function onUnitChange(event)
 
 			<select
 				class="field-input num h-7 w-[104px] text-left" aria-label="Display unit"
-				:value="props.unit" @change="onUnitChange">
-				<option v-for="entry in props.units" :key="entry.value" :value="entry.value">{{ entry.label }}</option>
+				:value="display.unit.value" @change="onUnitChange">
+				<option v-for="entry in display.units" :key="entry.value" :value="entry.value">{{ entry.label }}</option>
 			</select>
 
 			<AppTip :label="props.theme === THEME_DARK ? 'Light theme' : 'Dark theme'">
@@ -217,10 +319,37 @@ function onUnitChange(event)
 					<Keyboard :size="15" />
 				</button>
 			</AppTip>
-			<AppTip :label="props.inspectorOpen ? 'Hide inspector' : 'Show inspector'" keys="mod+.">
+
+			<!-- The tour's last step points here, so somebody who skipped it can
+			     find it again. That is the whole reason it is a visible control and
+			     not only something that happens on a first boot (RM-014 L2). -->
+			<PopoverRoot>
+				<PopoverTrigger as-child>
+					<button id="help-button" type="button" class="btn btn-icon" title="Help">
+						<CircleQuestionMark :size="15" />
+					</button>
+				</PopoverTrigger>
+				<PopoverPortal>
+					<PopoverContent
+						side="bottom" align="end" :side-offset="6"
+						class="a3d-pop z-[600] w-56 rounded-panel border border-line bg-overlay p-1 shadow-float">
+						<p class="eyebrow px-2 py-1.5">Help</p>
+						<button type="button" class="btn w-full justify-start" @click="emit('start-tour')">
+							<Compass :size="15" /> Take the tour
+						</button>
+						<a class="btn w-full justify-start" :href="props.helpUrl" target="_blank" rel="noopener noreferrer">
+							<BookOpen :size="15" /> How to use this
+						</a>
+						<button type="button" class="btn w-full justify-start" @click="emit('show-shortcuts')">
+							<Keyboard :size="15" /> Keyboard shortcuts
+						</button>
+					</PopoverContent>
+				</PopoverPortal>
+			</PopoverRoot>
+			<AppTip :label="workspace.inspectorOpen.value ? 'Hide inspector' : 'Show inspector'" keys="mod+.">
 				<button
-					type="button" class="btn btn-icon" :class="{'is-active': props.inspectorOpen}"
-					title="Toggle inspector" @click="emit('toggle-inspector')">
+					type="button" class="btn btn-icon" :class="{'is-active': workspace.inspectorOpen.value}"
+					title="Toggle inspector" @click="workspace.toggleInspector()">
 					<PanelRight :size="15" />
 				</button>
 			</AppTip>

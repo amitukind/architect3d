@@ -21,10 +21,15 @@
  */
 export function createRendererStub(collector)
 {
+	const canvas = document.createElement('canvas');
+	// jsdom's canvas has no 2D or WebGL backend, so `toDataURL` returns the
+	// one-pixel placeholder rather than a picture. That is enough for the photo
+	// capture's own logic - the guards, the clamp and the restore - and what the
+	// picture looks like is `tests/browser/photo.test.js`.
+	canvas.toDataURL = function () {return 'data:image/png;base64,' + 'A'.repeat(64 * this.width);};
 	const renderer = {
-		domElement: document.createElement('canvas'),
+		domElement: canvas,
 		shadowMap: {enabled: false, type: null},
-		shadowMapSoft: false,
 		clippingPlanes: [],
 		localClippingEnabled: false,
 		disposed: false,
@@ -36,6 +41,25 @@ export function createRendererStub(collector)
 		setClearColor() {},
 		setSize(width, height) {this.size = {width, height};},
 		setPixelRatio(ratio) {this.pixelRatio = ratio;},
+		getPixelRatio() {return this.pixelRatio;},
+		// RM-011 H2's photo capture asks the GPU for its own ceiling before
+		// enlarging the drawing buffer, because exceeding it does not throw - it
+		// produces a buffer the driver silently declines to allocate.
+		capabilities: {maxTextureSize: 4096},
+		// RM-011 H3's panorama renders six faces to the canvas and reads them
+		// straight back, which is three more calls Main now makes: the size to
+		// restore afterwards, the framebuffer to read from, and the read itself.
+		getSize(target) {target.set(this.size ? this.size.width : 0, this.size ? this.size.height : 0); return target;},
+		setRenderTarget(target) {this.renderTarget = target;},
+		renderTarget: null,
+		getContext()
+		{
+			return {
+				RGBA: 6408,
+				UNSIGNED_BYTE: 5121,
+				readPixels(x, y, width, height, format, type, buffer) {buffer.fill(255);},
+			};
+		},
 		setAnimationLoop(fn) {this.animationLoop = fn;},
 		render() {this.renderCount++;},
 		dispose() {this.disposed = true;},

@@ -380,14 +380,29 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.NoToneMapping;
 const gl = renderer.getContext();
 
+/** three's compressed-format constants, by value, so a row can name one. */
+const THREE_FORMAT_NAMES = Object.fromEntries(Object.entries(THREE)
+	.filter(([key, value]) => /Format$/.test(key) && typeof value === 'number')
+	.map(([key, value]) => [value, key]));
+
 const ktx2 = new KTX2Loader()
 	.setTranscoderPath('/node_modules/three/examples/jsm/libs/basis/')
 	.detectSupport(renderer);
 
 /** Sampler state is identical for both sides; only the pixels differ. */
-function prepare(texture)
+/**
+ * @param {THREE.Texture} texture
+ * @param {string} [colorSpace] 'linear' for data that is not colour (RM-011 H1).
+ */
+function prepare(texture, colorSpace)
 {
-	texture.colorSpace = THREE.SRGBColorSpace;
+	// sRGB unless the pair says otherwise, so every measurement this tool made
+	// before H1 is unchanged. A normal or a roughness map is *data*, not colour:
+	// three tags it NoColorSpace and a shader reads the bytes as they are, so
+	// decoding one as sRGB measures an image no shader ever sees - which is the
+	// error RM-006 caught in the other direction, when this harness differenced
+	// an albedo map in a linear frame.
+	texture.colorSpace = (colorSpace === 'linear') ? THREE.NoColorSpace : THREE.SRGBColorSpace;
 	texture.minFilter = THREE.NearestFilter;
 	texture.magFilter = THREE.NearestFilter;
 	texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
@@ -397,13 +412,19 @@ function prepare(texture)
 }
 
 /** One texture, one frame, read back as RGBA bytes. */
-function frame(texture, w, h)
+function frame(texture, w, h, colorSpace)
 {
 	renderer.setSize(w, h, false);
 	const scene = new THREE.Scene();
 	const camera = new THREE.OrthographicCamera(-w / 2, w / 2, h / 2, -h / 2, 0, 1);
 	const geometry = new THREE.PlaneGeometry(w, h);
-	const material = new THREE.MeshBasicMaterial({map: prepare(texture)});
+	const material = new THREE.MeshBasicMaterial({map: prepare(texture, colorSpace)});
+	// The output has to match the input, or the path is not transparent and the
+	// residual check below says so. sRGB in, sRGB out - decode then encode is the
+	// identity. Data in, data out - no decode and no encode, so the bytes a
+	// shader would read are the bytes that come back (RM-011 H1).
+	renderer.outputColorSpace = (colorSpace === 'linear')
+		? THREE.LinearSRGBColorSpace : THREE.SRGBColorSpace;
 	const mesh = new THREE.Mesh(geometry, material);
 	scene.add(mesh);
 	renderer.render(scene, camera);
@@ -493,8 +514,8 @@ try
 				+ ' and the container is ' + w + 'x' + h);
 		}
 
-		const a = frame(source, w, h);
-		const b = frame(compressed, w, h);
+		const a = frame(source, w, h, pair.colorSpace);
+		const b = frame(compressed, w, h, pair.colorSpace);
 		// Both orientations, because the two loaders disagree about flipY and a
 		// compressed texture cannot be flipped on upload.
 		const asIs = difference(a, b);
@@ -511,6 +532,16 @@ try
 			name: pair.name,
 			from: pair.from,
 			shipped: pair.shipped,
+			// Echoed back so a caller can see the frame its numbers were measured
+			// in, rather than trusting that the flag arrived (RM-011 H1).
+			measuredAs: pair.colorSpace || 'srgb',
+			// Which compressed format the loader actually produced on this device.
+			// A KTX2 is a container: UASTC and ETC1S are storage, and what reaches
+			// the GPU is whatever detectSupport said this device can read. So the
+			// number beside this is the codec AND the transcode, and on a software
+			// rasteriser those are not the same thing they would be on a GPU with
+			// BC7 or ASTC (RM-011 H1).
+			transcodedTo: THREE_FORMAT_NAMES[compressed.format] || String(compressed.format),
 			bytes: pair.bytes,
 			sourceBytesLength: pair.sourceBytesLength,
 			pixels: w + 'x' + h,
@@ -541,24 +572,34 @@ catch (error)
  * Driver
  * ------------------------------------------------------------------------- */
 
-async function main()
+/**
+ * The instrument, as a function anybody can point at a list of pairs (RM-011 H1).
+ *
+ * Extracted from `main()` verbatim, and extracted for the reason F3 extracted
+ * `solid_builder.js`: H1's material trial has to measure candidate images that
+ * are not in the tree yet and therefore cannot be found by `collectPairs`, and
+ * the alternative to a seam here is a second copy of the harness. A second copy
+ * of a measuring instrument is worse than no second measurement, because the
+ * two would drift and nobody would know which one to believe.
+ *
+ * What it is: serve the scratch directory and the page, drive it in chromium
+ * over SwiftShader, and hand back one row per pair. The transparency check
+ * stays with the caller, because what to do about an opaque render path is a
+ * policy question and this function only measures.
+ *
+ * @param {Array<Object>} pairs From `collectPairs`, or built by a caller: each
+ *   needs `name`, `from`, `source` and `ktx2` as served URLs.
+ * @param {string} scratch The directory those URLs resolve into.
+ * @returns {Promise<{rows: Array<Object>}>}
+ */
+export async function measurePairs(pairs, scratch)
 {
-	const scratch = mkdtempSync(join(tmpdir(), 'transcode-oracle-'));
 	let server;
 	let browser;
 	try
 	{
-		console.log(CALIBRATE
-			? '\nCalibrating against the five room textures RM-005 C1 t5 published.\n'
-			: '\nMeasuring every KTX2 in the tree against the source it was encoded from.\n');
-
-		const pairs = await collectPairs(scratch);
-		if (!pairs.length) { throw new Error('nothing to measure'); }
-		const recovered = pairs.filter((pair) => pair.from === 'git history').length;
-		console.log(`  ${pairs.length} pairs` + (recovered ? `, ${recovered} of them recovered from git history` : ''));
-
-		server = await serve(scratch, PAGE(pairs.map(({name, from, shipped, source, ktx2, bytes, sourceBytesLength}) =>
-			({name, from, shipped, source, ktx2, bytes, sourceBytesLength}))));
+		server = await serve(scratch, PAGE(pairs.map(({name, from, shipped, source, ktx2, bytes, sourceBytesLength, colorSpace}) =>
+			({name, from, shipped, source, ktx2, bytes, sourceBytesLength, colorSpace}))));
 		const port = server.address().port;
 
 		browser = await chromium.launch({
@@ -570,6 +611,36 @@ async function main()
 		await page.waitForFunction(() => window.__ORACLE__ !== undefined, null, {timeout: 900000});
 		const result = await page.evaluate(() => window.__ORACLE__);
 		if (result.error) { throw new Error('the page failed:\n' + result.error); }
+		return result;
+	}
+	finally
+	{
+		if (browser) { await browser.close(); }
+		if (server) { server.close(); }
+	}
+}
+
+/** The encoder's decoder, shared so a caller encodes exactly as this tool does. */
+export {decodeImage, quietly};
+
+/** How far a rendered source may sit from its own decoded pixels, in 0-255. */
+export {RESIDUAL_CEILING};
+
+async function main()
+{
+	const scratch = mkdtempSync(join(tmpdir(), 'transcode-oracle-'));
+	try
+	{
+		console.log(CALIBRATE
+			? '\nCalibrating against the five room textures RM-005 C1 t5 published.\n'
+			: '\nMeasuring every KTX2 in the tree against the source it was encoded from.\n');
+
+		const pairs = await collectPairs(scratch);
+		if (!pairs.length) { throw new Error('nothing to measure'); }
+		const recovered = pairs.filter((pair) => pair.from === 'git history').length;
+		console.log(`  ${pairs.length} pairs` + (recovered ? `, ${recovered} of them recovered from git history` : ''));
+
+		const result = await measurePairs(pairs, scratch);
 
 		report(result.rows);
 		// Before any verdict. A harness that is measuring itself has nothing to
@@ -613,10 +684,21 @@ async function main()
 		// Only what ships compressed. A texture measured here and shipped as a JPEG
 		// is already obeying the rule this gate exists to enforce.
 		const failures = result.rows.filter((row) => row.shipped === 'compressed' && row.rms > GATES.codecRms);
+		// The sweep is carried forward rather than overwritten (RM-011 H1).
+		//
+		// `--sweep` merges its findings into this file and says why: *"a claim
+		// whose evidence lives only in a terminal is the shape this whole tool
+		// exists to stop."* A plain run then rewrote the file from scratch and
+		// deleted them - so the evidence for every refusal survived exactly until
+		// the next ordinary `npm run oracle`, which is a check somebody runs. Found
+		// by running it. The rows themselves are reproduced identically, which is
+		// how the deletion was visible at all.
+		const previous = existsSync(OUT_PATH) ? JSON.parse(readFileSync(OUT_PATH, 'utf8')) : {};
 		writeFileSync(OUT_PATH, JSON.stringify({
 			gate: {codecRms: GATES.codecRms, source: 'tools/resize-textures.mjs GATES'},
 			encoder: ENCODE,
 			rows: result.rows.map(round),
+			...(previous.settingsSwept ? {settingsSwept: previous.settingsSwept} : {}),
 		}, null, '\t') + '\n');
 		console.log(`\n  wrote ${OUT_PATH.replace(ROOT + '/', '')}\n`);
 
@@ -642,8 +724,9 @@ async function main()
 	}
 	finally
 	{
-		if (browser) { await browser.close(); }
-		if (server) { server.close(); }
+		// The browser and the server are `measurePairs`'s to close, since H1
+		// extracted it; the scratch directory is still this function's, because
+		// `collectPairs` is what filled it.
 		rmSync(scratch, {recursive: true, force: true});
 	}
 }

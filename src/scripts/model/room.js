@@ -1,7 +1,8 @@
 // @ts-check
 import {EVENT_CHANGED, EVENT_ROOM_ATTRIBUTES_CHANGED} from '../core/events.js';
 import {Region} from '../core/utils.js';
-import {EventDispatcher, Vector2, Vector3, Shape, ShapeGeometry, Mesh, MeshBasicMaterial, DoubleSide, Box3} from 'three';
+import {EventDispatcher, Vector2, Vector3, Shape, Path, ShapeGeometry, Mesh, MeshBasicMaterial, DoubleSide, Box3} from 'three';
+import {clampOpeningToRoom, polygonArea} from './floor_opening.js';
 import {triangleFanGeometry} from '../core/geometry_builders.js';
 import {disposeObject} from '../core/resource_registry.js';
 
@@ -9,6 +10,7 @@ import {WallTypes} from '../core/constants.js';
 
 import {Utils} from '../core/utils.js';
 import {HalfEdge} from './half_edge.js';
+import {normaliseSurface} from './surface.js';
 
 
 /**
@@ -57,6 +59,21 @@ export class Room extends EventDispatcher
 		 */
 		this.id = Utils.guide();
 		this._name = 'A New Room';
+		/**
+		 * What this room is for - Bedroom, Kitchen, Bathroom (RM-008 E3).
+		 *
+		 * Separate from the name, because they answer different questions and a
+		 * plan needs both: "Master" is which room this is, "Bedroom" is what it is.
+		 * Free text rather than an enum, with the common ones offered in the
+		 * inspector - a plan of a house nobody anticipated should be able to say
+		 * "Puja room" or "Utility" without a library release.
+		 *
+		 * Empty by default and drawn only when set, so a plan nobody has typed into
+		 * looks exactly as it did before this sprint.
+		 *
+		 * @type {string}
+		 */
+		this._type = '';
 		this.min = null;
 		this.max = null;
 		this.center = null;
@@ -70,6 +87,18 @@ export class Room extends EventDispatcher
 		this.edgePointer = null;
 		this.floorPlane = null;
 		this.roofPlane = null;
+		/**
+		 * Holes in this room's floor, in plan space (RM-010 G2).
+		 *
+		 * Where the stairs from the storey below arrive. Derived rather than
+		 * authored - F3's flight already computes the rectangle - and clamped to
+		 * this room before they are stored, because `ShapeGeometry` merges a hole
+		 * that pokes outside its outline INTO the outline and the floor grows
+		 * (RM-009 U-2, re-measured for floors as RM-010 V-3).
+		 *
+		 * @type {Array<Array<{x: number, y: number}>>}
+		 */
+		this.floorOpenings = [];
 		this.customTexture = false;
 		this.floorChangeCallbacks = null;
 		this.updateWalls();
@@ -108,6 +137,155 @@ export class Room extends EventDispatcher
 		return this._name;
 	}
 
+	/**
+	 * What this room is for, or '' (RM-008 E3).
+	 * @returns {string}
+	 */
+	get type()
+	{
+		return this._type;
+	}
+
+	/**
+	 * Announced with the same event and the same `{from, to}` payload the name
+	 * uses, and deliberately without saying which attribute moved.
+	 *
+	 * `tests/change-projection.test.js` pins that payload shape exactly, and every
+	 * listener this repository has re-reads the room rather than acting on the
+	 * values in the event - so naming the attribute would break a pin to add
+	 * information nothing consumes. The event means "an attribute of this room
+	 * changed; read it again".
+	 *
+	 * @param {string} value
+	 */
+	set type(value)
+	{
+		var next = (typeof value === 'string') ? value : '';
+		if (next === this._type)
+		{
+			return;
+		}
+		var previous = this._type;
+		this._type = next;
+		this.dispatchEvent({type: EVENT_ROOM_ATTRIBUTES_CHANGED, item: this, info: {from: previous, to: this._type}});
+	}
+
+	/**
+	 * How high this room's ceiling is, in centimetres (RM-008 E3).
+	 *
+	 * ## Derived, not stored, and that is the finding
+	 *
+	 * E3 was planned with a per-room ceiling height as a third persisted field.
+	 * Building it that way would have been wrong, and E2 is why: `Wall.height`
+	 * turned out not to be the height of the wall, because a wall's drawn top
+	 * comes from the elevations of the two corners at its ends. The ceiling of a
+	 * room *is* the elevation of its corners - there is nowhere else for a
+	 * ceiling to come from - so a second number stored beside them could disagree
+	 * with the geometry, and the drawing would then be a lie in the same way
+	 * `Wall.height` was.
+	 *
+	 * So this reads the corners, and {@link Room#setCeilingHeight} writes them.
+	 * Nothing new is persisted, which also means nothing new can be lost: every
+	 * file ever written by this project already carries its ceiling heights.
+	 *
+	 * The maximum rather than an average, because that is the height of the room:
+	 * a room with one corner raised has a sloped ceiling whose highest point is
+	 * that corner. {@link Room#hasUniformCeiling} is how a caller tells the two
+	 * cases apart, and the inspector says so rather than showing a number that
+	 * describes only part of the room.
+	 *
+	 * @returns {number} Centimetres. Zero for a room with no corners.
+	 */
+	get ceilingHeight()
+	{
+		if (!this.corners.length)
+		{
+			return 0;
+		}
+		var highest = -Infinity;
+		this.corners.forEach(function (corner)
+		{
+			if (corner.elevation > highest)
+			{
+				highest = corner.elevation;
+			}
+		});
+		return highest;
+	}
+
+	/**
+	 * Whether every corner of this room is at the same elevation (RM-008 E3).
+	 * @returns {boolean}
+	 */
+	get hasUniformCeiling()
+	{
+		if (this.corners.length < 2)
+		{
+			return true;
+		}
+		var first = this.corners[0].elevation;
+		for (var i = 1; i < this.corners.length; i++)
+		{
+			// A tolerance rather than equality: these are centimetres a person
+			// typed, round-tripped through a display unit and back, so 250 and
+			// 249.99999999999997 are the same ceiling.
+			if (Math.abs(this.corners[i].elevation - first) > 1e-6)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Raise or lower this room's ceiling (RM-008 E3).
+	 *
+	 * Writes every corner of the room, which is the honest consequence of the
+	 * height living on the corners: a corner shared with the room next door is
+	 * one corner, and raising this room's ceiling raises that wall's top on both
+	 * sides. Two walls meeting at a corner share it, and always have - the wall
+	 * inspector has said so since E2. The room inspector says it here too rather
+	 * than letting somebody discover it.
+	 *
+	 * Batched, so eight corners on a pair of adjoining rooms are one undo entry
+	 * and one re-derivation instead of eight of each.
+	 *
+	 * @param {number} centimetres
+	 * @returns {boolean} Whether anything moved.
+	 */
+	setCeilingHeight(centimetres)
+	{
+		if (typeof centimetres !== 'number' || !isFinite(centimetres) || centimetres <= 0)
+		{
+			return false;
+		}
+		var corners = this.corners.filter(function (corner)
+		{
+			return Math.abs(corner.elevation - centimetres) > 1e-6;
+		});
+		if (!corners.length)
+		{
+			return false;
+		}
+		var plan = this.floorplan;
+		if (plan && typeof plan.beginBatch === 'function')
+		{
+			plan.beginBatch('edit');
+		}
+		try
+		{
+			corners.forEach(function (corner) {corner.elevation = centimetres;});
+		}
+		finally
+		{
+			if (plan && typeof plan.endBatch === 'function')
+			{
+				plan.endBatch();
+			}
+		}
+		return true;
+	}
+
 	roomIdentifier()
 	{
 		var cornerids = [];
@@ -137,7 +315,19 @@ export class Room extends EventDispatcher
 		return tex || defaultRoomTexture;
 	}
 
-	setRoomWallsTexture(textureUrl, textureStretch, textureScale)
+	/**
+	 * Do something to every wall side facing into this room, once each.
+	 *
+	 * Extracted by RM-011 H1, when a second caller appeared. The walk itself is
+	 * unchanged and both of its guards are load-bearing, which is the reason it
+	 * is one function now rather than two copies: a traversal written twice is a
+	 * traversal that can disagree with itself about what "this room's walls"
+	 * means, and F3 already paid for learning that.
+	 *
+	 * @param {function(import('./half_edge.js').HalfEdge): void} apply
+	 * @returns {void}
+	 */
+	eachWallSide(apply)
 	{
 		// `edgePointer` is null only for a room with no corners, which
 		// `Floorplan.update()` does not build - it comes from a cycle in the graph,
@@ -148,9 +338,8 @@ export class Room extends EventDispatcher
 		{
 			return;
 		}
-		var iterateWhile = true;
-		edge.setTexture(textureUrl, textureStretch, textureScale);
-		while (iterateWhile)
+		apply(edge);
+		for (;;)
 		{
 			// `!edge.next` is new (RM-005 C2). `next` is null on an unlinked edge,
 			// and the walk would then assign null and throw on the next line - so
@@ -161,12 +350,37 @@ export class Room extends EventDispatcher
 			{
 				break;
 			}
-			else
-			{
-				edge = edge.next;
-			}
-			edge.setTexture(textureUrl, textureStretch, textureScale);
+			edge = edge.next;
+			apply(edge);
 		}
+	}
+
+	setRoomWallsTexture(textureUrl, textureStretch, textureScale)
+	{
+		this.eachWallSide(function (edge)
+		{
+			edge.setTexture(textureUrl, textureStretch, textureScale);
+		});
+	}
+
+	/**
+	 * Change what every wall in this room is made of, keeping their pictures.
+	 *
+	 * The room-wide twin of `HalfEdge.setMaterial` (RM-011 H1). It exists because
+	 * a material arriving from the picker brings a roughness map with it, and the
+	 * map belongs to the image rather than to the person who chose it - so
+	 * retexturing a whole room has to carry the maps across the whole room, or
+	 * one wall keeps the bumps of the plaster it used to be.
+	 *
+	 * @param {Object} changes Any of the material keys in `./surface.js`.
+	 * @returns {void}
+	 */
+	setRoomWallsMaterial(changes)
+	{
+		this.eachWallSide(function (edge)
+		{
+			edge.setMaterial(changes);
+		});
 	}
 
 	/**
@@ -175,8 +389,64 @@ export class Room extends EventDispatcher
 	setTexture(textureUrl, textureStretch, textureScale)
 	{
 		var uuid = this.getUuid();
-		this.floorplan.setFloorTexture(uuid, textureUrl, textureScale);
+		// The material survives a change of image, the same way a wall side's does
+		// (RM-011 H1). `setFloorTexture` builds the record; what it is handed is
+		// what this floor already said about itself.
+		this.floorplan.setFloorTexture(uuid, textureUrl, textureScale, this.getTexture());
 		this.dispatchEvent({type:EVENT_CHANGED, item: this});
+	}
+
+	/**
+	 * Change what this floor is made of, keeping the image (RM-011 H1).
+	 *
+	 * @param {Object} changes Any of the material keys in `model/surface.js`.
+	 * @returns {import('./surface.js').SurfaceMaterial}
+	 */
+	setMaterial(changes)
+	{
+		var current = this.getTexture();
+		var material = normaliseSurface(Object.assign({}, current, changes || {}));
+		this.floorplan.setFloorTexture(this.getUuid(), current.url, current.scale, material);
+		this.dispatchEvent({type:EVENT_CHANGED, item: this});
+		return material;
+	}
+
+	/** What this floor is made of, defaults filled in (H1). */
+	getMaterial()
+	{
+		return normaliseSurface(this.getTexture());
+	}
+
+	/**
+	 * What the lid on this room is made of (RM-011 H1).
+	 *
+	 * RM-007's gap Q-4 names *"no ceiling material"* and it was literal: a
+	 * ceiling was one flat colour out of the render profile, shared by every room
+	 * in the building and settable by nobody. It gets a surface of its own now,
+	 * kept in its own collection rather than beside the floor's, because a room
+	 * has two horizontal surfaces and they are not the same one - and because a
+	 * design with no ceiling material written writes no collection at all.
+	 *
+	 * @returns {?Object} the record, or null when this ceiling is the profile's
+	 */
+	getCeiling()
+	{
+		return this.floorplan.getCeilingSurface(this.getUuid());
+	}
+
+	/**
+	 * @param {?Object} changes Null clears it back to the profile's colour.
+	 * @returns {?Object}
+	 */
+	setCeiling(changes)
+	{
+		var uuid = this.getUuid();
+		var result = (changes === null)
+			? this.floorplan.setCeilingSurface(uuid, null)
+			: this.floorplan.setCeilingSurface(uuid,
+				Object.assign({}, this.getCeiling() || {}, changes));
+		this.dispatchEvent({type:EVENT_CHANGED, item: this});
+		return result;
 	}
 
 	generateRoofPlane()
@@ -195,12 +465,7 @@ export class Room extends EventDispatcher
 	generatePlane()
 	{
 		disposeObject(this.floorPlane);
-		var points = [];
-		this.interiorCorners.forEach((corner) => {
-			points.push(new Vector2(corner.x,corner.y));
-		});
-		var shape = new Shape(points);
-		var geometry = new ShapeGeometry(shape);
+		var geometry = new ShapeGeometry(this.floorShape());
 		this.floorPlane = /** @type {RoomPlane} */ (new Mesh(geometry, new MeshBasicMaterial({side: DoubleSide, visible:false})));
 		//The below line was originally setting the plane visibility to false
 		//Now its setting visibility to true. This is necessary to be detected
@@ -253,6 +518,18 @@ export class Room extends EventDispatcher
 		disposeObject(this.roofPlane);
 		this.floorPlane = null;
 		this.roofPlane = null;
+		/**
+		 * Holes in this room's floor, in plan space (RM-010 G2).
+		 *
+		 * Where the stairs from the storey below arrive. Derived rather than
+		 * authored - F3's flight already computes the rectangle - and clamped to
+		 * this room before they are stored, because `ShapeGeometry` merges a hole
+		 * that pokes outside its outline INTO the outline and the floor grows
+		 * (RM-009 U-2, re-measured for floors as RM-010 V-3).
+		 *
+		 * @type {Array<Array<{x: number, y: number}>>}
+		 */
+		this.floorOpenings = [];
 	}
 
 	cycleIndex(index)
@@ -277,6 +554,122 @@ export class Room extends EventDispatcher
 		return Utils.pointInPolygon2(pt, polygon);
 	}
 
+	/**
+	 * The area of the polygon the room's interior faces enclose, in cm²
+	 * (RM-008 F2).
+	 *
+	 * Zero for a room whose interior corners have not been derived yet, which is
+	 * a room mid-rebuild rather than a room with no floor - and zero is the
+	 * honest answer for something that cannot be measured yet.
+	 *
+	 * @returns {number}
+	 */
+	interiorArea()
+	{
+		if (!this.interiorCorners || this.interiorCorners.length < 3)
+		{
+			return 0;
+		}
+		// The shoelace formula, rather than `Region` - `Region` takes the whole
+		// sampled polygon and this needs the corners exactly as the half edges
+		// mitred them.
+		var total = 0;
+		for (var i = 0; i < this.interiorCorners.length; i++)
+		{
+			var here = this.interiorCorners[i];
+			var next = this.interiorCorners[(i + 1) % this.interiorCorners.length];
+			total += (here.x * next.y) - (next.x * here.y);
+		}
+		// The holes come out, which is F2's own rule applied to the thing that now
+		// punches them: the number on the plan is the floor somebody can stand on
+		// (RM-010 V-9). A 600 x 600 room with a default flight's stairwell in it
+		// loses 27,000 cm2 of its 348,100 - 7.8 %, the same order as the 5.2 % F2
+		// existed to fix.
+		var net = Math.abs(total / 2);
+		this.floorOpenings.forEach(function (opening)
+		{
+			net -= polygonArea(opening);
+		});
+		return Math.max(0, net);
+	}
+
+	/**
+	 * Take the openings that belong to this room, clamped (RM-010 G2).
+	 *
+	 * Handed every opening on the storey and keeps the ones over this room -
+	 * which is what `clampOpeningToRoom` returning null for a hole whose centre
+	 * is elsewhere actually decides. Idempotent, and cheap enough to run on every
+	 * change: it is a handful of segment tests per stair.
+	 *
+	 * @param {Array<Array<{x: number, y: number}>>} openings Plan space.
+	 * @returns {boolean} Whether this room's holes actually moved.
+	 */
+	setFloorOpenings(openings)
+	{
+		var scope = this;
+		var kept = [];
+		(openings || []).forEach(function (polygon)
+		{
+			var clamped = clampOpeningToRoom(polygon, scope.interiorCorners);
+			if (clamped)
+			{
+				kept.push(clamped.polygon);
+			}
+		});
+		if (JSON.stringify(kept) === JSON.stringify(this.floorOpenings))
+		{
+			return false;
+		}
+		this.floorOpenings = kept;
+		this.generatePlane();
+		this.updateArea();
+		return true;
+	}
+
+	/**
+	 * This room's outline and its holes, as three's `Shape` wants them.
+	 *
+	 * One place, because the picking plane in this file and the visible floor in
+	 * `three/floor.js` have to be the same shape - a floor you can see through
+	 * and still click is worse than either.
+	 *
+	 * @param {number} [scale] Divides every coordinate; the visible floor uses it
+	 *        to fit its texture and this file does not.
+	 * @returns {Shape}
+	 */
+	floorShape(scale)
+	{
+		var divisor = scale || 1;
+		var shape = new Shape(this.interiorCorners.map(
+			(corner) => new Vector2(corner.x / divisor, corner.y / divisor)));
+		this.floorOpenings.forEach(function (opening)
+		{
+			shape.holes.push(new Path(opening.map(
+				(point) => new Vector2(point.x / divisor, point.y / divisor))));
+		});
+		return shape;
+	}
+
+	/**
+	 * Derive the mitred interior polygon, and the half edges' hit-test planes.
+	 *
+	 * ## Why this is re-runnable, and was not
+	 *
+	 * Until RM-019 R1 this was called exactly once, from the constructor, and it
+	 * pushed onto an array the constructor had just initialised - so it read as
+	 * correct and was, for its one caller. `Floorplan.update(false, corners)` now
+	 * calls it again on the rooms a moved corner touches, and a second pass that
+	 * appended would have doubled the polygon rather than replaced it. Hence the
+	 * reset.
+	 *
+	 * `HalfEdge.generatePlane()` disposes the plane it replaces (RM-003 A0), and
+	 * nothing puts those planes into the 3D scene - `Edge.removeFromScene()`
+	 * records that `phantomPlanes` is empty - so calling this per drag step
+	 * neither leaks nor strands a mesh. That is *not* true of `generatePlane()`
+	 * and `generateRoofPlane()` on this class: `Floor.addToScene()` borrows both
+	 * of those, so regenerating them out from under it would leave the disposed
+	 * originals in the scene. They stay where they are, on the rebuild path.
+	 */
 	updateInteriorCorners()
 	{
 		// See setRoomWallsTexture: null only for a cornerless room.
@@ -285,6 +678,8 @@ export class Room extends EventDispatcher
 		{
 			return;
 		}
+		// Replaced, not extended - see the docblock.
+		this.interiorCorners = [];
 		var iterateWhile = true;
 		while (iterateWhile)
 		{
@@ -358,9 +753,37 @@ export class Room extends EventDispatcher
 		
 		points = allpoints;		
 		region  = new Region(points);
-		this.area = Math.abs(region.area());
+		/**
+		 * The area between the wall CENTRELINES, which is what this class has
+		 * always computed and what a builder measures. Kept, because it is a real
+		 * figure and somebody wants it - it is just not the one to put on a plan.
+		 *
+		 * @type {number}
+		 */
+		this.centrelineArea = Math.abs(region.area());
 		this.areaCenter = region.centroid();		
 		this._polygonPoints = points;
+		/**
+		 * The floor a person can stand on (RM-009 U-7, RM-008 F2).
+		 *
+		 * `area` used to be the centreline figure above, which is neither the
+		 * inside of the room nor the outside: a 400 x 400 room at the default
+		 * 10 cm walls reported 16.00 m² where the floor is 15.21, over by 5.2 %,
+		 * and by about 19 % at 40 cm walls. Usable floor area is one of the two or
+		 * three numbers anybody actually wants from a plan, so it is the one on it.
+		 *
+		 * The interior polygon is the room's half edges' mitred interior corners -
+		 * the same points the 3D floor is built from - so the number and the
+		 * surface agree by construction.
+		 *
+		 * One stated limitation: for a CURVED wall the interior polygon takes the
+		 * straight chord between its two interior corners, where the centreline
+		 * figure above samples the bezier. A curved room is therefore understated
+		 * by its bulge. That is a smaller error than the 5.2 % this replaces, it
+		 * applies to curved rooms rather than to every room, and offsetting a
+		 * sampled bezier is a geometry problem rather than an area one.
+		 */
+		this.area = this.interiorArea();
 		this.dispatchEvent({type:EVENT_ROOM_ATTRIBUTES_CHANGED, item:this, info:{from: oldarea, to: this.area}});
 	}
 	

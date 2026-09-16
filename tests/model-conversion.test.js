@@ -24,6 +24,8 @@
  * rather than estimated.
  */
 import {afterAll, beforeAll, describe, expect, it} from 'vitest';
+
+import {paintState} from '../tools/material-audit.mjs';
 import {createHash} from 'node:crypto';
 import {readFileSync, readdirSync, existsSync, statSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
@@ -331,13 +333,37 @@ describe('material translation', () =>
 		});
 	});
 
-	it('passes the diffuse colour through untouched, everywhere it is declared', () =>
+	/**
+	 * ## Four models are a declared exception, and it is asserted rather than skipped
+	 *
+	 * This pinned the conversion's fidelity and it still does. What changed under
+	 * it is that RM-012 J2 deliberately repainted four shipped models, so for
+	 * those the file no longer carries the legacy `colorDiffuse` - by decision,
+	 * with the evidence recorded in `asset-pipeline/material-audit.json`.
+	 *
+	 * Re-checked rather than accommodated, because a characterization failure is a
+	 * signal to look at the change. The legacy value in all four cases is
+	 * `[1, 1, 1]`, and in all four it was a **multiplier on a diffuse map** -
+	 * `mapDiffuse: cb-moore_baked.png` and three like it. White times a texture is
+	 * the texture; white times nothing is white. So `[1, 1, 1]` was never these
+	 * models' intended appearance, and none of those four `.png` files exists in
+	 * any commit of this repository. The conversion is as faithful as it was; the
+	 * shipped file is deliberately no longer the conversion's output.
+	 *
+	 * So the exception is pinned from the other side: those four must equal the
+	 * painted table, and everything else must still equal its legacy value. That
+	 * is one more assertion than this test had before, not one fewer.
+	 */
+	it('passes the diffuse colour through untouched, except where J2 repainted it', () =>
 	{
 		// r98 applied no colour conversion on the way in and the r105 GLTFLoader
 		// applies none on the way out, so the resulting material.color is identical.
 		// A material with no colorDiffuse at all - several of these have none -
 		// falls back to white, which is what Loader.createMaterial did too.
+		const painted = new Map(paintState().map((entry) =>
+			[`${entry.model.split('/').pop().replace(/\.glb$/, '')}::${entry.material}`, entry.linear]));
 		let declared = 0;
+		let repainted = 0;
 		for (const name of LEGACY_MODEL_NAMES)
 		{
 			const source = loadLegacyMaterials(join(LEGACY_DIR, `${name}.js`));
@@ -345,6 +371,17 @@ describe('material translation', () =>
 			source.forEach((legacy, i) =>
 			{
 				const factor = pbrOf(gltf, i).baseColorFactor;
+				const paint = painted.get(`${name}::${gltf.materials[i].name}`);
+				if (paint)
+				{
+					expect(factor, `${name} material ${i} is painted`).toEqual(paint);
+					expect(legacy.colorDiffuse || [1, 1, 1],
+						'a repaint of anything but a white multiplier needs its own argument').toEqual([1, 1, 1]);
+					expect(legacy.mapDiffuse,
+						'the white was a multiplier on a map, which is why replacing it is not a loss').toBeTruthy();
+					repainted++;
+					return;
+				}
 				expect(factor.slice(0, 3), `${name} material ${i}`).toEqual(legacy.colorDiffuse || [1, 1, 1]);
 				expect(factor[3], `${name} material ${i} alpha`).toBe(legacy.transparency ?? 1);
 				if (legacy.colorDiffuse)
@@ -354,6 +391,9 @@ describe('material translation', () =>
 			});
 		}
 		expect(declared).toBeGreaterThan(0);
+		// The four legacy rows J2 repainted. The chandelier is the fifth paint and
+		// is not here, because it never had a legacy ancestor.
+		expect(repainted).toBe(4);
 	});
 
 	it('drops the texture reference when the map is missing from disk', () =>
@@ -414,16 +454,42 @@ function expandRuns(runs)
 
 describe('the merge pipeline rewrite', () =>
 {
-	const models = CATALOG.items.map((item) => item.model).filter((model, i, all) => all.indexOf(model) === i);
+	/**
+	 * Every distinct catalog model that r98 ever read.
+	 *
+	 * The goldens are a frozen reading taken at r98 and they cannot be
+	 * regenerated - that is the whole reason they are goldens. So a model
+	 * acquired later has no r98 reading and can never have one: RM-012 J2's 51
+	 * Food Kit rows arrived under r185 and there is no r98 to ask about them.
+	 *
+	 * Scoped rather than relaxed. The claim these tests make is *"the merge
+	 * rewrite changed nothing about the models r98 measured"*, and that claim is
+	 * exactly as strong over 166 models as it was over 168. What would weaken it
+	 * is a filter that silently swallowed a model that HAD a reading and lost it,
+	 * which is what the assertion below exists to prevent.
+	 */
+	const everything = CATALOG.items.map((item) => item.model).filter((m, i, all) => all.indexOf(m) === i);
+	const models = everything.filter((model) => LEGACY_MERGE_RESULTS[model]);
 
-	it('covers every distinct model in the catalog', () =>
+	it('covers every distinct model in the catalog that r98 ever read', () =>
 	{
 		expect(models.length).toBeGreaterThanOrEqual(160);
 	});
 
-	it('has a frozen r98 reading for every catalog model', () =>
+	it('has a frozen r98 reading for every model that shipped at r98, and loses none', () =>
 	{
-		expect(models.filter((model) => !LEGACY_MERGE_RESULTS[model])).toEqual([]);
+		// The goldens are the definition of what shipped then, so the check runs
+		// the other way: every model with a reading must still be in the catalog,
+		// or a row has gone and taken a measurement with it. Two have, deliberately
+		// - the pack RM-012 J2 withdrew - and they are named rather than filtered.
+		const orphaned = Object.keys(LEGACY_MERGE_RESULTS).filter((model) => !everything.includes(model));
+		expect(orphaned.sort()).toEqual(['models/gltf/SimpleCabinet.glb', 'models/gltf/chandelier.gltf']);
+
+		// And everything newer has no reading, which is a fact about when it
+		// arrived rather than a gap. 51 of them, all Food Kit.
+		const newer = everything.filter((model) => !LEGACY_MERGE_RESULTS[model]);
+		expect(newer.every((model) => model.startsWith('models/kenney-food/'))).toBe(true);
+		expect(newer).toHaveLength(51);
 	});
 
 	it('keeps triangle and material counts identical to the pre-S3 merge, for every model', async () =>
@@ -455,11 +521,11 @@ describe('the merge pipeline rewrite', () =>
 		expect(differences).toEqual([]);
 	}, 120000);
 
-	it('now honours parent node transforms, correcting exactly the 42 models that needed it', async () =>
+	it('now honours parent node transforms, correcting exactly the 41 models that needed it', async () =>
 	{
 		// The S4 fix, measured. Every model's merged bounds must equal the
-		// world-matrix reading recorded under r98 - which is the same for 126 of
-		// them and different for the 42 that sit under a transformed node.
+		// world-matrix reading recorded under r98 - which is the same for 125 of
+		// them and different for the 41 that sit under a transformed node.
 		//
 		// Asserting against both columns of the fixture is what makes this a
 		// proof rather than a restatement: a merge that silently reverted to
@@ -486,19 +552,22 @@ describe('the merge pipeline rewrite', () =>
 		}
 
 		expect(wrong).toEqual([]);
-		expect(corrected.length).toBe(42);
+		// 42 until RM-012 J2 withdrew the chandelier, which was one of them - a
+		// Blender export whose meshes hang off a translated parent, which is the
+		// whole population this correction is about.
+		expect(corrected.length).toBe(41);
 		expect(corrected).toContain('models/js/Duck.gltf');
 		// None of the 25 S3 conversions moved: they are authored as a single
 		// untransformed node, so their output was correct either way.
 		expect(corrected.filter((model) => model.startsWith('models/js-glb/'))).toEqual([]);
 	}, 120000);
 
-	it('leaves the 126 unaffected models bit-for-bit where they were', async () =>
+	it('leaves the 125 unaffected models bit-for-bit where they were', async () =>
 	{
 		// The other half of the fix's blast radius: a model with no transformed
 		// node must be untouched, so the change is provably confined to the 42.
 		const unaffected = models.filter((model) => !LEGACY_MERGE_RESULTS[model].nodeTransformAffected);
-		expect(unaffected.length).toBe(models.length - 42);
+		expect(unaffected.length).toBe(models.length - 41);
 
 		const moved = [];
 		for (const model of unaffected)
@@ -559,7 +628,8 @@ describe('the merge pipeline rewrite', () =>
 			if (kind === 'nonuniform') { stretched.push(model); }
 		}
 
-		expect(counts).toEqual({translate: 24, rotate: 2, uniform: 14, nonuniform: 2});
+		// translate was 24 before RM-012 J2 withdrew the chandelier, which was one.
+		expect(counts).toEqual({translate: 23, rotate: 2, uniform: 14, nonuniform: 2});
 		expect(stretched.sort()).toEqual([
 			'models/gltf/kitchenCoffeeMachine.glb',
 			'models/gltf/kitchenFridgeBuiltIn.glb',

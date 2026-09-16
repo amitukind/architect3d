@@ -1,0 +1,29 @@
+{
+	"note": [
+		"Doors, windows and archways that are generated rather than downloaded",
+		"(RM-008 F1). Kept out of catalog.json deliberately: that file is the list",
+		"of model FILES this build ships, and every test over it asserts exactly",
+		"that - the thumbnails exist, the formats are all glTF, and there is a",
+		"frozen r98 merge reading for each one. A parametric opening has no file,",
+		"so putting it there would mean weakening six suites to accommodate a row",
+		"that is not what they are about.",
+		"",
+		"Each row states only what differs from the kind's defaults in",
+		"items/opening.js. A door is 90 x 210, a window 120 x 120 on a 900 sill,",
+		"and normaliseOpening fills the rest in where the item is built - so a row",
+		"is 'a door, hinged right' rather than a full record repeated six times."
+	],
+	"heading": "Doors & Windows",
+	"order": 0,
+	"items": [
+		{"name": "Door", "opening": {"kind": "door"}},
+		{"name": "Door, right hinge", "opening": {"kind": "door", "hinge": "right"}},
+		{"name": "Wide door", "opening": {"kind": "door", "width": 110}},
+		{"name": "Double door", "opening": {"kind": "door", "width": 150, "swing": 80}},
+		{"name": "Window", "opening": {"kind": "window"}},
+		{"name": "Wide window", "opening": {"kind": "window", "width": 180, "height": 140}},
+		{"name": "Tall window", "opening": {"kind": "window", "width": 90, "height": 180, "sill": 30}},
+		{"name": "Archway", "opening": {"kind": "arch"}},
+		{"name": "Pass-through", "opening": {"kind": "arch", "width": 120, "height": 110, "sill": 95}}
+	]
+}

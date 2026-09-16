@@ -4,6 +4,7 @@ import {Dimensioning, defaultDimensioning} from './dimensioning.js';
 import {ResourceRegistry} from './resource_registry.js';
 import {LoadSession} from './load_session.js';
 import {defaultAssetResolver} from './asset_resolver.js';
+import {LocalModels} from './imported_model.js';
 import {renderProfile} from './render_profile.js';
 import {Utils} from './utils.js';
 
@@ -95,6 +96,8 @@ export class DesignRuntime
 	 * @param {AssetResolver} [options.assets] Where this document's asset URLs
 	 *        come from (A5). Omit for the identity resolver, which returns every
 	 *        logical name unchanged.
+	 * @param {import('./imported_model.js').LocalModelSource} [options.localModels]
+	 *        Bytes for models no deployment ships (J3). Omit for an empty store.
 	 * @param {string} [options.id] An id of the embedder's choosing. Omit for a
 	 *        generated one.
 	 */
@@ -150,6 +153,22 @@ export class DesignRuntime
 		 * @type {AssetResolver}
 		 */
 		this.assets = settings.assets || defaultAssetResolver;
+
+		/**
+		 * Bytes for models this deployment does not ship (RM-012 J3).
+		 *
+		 * Beside `assets` and not inside it, because they answer different
+		 * questions. A resolver says *where* a name is fetched from, which is a
+		 * deployment's business; this says *that there is nothing to fetch*, because
+		 * the bytes are already here. A model picked off a disk has no URL for a
+		 * resolver to rewrite, which is exactly what X-7 found J3 was short of.
+		 *
+		 * An empty one unless the embedder brings a store, so a build that imports
+		 * nothing pays one `has()` per item load and behaves as it did.
+		 *
+		 * @type {import('./imported_model.js').LocalModelSource}
+		 */
+		this.localModels = settings.localModels || new LocalModels();
 
 		/**
 		 * GPU resources belonging to the document itself rather than to a view

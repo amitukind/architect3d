@@ -1,9 +1,12 @@
 <script setup>
 // @ts-check
+import {injectFloorplannerMode} from '../composables/useFloorplannerMode.js';
+import {injectLayout} from '../composables/useLayout.js';
+import {injectItemActions} from '../composables/useItemActions.js';
 import {computed} from 'vue';
 import {
-	MousePointer2, PencilRuler, Eraser, Sofa, Footprints,
-	Copy, Trash2, Image as ImageIcon,
+	MousePointer2, PencilRuler, RectangleHorizontal, Eraser, Sofa, Footprints,
+	Copy, Trash2, Image as ImageIcon, Ruler, Type, Home,
 } from '@lucide/vue';
 
 import AppTip from './AppTip.vue';
@@ -43,27 +46,44 @@ import {LAYOUT_VIEW} from '../composables/useLayout.js';
  * control that is not there cannot answer it.
  */
 
+/**
+ * The tool mode, the layout and the item actions, injected (RM-020 S-5).
+ *
+ * `catalogOpen`, `walkthrough` and `exterior` stay props, and the difference is
+ * the useful one: those three are states the *shell* composes out of more than
+ * one source - a camera mode plus a layout, a drawer this bar does not own -
+ * whereas the three below are single composables this bar reads whole.
+ */
+const editor = injectFloorplannerMode();
+const workspace = injectLayout();
+const items = injectItemActions();
+
 const props = defineProps({
-	mode: {type: Number, required: true},
-	layout: {type: String, required: true},
-	canActOnItem: {type: Boolean, default: false},
 	catalogOpen: {type: Boolean, default: false},
 	walkthrough: {type: Boolean, default: false},
+	exterior: {type: Boolean, default: false},
 });
 
-const emit = defineEmits([
-	'set-mode', 'open-catalog', 'duplicate-item', 'delete-item',
-	'toggle-walkthrough', 'open-backdrop',
-]);
+const emit = defineEmits(['open-catalog', 'toggle-walkthrough', 'toggle-exterior', 'open-backdrop']);
 
-/** The plan tools, in the order the shortcut keys run: V, W, X. */
+/**
+ * The plan tools, in the order their shortcut keys run.
+ *
+ * The two annotation tools (RM-008 E3) sit after the drawing tools and before
+ * the eraser, which is where they belong in the sequence a plan is made: draw
+ * the building, then say what it is, then correct. The eraser stays last
+ * because it is the destructive one and the rail is read top to bottom.
+ */
 const TOOLS = [
 	{id: floorplannerModes.MOVE, icon: MousePointer2, label: 'Select and move', keys: 'v'},
 	{id: floorplannerModes.DRAW, icon: PencilRuler, label: 'Draw walls', keys: 'w'},
+	{id: floorplannerModes.RECTANGLE, icon: RectangleHorizontal, label: 'Draw a rectangular room', keys: 'r'},
+	{id: floorplannerModes.DIMENSION, icon: Ruler, label: 'Measure between two points', keys: 'd'},
+	{id: floorplannerModes.TEXT, icon: Type, label: 'Add a text label', keys: 't'},
 	{id: floorplannerModes.DELETE, icon: Eraser, label: 'Delete walls', keys: 'x'},
 ];
 
-const showPlanTools = computed(() => props.layout !== LAYOUT_VIEW);
+const showPlanTools = computed(() => workspace.layout.value !== LAYOUT_VIEW);
 </script>
 
 <template>
@@ -78,10 +98,10 @@ const showPlanTools = computed(() => props.layout !== LAYOUT_VIEW);
 				side="right" :delay="0">
 				<button
 					type="button" class="btn btn-tool"
-					:class="{'is-active': props.mode === tool.id}"
-					:aria-pressed="props.mode === tool.id"
+					:class="{'is-active': editor.mode.value === tool.id}"
+					:aria-pressed="editor.mode.value === tool.id"
 					:title="tool.label"
-					@click="emit('set-mode', tool.id)">
+					@click="editor.setMode(tool.id)">
 					<component :is="tool.icon" :size="17" />
 				</button>
 			</AppTip>
@@ -111,20 +131,28 @@ const showPlanTools = computed(() => props.layout !== LAYOUT_VIEW);
 				<Footprints :size="17" />
 			</button>
 		</AppTip>
+		<AppTip label="Exterior view" keys="e" side="right" :delay="0">
+			<button
+				type="button" class="btn btn-tool" :class="{'is-active': props.exterior}"
+				:aria-pressed="props.exterior"
+				title="Exterior view" @click="emit('toggle-exterior')">
+				<Home :size="17" />
+			</button>
+		</AppTip>
 
 		<div class="my-1 h-px w-6 bg-line" />
 
 		<AppTip label="Duplicate item" keys="mod+d" side="right" :delay="0">
 			<button
 				type="button" class="btn btn-tool" title="Duplicate item"
-				:disabled="!props.canActOnItem" @click="emit('duplicate-item')">
+				:disabled="!items.canActOnItem.value" @click="items.duplicateSelected()">
 				<Copy :size="17" />
 			</button>
 		</AppTip>
 		<AppTip label="Delete item" keys="delete" side="right" :delay="0">
 			<button
 				type="button" class="btn btn-tool btn-danger" title="Delete item"
-				:disabled="!props.canActOnItem" @click="emit('delete-item')">
+				:disabled="!items.canActOnItem.value" @click="items.deleteSelected()">
 				<Trash2 :size="17" />
 			</button>
 		</AppTip>

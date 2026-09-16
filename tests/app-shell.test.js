@@ -27,11 +27,19 @@
  */
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 import {nextTick} from 'vue';
-import {mount} from '@vue/test-utils';
+import {flushPromises, mount} from '@vue/test-utils';
 
 import App from '../src/app/App.vue';
-import {Main} from '../src/scripts/three/main.js';
+import {markTourSeen} from '../src/app/composables/useTour.js';
 import {floorplannerModes} from '../src/scripts/floorplanner/floorplanner_view.js';
+import {Dimensioning} from '../src/scripts/blueprint.js';
+import {loadCatalogDetail} from '../src/app/composables/useCatalog.js';
+import {UNITS} from '../src/app/composables/useDisplayUnit.js';
+import {installCatalogFetch, resetCatalogPacks} from './helpers/catalog.js';
+import catalog from '../src/catalog/catalog.json';
+import openings from '../src/catalog/openings.json';
+import stairs from '../src/catalog/stairs.json';
+import structures from '../src/catalog/structures.json';
 import {LAYOUT_PLAN, LAYOUT_SPLIT, LAYOUT_VIEW} from '../src/app/composables/useLayout.js';
 
 import {resetAll} from './helpers/harness.js';
@@ -46,6 +54,8 @@ let observer;
 let pointerApis;
 let listeners;
 let renderers;
+/** The `Main` the app will import. See the note in the beforeEach. */
+let live;
 
 /**
  * Listeners that would actually outlive the app.
@@ -82,11 +92,41 @@ function realLeaks()
  * `localStorage` is cleared first: useLayout and useTheme both persist, and a
  * test that left the workspace in split mode would otherwise decide the boot
  * state of the next one.
+ *
+ * And then the tour is marked seen, in that order (RM-014 L2). A cleared store
+ * is a first visit by definition, so every mount here would be offered the tour
+ * and its popover would be the first `[role="dialog"]` any query in this file
+ * finds - a few ticks after the mount, which is worse than immediately. The
+ * tour has its own suites; this is what a browser profile that has mounted the
+ * application twenty-five times would already have recorded.
  */
 async function mountApp()
 {
 	window.localStorage.clear();
+	markTourSeen();
 	const wrapper = mount(App, {attachTo: document.body});
+	await nextTick();
+	return wrapper;
+}
+
+/** The store the shell built, for the cases that reach past the DOM. */
+function storeOf(wrapper)
+{
+	return wrapper.vm.$.setupState.store;
+}
+
+/**
+ * Mount, then wait for the 3D engine (RM-015 M3).
+ *
+ * A boot in the plan-only layout builds no viewer - that is the sprint - so a
+ * case about the viewer has to ask for one. Switching layout would ask too, and
+ * two of the cases below do exactly that; this is for the ones whose subject is
+ * something else.
+ */
+async function mountAppWithViewer()
+{
+	const wrapper = await mountApp();
+	await storeOf(wrapper).ensureViewer();
 	await nextTick();
 	return wrapper;
 }
@@ -116,7 +156,7 @@ function layoutOf(wrapper)
 	return wrapper.vm.$.setupState.workspace.layout.value;
 }
 
-beforeEach(() =>
+beforeEach(async () =>
 {
 	resetAll();
 	document.body.innerHTML = '';
@@ -128,12 +168,15 @@ beforeEach(() =>
 	canvasStub = installCanvas2D(window);
 	observer = installResizeObserver(window);
 	pointerApis = installPointerApis(window);
-	Main.setRendererFactory(() => createRendererStub(renderers));
+	// See the note in app-composables.test.js: the seam goes on the module the
+	// application imports, which since M3 it does when the 3D view is asked for.
+	live = (await import('../src/scripts/three/main.js')).Main;
+	live.setRendererFactory(() => createRendererStub(renderers));
 });
 
 afterEach(() =>
 {
-	Main.setRendererFactory(null);
+	live.setRendererFactory(null);
 	observer.restore();
 	pointerApis.restore();
 	canvasStub.restore();
@@ -149,6 +192,36 @@ describe('App boot', () =>
 
 		expect(wrapper.find('canvas#floorplanner-canvas').exists()).toBe(true);
 		expect(wrapper.find('#viewer').exists()).toBe(true);
+		// Both panes are in the DOM at full size - that has been load-bearing
+		// since S6, because the library measures its containers - and only one of
+		// them has an engine behind it. RM-015 M3: the boot builds no renderer,
+		// and the case below is the one that says what does.
+		expect(renderers).toHaveLength(0);
+
+		wrapper.unmount();
+	});
+
+	it('downloads no 3D engine until the 3D view is asked for (RM-015 M3)', async () =>
+	{
+		const wrapper = await mountApp();
+
+		// The plan is drawn, the design is loaded, and there is no WebGL context
+		// on the page. three is 47% of what this application used to make a
+		// visitor download before it drew anything.
+		expect(storeOf(wrapper).three.value).toBeNull();
+		expect(renderers).toHaveLength(0);
+
+		await layoutButton(wrapper, '3D').trigger('click');
+		await storeOf(wrapper).ensureViewer();
+		await nextTick();
+
+		expect(storeOf(wrapper).three.value).not.toBeNull();
+		expect(renderers).toHaveLength(1);
+
+		// And switching away and back does not build a second one.
+		await layoutButton(wrapper, '2D').trigger('click');
+		await layoutButton(wrapper, 'Split').trigger('click');
+		await storeOf(wrapper).ensureViewer();
 		expect(renderers).toHaveLength(1);
 
 		wrapper.unmount();
@@ -208,6 +281,34 @@ describe('App boot', () =>
 		// parity scenario P10 is reachable without the console. It lives on the
 		// tool rail now rather than the bottom bar.
 		expect(railButton(wrapper, 'Walk through')).toBeTruthy();
+
+		wrapper.unmount();
+	});
+});
+
+describe('the display-unit control', () =>
+{
+	it('offers every unit the composable defines', async () =>
+	{
+		// RM-020 S-12. This existed as a prop and became an injection in S-5, and
+		// the conversion turned `props.units` into `display.unit.values` - a
+		// prefix match on `props.unit` that left a trailing `s`. `display.unit` is
+		// a ref, `.values` is undefined, and `v-for` over undefined renders
+		// nothing, so the control shipped as a select with no options in it.
+		//
+		// Nothing failed. The pragma that would have made `vue-tsc` report it had
+		// been pushed off line 1 of the script block by the same commit's import
+		// insertion, and no test mounted the top bar. Both holes are closed - the
+		// pragma position is asserted in type-coverage.test.js - and this is the
+		// half that checks the control rather than the annotation, because a
+		// dropdown can also empty out for reasons a type checker cannot see.
+		const wrapper = await mountApp();
+
+		const select = wrapper.get('select[aria-label="Display unit"]');
+		const options = select.findAll('option');
+		expect(options.length).toBe(UNITS.length);
+		expect(options.map((option) => option.attributes('value'))).toEqual(UNITS.map((unit) => unit.value));
+		expect(options.every((option) => option.text().length > 0)).toBe(true);
 
 		wrapper.unmount();
 	});
@@ -285,11 +386,13 @@ describe('switching layouts', () =>
 {
 	it('moves between plan, split and 3D, and resumes the viewer when 3D is shown', async () =>
 	{
-		const wrapper = await mountApp();
-		const three = wrapper.vm.$.setupState.store.three.value;
+		const wrapper = await mountAppWithViewer();
+		const three = storeOf(wrapper).three.value;
 
 		// Boots into the plan, so the 3D render loop is paused - nobody is looking
-		// at it.
+		// at it. Since RM-015 M3 that is true of a viewer asked for from the plan
+		// layout as well: `useCameraViews` applies the boot state when the viewer
+		// attaches, whenever that is.
 		expect(three.pauseRender).toBe(true);
 
 		await layoutButton(wrapper, '3D').trigger('click');
@@ -328,11 +431,44 @@ describe('the catalog drawer', () =>
 		return document.querySelector('[role="dialog"]');
 	}
 
+	/**
+	 * Open the drawer with a catalog in it.
+	 *
+	 * The rows are four fetches now rather than a bundled import (RM-012 J2), so
+	 * they are pulled off the disk before the click. The drawer's own
+	 * `loadCatalogPacks()` then resolves against the cache on the same tick,
+	 * which is what makes these cases deterministic - awaiting a real network
+	 * shape inside a click handler would not be.
+	 */
+	/** @type {?{urls: Array<string>, restore: function(): void}} */
+	let served;
+
+	beforeEach(() =>
+	{
+		// The rows are four fetches now rather than a bundled import (RM-012 J2),
+		// so there has to be something for the drawer to fetch from. Installed on
+		// the global rather than injected, because the subject of these cases is
+		// the component, and the component calls `loadCatalogPacks()` with no
+		// arguments exactly as it does in a browser.
+		resetCatalogPacks();
+		served = installCatalogFetch();
+	});
+
+	afterEach(() =>
+	{
+		served.restore();
+		served = null;
+	});
+
 	async function openCatalog(wrapper)
 	{
 		await layoutButton(wrapper, '3D').trigger('click');
 		await railButton(wrapper, 'Furniture catalog').trigger('click');
-		await nextTick();
+		// One tick per stage: the click, the four pack fetches, then the render
+		// that draws them. `flushPromises` rather than a count of ticks, because
+		// the number of microtasks four `fetch().json()` chains take is an
+		// implementation detail and pinning it here would be a flaky test.
+		await flushPromises();
 		await nextTick();
 	}
 
@@ -346,12 +482,208 @@ describe('the catalog drawer', () =>
 		expect(panel).not.toBeNull();
 
 		// One flat list rather than eight accordions, so the count is the catalog.
-		expect(panel.querySelectorAll('li').length).toBe(168);
+		// Now the 168 shipped models plus the three generated lists: nine openings
+		// (RM-008 F1), eight flights (F3) and eight columns and beams (F2). Those
+		// come from their own files rather than `catalog.json` because they name no
+		// file. Asserted as the sum rather than as 193, so it keeps saying what it
+		// means when any of the four lists grows.
+		expect(panel.querySelectorAll('li').length)
+			.toBe(catalog.items.length + openings.items.length + stairs.items.length + structures.items.length);
 
+		// The chips are the eight rooms now, plus All and Starred (RM-012 J1).
+		// Placement type is still there and is still every section - it moved to a
+		// <select>, because twelve chips of a filter used rarely crowded out the
+		// eight that answer the question somebody furnishing a bedroom is asking.
 		const chips = [...panel.querySelectorAll('button')]
 			.map((button) => button.textContent.trim());
-		expect(chips).toContain('Floor Items');
-		expect(chips).toContain('Anywhere Items');
+		expect(chips).toContain('Living');
+		expect(chips).toContain('Structure');
+		expect(chips).toContain('Starred');
+
+		const placements = [...panel.querySelectorAll('select option')]
+			.map((option) => option.textContent.trim());
+		expect(placements).toContain('Floor Items');
+		expect(placements).toContain('Anywhere Items');
+		expect(placements[0]).toBe('Any placement');
+
+		wrapper.unmount();
+	});
+
+	it('browses by room, and the building is not among the furniture', async () =>
+	{
+		const wrapper = await mountApp();
+		await openCatalog(wrapper);
+
+		const chip = (label) => [...drawer().querySelectorAll('button')]
+			.find((button) => button.textContent.trim() === label);
+		const names = () => [...drawer().querySelectorAll('li')].map((li) => li.textContent);
+
+		await chip('Bedroom').click();
+		await nextTick();
+		expect(names().some((text) => text.includes('Beddouble'))).toBe(true);
+		expect(names().some((text) => text.includes('Kitchensink'))).toBe(false);
+
+		// The twelve wall segments RM-012 measured are under Structure with the
+		// openings and the flights, and nowhere else. That is the whole of "came
+		// out of furniture" - a catalog edit, not a feature.
+		await chip('Structure').click();
+		await nextTick();
+		const structure = names();
+		expect(structure.some((text) => text.includes('Wallcorner'))).toBe(true);
+		expect(structure.some((text) => text.includes('Sofa - Grey'))).toBe(false);
+
+		wrapper.unmount();
+	});
+
+	it('stars an item without adding it, and shows the shortlist', async () =>
+	{
+		const wrapper = await mountApp();
+		await openCatalog(wrapper);
+
+		const tile = [...drawer().querySelectorAll('li')]
+			.find((li) => li.textContent.includes('Bathtub'));
+		// The second button in the tile, and a real one: nesting it inside the add
+		// button read fine and axe called it `nested-interactive` on all 193 tiles.
+		const star = () => tile.querySelectorAll('button')[1];
+		expect(star().getAttribute('aria-pressed')).toBe('false');
+
+		star().dispatchEvent(new window.MouseEvent('click', {bubbles: true}));
+		await nextTick();
+		expect(star().getAttribute('aria-pressed')).toBe('true');
+
+		const chip = (label) => [...drawer().querySelectorAll('button')]
+			.find((button) => button.textContent.trim() === label);
+		await chip('Starred').click();
+		await nextTick();
+
+		const shown = [...drawer().querySelectorAll('li')].map((li) => li.textContent);
+		expect(shown).toHaveLength(1);
+		expect(shown[0]).toContain('Bathtub');
+
+		wrapper.unmount();
+	});
+
+	it('shows a measured size once the detail lands (RM-012 J1 X-3, J2)', async () =>
+	{
+		const wrapper = await mountApp();
+		await openCatalog(wrapper);
+
+		// The grid renders from the index tier, which carries no dimension - so the
+		// first frame after the rows land has names and no sizes, and that is the
+		// whole point of the split rather than a defect.
+		const cell = () => [...drawer().querySelectorAll('li')]
+			.find((li) => li.textContent.includes('Full Bed'));
+		expect(cell()).toBeTruthy();
+
+		// 140 x 200 x 100 centimetres, measured off the model's own glTF accessor
+		// bounds rather than typed into the catalog - and shown in whatever unit
+		// the person is working in, which is what everything else in the app does.
+		const wide = Dimensioning.cmToMeasure(140);
+		const deep = Dimensioning.cmToMeasure(200);
+
+		// The detail is a second fetch, one file per pack, issued after the rows
+		// land. Awaited on the same shared promise the drawer awaited, which is
+		// deterministic where a fixed timer would not be.
+		// That the index tier carries no size at all is asserted directly in
+		// `tests/catalog-split.test.js`; repeating it here by racing the fetch
+		// would be a test whose result depends on what ran before it.
+		await loadCatalogDetail();
+		await flushPromises();
+		await nextTick();
+
+		const text = cell().textContent;
+		expect(text, `no measured size rendered: ${text}`).toContain(wide);
+		expect(text).toContain(deep);
+
+		wrapper.unmount();
+	});
+
+	/**
+	 * RM-007's objective for programme J opens with "the licence on every item",
+	 * and J1 recorded that the second half of it had not been done: the
+	 * provenance went into `sources.json`, and the licence was nowhere in the
+	 * shipped product. These are the two places it now is.
+	 */
+	it('says who made each item, on the item, without a fetch', async () =>
+	{
+		const wrapper = await mountApp();
+		await openCatalog(wrapper);
+
+		// On the tile's title rather than in its layout: 193 tiles each carrying a
+		// licence line would say the same four things fifty times each and make
+		// the grid unreadable. From the bundled manifest, so it is right on the
+		// first frame rather than when a fetch lands.
+		const tile = [...drawer().querySelectorAll('li')]
+			.find((li) => li.textContent.includes('Bathtub'));
+		const title = tile.querySelector('button').getAttribute('title');
+		expect(title).toContain('Add Bathtub');
+		expect(title).toContain('Furniture Kit');
+		expect(title).toContain('CC0 1.0 Universal');
+
+		// And a blueprint3d row gets the other licence, so this is reading the
+		// pack a row arrived in rather than a constant.
+		const bed = [...drawer().querySelectorAll('li')]
+			.find((li) => li.textContent.includes('Full Bed'));
+		expect(bed.querySelector('button').getAttribute('title')).toContain('MIT');
+
+		wrapper.unmount();
+	});
+
+	it('opens credits listing every kit, and does not hide the unknown one', async () =>
+	{
+		const wrapper = await mountApp();
+		await openCatalog(wrapper);
+
+		const credits = [...drawer().querySelectorAll('button')]
+			.find((button) => button.textContent.trim() === 'Credits');
+		expect(credits).toBeTruthy();
+		credits.click();
+		await flushPromises();
+		await nextTick();
+
+		const panel = [...document.querySelectorAll('[role="dialog"]')]
+			.find((node) => node.textContent.includes('Furniture credits'));
+		expect(panel).toBeTruthy();
+		expect(panel.textContent).toContain('217 models from 4 kits');
+		expect(panel.textContent).toContain('Furniture Kit');
+		expect(panel.textContent).toContain('CC0 1.0 Universal');
+
+		// The pack whose licence nobody could establish was shown here with a
+		// warning rather than omitted or quietly called CC0 - and RM-012 J2 then
+		// withdrew it. So the claim is the stronger one now: every kit on this
+		// screen states a licence, and none of them says `unknown`.
+		expect(panel.textContent).toContain('Food Kit');
+		expect(panel.textContent).not.toContain('unknown');
+		expect(panel.querySelector('.border-danger')).toBeNull();
+
+		wrapper.unmount();
+	});
+
+	it('and fills in the author and the licence link when the detail lands', async () =>
+	{
+		const wrapper = await mountApp();
+		await openCatalog(wrapper);
+		await loadCatalogDetail();
+		await flushPromises();
+		await nextTick();
+
+		[...drawer().querySelectorAll('button')]
+			.find((button) => button.textContent.trim() === 'Credits').click();
+		await nextTick();
+
+		const panel = [...document.querySelectorAll('[role="dialog"]')]
+			.find((node) => node.textContent.includes('Furniture credits'));
+		expect(panel.textContent).toContain('By Kenney');
+		const links = [...panel.querySelectorAll('a')].map((a) => a.getAttribute('href'));
+		expect(links).toContain('https://kenney.nl/assets/furniture-kit');
+		expect(links.some((href) => href && href.includes('creativecommons.org'))).toBe(true);
+		// Every outbound link is safe to open from a page holding somebody's
+		// unsaved design.
+		[...panel.querySelectorAll('a')].forEach((a) =>
+		{
+			expect(a.getAttribute('rel')).toContain('noopener');
+			expect(a.getAttribute('target')).toBe('_blank');
+		});
 
 		wrapper.unmount();
 	});
@@ -397,7 +729,7 @@ describe('lifecycle', () =>
 {
 	it('unmounts without leaving a renderer or a listener behind', async () =>
 	{
-		const wrapper = await mountApp();
+		const wrapper = await mountAppWithViewer();
 		wrapper.unmount();
 
 		expect(renderers[0].disposed).toBe(true);
@@ -409,7 +741,7 @@ describe('lifecycle', () =>
 	{
 		for (let i = 0; i < 5; i++)
 		{
-			const wrapper = await mountApp();
+			const wrapper = await mountAppWithViewer();
 			expect(wrapper.find('canvas#floorplanner-canvas').exists()).toBe(true);
 			wrapper.unmount();
 		}
@@ -426,5 +758,114 @@ describe('lifecycle', () =>
 
 		wrapper.unmount();
 		expect(document.querySelectorAll('#inspector')).toHaveLength(0);
+	});
+});
+
+/**
+ * The library, reachable from the shell (RM-013 K1).
+ *
+ * The dialog itself is pinned in `tests/project-library-ui.test.js` and the
+ * store beneath it in two more files. What is asserted here is only what the
+ * shell owes it: a way in, and the fact that opening it does not fetch the
+ * starter plans until somebody asks - which is M-47's headless half, since the
+ * browser tier is where the resource timings are read.
+ */
+describe('the project library', () =>
+{
+	it('has a way in from the top bar', async () =>
+	{
+		const wrapper = await mountApp();
+
+		expect(byTitle(wrapper, 'Designs')).toBeTruthy();
+		expect(document.querySelector('[role="dialog"]')).toBeNull();
+
+		await byTitle(wrapper, 'Designs').trigger('click');
+		await nextTick();
+
+		const dialog = document.querySelector('[role="dialog"]');
+		expect(dialog).not.toBeNull();
+		expect(dialog.textContent).toContain('has not been kept yet');
+		wrapper.unmount();
+	});
+
+	it('is in the shortcuts sheet, so it is discoverable', async () =>
+	{
+		const wrapper = await mountApp();
+
+		await byTitle(wrapper, 'Keyboard shortcuts').trigger('click');
+		await nextTick();
+
+		expect(document.body.textContent).toContain('Designs');
+		wrapper.unmount();
+	});
+});
+
+/**
+ * Sharing, reachable from the shell (RM-013 K2).
+ *
+ * The codec and the dialog are pinned in their own files. What is asserted here
+ * is the shell's part: that there is a way in, that pressing it produces a real
+ * link, and that a `.zip` and a `.blueprint3d` arrive through one control.
+ *
+ * The link is real because `CompressionStream` is a Node global and reaches
+ * this environment - which the first version of this test assumed the opposite
+ * of, and asserted the no-compression sentence that jsdom turned out not to
+ * need. Worth knowing: the unavailable path is reached by deleting the global,
+ * which is what `tests/design-link.test.js` does, not by being under jsdom.
+ */
+describe('sharing a link', () =>
+{
+	it('has a way in from the top bar', async () =>
+	{
+		const wrapper = await mountApp();
+
+		expect(byTitle(wrapper, 'Share a link')).toBeTruthy();
+		expect(document.querySelector('[role="dialog"]')).toBeNull();
+
+		await byTitle(wrapper, 'Share a link').trigger('click');
+		await flushPromises();
+		await nextTick();
+
+		const dialog = document.querySelector('[role="dialog"]');
+		expect(dialog).not.toBeNull();
+		expect(dialog.textContent).toContain('The whole design travels in the link');
+
+		// The encode is a stream, so it settles a few ticks after the click.
+		for (let i = 0; i < 8; i++)
+		{
+			await flushPromises();
+			await nextTick();
+		}
+		const field = dialog.querySelector('input[aria-label="Shareable link"]');
+		expect(field).not.toBeNull();
+		expect(field.value).toContain('#d=1');
+		expect(dialog.textContent).toMatch(/\d+ of 8,000 characters/);
+		wrapper.unmount();
+	});
+
+	it('offers a bundle beside the other exports', async () =>
+	{
+		const wrapper = await mountApp();
+
+		const exportButton = byTitle(wrapper, 'Export');
+		expect(exportButton).toBeTruthy();
+		await exportButton.trigger('click');
+		await nextTick();
+
+		expect(document.body.textContent).toContain('Bundle (.zip)');
+		wrapper.unmount();
+	});
+
+	it('accepts a .zip through the same control as a design', async () =>
+	{
+		const wrapper = await mountApp();
+
+		// One intention, one control: the file itself declares which of the two it
+		// is, and making somebody pick the right button for that is the interface
+		// asking them to do the computer's job.
+		const input = wrapper.find('input[type="file"]');
+		expect(input.attributes('accept')).toContain('.zip');
+		expect(input.attributes('accept')).toContain('.blueprint3d');
+		wrapper.unmount();
 	});
 });

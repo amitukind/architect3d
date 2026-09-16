@@ -1,5 +1,5 @@
 // @ts-check
-import {computed, onScopeDispose, ref, watch} from 'vue';
+import {computed, inject, onScopeDispose, provide, ref, watch} from 'vue';
 import {Configuration, gridSpacing, snapToGrid, pixelsPerCm} from '../../scripts/blueprint.js';
 
 /**
@@ -205,6 +205,16 @@ export function useZoom2D(store)
 		// getNumericValue, which coerces with Number() - so true becomes 1 and the
 		// truthiness test at the call site works either way.
 		Configuration.setValue(snapToGrid, snap.value);
+		// And the furniture, which snaps to what is already in the room rather
+		// than to the paper (RM-012 J4). Two mechanisms, because they answer
+		// different questions - but one control, because "snap" is one idea to
+		// the person using it, and a second switch beside the first would be a
+		// setting nobody could describe the difference between.
+		var model = store.model.value;
+		if (model && model.scene)
+		{
+			model.scene.snapItems = snap.value;
+		}
 	}
 
 	function setSpacing(cm)
@@ -254,4 +264,59 @@ export function useZoom2D(store)
 		zoomIn, zoomOut, zoomTo, resetZoom, zoomToFit, nudge, centre,
 		setSnap, setSpacing, sync,
 	};
+}
+
+/**
+ * The injection key for useZoom2D (RM-020 S-5).
+ *
+ * `App.vue` used to build this composable and push every one of its values down
+ * as props - fifteen bindings for the zoom alone, spread over three components
+ * that all wanted the same object. The store has always been injected; these
+ * are the first of the composables to follow it.
+ *
+ * A `Symbol` rather than a string, as `useBlueprint` does: two providers cannot
+ * collide and nothing can inject it by guessing.
+ *
+ * Exported, unlike `useBlueprint`'s, because a component that reaches for this
+ * has to be mountable on its own - by a test, or by an embedder composing a
+ * shell that is not `App.vue`. The alternative is standing up a whole document
+ * to render a hint, which makes the test about the wrong thing.
+ */
+export const ZOOM_2D_KEY = Symbol('architect3d.useZoom2D');
+
+/**
+ * Build it and make it available to every descendant.
+ * @param {import('./useBlueprint.js').BlueprintStore} store
+ */
+export function provideZoom2D(store)
+{
+	var api = useZoom2D(store);
+	provide(ZOOM_2D_KEY, api);
+	return api;
+}
+
+/**
+ * Take it from an ancestor that called `provideZoom2D`.
+ *
+ * Throws rather than returning null: a component that reached for this and did
+ * not get it is mounted outside the application shell, and every symptom of
+ * that is more confusing than the message.
+ *
+ * The annotation is load-bearing, not decoration. `ZOOM2D_KEY` is a plain
+ * `Symbol` rather than an `InjectionKey<T>`, so `inject(key, null)` infers `null`
+ * and the guard below narrows that to `never` - which type-checks here and makes
+ * every property access on the result an error in the component. RM-020 S-12
+ * found eleven such errors reported against `PlanOverlay.vue` and `StatusBar.vue`
+ * and none against the twelve composables `createInjection` serves, which carry
+ * this line.
+ * @returns {ReturnType<typeof useZoom2D>}
+ */
+export function injectZoom2D()
+{
+	var api = inject(ZOOM_2D_KEY, null);
+	if (!api)
+	{
+		throw new Error('injectZoom2D() called outside a component tree that ran provideZoom2D().');
+	}
+	return api;
 }

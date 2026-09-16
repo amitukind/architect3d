@@ -51,7 +51,11 @@
  * @param {string} endId
  * @returns {string}
  */
-export function cornerPairKey(startId, endId)
+// Module-private since RM-020 S-10: exported, and used by nothing outside
+// this file. `package.json` maps `./source/*` at the module level, so an
+// export is public surface by that route - and this was public surface
+// nobody used and no document named.
+function cornerPairKey(startId, endId)
 {
 	return [String(startId), String(endId)].sort().join('~');
 }
@@ -67,7 +71,11 @@ export function cornerPairKey(startId, endId)
  *        is doing something.
  * @returns {string}
  */
-export function deriveWallId(startId, endId, ordinal)
+// Module-private since RM-020 S-10: exported, and used by nothing outside
+// this file. `package.json` maps `./source/*` at the module level, so an
+// export is public surface by that route - and this was public surface
+// nobody used and no document named.
+function deriveWallId(startId, endId, ordinal)
 {
 	var suffix = ordinal ? '#' + ordinal : '';
 	return 'wall:' + cornerPairKey(startId, endId) + suffix;

@@ -95,6 +95,21 @@ jobs:
         # where the work happens.
         run: npm run test:coverage
 
+      - name: Published counts
+        # RM-020 AC-6. The roadmap quotes how many tests there are in four places
+        # and what statement coverage is in a fifth, and every one of them used to
+        # be maintained by somebody retyping it. The test count drifted in four
+        # consecutive commits and the coverage figure was a whole sprint stale.
+        #
+        # `vitest list` collects both tiers without running either - about
+        # thirteen seconds for 3,016 tests and no browser launched - and the
+        # coverage half is read from the summary the step above has just written,
+        # which is why this runs here and not before it.
+        #
+        # Same rule the type ledger got after drifting five times: a number is
+        # either produced by a command or checked by one.
+        run: npm run counts:check
+
       - name: Lint
         # Blocking since S1 (ESLint 10 flat config). Two rules new to ESLint 10
         # are set to 'warn' in eslint.config.js rather than silenced - see the
@@ -120,6 +135,68 @@ jobs:
         # Needs both builds above, so it comes last. Limits are committed in
         # tools/budget.json; raising one is a commit with a reason.
         run: npm run budget
+
+      - name: Deploy checks
+        # RM-015 M1, gate seventeen. It belongs here rather than only in the
+        # deploy job, and it is nearly free: both builds above already ran, so
+        # all this adds is the `mv` that assembles them the way the deploy does.
+        #
+        # What it asks is the one question nothing else here can - does every
+        # path the built document names exist in what would be uploaded? Every
+        # other gate runs before assembly and none of them resolves a URL, which
+        # is exactly the gap a base-path mistake falls into: green build, green
+        # budgets, and a published page asking for assets under a prefix the
+        # host does not serve. Catching that at merge beats catching it at
+        # deploy, and the deploy job runs it again on its own tree anyway.
+        run: |
+          mv docs/.vitepress/dist dist-demo/docs
+          npm run deploy:check
+
+      - name: Lighthouse
+        # RM-015 M3, and the only number in this repository that
+        # this repository did not define. (This comment used to call itself "gate
+        # eighteen", a label from the era when the roadmap claimed nineteen gates
+        # and none of them were listed. The audited count was fourteen and is
+        # fifteen since AC-6; ordinals here were never maintained, so it no longer
+        # claims one.)
+        # Every budget line and every coverage
+        # floor is a threshold we chose over a quantity we chose; a Lighthouse
+        # performance score weights five metrics the way somebody else weights
+        # them, and it can fall while all fourteen budget lines improve. That is
+        # exactly the failure M3's own change risks - deferring three moves the
+        # wait rather than removing it - so the sprint that moved it is the
+        # sprint that brought in an outside opinion.
+        #
+        # Runs here rather than in the browser job because it needs the
+        # assembled tree, which the step above has just produced, and it costs
+        # only chromium on top of it. The browser job installs chromium too;
+        # they do not share, and the workflow populates no cache by design.
+        #
+        # Against the built tree served from localhost, which is a lab
+        # measurement of the artifact rather than a field measurement of the
+        # deployment - the deploy job points the same analysis at the published
+        # URL and reports it without gating. See tools/check-lighthouse.mjs.
+        run: |
+          npx playwright install chromium
+          npm run lighthouse:check
+
+      - name: Offline
+        # RM-020 AC-8, promoting the check this repository has called "the
+        # strongest candidate for promotion" since it was written.
+        #
+        # It answers RM-013 K3's acceptance clause, which no other gate can: a
+        # SECOND load with the network disabled reaches an editable plan. The
+        # headless tier has no service worker and the browser tier runs against a
+        # dev server that never emits one - `sw.js` exists only in `dist-demo/` as
+        # a second Vite entry - so until now the one claim the offline feature
+        # makes was checked by somebody remembering to check it.
+        #
+        # Free to put here: it needs the built demo, which `build:demo` above
+        # produced, and chromium, which the Lighthouse step has just installed.
+        # Nine seconds, and it passed three consecutive local runs before being
+        # made a gate - the bar this programme set for itself when it dropped a
+        # tier-2 case rather than ship a flaky one.
+        run: npm run offline:check
 
       - name: Advisories
         # RM-006 took this tree to zero, and it is a ratchet from here.
@@ -154,6 +231,17 @@ jobs:
             else
               echo "no coverage report produced"
             fi
+            echo '```'
+            echo "### Coverage floors, and how close each one is"
+            echo '```'
+            # RM-018 Q1, finding AD-4. Four percentages say nothing about where
+            # a floor actually stands: 85 % of a ten-branch directory is 8.5,
+            # which the check rounds up to 9, so a floor written 85 is enforced
+            # at 90. This prints `covered - ceil(floor x total)` for every one
+            # of them - the units that can be lost before the build goes red -
+            # because the global statements floor sat at zero for three sprints
+            # and nothing said so.
+            npm run --silent coverage:slack || true
             echo '```'
             echo "### Size budgets"
             echo '```'

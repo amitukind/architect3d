@@ -1,5 +1,7 @@
 // @ts-check
 import {EVENT_UPDATED, EVENT_LOADED, EVENT_NEW, EVENT_DELETED, EVENT_ROOM_NAME_CHANGED, EVENT_CHANGESET} from '../core/events.js';
+import {EVENT_ITEMS_PROJECTED} from '../core/events.js';
+import {EVENT_ANNOTATIONS_CHANGED} from '../core/events.js';
 import {EVENT_CORNER_ATTRIBUTES_CHANGED, EVENT_WALL_ATTRIBUTES_CHANGED, EVENT_ROOM_ATTRIBUTES_CHANGED, EVENT_MOVED} from '../core/events.js';
 import {ChangeSet, CHANGE_TOPOLOGY, CHANGE_GEOMETRY, REASON_EDIT, REASON_LOAD, newChangeCounts} from '../core/change_set.js';
 import {matchRooms, rekeyInPlace} from './room_matcher.js';
@@ -17,6 +19,8 @@ import {Corner} from './corner.js';
 import {Wall} from './wall.js';
 import {deriveWallIds} from '../core/wall_identity.js';
 import {Room} from './room.js';
+import {Dimension, TextAnnotation, dimensionLine} from './annotation.js';
+import {writeSurfaceMaterial, surfaceToJSON} from './surface.js';
 
 
 /**
@@ -44,6 +48,22 @@ export const defaultFloorPlanTolerance = 10.0;
  * design independent of the display unit the user happened to have selected.
  */
 export const SAVE_UNITS = 'cm';
+
+/**
+ * How far a corner may sit off the line between its neighbours and still count
+ * as collinear, as a fraction of the distance between them (RM-008 E2).
+ *
+ * A ratio rather than a distance, so the test means the same thing on a
+ * two-metre wall and a twenty-metre one. 0.002 is about a tenth of a degree of
+ * bend across a typical run - tight enough that a corner somebody drew on
+ * purpose survives, loose enough that one left behind by a merge or a split does
+ * not.
+ */
+// Module-private since RM-020 S-10: exported, and used by nothing outside
+// this file. `package.json` maps `./source/*` at the module level, so an
+// export is public surface by that route - and this was public surface
+// nobody used and no document named.
+const COLLINEAR_SAGITTA_RATIO = 0.002;
 
 /**
  * Choose how to turn a stored coordinate into centimetres.
@@ -184,6 +204,85 @@ export class Floorplan extends EventDispatcher
 
 		this.floorTextures = {};
 		/**
+		 * What each room's ceiling is made of, by room uuid (RM-011 H1).
+		 *
+		 * Empty unless somebody has said otherwise, which is what makes it
+		 * conditional in the file. See `getCeilingSurface`.
+		 *
+		 * @type {Record<string, Object>}
+		 */
+		this.ceilingSurfaces = {};
+		/**
+		 * What the 2D view is allowed to know about the furniture (RM-008 E1, T-1).
+		 *
+		 * Plain data, written by `Model` and read by the plan - never live items,
+		 * and never a reference to the `Scene` that holds them. The measured reason
+		 * this exists at all is that a `Floorplan` has no path to a `Scene`: the 2D
+		 * view is handed this object and nothing else, so before E1 it could not
+		 * draw a chair even in principle.
+		 *
+		 * It sits beside `floorTextures` deliberately - that is the other thing here
+		 * that describes something the floorplan does not own. Empty until `Model`
+		 * fills it, which means a bare `Floorplan` built by a test is still a whole
+		 * `Floorplan`, and that is the property worth protecting.
+		 *
+		 * @type {Array<import('./plan_projection.js').ItemFootprint>}
+		 */
+		this.itemProjection = [];
+		/**
+		 * The storey below, to trace over, or null (RM-010 G1).
+		 *
+		 * Plain data set by `Model`, for the reason `itemProjection` is: this class
+		 * has no path to a `Model` and must not gain one, so a second plan on the
+		 * same canvas arrives as a description. See `model/level_projection.js`.
+		 *
+		 * @type {?import('./level_projection.js').GhostPlan}
+		 */
+		this.ghostPlan = null;
+		/**
+		 * What the last `setFloorOpenings` was handed, so an unchanged list does
+		 * not cost a redraw. A string rather than a deep compare because the list
+		 * is small, plain and rebuilt from scratch every time.
+		 * @type {string}
+		 */
+		this._floorOpeningSignature = '';
+		/**
+		 * The openings themselves, kept so a room rebuild can be handed them again.
+		 * @type {Array<Array<{x: number, y: number}>>}
+		 */
+		this._floorOpenings = [];
+		/**
+		 * What this plan says about itself (RM-008 E3).
+		 *
+		 * The first entities here that are authored rather than derived - see
+		 * `model/annotation.js` for why that matters and what follows from it.
+		 * Beside `itemProjection` and `floorTextures` because all three are things
+		 * the wall graph does not produce; unlike `itemProjection`, these two are
+		 * owned here and persisted here.
+		 *
+		 * @type {Array<Dimension>}
+		 */
+		this.dimensions = [];
+		/** @type {Array<TextAnnotation>} */
+		this.annotations = [];
+		/**
+		 * Which way is north, in degrees clockwise from up (RM-008 E3).
+		 *
+		 * A property of the building, not of the view: it survives a save, and a
+		 * plan drawn with the front door at the bottom is a different building from
+		 * one drawn with it at the top even when the walls are identical. Zero -
+		 * north is up - is the default and is not written to a file, so a design
+		 * nobody oriented is unchanged by this sprint.
+		 *
+		 * @type {number}
+		 */
+		this._north = 0;
+		/**
+		 * How the plan asks for an item to change - see {@link Floorplan#setItemCommands}.
+		 * @type {?Object}
+		 */
+		this._itemCommands = null;
+		/**
 		 * The {@link CarbonSheet} that handles the background image to show in
 		 * the 2D view
 		 * 
@@ -192,6 +291,23 @@ export class Floorplan extends EventDispatcher
 		 * no 2D view to inject one.
 		 */
 		this._carbonSheet = null;
+		/**
+		 * The carbon sheet's settings, kept for export once the sheet is gone
+		 * (RM-020 S-15).
+		 *
+		 * `FloorplannerView.dispose()` disposes the sheet - which is right, it
+		 * holds a decoded image - and `CarbonSheet.dispose()` calls `clear()`,
+		 * which resets all eight of the fields `exportSerialized` writes. So a
+		 * design saved after the 2D view was torn down came back with an empty
+		 * `carbonSheet` block and the underlay silently gone: a URL, a position, a
+		 * size and a transparency somebody had set by hand.
+		 *
+		 * The view snapshots them here on the way out. Export prefers the live
+		 * sheet and falls back to this, so nothing changes while a view is mounted.
+		 *
+		 * @type {?{url: string, transparency: number, x: number, y: number, anchorX: number, anchorY: number, width: number, height: number}}
+		 */
+		this._carbonSheetSettings = null;
 	}
 
 	/**
@@ -241,6 +357,31 @@ export class Floorplan extends EventDispatcher
 	 * @return {?CarbonSheet} reference to the instance of {@link CarbonSheet},
 	 *         or null in widget mode and headless use.
 	 */
+	/**
+	 * Keep the carbon sheet's settings before the sheet itself is disposed
+	 * (RM-020 S-15).
+	 *
+	 * Called by `FloorplannerView.dispose()`, and it has to be called *there*
+	 * rather than when the sheet is attached: a sheet is attached empty when the
+	 * 2D view is built and given its URL, position and scale later, so a snapshot
+	 * taken on the way in would record nothing every time.
+	 *
+	 * @param {CarbonSheet} sheet The sheet, still configured.
+	 * @returns {void}
+	 */
+	retainCarbonSheetSettings(sheet)
+	{
+		if (!sheet || !sheet.url)
+		{
+			return;
+		}
+		this._carbonSheetSettings = {
+			url: sheet.url, transparency: sheet.transparency,
+			x: sheet.x, y: sheet.y, anchorX: sheet.anchorX, anchorY: sheet.anchorY,
+			width: sheet.width, height: sheet.height,
+		};
+	}
+
 	get carbonSheet()
 	{
 		return this._carbonSheet;
@@ -430,21 +571,19 @@ export class Floorplan extends EventDispatcher
 	 *            in this repository.
 	 * @returns {Corner} The new corner.
 	 */
-	newCorner(x, y, id)
+	/**
+	 * Subscribe to a corner this plan owns.
+	 *
+	 * Extracted from `newCorner` by RM-008 F2 so that `splitCorner` wires its
+	 * replacement corner up with exactly the same three listeners rather than a
+	 * copy of them. The bodies are unchanged.
+	 *
+	 * @param {Corner} corner
+	 * @returns {void}
+	 */
+	_listenToCorner(corner)
 	{
 		var scope = this;
-		var corner = new Corner(this, x, y, id);
-		
-		for (var i=0;i<this.corners.length;i++)
-		{
-				var existingCorner = this.corners[i];
-				if(existingCorner.distanceFromCorner(corner) < cornerTolerance)
-				{
-					return existingCorner;
-				}
-		}
-		
-		this.corners.push(corner);
 		corner.addEventListener(EVENT_DELETED, function(o)
 				{scope.removeCorner(o.item);}
 		);
@@ -460,6 +599,23 @@ export class Floorplan extends EventDispatcher
 			updatecorners.push(o.item);
 			scope.update(false, updatecorners);
 			});
+	}
+
+	newCorner(x, y, id)
+	{
+		var corner = new Corner(this, x, y, id);
+		
+		for (var i=0;i<this.corners.length;i++)
+		{
+				var existingCorner = this.corners[i];
+				if(existingCorner.distanceFromCorner(corner) < cornerTolerance)
+				{
+					return existingCorner;
+				}
+		}
+		
+		this.corners.push(corner);
+		this._listenToCorner(corner);
 		
 		this.dispatchEvent({type: EVENT_NEW, item: this, newItem: corner});
 
@@ -476,6 +632,256 @@ export class Floorplan extends EventDispatcher
 	 * @param {Wall}
 	 *            wall The wall to be removed.
 	 */
+	/**
+	 * Cut a wall in two at the point nearest a position (RM-008 E2).
+	 *
+	 * The wall keeps its start and gains a new end; a second wall runs from there
+	 * to the old end. Both inherit the original's textures and its thickness, and
+	 * the new one is a wall in its own right - so a corridor can be given a
+	 * doorway-width section without redrawing the whole run.
+	 *
+	 * Straight walls only. A curved wall's shape lives in its bezier control
+	 * points, and splitting one means solving for the two sub-curves that
+	 * reproduce it - real work with a visible failure mode, and not what E2 is
+	 * for. It returns null rather than approximating, because a curve silently
+	 * replaced by two straight pieces is worse than a tool that declines.
+	 *
+	 * @param {Wall} wall
+	 * @param {{x: number, y: number}} at Anywhere near the wall; the cut lands at
+	 *        the closest point on it.
+	 * @returns {?Corner} The corner created at the cut, or null if refused.
+	 */
+	splitWall(wall, at)
+	{
+		if (!wall || wall.wallType !== WallTypes.STRAIGHT || !at)
+		{
+			return null;
+		}
+		var start = wall.getStart();
+		var end = wall.getEnd();
+		if (!start || !end)
+		{
+			return null;
+		}
+		var point = Utils.closestPointOnLine(
+			new Vector2(at.x, at.y),
+			new Vector2(start.x, start.y),
+			new Vector2(end.x, end.y));
+
+		// A cut within merge distance of either end is not a cut. `newCorner`
+		// would merge the new corner into that end, leaving one wall and a
+		// second of zero length - which reads as the tool having done nothing,
+		// or worse, having deleted something.
+		if (point.distanceTo(new Vector2(start.x, start.y)) < cornerTolerance
+			|| point.distanceTo(new Vector2(end.x, end.y)) < cornerTolerance)
+		{
+			return null;
+		}
+
+		this.beginBatch(REASON_EDIT);
+		try
+		{
+			var middle = this.newCorner(point.x, point.y);
+			var second = this.newWall(middle, end);
+			second.frontTexture = wall.frontTexture;
+			second.backTexture = wall.backTexture;
+			if (wall.hasOwnThickness)
+			{
+				second.thickness = wall.thickness;
+			}
+			// Re-point the original at the new corner rather than removing and
+			// rebuilding it: the wall keeps its id, so anything holding one - a
+			// bound item, a selection, an undo snapshot - still names a wall that
+			// exists. `setEnd` detaches the old end itself.
+			wall.setEnd(middle);
+			return middle;
+		}
+		finally
+		{
+			this.endBatch();
+		}
+	}
+
+	/**
+	 * Remove a corner where two collinear walls meet, joining them (RM-008 E2).
+	 *
+	 * The inverse of `splitWall`, and the reason a plan does not accumulate
+	 * corners: every split, every wall drawn through another and every merge
+	 * leaves one, and a run of six walls that should be one is six labels, six
+	 * handles and six things to drag by mistake.
+	 *
+	 * Refused unless the corner joins exactly two straight walls whose directions
+	 * agree within {@link COLLINEAR_TOLERANCE_DEGREES}. That is not fussiness: a
+	 * corner between two walls that genuinely turn is a corner somebody drew, and
+	 * removing it changes the shape of their building.
+	 *
+	 * @param {Corner} corner
+	 * @returns {?Wall} The surviving wall, or null if refused.
+	 */
+	joinWallsAt(corner)
+	{
+		if (!corner)
+		{
+			return null;
+		}
+		var walls = corner.wallStarts.concat(corner.wallEnds);
+		if (walls.length !== 2 || walls[0] === walls[1])
+		{
+			return null;
+		}
+		if (walls[0].wallType !== WallTypes.STRAIGHT || walls[1].wallType !== WallTypes.STRAIGHT)
+		{
+			return null;
+		}
+
+		// The far end of each wall - the two points the surviving wall will span.
+		var farOf = function (wall)
+		{
+			return (wall.getStart() === corner) ? wall.getEnd() : wall.getStart();
+		};
+		var a = farOf(walls[0]);
+		var b = farOf(walls[1]);
+		if (!a || !b || a === b)
+		{
+			return null;
+		}
+
+		// Collinear means the corner sits on the line between the two far ends,
+		// which is the same thing as the two directions agreeing and is cheaper
+		// and steadier to compute than comparing two angles across the wrap.
+		var offLine = Utils.pointDistanceFromLine(
+			new Vector2(corner.x, corner.y),
+			new Vector2(a.x, a.y),
+			new Vector2(b.x, b.y));
+		var span = new Vector2(a.x, a.y).distanceTo(new Vector2(b.x, b.y));
+		if (span === 0 || offLine > (span * COLLINEAR_SAGITTA_RATIO))
+		{
+			return null;
+		}
+
+		this.beginBatch(REASON_EDIT);
+		try
+		{
+			var survivor = walls[0];
+			var other = walls[1];
+
+			// Re-point BEFORE removing, and the order is not cosmetic.
+			// `Corner.detachWall` removes a corner the moment its last wall
+			// leaves, so removing the other wall first orphans the far corner it
+			// was reaching - and the survivor is then re-pointed at a corner that
+			// is no longer in the plan. Found by counting corners after a join: two
+			// expected, one left.
+			if (survivor.getStart() === corner)
+			{
+				survivor.setStart(b);
+			}
+			else
+			{
+				survivor.setEnd(b);
+			}
+			// The middle corner now holds only the other wall, so removing that
+			// takes the corner with it - which is the whole point of the join.
+			other.remove();
+			return survivor;
+		}
+		finally
+		{
+			this.endBatch();
+		}
+	}
+
+	/**
+	 * Draw a whole rectangular room in one gesture (RM-008 E2).
+	 *
+	 * Four corners and four walls, in one batch, so the plan re-derives once and
+	 * the undo stack gets one entry - the same reason `loadFloorplan` batches.
+	 * Without it this is eight separate edits and eight room re-derivations for
+	 * something a user thinks of as one act.
+	 *
+	 * Degenerate rectangles are refused rather than drawn. A zero width or height
+	 * produces two coincident corners, which `newCorner` merges inside
+	 * `cornerTolerance` anyway - leaving a plan with two walls on top of each
+	 * other and no room, which looks like the tool failed silently.
+	 *
+	 * @param {number} x1 One corner, in centimetres.
+	 * @param {number} y1
+	 * @param {number} x2 The opposite corner.
+	 * @param {number} y2
+	 * @returns {?Corner[]} The four corners in draw order, or null if refused.
+	 */
+	newRoomFromRectangle(x1, y1, x2, y2)
+	{
+		if (!isFinite(x1) || !isFinite(y1) || !isFinite(x2) || !isFinite(y2))
+		{
+			return null;
+		}
+		if (Math.abs(x2 - x1) < cornerTolerance || Math.abs(y2 - y1) < cornerTolerance)
+		{
+			return null;
+		}
+
+		this.beginBatch(REASON_EDIT);
+		try
+		{
+			var corners = [
+				this.newCorner(x1, y1),
+				this.newCorner(x2, y1),
+				this.newCorner(x2, y2),
+				this.newCorner(x1, y2),
+			];
+			for (var i = 0; i < 4; i++)
+			{
+				this.newWall(corners[i], corners[(i + 1) % 4]);
+			}
+			return corners;
+		}
+		finally
+		{
+			// As in loadFloorplan: a throw between here and the end would otherwise
+			// leave the batch open and the plan permanently frozen.
+			this.endBatch();
+		}
+	}
+
+	/**
+	 * Give back every GPU resource this plan's model objects hold (RM-020 S-1).
+	 *
+	 * A `Room` owns two invisible hit-test meshes and each `HalfEdge` owns one -
+	 * `Room.dispose()`'s own docblock is where the surprise is stated, because a
+	 * model class building GPU resources is not what the architecture used to
+	 * claim. This walks both sets and releases them, and nothing else: the corner,
+	 * wall and room *data* is untouched, so a caller can still serialize the
+	 * design afterwards.
+	 *
+	 * Extracted rather than written: `reset()` and `update(true)` each had this
+	 * exact loop inline, and S-1 needed a third caller at the outermost teardown
+	 * boundary. Both `dispose()` calls are idempotent, so a half edge reachable
+	 * from both a room's edge chain and its wall is released once.
+	 *
+	 * @param {boolean} [resetEdgePointers] Also null each wall's `frontEdge` and
+	 *        `backEdge`. What `update(true)` wants, immediately before it builds
+	 *        replacements; not what a teardown wants, since nothing follows it.
+	 * @returns {void}
+	 */
+	releaseResources(resetEdgePointers)
+	{
+		this.rooms.forEach((room) => {room.dispose();});
+		this.walls.forEach((wall) => {
+			if (wall.frontEdge)
+			{
+				wall.frontEdge.dispose();
+			}
+			if (wall.backEdge)
+			{
+				wall.backEdge.dispose();
+			}
+			if (resetEdgePointers)
+			{
+				wall.resetFrontBack();
+			}
+		});
+	}
+
 	removeWall(wall)
 	{
 		this.dispatchEvent({type: EVENT_DELETED, item: this, deleted: wall, item_type: 'wall'});
@@ -702,7 +1108,8 @@ export class Floorplan extends EventDispatcher
 		this.walls.forEach((wall) => {
 			if(wall.getStart() && wall.getEnd())
 			{
-				floorplans.walls.push({
+				/** @type {Record<string, any>} */
+				var record = {
 					'corner1': wall.getStart().id,
 					'corner2': wall.getEnd().id,
 					'frontTexture': wall.frontTexture,
@@ -710,7 +1117,28 @@ export class Floorplan extends EventDispatcher
 					'wallType': wall.wallType.description,
 					'a':{x: wall.a.x, y:wall.a.y},
 					'b':{x: wall.b.x, y:wall.b.y},
-				});
+				};
+				// Only when somebody chose it (RM-008 E2, T-6).
+				//
+				// Every other field here is written unconditionally, which is what
+				// makes the format stable - and it is exactly why an additive field
+				// has to be conditional. A wall whose thickness was never touched
+				// inherits the document's, and writing that number would freeze a
+				// default into every file: a design saved today would stop following
+				// a setting changed tomorrow, and a file written before E2 would not
+				// survive a re-save unchanged.
+				if (wall.hasOwnThickness)
+				{
+					record['thickness'] = wall.thickness;
+				}
+				// Additive and conditional for the same reason (RM-008 F2): null is
+				// "as high as its corners", which is every wall anybody has drawn, and
+				// writing it would turn every file into a different file.
+				if (wall.partialHeight !== null)
+				{
+					record['partialHeight'] = wall.partialHeight;
+				}
+				floorplans.walls.push(record);
 				cornerIds.push(wall.getStart());
 				cornerIds.push(wall.getEnd());
 			}
@@ -725,19 +1153,51 @@ export class Floorplan extends EventDispatcher
 
 		floorplans.rooms = this.metaroomsdata;
 
-		if(this.carbonSheet)
+		// The live sheet while there is one, the snapshot the 2D view left behind
+		// otherwise (RM-020 S-15). Tearing the view down must not delete the
+		// underlay from the next save.
+		var sheet = this.carbonSheet || this._carbonSheetSettings;
+		if(sheet)
 		{
-			floorplans.carbonSheet['url'] = this.carbonSheet.url;
-			floorplans.carbonSheet['transparency'] = this.carbonSheet.transparency;
-			floorplans.carbonSheet['x'] = this.carbonSheet.x;
-			floorplans.carbonSheet['y'] = this.carbonSheet.y;
-			floorplans.carbonSheet['anchorX'] = this.carbonSheet.anchorX;
-			floorplans.carbonSheet['anchorY'] = this.carbonSheet.anchorY;
-			floorplans.carbonSheet['width'] = this.carbonSheet.width;
-			floorplans.carbonSheet['height'] = this.carbonSheet.height;
+			floorplans.carbonSheet['url'] = sheet.url;
+			floorplans.carbonSheet['transparency'] = sheet.transparency;
+			floorplans.carbonSheet['x'] = sheet.x;
+			floorplans.carbonSheet['y'] = sheet.y;
+			floorplans.carbonSheet['anchorX'] = sheet.anchorX;
+			floorplans.carbonSheet['anchorY'] = sheet.anchorY;
+			floorplans.carbonSheet['width'] = sheet.width;
+			floorplans.carbonSheet['height'] = sheet.height;
+		}
+
+		// Additive, and written only when there is something to write (RM-008 E3,
+		// T-6). The same rule per-wall thickness follows two fields above, for a
+		// related but distinct reason: thickness is conditional so a document
+		// default is not frozen into a file, and these are conditional so a file
+		// written before this sprint survives a re-save byte for byte. That is the
+		// half of M-33 that an additive collection usually gets wrong - `[]` looks
+		// harmless and changes every file in existence.
+		if (this.dimensions.length)
+		{
+			floorplans.dimensions = this.dimensions.map(function (dimension) {return dimension.toJSON();});
+		}
+		if (this.annotations.length)
+		{
+			floorplans.annotations = this.annotations.map(function (annotation) {return annotation.toJSON();});
+		}
+		if (this._north)
+		{
+			floorplans.north = this._north;
 		}
 
 		floorplans.newFloorTextures = this.floorTextures;
+		// Additive and conditional, per RM-011 H1: a design where nobody has given
+		// a ceiling a material of its own writes no `ceilings` key and is byte-
+		// identical to the file it was before this sprint. Same rule as `levels`,
+		// `roof`, `dimensions`, `annotations` and `north` above it.
+		if (Object.keys(this.ceilingSurfaces).length)
+		{
+			floorplans.ceilings = this.ceilingSurfaces;
+		}
 		return floorplans;
 	}
 
@@ -912,18 +1372,468 @@ export class Floorplan extends EventDispatcher
 				// their description, so the file carries the description string.
 				newWall.wallType = (wall.wallType === 'CURVED') ? WallTypes.CURVED : WallTypes.STRAIGHT;
 			}
+			// Additive since RM-008 E2, and absent from every file written before
+			// it. Set through the setter, which is what marks the wall as carrying
+			// a thickness of its own so the next save writes it back; a file
+			// without the field leaves the wall on the document's default, which is
+			// what it has always done.
+			if (typeof wall.thickness === 'number')
+			{
+				newWall.thickness = wall.thickness;
+			}
+			// Additive since RM-008 F2, absent from every older file.
+			if (typeof wall.partialHeight === 'number')
+			{
+				newWall.partialHeight = wall.partialHeight;
+			}
 		});
+
+		// Authored entities, absent from every file written before RM-008 E3.
+		//
+		// After the walls, because a dimension may name a corner it is pinned to
+		// and `Dimension.points()` resolves that against the live corner list -
+		// which is only complete once the loop above has run. Read defensively:
+		// `DesignDocument.parse` has already refused the shapes that cannot be
+		// drawn, and a third-party file that carries something else here should
+		// open with the rest of its design intact rather than not at all.
+		if (Array.isArray(floorplan.dimensions))
+		{
+			var plan = this;
+			floorplan.dimensions.forEach(function (record)
+			{
+				if (record && typeof record === 'object')
+				{
+					plan.dimensions.push(Dimension.fromJSON(plan, record));
+				}
+			});
+		}
+		if (Array.isArray(floorplan.annotations))
+		{
+			var owner = this;
+			floorplan.annotations.forEach(function (record)
+			{
+				if (record && typeof record === 'object')
+				{
+					owner.annotations.push(TextAnnotation.fromJSON(owner, record));
+				}
+			});
+		}
+		if (typeof floorplan.north === 'number' && isFinite(floorplan.north))
+		{
+			this._north = ((floorplan.north % 360) + 360) % 360;
+		}
 
 		if ('newFloorTextures' in floorplan)
 		{
 			this.floorTextures = floorplan.newFloorTextures;
 		}
+		this.ceilingSurfaces = ('ceilings' in floorplan && floorplan.ceilings) ? floorplan.ceilings : {};
 		this.metaroomsdata = floorplan.rooms;
 	}
 
 	/**
 	 * @deprecated
 	 */
+	/**
+	 * How the plan asks for an item to change (RM-008 E1).
+	 *
+	 * The projection tells the 2D view what is there; this is how the view says
+	 * "the user dragged that". Installed by `Model`, which owns both halves, in
+	 * exactly the style `Scene.setItemLoader` already uses: the layer takes a
+	 * function rather than importing the thing that does the work. Null in a
+	 * document with no scene wired up - a bare `Floorplan` built by a test - and
+	 * every call site checks, so the plan degrades to read-only rather than
+	 * throwing.
+	 *
+	 * @typedef {Object} ItemCommands
+	 * @property {function(string, number, number): void} move Item id, plan x, plan y, in cm.
+	 * @property {function(string, number): void} rotate Item id, radians.
+	 * @property {function(string): void} commit Item id: the gesture is over, record it.
+	 *
+	 * @param {?ItemCommands} commands
+	 */
+	setItemCommands(commands)
+	{
+		this._itemCommands = commands || null;
+	}
+
+	/**
+	 * What the plan may do to an item, or null if nothing is wired up.
+	 * @returns {?Object}
+	 */
+	get itemCommands()
+	{
+		return this._itemCommands || null;
+	}
+
+	/**
+	 * Replace the plan's view of the furniture (RM-008 E1).
+	 *
+	 * Called by `Model` whenever the item set or an item's placement changes. The
+	 * event is its own rather than EVENT_UPDATED, because EVENT_UPDATED means the
+	 * wall graph moved and drives a full 3D rebuild and a camera recentre - which
+	 * is the right cost for dragging a wall and an absurd one for dragging a
+	 * chair.
+	 *
+	 * The array is stored as given, not copied. `Model` builds a fresh one on
+	 * every call (`projectItems` maps and sorts), so there is nothing shared to
+	 * defend against, and copying it per item move would be work done to protect
+	 * against a caller that does not exist.
+	 *
+	 * @param {Array<import('./plan_projection.js').ItemFootprint>} projection
+	 * @emits {EVENT_ITEMS_PROJECTED}
+	 */
+	/**
+	 * Hand the plan the storey below it, to draw faintly (RM-010 G1).
+	 *
+	 * No event: this only ever changes alongside something that already redraws -
+	 * a level switch, a level's plan being edited, a document load - and a
+	 * dispatch here would be a second redraw for the same cause.
+	 *
+	 * @param {?import('./level_projection.js').GhostPlan} plan
+	 * @returns {void}
+	 */
+	setGhostPlan(plan)
+	{
+		this.ghostPlan = plan || null;
+	}
+
+	/**
+	 * Hand this storey the holes the storey below punches in it (RM-010 G2).
+	 *
+	 * Plain polygons in plan space, for the same reason the ghost is: this class
+	 * has no path to a `Model` and must not gain one, and a stairwell is a fact
+	 * about a flight of stairs one floor down. Each room takes the ones over it
+	 * and clamps them to itself.
+	 *
+	 * The dispatch is what makes the 3D floor re-cut: `Floorplan3D` reconciles on
+	 * a change set, and a room whose holes moved is a room whose floor is stale.
+	 *
+	 * @param {Array<Array<{x: number, y: number}>>} openings
+	 * @returns {void}
+	 */
+	setFloorOpenings(openings)
+	{
+		var list = openings || [];
+		var signature = JSON.stringify(list);
+		if (signature === this._floorOpeningSignature)
+		{
+			return;
+		}
+		this._floorOpeningSignature = signature;
+		this._floorOpenings = list;
+		// Only when a room's holes actually moved. Handing every room an empty list
+		// it already had would otherwise dispatch a change set on every load, and
+		// `tests/change-projection.test.js` pins that a document open is one 'load'
+		// and not a 'load' followed by an 'edit' - which is what it caught.
+		var moved = false;
+		this.rooms.forEach(function (room)
+		{
+			moved = room.setFloorOpenings(list) || moved;
+		});
+		if (moved)
+		{
+			this.update(false);
+		}
+	}
+
+	setItemProjection(projection)
+	{
+		this.itemProjection = projection || [];
+		this.dispatchEvent({type: EVENT_ITEMS_PROJECTED, item: this, projection: this.itemProjection});
+	}
+
+	/**
+	 * Which footprint carries an id, or null (RM-008 E1).
+	 *
+	 * The plan hit-tests to an id and the application resolves that id to an item;
+	 * this is the lookup in between, kept here so both the view and any embedder
+	 * ask one question of one object.
+	 *
+	 * @param {string} id
+	 * @returns {?import('./plan_projection.js').ItemFootprint}
+	 */
+	footprintById(id)
+	{
+		if (!id)
+		{
+			return null;
+		}
+		for (var i = 0; i < this.itemProjection.length; i++)
+		{
+			if (this.itemProjection[i].id === id)
+			{
+				return this.itemProjection[i];
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Announce that a dimension, a label or the north bearing changed (RM-008 E3).
+	 *
+	 * Called by the annotation objects themselves - they hold a back-reference to
+	 * this plan and no listener list of their own, because nothing but this array
+	 * holds one. See `model/annotation.js`.
+	 *
+	 * @emits {EVENT_ANNOTATIONS_CHANGED}
+	 * @returns {void}
+	 */
+	/**
+	 * Keep a room's saved metadata in step with the room (RM-008 E3).
+	 *
+	 * Was two branches inline in `update()` that wrote `name` and nothing else.
+	 * Extracted because a second attribute arrived and the interesting rule is
+	 * not the writing, it is which keys appear: `type` is written only when the
+	 * room has one, so a design where nobody typed a room type produces exactly
+	 * the metadata it produced before this sprint - and a room whose type is
+	 * cleared loses the key rather than carrying an empty string forever.
+	 *
+	 * That is the same conditional-write rule as `dimensions`, `annotations` and
+	 * per-wall thickness, applied one level down inside a record that is itself
+	 * written whole.
+	 *
+	 * @param {Room} room
+	 * @returns {void}
+	 */
+	_writeRoomMeta(room)
+	{
+		if (!this.metaroomsdata)
+		{
+			return;
+		}
+		var key = room.roomByCornersId;
+		if (!this.metaroomsdata[key])
+		{
+			this.metaroomsdata[key] = {};
+		}
+		this.metaroomsdata[key]['name'] = room.name;
+		if (room.type)
+		{
+			this.metaroomsdata[key]['type'] = room.type;
+		}
+		else
+		{
+			delete this.metaroomsdata[key]['type'];
+		}
+	}
+
+	annotationsChanged()
+	{
+		this.dispatchEvent({type: EVENT_ANNOTATIONS_CHANGED, item: this});
+	}
+
+	/**
+	 * Measure between two points (RM-008 E3).
+	 *
+	 * Refuses a zero-length dimension rather than drawing one: two coincident
+	 * points give no direction to offset the line along, so the result is a
+	 * measurement of 0 drawn on top of itself, which looks like the tool failed.
+	 * The same judgement `newRoomFromRectangle` makes about a degenerate
+	 * rectangle, and the caller gets null to say so.
+	 *
+	 * @param {number} ax Centimetres.
+	 * @param {number} ay
+	 * @param {number} bx
+	 * @param {number} by
+	 * @param {Object} [options] See {@link Dimension}.
+	 * @returns {?Dimension}
+	 */
+	newDimension(ax, ay, bx, by, options)
+	{
+		if (!isFinite(ax) || !isFinite(ay) || !isFinite(bx) || !isFinite(by))
+		{
+			return null;
+		}
+		if (Math.abs(bx - ax) < 1e-6 && Math.abs(by - ay) < 1e-6)
+		{
+			return null;
+		}
+		var dimension = new Dimension(this, ax, ay, bx, by, options);
+		this.dimensions.push(dimension);
+		this.annotationsChanged();
+		return dimension;
+	}
+
+	/**
+	 * @param {Dimension} dimension
+	 * @returns {boolean} Whether it was there to remove.
+	 */
+	removeDimension(dimension)
+	{
+		var at = this.dimensions.indexOf(dimension);
+		if (at < 0)
+		{
+			return false;
+		}
+		this.dimensions.splice(at, 1);
+		this.annotationsChanged();
+		return true;
+	}
+
+	/**
+	 * Put a piece of text on the plan (RM-008 E3).
+	 *
+	 * @param {number} x Centimetres.
+	 * @param {number} y
+	 * @param {string} [text]
+	 * @param {Object} [options] See {@link TextAnnotation}.
+	 * @returns {?TextAnnotation}
+	 */
+	newAnnotation(x, y, text, options)
+	{
+		if (!isFinite(x) || !isFinite(y))
+		{
+			return null;
+		}
+		var annotation = new TextAnnotation(this, x, y, text, options);
+		this.annotations.push(annotation);
+		this.annotationsChanged();
+		return annotation;
+	}
+
+	/**
+	 * @param {TextAnnotation} annotation
+	 * @returns {boolean} Whether it was there to remove.
+	 */
+	removeAnnotation(annotation)
+	{
+		var at = this.annotations.indexOf(annotation);
+		if (at < 0)
+		{
+			return false;
+		}
+		this.annotations.splice(at, 1);
+		this.annotationsChanged();
+		return true;
+	}
+
+	/**
+	 * Either kind of annotation, by the id in its record (RM-008 E3).
+	 *
+	 * One lookup for both collections because a selection is one thing: the
+	 * application asks "what is this id" and does not want to know which array it
+	 * came out of.
+	 *
+	 * @param {string} id
+	 * @returns {?(Dimension|TextAnnotation)}
+	 */
+	annotationById(id)
+	{
+		if (!id)
+		{
+			return null;
+		}
+		var i;
+		for (i = 0; i < this.dimensions.length; i++)
+		{
+			if (this.dimensions[i].id === id)
+			{
+				return this.dimensions[i];
+			}
+		}
+		for (i = 0; i < this.annotations.length; i++)
+		{
+			if (this.annotations[i].id === id)
+			{
+				return this.annotations[i];
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Which way is north, in degrees clockwise from up (RM-008 E3).
+	 * @returns {number}
+	 */
+	get north()
+	{
+		return this._north;
+	}
+
+	/**
+	 * Normalised into [0, 360) so the arrow, the field and the file always show
+	 * the same number - otherwise -90 and 270 are the same bearing written two
+	 * ways, and a round trip through a text field turns one into the other.
+	 *
+	 * @param {number} degrees
+	 */
+	set north(degrees)
+	{
+		if (typeof degrees !== 'number' || !isFinite(degrees))
+		{
+			return;
+		}
+		var next = ((degrees % 360) + 360) % 360;
+		if (next === this._north)
+		{
+			return;
+		}
+		this._north = next;
+		this.annotationsChanged();
+	}
+
+	/**
+	 * The dimension line nearest a point, or null (RM-008 E3).
+	 *
+	 * Distance to the *dimension line* - the offset one that is drawn - not to
+	 * the points being measured, because that line is what a person sees and
+	 * clicks. The witness lines are deliberately not pickable: they are thin, they
+	 * run through the geometry being measured, and making them targets would take
+	 * clicks away from the walls underneath.
+	 *
+	 * @param {number} x Centimetres.
+	 * @param {number} y
+	 * @param {number} [tolerance] Centimetres.
+	 * @returns {?Dimension}
+	 */
+	overlappedDimension(x, y, tolerance)
+	{
+		var limit = (tolerance === undefined || tolerance === null) ? cornerTolerance : tolerance;
+		for (var i = this.dimensions.length - 1; i >= 0; i--)
+		{
+			var line = dimensionLine(this.dimensions[i]);
+			if (!line)
+			{
+				continue;
+			}
+			if (Utils.pointDistanceFromLine(new Vector2(x, y), new Vector2(line.ax, line.ay), new Vector2(line.bx, line.by)) <= limit)
+			{
+				return this.dimensions[i];
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * The text label nearest a point, or null (RM-008 E3).
+	 *
+	 * A radius rather than the text's bounding box, because the model layer has
+	 * no font metrics and asking it to measure text would put a canvas inside the
+	 * plain-data layer. The view draws a marker at the anchor for exactly this
+	 * reason: what you aim at is the thing that is picked.
+	 *
+	 * @param {number} x Centimetres.
+	 * @param {number} y
+	 * @param {number} [tolerance] Centimetres.
+	 * @returns {?TextAnnotation}
+	 */
+	overlappedAnnotation(x, y, tolerance)
+	{
+		var limit = (tolerance === undefined || tolerance === null) ? cornerTolerance : tolerance;
+		for (var i = this.annotations.length - 1; i >= 0; i--)
+		{
+			var annotation = this.annotations[i];
+			var dx = annotation.x - x;
+			var dy = annotation.y - y;
+			if (Math.sqrt(dx * dx + dy * dy) <= limit)
+			{
+				return annotation;
+			}
+		}
+		return null;
+	}
+
 	getFloorTexture(uuid)
 	{
 		if (uuid in this.floorTextures)
@@ -936,9 +1846,53 @@ export class Floorplan extends EventDispatcher
 	/**
 	 * @deprecated
 	 */
-	setFloorTexture(uuid, url, scale)
+	/**
+	 * @param {string} uuid
+	 * @param {string} url
+	 * @param {number} scale
+	 * @param {Object} [material] What this floor says about itself beyond the
+	 *   image, if anything. Written conditionally (RM-011 H1).
+	 */
+	setFloorTexture(uuid, url, scale, material)
 	{
-		this.floorTextures[uuid] = {url: url,scale: scale};
+		this.floorTextures[uuid] = writeSurfaceMaterial({url: url, scale: scale}, material);
+	}
+
+	/**
+	 * The ceiling surfaces, by room uuid (RM-011 H1).
+	 *
+	 * Its own collection beside `floorTextures`, for the reason `Room.getCeiling`
+	 * gives: a room has two horizontal surfaces and they are not the same one. It
+	 * is empty in every design written before H1 and is written to the file only
+	 * when it has something in it, which is what keeps those designs
+	 * byte-identical on re-save.
+	 *
+	 * @param {string} uuid
+	 * @returns {?Object}
+	 */
+	getCeilingSurface(uuid)
+	{
+		return this.ceilingSurfaces[uuid] || null;
+	}
+
+	/**
+	 * @param {string} uuid
+	 * @param {?Object} material Null removes it, which is how a ceiling goes back
+	 *   to the profile's colour without leaving an empty record behind.
+	 * @returns {?Object}
+	 */
+	setCeilingSurface(uuid, material)
+	{
+		var record = (material === null) ? null : surfaceToJSON(material);
+		if (record)
+		{
+			this.ceilingSurfaces[uuid] = record;
+		}
+		else
+		{
+			delete this.ceilingSurfaces[uuid];
+		}
+		return record;
 	}
 
 	/** clear out obsolete floor textures */
@@ -955,6 +1909,18 @@ export class Floorplan extends EventDispatcher
 				delete this.floorTextures[uuid];
 			}
 		}
+		// The ceiling collection is keyed the same way and pruned the same way
+		// (RM-011 H1). A room's uuid is derived from its corners - finding H-5 -
+		// so a room that is edited into a different room takes its floor's record
+		// with it and must take its ceiling's too, or the file grows an entry per
+		// wall anybody ever moved.
+		for (var ceiling in this.ceilingSurfaces)
+		{
+			if (!Utils.hasValue(uuids, ceiling))
+			{
+				delete this.ceilingSurfaces[ceiling];
+			}
+		}
 	}
 
 	/**
@@ -964,6 +1930,16 @@ export class Floorplan extends EventDispatcher
 	 */
 	reset()
 	{
+		// The authored entities go first, and unconditionally (RM-008 E3).
+		//
+		// They hang off nothing in the graph, so nothing below would remove them:
+		// before this, opening a second design would have kept the first one's
+		// dimensions and notes floating over it. `north` goes back to up for the
+		// same reason - it describes the building being replaced.
+		this.dimensions = [];
+		this.annotations = [];
+		this._north = 0;
+
 		var tmpCorners = this.corners.slice(0);
 		var tmpWalls = this.walls.slice(0);
 		tmpCorners.forEach((corner) => {
@@ -981,17 +1957,7 @@ export class Floorplan extends EventDispatcher
 		// always a live set at this point, and clearing the arrays is the moment it
 		// stops being reachable. This is a teardown boundary, and reset() is the
 		// first thing loadFloorplan() calls, so it is on the load path too.
-		this.rooms.forEach((room) => {room.dispose();});
-		this.walls.forEach((wall) => {
-			if (wall.frontEdge)
-			{
-				wall.frontEdge.dispose();
-			}
-			if (wall.backEdge)
-			{
-				wall.backEdge.dispose();
-			}
-		});
+		this.releaseResources();
 		this.rooms = [];
 		this.corners = [];
 		this.walls = [];
@@ -1067,6 +2033,101 @@ export class Floorplan extends EventDispatcher
 	}
 
 	/**
+	 * Re-derive the rooms a moved corner belongs to (RM-019 R1).
+	 *
+	 * ## The defect this closes
+	 *
+	 * A `Room` derives two things from its corners at construction and never
+	 * again: `interiorCorners`, the mitred interior polygon, and `area`, which is
+	 * `interiorArea()` over that polygon. Both were built in the constructor and
+	 * the only thing that rebuilt them was `update(true)`, which throws every
+	 * Room away and constructs new ones.
+	 *
+	 * A corner drag takes the other branch. So dragging a corner moved the walls
+	 * and left every room-derived quantity exactly as it was:
+	 *
+	 *   - the area on the plan (`Room.area` is `interiorArea()`, and
+	 *     `Corner.updateAttachedRooms()` dutifully called `updateArea()` on every
+	 *     step - over the stale polygon, so it recomputed the same number);
+	 *   - the 3D floor, which `Floor.buildFloor()` builds from `interiorCorners`;
+	 *   - the ceiling, and the half edges' hit-test planes.
+	 *
+	 * Measured on a square room dragged ten steps: the reported area stayed at
+	 * 113,100 cm2 where the shape was 88,739, and 12 of the 21 meshes in the
+	 * scene differed from what a rebuild produced. Switching to the 3D pane calls
+	 * `Floorplan.update()` through `useCameraViews.showDesign()`, which is why the
+	 * view corrected itself the moment somebody looked at it - and why this went
+	 * unreported for as long as the 2D and 3D panes were a card flip rather than
+	 * a split view.
+	 *
+	 * Note this is older than RM-003 A2. A2's incremental projection reproduced
+	 * the stale floor deliberately and said so, because the full `redraw()` it
+	 * replaced read the same stale array; both paths were faithful to a model
+	 * that had not been asked to keep up.
+	 *
+	 * ## Why it is bounded
+	 *
+	 * The affected set is the rooms attached to the corners that moved - the same
+	 * set `Floorplan3D.refresh()` uses to decide which floors to redraw, so the
+	 * model and its projection agree on the scope by construction. A drag touches
+	 * one or two rooms; this is not `update(true)` under another name, and there
+	 * is deliberately no room-count guard of the kind `Corner.move()` carries. A
+	 * guard would restore the bug on exactly the large plans where a rebuild is
+	 * least affordable.
+	 *
+	 * Measured over 300 `Corner.move()` calls with a live `Floorplan3D` attached,
+	 * milliseconds per step, before this line and after it:
+	 *
+	 *   square, 4 walls, 1 room        0.350 -> 0.355
+	 *   L-shape, 6 walls, 1 room       0.287 -> 0.298
+	 *   two rooms sharing a wall       0.343 -> 0.369
+	 *
+	 * The worst of those is 26 microseconds on a 16.7 ms frame. The expensive
+	 * part is `generatePlane()`, which triangulates a `ShapeGeometry`, and it is
+	 * paid once per affected room rather than once per room in the plan.
+	 *
+	 * ## The area is measured twice per step, on purpose
+	 *
+	 * `Corner.move()` calls `updateAttachedRooms(true)` inside its batch, which
+	 * measures whichever polygon exists at the time - the old one, since this
+	 * runs when the batch closes. Rather than reach into a public method two
+	 * other callers use, the measurement is simply taken again here over the
+	 * rebuilt polygon, and that is the one that lands. Both are a shoelace over a
+	 * handful of points. Removing the earlier call is a tidy-up for a sprint that
+	 * is not also fixing a defect.
+	 *
+	 * @param {?Corner[]} corners The corners the caller knew had moved.
+	 * @returns {void}
+	 */
+	_refreshRoomGeometry(corners)
+	{
+		if (!corners || !corners.length)
+		{
+			return;
+		}
+		var affected = new Set();
+		corners.forEach(function (corner)
+		{
+			(corner.attachedRooms || []).forEach(function (room) {affected.add(room);});
+		});
+		affected.forEach(function (room)
+		{
+			// The constructor's order, for the same reason it has one: the polygon
+			// feeds the floor plane, and `area` measures the polygon.
+			room.updateInteriorCorners();
+			// The two hit-test planes, which decide where a click on the floor or
+			// the ceiling lands and where a wall item may sit. Invisible, so a stale
+			// pair costs nothing to look at and means clicking the part of the floor
+			// a drag just added selects nothing. Safe to replace mid-drag only
+			// because `Floor` gives back the planes it borrowed rather than
+			// whichever pair the room holds at the time (RM-019 R1).
+			room.generatePlane();
+			room.generateRoofPlane();
+			room.updateArea();
+		});
+	}
+
+	/**
 	 * @param {boolean} [updateroomconfiguration] Re-derive the rooms. A topology
 	 * change; false is a geometry change.
 	 * @param {?Corner[]} [updatecorners] The corners whose angles moved.
@@ -1110,6 +2171,14 @@ export class Floorplan extends EventDispatcher
 			// scene (RM-003 A2). The corner list is the payload because the corners
 			// are what the caller knew had moved - see newCorner()'s EVENT_MOVED
 			// listener, which passes the corner and its neighbours.
+			//
+			// The rooms those corners belong to are re-derived first (RM-019 R1).
+			// Without that line this branch recomputed the corners' own angles and
+			// nothing else, and every quantity derived from a room stayed at its
+			// pre-drag value until something called `update(true)` - which is a
+			// rebuild, and which the application only performs when the 3D pane is
+			// switched to. See `_refreshRoomGeometry`.
+			this._refreshRoomGeometry(updatecorners);
 			this._emitChanges(new ChangeSet(effectiveReason).add(CHANGE_GEOMETRY, updatecorners));
 			return;
 		}
@@ -1151,18 +2220,7 @@ export class Floorplan extends EventDispatcher
 		//
 		// Both dispose() calls are idempotent, so a half edge reachable from both a
 		// room's edge chain and its wall is disposed once.
-		this.rooms.forEach((room) => {room.dispose();});
-		this.walls.forEach((wall) => {
-			if (wall.frontEdge)
-			{
-				wall.frontEdge.dispose();
-			}
-			if (wall.backEdge)
-			{
-				wall.backEdge.dispose();
-			}
-			wall.resetFrontBack();
-		});
+		this.releaseResources(true);
 
 
 		var roomCorners = this.findRooms(this.corners);
@@ -1183,15 +2241,7 @@ export class Floorplan extends EventDispatcher
 			room.addEventListener(EVENT_ROOM_ATTRIBUTES_CHANGED, function(o){
 				var room = o.item;
 				scope.dispatchEvent(o);
-				if(scope.metaroomsdata[room.roomByCornersId])
-				{
-					scope.metaroomsdata[room.roomByCornersId]['name'] = room.name;
-				}
-				else
-				{
-					scope.metaroomsdata[room.roomByCornersId] = {};
-					scope.metaroomsdata[room.roomByCornersId]['name'] = room.name;
-				}
+				scope._writeRoomMeta(room);
 			});
 		});
 
@@ -1207,12 +2257,59 @@ export class Floorplan extends EventDispatcher
 		{
 			if(scope.metaroomsdata)
 			{
-				if(scope.metaroomsdata[room.roomByCornersId])
+				var meta = scope.metaroomsdata[room.roomByCornersId];
+				if(meta)
 				{
-					room.name = scope.metaroomsdata[room.roomByCornersId]['name'];
+					// Both values are read out BEFORE either is assigned, and that
+					// ordering is load-bearing. Each setter announces itself, and the
+					// listener installed above writes the room straight back into this
+					// record - so assigning the name first rewrites the record from a
+					// room whose type is still empty, deleting the type that was about
+					// to be read. Cost one debugging round; the record is not a safe
+					// place to read from once you have started writing to the room.
+					var savedName = meta['name'];
+					// Additive since RM-008 E3, so absent from every older file and
+					// from every room nobody typed a type into.
+					var savedType = meta['type'];
+					room.name = savedName;
+					if (savedType !== undefined)
+					{
+						room.type = savedType;
+					}
 				}
 			}
 		});
+		// The holes the storey below punches in this one (RM-010 G2).
+		//
+		// Re-applied because `update(true)` constructs a NEW `Room` for every room
+		// - room identity is derived from its corners rather than assigned, which
+		// is finding H-5 - so the openings a room was carrying are on an object
+		// that no longer exists. Without this, drawing one wall anywhere on the
+		// plan silently filled in every stairwell.
+		//
+		// **After the names, not before them** (RM-010 G3). G2 put this block
+		// above the loop that restores each room's name, and that is the same
+		// read-before-write hazard the comment inside that loop describes, one
+		// level up: `setFloorOpenings` calls `updateArea`, `updateArea` announces
+		// an attribute change, and the listener installed above writes the room
+		// straight back into `metaroomsdata` - carrying the name the room has
+		// *now*, which before the loop runs is still "A New Room". So the saved
+		// name was overwritten by the default a few statements before it was read.
+		//
+		// It only bit when a plan already held openings as `update(true)` ran,
+		// which a first load never does - `Model._updateFloorOpenings()` runs
+		// after it - and a second load into the same document always does.
+		// Measured as: open the three-storey fixture, save, open the result, and
+		// every room with a stairwell in it is called "A New Room". Found by
+		// re-saving G3's fixture twice through one `Model`.
+		//
+		// Applied directly rather than through `setFloorOpenings`, which would
+		// call `update()` again from inside `update()`.
+		if (this._floorOpenings.length)
+		{
+			this.rooms.forEach((room) => {room.setFloorOpenings(scope._floorOpenings);});
+		}
+
 		this.assignOrphanEdges();
 		this.updateFloorTextures();
 		// A topology change, and the rooms it carries are the set as re-derived -
@@ -1301,6 +2398,11 @@ export class Floorplan extends EventDispatcher
 		});
 		rekeyInPlace(this.metaroomsdata, nameMoves);
 		rekeyInPlace(this.floorTextures, textureMoves);
+		// And the ceiling, which is keyed identically (RM-011 H1). A3 carries a
+		// room's identity across a rebuild so a room that gains a corner keeps its
+		// name and its floor; a ceiling somebody chose is the same kind of thing
+		// and would otherwise be the one attribute that did not survive.
+		rekeyInPlace(this.ceilingSurfaces, textureMoves);
 	}
 
 	/**

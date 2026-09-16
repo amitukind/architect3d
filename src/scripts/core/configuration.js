@@ -15,16 +15,46 @@ export const configWallThickness = 'wallThickness';
 
 export const configSystemUI = 'systemUI';
 
+/**
+ * Whether the storey controls appear (RM-010 G1).
+ *
+ * **On since RM-010 G3.** It was off for G1 and G2, which is what RM-010 asked
+ * for: *"behind a flag until the fixture suite covers it."* What the flag gates
+ * is the **affordance**, not the feature - the model, the file, the 3D stacking
+ * and the ghosted underlay all worked with it off, and a two-storey file opened
+ * and rendered correctly either way. What it withheld is the control that lets
+ * somebody make a second storey by accident before a three-storey house had
+ * been driven through every tier.
+ *
+ * That distinction is the point of a flag rather than a branch: turning it on
+ * changes nothing about how anything behaves, so what G3 removed is one default.
+ *
+ * It is kept rather than deleted, because it is the switch an embedder turns
+ * *off*: a widget that hosts a single-storey plan and does not want a storey
+ * control now has one line that says so. Deleting it would take that away and
+ * buy nothing - the branch it guards is one `v-if`.
+ */
+export const configLevels = 'levelsEnabled';
+
 export const scale = 'scale';
 
 export const gridSpacing = 'gridSpacing';
 export const snapToGrid = 'snapToGrid';
 export const snapTolerance = 'snapTolerance';//In CMS
+/**
+ * Whether overlapping furniture is drawn with a warning (RM-012 J4).
+ *
+ * The feature flag RM-007 requires for the polygon re-baseline. Off by default
+ * and off in the demo until somebody turns it on, because it is the first thing
+ * in eight programmes to make a *correct* polygon predicate observable and the
+ * four broken ones stay exactly where they are.
+ */
+export const collisionWarnings = 'collisionWarnings';
 
 /** The values a Configuration starts with when it is given none. */
 function defaultValues()
 {
-	return {dimUnit: dimCentiMeter, wallHeight: 250, wallThickness: 10, systemUI: false, scale: 1, snapToGrid: false, snapTolerance: 25, gridSpacing: 25};
+	return {dimUnit: dimCentiMeter, wallHeight: 250, wallThickness: 10, systemUI: false, scale: 1, snapToGrid: false, snapTolerance: 25, gridSpacing: 25, levelsEnabled: true, collisionWarnings: false};
 }
 
 /**
@@ -38,7 +68,17 @@ function defaultValues()
  */
 function defaultWallInformation()
 {
-	return {exterior: false, interior: false, midline: true, labels: true, exteriorlabel:'e:', interiorlabel:'i:', midlinelabel:'m:'};
+	// The three label prefixes are empty (RM-008 E1). They used to read 'e:',
+	// 'i:' and 'm:', which stand for exterior, interior and midline - so every
+	// wall on the plan was captioned `m:5m`, and nobody outside this repository
+	// could know what the m meant. A measurement is legible on its own; the
+	// prefix only becomes useful when two are shown at once, and `labels` is the
+	// flag that has always turned all three on and off together.
+	//
+	// Kept as configurable strings rather than deleted: an embedder showing
+	// interior AND exterior lengths together does need to tell them apart, and
+	// that caller can set them back to anything they like.
+	return {exterior: false, interior: false, midline: true, labels: true, exteriorlabel:'', interiorlabel:'', midlinelabel:''};
 }
 
 
@@ -50,7 +90,7 @@ export const cornerTolerance = 20;
 const STRING_KEYS = [configDimUnit];
 
 /** Keys `getNumericValue` will answer for. */
-const NUMERIC_KEYS = [configSystemUI, configWallHeight, configWallThickness, scale, snapToGrid, snapTolerance, gridSpacing];
+const NUMERIC_KEYS = [configSystemUI, configWallHeight, configWallThickness, scale, snapToGrid, snapTolerance, gridSpacing, configLevels, collisionWarnings];
 
 /**
  * Configuration for one design, or for the whole page (RM-002 R-02, P7).

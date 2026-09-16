@@ -1,17 +1,22 @@
 // @ts-check
 import {EventDispatcher, Vector2, Vector3, WebGLRenderer, PerspectiveCamera, OrthographicCamera} from 'three';
 import {ColorManagement, SRGBColorSpace} from 'three';
-import {Plane} from 'three';
-import {PCFSoftShadowMap, ACESFilmicToneMapping, NoToneMapping, PMREMGenerator} from 'three';
+import {Plane, Mesh, Raycaster} from 'three';
+import {buildRoofGeometry} from '../items/roof.js';
+import {disposeObject} from '../core/resource_registry.js';
+import {PCFShadowMap, ACESFilmicToneMapping, NoToneMapping, PMREMGenerator} from 'three';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
-import {PointerLockControls} from './pointerlockcontrols.js';
+import {PointerLockControls, EYE_HEIGHT} from './pointerlockcontrols.js';
+import {capturePanorama, panoramaDataUrl} from './panorama.js';
 import {describeFrom} from '../core/texture_formats.js';
 
-import {EVENT_CHANGESET, EVENT_WALL_CLICKED, EVENT_NOTHING_CLICKED, EVENT_FLOOR_CLICKED, EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED, EVENT_GLTF_READY} from '../core/events.js';
+import {createPostProcessing} from './post.js';
+import {EVENT_LEVELS_CHANGED, EVENT_CHANGESET, EVENT_WALL_CLICKED, EVENT_NOTHING_CLICKED, EVENT_FLOOR_CLICKED, EVENT_ITEM_SELECTED, EVENT_ITEM_UNSELECTED, EVENT_GLTF_READY} from '../core/events.js';
+import {EVENT_ITEMS_PROJECTED} from '../core/events.js';
 import {CHANGE_TOPOLOGY} from '../core/change_set.js';
 import {EVENT_FPS_EXIT, EVENT_CAMERA_VIEW_CHANGE} from '../core/events.js';
-import {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY} from '../core/constants.js';
-import {resolveElement, elementBox, measureViewport, pixelRatio} from '../core/dom.js';
+import {VIEW_TOP, VIEW_FRONT, VIEW_RIGHT, VIEW_LEFT, VIEW_ISOMETRY, VIEW_EXTERIOR} from '../core/constants.js';
+import {resolveElement, elementBox, measureViewport, pixelRatio, prefersReducedMotion, watchReducedMotion} from '../core/dom.js';
 
 import {OrbitControls} from './orbitcontrols.js';
 
@@ -78,6 +83,33 @@ function sameExtent(a, b)
 		&& a.size.distanceToSquared(b.size) < EXTENT_EPSILON * EXTENT_EPSILON;
 }
 
+/**
+ * Is this object actually on screen - including every group above it?
+ *
+ * `Object3D.visible` is not inherited by lookup: three walks the tree and stops
+ * descending, so a visible mesh inside a hidden group renders nowhere while
+ * still reporting `visible === true`. A raycaster does not walk that way, which
+ * is why `Controller.getIntersections` carries its own `onlyVisible` filter and
+ * why this one has to look upwards.
+ *
+ * @param {import('three').Object3D} object
+ * @returns {boolean}
+ */
+function isShown(object)
+{
+	/** @type {?import('three').Object3D} */
+	var node = object;
+	while (node)
+	{
+		if (!node.visible)
+		{
+			return false;
+		}
+		node = node.parent;
+	}
+	return true;
+}
+
 export class Main extends EventDispatcher
 {
 	/**
@@ -91,7 +123,28 @@ export class Main extends EventDispatcher
 	constructor(model, element, canvasElement, opts)
 	{
 		super();
-		var options = {resize: true,pushHref: false,spin: true,spinSpeed: .00002,clickPan: true,canMoveFixedItems: false,renderProfile: null};
+		// Four of the seven that used to be here were never read (RM-020 S-2).
+		//
+		//   pushHref   spinSpeed   clickPan     no reader anywhere in src/
+		//   canMoveFixedItems      no reader, because Controller tested
+		//                          `item.fixed` unconditionally - so setting it
+		//                          true did nothing, which is worse than absent
+		//
+		// The first three are gone. The fourth is now wired into the two guards
+		// in `Controller.mouseDownState` that decide whether a press starts a
+		// drag, so it does what its name says; the default stays false, which is
+		// exactly the behaviour those guards had on their own.
+		// `spin` defaults false since RM-020 S-3, and that is a change of default
+		// rather than a change of behaviour. It defaulted true and did nothing,
+		// because nothing advanced the controls; making it work (see `render`)
+		// without moving the default would have turned every viewer on the
+		// defaults into one that draws a frame forever, which is the opposite of
+		// the render-on-demand property this file is built around - and a slowly
+		// revolving room is a strange default for an editor. Measured: it broke
+		// fourteen frame comparisons in tier 2, each of them a viewer nobody had
+		// touched. Ask for it and it now happens; do not ask and nothing moves,
+		// which is what every caller has actually been getting.
+		var options = {resize: true,spin: false,canMoveFixedItems: false,renderProfile: null};
 		for (var opt in options)
 		{
 			// Object.prototype.hasOwnProperty.call, not obj.hasOwnProperty. Identical for a plain object and correct for one that is not - a key literally named "hasOwnProperty" shadows the method and turns the guard into a TypeError. `opts` is supplied by the embedder, which
@@ -150,9 +203,18 @@ export class Main extends EventDispatcher
 
 		/** @type {?OrbitControls} */
 		this.controls = null;
+		/** @type {?function(): void} Detaches the reduced-motion listener. See _watchReducedMotion. */
+		this._unwatchMotion = null;
 		/** @type {?PointerLockControls} */
 		this.fpscontrols = null;
 		this.firstpersonmode = false;
+		/**
+		 * Whether this viewer is showing a design nobody may edit (RM-013 K2).
+		 * Combined with `firstpersonmode` by `_applyPointerEditing`, because both
+		 * turn the pointer off and neither owns the flag alone.
+		 * @type {boolean}
+		 */
+		this._readOnly = false;
 
 		/** @type {?WebGLRenderer} */
 		this.renderer = null;
@@ -164,6 +226,17 @@ export class Main extends EventDispatcher
 		/** @type {?Controller} */
 		this.controller = null;
 
+		/**
+		 * The non-primary members of a multi-selection (RM-012 J4).
+		 *
+		 * Remembered because nothing else knows about them: the controller
+		 * unselects the one object it holds, so a secondary dropped from the set
+		 * would keep its bounding helper on screen. See {@link Main#showItemsSelected}.
+		 *
+		 * @type {Array<Object>}
+		 */
+		this._secondarySelection = [];
+
 		this.needsUpdate = false;
 		this.lastRender = Date.now();
 
@@ -174,6 +247,13 @@ export class Main extends EventDispatcher
 		this.hud = null;
 		/** @type {?Lights} */
 		this.lights = null;
+		/**
+		 * The AO chain, or null when this profile does not want one (RM-011 H2).
+		 * @type {?import('./post.js').PostProcessing}
+		 */
+		this.post = null;
+		/** Bumped per build, so a chain in flight knows it has been superseded. */
+		this._postGeneration = 0;
 		/** @type {?Skybox} */
 		this.skybox = null;
 		this.environmentTexture = null;
@@ -193,8 +273,38 @@ export class Main extends EventDispatcher
 		// dispatched by itemIsSelected() and friends replaced them - so they were
 		// jQuery's last foothold in this file and nothing but dead weight.
 
-		/** @type {?Floorplan3D} The 3D projection of the plan, built by init(). */
-		this.floorplan = null;
+		/**
+		 * One 3D projection per storey, keyed by level id (RM-010 G1).
+		 *
+		 * Was a single `Floorplan3D`. It is a map now because a building has more
+		 * than one plan in it, and each projection draws into its own level's
+		 * `Group` - which is where the base elevation is applied, so none of
+		 * `Floorplan3D`, `Floor` or `Edge` changed at all. Those three ask a scene
+		 * for `add`, `remove` and `needsUpdate` and nothing else, measured before
+		 * this was written, and `Scene.levelScene` is exactly that much of a scene.
+		 *
+		 * @type {Map<string, Floorplan3D>}
+		 */
+		this.levelViews = new Map();
+		/**
+		 * Which floorplans this view is subscribed to, so it can unsubscribe.
+		 * @type {Set<Object>}
+		 */
+		this._watchedPlans = new Set();
+		/** @type {?Mesh} The building's roof, or null when it has none (RM-010 G2). */
+		this._roofMesh = null;
+		/**
+		 * Whether every storey is shown, or only the one being edited (RM-010 G3).
+		 *
+		 * `Scene.syncLevels` has taken an `activeOnly` option since G1 and nothing
+		 * passed it, which is the shape RM-010 V-8 warned about: per-level
+		 * visibility is a branch in what a click may hit, and an untaken branch is
+		 * an untested one. It defaults to every storey, so a build that never
+		 * touches it behaves exactly as G1 left it.
+		 *
+		 * @type {boolean}
+		 */
+		this._allStoreys = true;
 
 		/**
 		 * The plan extent the camera was last framed against, or null before the
@@ -208,6 +318,8 @@ export class Main extends EventDispatcher
 
 		var scope = this;
 		this.updatedevent = (evt)=>{scope.onModelChanged(evt.changes);};
+		/** An item's placement changed; this viewer renders on demand (RM-008 E1). */
+		this.itemsprojectedevent = ()=>{scope.ensureNeedsUpdate();};
 		this.gltfreadyevent = (o)=>{scope.gltfReady(o);};
 
 		this.clippingPlaneActive = new Plane(new Vector3(0, 0, 1), 0.0);
@@ -262,8 +374,28 @@ export class Main extends EventDispatcher
 		renderer.outputColorSpace = SRGBColorSpace;
 
 		renderer.shadowMap.enabled = true;
-		renderer.shadowMapSoft = true;
-		renderer.shadowMap.type = PCFSoftShadowMap;
+		// The filter that actually runs, said out loud (RM-011 W-8, repaired by
+		// H2).
+		//
+		// This line asked for `PCFSoftShadowMap` from the fork until now. three
+		// deprecated that constant, and `WebGLShadowMap.render` does not merely
+		// ignore it - it warns on the first frame and **assigns PCFShadowMap over
+		// the top of it**, so `renderer.shadowMap.type` has read back as 1 for as
+		// long as this project has been on a modern three. A source line that
+		// names a filter the renderer refuses is worse than a wrong filter,
+		// because every reading of it is wrong in the same direction.
+		//
+		// Changing it to what already runs is therefore a zero-pixel commit by
+		// construction, which `tests/browser/shadow-filter.test.js` asserts rather
+		// than assumes. What it buys is a baseline H2's lighting can be compared
+		// against and one fewer deprecation warning on every boot.
+		//
+		// It also is not a downgrade in what it can do, which is the part W-8 got
+		// wrong: three rewrote PCF into a five-tap Vogel disk scaled by
+		// `shadow.radius`, and that rewrite is exactly *why* the soft variant was
+		// deprecated. The profile's `shadowRadius` reaches the shader and moves
+		// pixels - measured, not assumed, in the same file.
+		renderer.shadowMap.type = PCFShadowMap;
 		renderer.setClearColor( 0xFFFFFF, 1 );
 		renderer.clippingPlanes = this.clippingEmpty;
 		renderer.localClippingEnabled = false;
@@ -386,12 +518,14 @@ export class Main extends EventDispatcher
 			this.lights.dispose();
 			this.lights = new Lights(this.scene, this.model.floorplan, this.renderProfile);
 			this.lights.updateShadowCamera();
+			this.syncSun();
+			this.buildPostProcessing();
 		}
 
-		if (this.floorplan)
-		{
-			this.floorplan.redraw();
-		}
+		this.levelViews.forEach((view) => {view.redraw();});
+		// The roof is sized from the plan's extent and stands on the top storey's
+		// walls, so a change to either is a change to it.
+		this.syncRoof();
 
 		this.needsUpdate = true;
 		this.render(true);
@@ -448,18 +582,38 @@ export class Main extends EventDispatcher
 
 		scope.controls = new OrbitControls(scope.camera, scope.domElement);
 		scope.controls.autoRotate = this.options['spin'];
-		scope.controls.enableDamping = true;
+		// The one piece of motion a media query cannot reach (RM-014 L4, Z-6).
+		//
+		// Z-6 read the `prefers-reduced-motion` block in `app.css` against a count
+		// of every animation and transition in the tree: 6 animations, 4 keyframe
+		// sets, 7 transitions, and the query reaches all of them. It cannot reach
+		// this, because damping is not a style - it is the camera continuing to
+		// glide for a second after the hand stops, produced by arithmetic in an
+		// animation frame. For somebody who asked the system to stop moving
+		// things, it is the most noticeable motion the application has left.
+		scope.controls.enableDamping = !prefersReducedMotion();
 		scope.controls.dampingFactor = 0.5;
 		scope.controls.maxPolarAngle = Math.PI * 0.5;
 		scope.controls.maxDistance = 3000;
 		scope.controls.minZoom = 0.9;
 		scope.controls.screenSpacePanning = true;
 
+		// A preference can change while the tab is open, and a person who turns
+		// motion off in system settings expects the window they left open to obey.
+		// One listener, torn down in dispose() with the other four.
+		this._unwatchMotion = watchReducedMotion(function (reduced)
+		{
+			if (scope.controls)
+			{
+				scope.controls.enableDamping = !reduced;
+			}
+		});
+
 		// domElement is what gets pointer-locked and taken fullscreen. The fork
 		// defaulted it to document.body and the addon requires it explicitly;
 		// the viewer is the better target and is what the user is looking at.
 		scope.fpscontrols = new PointerLockControls(scope.fpscamera, scope.domElement);
-		scope.fpscontrols.characterHeight = 160;
+		scope.fpscontrols.characterHeight = EYE_HEIGHT.default;
 
 		this.scene.add(scope.fpscontrols.getObject());
 		scope.fpscontrols.getObject().position.set(0, 200, 0);
@@ -502,11 +656,26 @@ export class Main extends EventDispatcher
 		// setup camera nicely
 		scope.centerCamera();
 
-		scope.model.floorplan.addEventListener(EVENT_CHANGESET, this.updatedevent);
+		// Subscribed per storey by `syncLevelViews()` below, not to the active plan
+		// here: a wall drawn on the first floor has to redraw the first floor even
+		// while the ground floor is the one being edited (RM-010 G1).
+		// An item moved on the plan (RM-008 E1). This viewer renders on demand -
+		// there is no continuous loop - so a position written by the 2D drag would
+		// otherwise sit in the scene graph until something unrelated asked for a
+		// frame, and the 3D view would show the furniture where it used to be.
+		//
+		// EVENT_ITEMS_PROJECTED rather than a new event: the projection is
+		// recomputed exactly when an item's placement changes, which is exactly
+		// when this view is stale. It asks for a frame and nothing more; the
+		// scene graph is already correct by the time it arrives.
 		scope.model.addEventListener(EVENT_GLTF_READY, this.gltfreadyevent);
+		this.levelsevent = () => {scope.syncLevelViews(); scope.render(true);};
+		scope.model.addEventListener(EVENT_LEVELS_CHANGED, this.levelsevent);
 
 		scope.lights = new Lights(scope.scene, scope.model.floorplan, scope.renderProfile);
-		scope.floorplan = new Floorplan3D(scope.scene, scope.model.floorplan, scope.controls, scope.renderProfile);
+		scope.syncSun();
+		scope.buildPostProcessing();
+		scope.syncLevelViews();
 
 		function animate()
 		{
@@ -524,7 +693,18 @@ export class Main extends EventDispatcher
 		// viewer, and stops for good once the user has clicked in it.
 		this._mouseEnterEvent = function () {scope.mouseOver = true;};
 		this._mouseLeaveEvent = function () {scope.mouseOver = false;};
-		this._clickEvent = function () {scope.hasClicked = true;};
+		// A click means two different things in the two modes, and this is the one
+		// listener that sees both. While walking there is no cursor to aim with -
+		// the pointer is locked - so the target is the middle of the view, which is
+		// where the person is already looking (RM-011 H3).
+		this._clickEvent = function ()
+		{
+			scope.hasClicked = true;
+			if (scope.firstpersonmode)
+			{
+				scope.teleportToView();
+			}
+		};
 		scope.element.addEventListener('mouseenter', this._mouseEnterEvent);
 		scope.element.addEventListener('mouseleave', this._mouseLeaveEvent);
 		scope.element.addEventListener('click', this._clickEvent);
@@ -563,9 +743,19 @@ export class Main extends EventDispatcher
 		if (this._mouseEnterEvent) { this.element.removeEventListener('mouseenter', this._mouseEnterEvent); }
 		if (this._mouseLeaveEvent) { this.element.removeEventListener('mouseleave', this._mouseLeaveEvent); }
 		if (this._clickEvent) { this.element.removeEventListener('click', this._clickEvent); }
+		if (this._unwatchMotion) { this._unwatchMotion(); this._unwatchMotion = null; }
 
-		this.model.floorplan.removeEventListener(EVENT_CHANGESET, this.updatedevent);
+		this._watchedPlans.forEach((plan) =>
+		{
+			plan.removeEventListener(EVENT_CHANGESET, this.updatedevent);
+			plan.removeEventListener(EVENT_ITEMS_PROJECTED, this.itemsprojectedevent);
+		});
+		this._watchedPlans.clear();
 		this.model.removeEventListener(EVENT_GLTF_READY, this.gltfreadyevent);
+		if (this.levelsevent)
+		{
+			this.model.removeEventListener(EVENT_LEVELS_CHANGED, this.levelsevent);
+		}
 
 		if (this.controller)
 		{
@@ -585,10 +775,13 @@ export class Main extends EventDispatcher
 		{
 			this.controls.dispose();
 		}
-		if (this.floorplan)
+		this.levelViews.forEach((view) => {view.dispose();});
+		this.levelViews.clear();
+		if (this._roofMesh)
 		{
-			this.floorplan.dispose();
-			this.floorplan = null;
+			this.scene.remove(this._roofMesh);
+			disposeObject(this._roofMesh);
+			this._roofMesh = null;
 		}
 		if (this.skybox)
 		{
@@ -597,6 +790,15 @@ export class Main extends EventDispatcher
 		if (this.lights)
 		{
 			this.lights.dispose();
+		}
+		// Five render targets nothing in the scene graph knows about, so nothing
+		// else would ever free them (RM-011 H2). The generation bump is what stops
+		// a chain still in flight from attaching itself to a disposed viewer.
+		this._postGeneration = (this._postGeneration || 0) + 1;
+		if (this.post)
+		{
+			this.post.dispose();
+			this.post = null;
 		}
 		if (this.environmentTexture)
 		{
@@ -712,10 +914,254 @@ export class Main extends EventDispatcher
 	 *
 	 * @returns {string} `data:image/png;base64,...`
 	 */
-	dataUrl()
+	/**
+	 * A picture of the 3D view, at more than the resolution it is displayed at.
+	 *
+	 * ## What this was
+	 *
+	 * RM-011 W-11 measured it: the method existed, rendered once, returned a PNG
+	 * data URL, and **nothing in `src/` called it**. On a boot it produced the
+	 * canvas at 1024 x 768 at device pixel ratio 1 - 391,170 characters, about
+	 * 287 KiB - which is a screenshot of a viewport rather than a photograph of a
+	 * design. H2's bullet is *"a photo capture through the seam that exists"*, and
+	 * this is that seam with the render target it always needed.
+	 *
+	 * ## Supersampling, rather than a bigger canvas
+	 *
+	 * The drawing buffer is enlarged by raising the pixel ratio and the CSS size
+	 * is left alone, which is exactly what a device pixel ratio *is* - so the
+	 * camera's aspect, the picking, the layout and the controls all stay correct
+	 * and nothing has to be told the picture is being taken. Downsampling happens
+	 * in the browser when the PNG is displayed at any smaller size, which is where
+	 * the antialiasing comes from.
+	 *
+	 * The multiplier is applied **on top of** whatever ratio the display already
+	 * asked for, and the product is clamped: WebGL implementations refuse a
+	 * drawing buffer past `MAX_RENDERBUFFER_SIZE`, and a silent refusal is a black
+	 * image. 4x of a 1024 x 768 viewport on a 2x display is 8192 x 6144, which is
+	 * the edge of what a modest GPU allows, so the cap is real rather than
+	 * defensive.
+	 *
+	 * @param {number} [supersample] How many times the displayed resolution. 1 is
+	 *   the old behaviour exactly.
+	 * @returns {string} A PNG data URL, or an empty string with no renderer.
+	 */
+	dataUrl(supersample)
 	{
+		if (!this.renderer)
+		{
+			return '';
+		}
+		var times = Math.max(1, Math.min(4, Number(supersample) || 1));
+		if (times === 1)
+		{
+			this.render(true);
+			return this.renderer.domElement.toDataURL('image/png');
+		}
+
+		var restore = this.renderer.getPixelRatio();
+		// Read once into locals. `elementWidth` and `elementHeight` are null until
+		// `updateWindowSize` has run, and a `setSize(null, null)` is a canvas of
+		// nothing rather than an error.
+		var width = Number(this.elementWidth) || 0;
+		var height = Number(this.elementHeight) || 0;
+		if (!width || !height)
+		{
+			this.render(true);
+			return this.renderer.domElement.toDataURL('image/png');
+		}
+		// The GPU's own ceiling, asked for rather than assumed. Exceeding it does
+		// not throw: it produces a buffer the driver silently declines to allocate.
+		var limit = this.renderer.capabilities.maxTextureSize || 4096;
+		var longest = Math.max(width, height) * restore;
+		times = Math.max(1, Math.min(times, limit / Math.max(1, longest)));
+
+		try
+		{
+			this.renderer.setPixelRatio(restore * times);
+			this.renderer.setSize(width, height);
+			this.render(true);
+			return this.renderer.domElement.toDataURL('image/png');
+		}
+		finally
+		{
+			// In a finally, because a `toDataURL` that throws on a tainted canvas
+			// would otherwise leave the viewer rendering at four times its size for
+			// the rest of the session.
+			this.renderer.setPixelRatio(restore);
+			this.renderer.setSize(width, height);
+			this.render(true);
+		}
+	}
+
+	/**
+	 * A 360 degree photograph from where the walker is standing (RM-011 H3).
+	 *
+	 * ## From the walkthrough, not from the orbit camera
+	 *
+	 * The sprint's objective is *"stand anywhere in the design and look all the
+	 * way round"*, and standing somewhere is what the walkthrough is for - the
+	 * teleport below is how a point gets chosen, and this is what is done with
+	 * it. The orbit camera is never inside anything on purpose; a panorama from
+	 * it would be a picture taken from the air.
+	 *
+	 * The eye keeps its position after `switchFPSMode(false)`, so the export menu
+	 * captures from wherever the walk was left. That is why this needs no
+	 * shortcut that works under pointer lock: walk, press Esc, export.
+	 *
+	 * @param {{position?: {x: number, y: number, z: number}, width?: number}} [options]
+	 * @returns {string} A PNG data URL, or an empty string with no renderer.
+	 */
+	panoramaUrl(options)
+	{
+		if (!this.renderer || !this.fpscontrols)
+		{
+			return '';
+		}
+		var settings = options || {};
+		var panorama = capturePanorama(
+			this.renderer, this.scene.getScene(), settings.position || this.walkPosition(),
+			{width: settings.width, near: this.cameraNear, far: this.cameraFar});
+		// The capture left six faces of a square buffer on the canvas and restored
+		// its size; this puts the view the person is actually looking at back.
 		this.render(true);
-		return this.renderer ? this.renderer.domElement.toDataURL('image/png') : '';
+		return panoramaDataUrl(panorama);
+	}
+
+	/** Where the walker's eye is, as a copy nothing outside can move. */
+	walkPosition()
+	{
+		return this.fpscontrols
+			? this.fpscontrols.getObject().position.clone()
+			: new Vector3();
+	}
+
+	/**
+	 * How tall the person walking is, in centimetres (RM-011 H3).
+	 *
+	 * Not saved with the design, and that is the decision rather than an
+	 * omission: eye height is a property of whoever is looking, not of the
+	 * building being looked at. It belongs beside the display unit and the theme,
+	 * which is where the app keeps it.
+	 *
+	 * Setting it lifts the eye straight away when the walker is standing, rather
+	 * than waiting for gravity to settle a taller one - and leaves a jump alone,
+	 * because a person in the air is not standing on anything.
+	 *
+	 * @param {number} centimetres
+	 * @returns {void}
+	 */
+	setEyeHeight(centimetres)
+	{
+		if (!this.fpscontrols)
+		{
+			return;
+		}
+		var height = Math.max(EYE_HEIGHT.min, Math.min(EYE_HEIGHT.max, Number(centimetres) || EYE_HEIGHT.default));
+		var walker = this.fpscontrols.getObject();
+		var standing = walker.position.y <= this.fpscontrols.eyeLevel();
+		this.fpscontrols.characterHeight = height;
+		if (standing)
+		{
+			walker.position.y = this.fpscontrols.eyeLevel();
+		}
+		this.render(true);
+	}
+
+	/** @returns {number} The eye height in centimetres. */
+	eyeHeight()
+	{
+		return this.fpscontrols ? this.fpscontrols.characterHeight : EYE_HEIGHT.default;
+	}
+
+	/**
+	 * Every floor a walker could stand on, across every storey shown.
+	 *
+	 * `floorplan.floorPlanes()` is one plan's, and a design has had a list of them
+	 * since RM-010 G1. Visibility is checked up the whole chain rather than on the
+	 * mesh: `showStoreys(false)` hides a *level group*, and a teleport onto a floor
+	 * nobody can see is a teleport into the dark.
+	 *
+	 * @returns {Array<Mesh>}
+	 */
+	walkableSurfaces()
+	{
+		var surfaces = [];
+		this.model.levels.forEach(function (level)
+		{
+			level.floorplan.floorPlanes().forEach(function (plane)
+			{
+				if (plane && isShown(plane))
+				{
+					surfaces.push(plane);
+				}
+			});
+		});
+		return surfaces;
+	}
+
+	/**
+	 * Walk to whatever the middle of the view is resting on (RM-011 H3).
+	 *
+	 * The sprint's own words for what the rig could not do: *"go somewhere"*. The
+	 * aim is the centre of the screen because a pointer-locked walkthrough has no
+	 * cursor - the crosshair is where you are looking, and looking at the floor
+	 * and clicking is the gesture every first-person tool already uses.
+	 *
+	 * The floor's own height comes back with the hit, so a click on the first
+	 * floor lands *on* the first floor. Wall collision is deliberately absent:
+	 * RM-011 W-11 withdrew it from this sprint and left it to J4, which owns the
+	 * two preserved polygon predicates it needs.
+	 *
+	 * @returns {?Vector3} Where the walker was put, or null if nothing was aimed at.
+	 */
+	teleportToView()
+	{
+		if (!this.fpscontrols || !this.fpscamera)
+		{
+			return null;
+		}
+		this.fpscamera.updateMatrixWorld();
+		var raycaster = new Raycaster();
+		// (0, 0) in normalised device coordinates is the centre of the frame.
+		raycaster.setFromCamera(new Vector2(0, 0), this.fpscamera);
+		var hits = raycaster.intersectObjects(this.walkableSurfaces(), false);
+		if (!hits.length)
+		{
+			return null;
+		}
+		var point = hits[0].point;
+		this.fpscontrols.teleport(point.x, point.z, point.y);
+		this.render(true);
+		return point;
+	}
+
+	/**
+	 * One frame, through the AO chain when there is one (RM-011 H2).
+	 *
+	 * The single place the choice is made, so `render` reads the same either way
+	 * and a future pass has one seam to add itself to rather than three call
+	 * sites to find. The camera is passed in because three of them exist and the
+	 * walkthrough swaps to its own.
+	 *
+	 * @param {import('three').Camera} camera
+	 * @returns {void}
+	 */
+	drawWith(camera)
+	{
+		if (this.post)
+		{
+			this.post.setCamera(camera);
+			this.post.composer.render();
+			return;
+		}
+		// `render` has already returned on a null renderer; the guard states that
+		// rather than assuming it, which is the C2 discipline for a field that is
+		// null before init and again after dispose.
+		if (this.renderer)
+		{
+			this.renderer.render(this.scene.getScene(), camera);
+		}
 	}
 
 	stopSpin()
@@ -770,8 +1216,128 @@ export class Main extends EventDispatcher
 	{
 		if (this.controller)
 		{
-			this.controller.setSelectedObject(null);
+			// `deselect`, not `setSelectedObject(null)`, for the reason
+			// `showItemSelected` gives below: the second leaves the state machine
+			// claiming a selection. E1 pointed that method at `deselect` and left
+			// this one, which is the method the application actually calls - every
+			// time it shows the plan pane (RM-010 G3).
+			this.controller.deselect();
 		}
+	}
+
+	/**
+	 * Show an item as selected here because something else selected it
+	 * (RM-008 E1, T-2).
+	 *
+	 * The 3D view's selection has only ever been set by picking in the 3D view:
+	 * `Controller.mouseUpEvent` is the sole caller of `setSelectedObject` with
+	 * anything but null. So selecting a chair on the plan lit it up on the plan,
+	 * opened the inspector, and left the 3D view showing an unhighlighted chair -
+	 * measured at zero changed pixels, which is the second half of what T-2
+	 * found.
+	 *
+	 * `setSelectedObject` already does the right things in the right order - it
+	 * unselects the previous item, moves the state machine out of UNSELECTED and
+	 * dispatches EVENT_ITEM_SELECTED - so this is a named way in rather than new
+	 * behaviour. The name says what it is for: `clearSelection` is its opposite
+	 * and has been public since before the migration.
+	 *
+	 * @param {?Object} item An item from `Scene.getItems()`, or null to clear.
+	 */
+	showItemSelected(item)
+	{
+		if (!this.controller)
+		{
+			return;
+		}
+		if (this.controller.selectedObject === item)
+		{
+			return;
+		}
+		// Anything that is not an item this view can highlight clears the
+		// selection instead of being handed to the controller.
+		//
+		// Not defensive padding: `useSelection` documents that an embedder may
+		// dispatch EVENT_ITEM_SELECTED "with anything it likes", and it keeps
+		// whatever it was given when the object carries no id. Two suites do
+		// exactly that with a stub, and `setSelectedObject` calls `setSelected()`
+		// on what it is passed - so without this the first selection in an
+		// embedder's own test is a TypeError inside the library. Found by running
+		// it, not by reading it.
+		// Both halves, not just the one this line reaches. `setSelectedObject`
+		// calls `setUnselected()` on whatever it is *replacing*, so an object with
+		// `setSelected` and no `setUnselected` passes this guard, becomes the
+		// controller's selection, and throws from inside the library on the next
+		// selection - one click later, with nothing on screen to connect the two.
+		// Found the same way the note above was: by handing it a stub that had one
+		// and not the other (RM-012 J4).
+		var selectable = item && typeof item.setSelected === 'function'
+			&& typeof item.setUnselected === 'function';
+		if (selectable)
+		{
+			this.controller.setSelectedObject(item);
+			return;
+		}
+		// `deselect`, not `setSelectedObject(null)`: the second clears the object
+		// and leaves the state machine claiming a selection, which stops
+		// `checkWallsAndFloors` running and makes every wall in this view
+		// unclickable. See Controller.deselect.
+		this.controller.deselect();
+	}
+
+	/**
+	 * Show a whole selection, of which one member is primary (RM-012 J4).
+	 *
+	 * ## Why the rest do not go through the controller
+	 *
+	 * Because there is one of it. `Controller.selectedObject` is what a drag
+	 * moves, what `clickPressed` intersects against and what the state machine
+	 * is about; it is singular by design and making it plural would be J4's
+	 * whole sprint rather than its first task. The primary keeps that seat and
+	 * takes the path {@link Main#showItemSelected} already established.
+	 *
+	 * The rest are told to look selected and nothing else. `Item.setSelected`
+	 * shows the bounding helper and the two dimension canvases and sets a flag -
+	 * which is exactly and only what "this is in the set" should mean for a
+	 * member nobody is dragging. Its `setScale(1, 1, 1)` reads alarming and is
+	 * not: `setScale` multiplies, so that call is a refresh of the helper and the
+	 * canvases rather than a resize.
+	 *
+	 * ## And why the previous set has to be remembered
+	 *
+	 * Nothing else knows about it. The controller unselects the object it holds
+	 * and no more, so a secondary dropped from the set would keep its helper
+	 * visible until something else happened to touch it.
+	 *
+	 * @param {Array<Object>} items The whole set. The **last** is primary, which
+	 *   is the order `useSelection` builds it in - the most recently clicked
+	 *   thing is the one an inspector should be showing.
+	 */
+	showItemsSelected(items)
+	{
+		var all = (items || []).filter((item) => item && typeof item.setSelected === 'function'
+			&& typeof item.setUnselected === 'function');
+		var primary = all.length ? all[all.length - 1] : null;
+		var others = all.slice(0, -1);
+
+		for (var previous of this._secondarySelection || [])
+		{
+			// Left alone if it has become the primary, which the controller is
+			// about to select anyway, and if it is still in the set.
+			if (others.indexOf(previous) === -1 && previous !== primary
+				&& typeof previous.setUnselected === 'function')
+			{
+				previous.setUnselected();
+			}
+		}
+		this._secondarySelection = others;
+
+		this.showItemSelected(primary);
+		for (var item of others)
+		{
+			item.setSelected();
+		}
+		this.ensureNeedsUpdate();
 	}
 
 
@@ -884,6 +1450,13 @@ export class Main extends EventDispatcher
 		// applies the ratio to the drawing buffer.
 		scope.renderer.setPixelRatio(pixelRatio());
 		scope.renderer.setSize(scope.elementWidth, scope.elementHeight);
+		// The composer's render targets are sized in pixels of their own and know
+		// nothing about the canvas, so a viewer resized with AO on would keep
+		// rendering the old rectangle and stretching it (H2).
+		if (scope.post)
+		{
+			scope.post.setSize(Number(scope.elementWidth) || 1, Number(scope.elementHeight) || 1);
+		}
 		scope.needsUpdate = true;
 	}
 
@@ -1004,14 +1577,204 @@ export class Main extends EventDispatcher
 		console.groupEnd();
 	}
 
-	switchWireframe(flag)
+	/**
+	 * Build, drop and re-place the storeys' 3D projections (RM-010 G1).
+	 *
+	 * Reconciliation rather than a rebuild, for the same reason `Floorplan3D`
+	 * reconciles rather than redrawing: switching to the first floor must not
+	 * tear down and re-upload the ground floor's walls. A level that is already
+	 * projected keeps its projection; only additions are built and only removals
+	 * are disposed.
+	 *
+	 * Each subscription is per storey too. A wall drawn on the first floor has to
+	 * redraw the first floor even while the ground floor is the one being edited,
+	 * and a `Floorplan` can only tell you that *it* changed.
+	 *
+	 * @returns {void}
+	 */
+	/**
+	 * The 3D projection of the storey being edited (RM-010 G1).
+	 *
+	 * The same move `Model.floorplan` makes one layer down, and for the same
+	 * reason: this used to be a field, every caller reads it, and none of them
+	 * has an opinion about storeys. Null before `init()` builds anything, which
+	 * is what the field was.
+	 *
+	 * @returns {?Floorplan3D}
+	 */
+	get floorplan()
 	{
-		this.model.switchWireframe(flag);
-		if (!this.floorplan)
+		var level = this.model && this.model.level;
+		return (level && this.levelViews.get(level.id)) || null;
+	}
+
+	syncLevelViews()
+	{
+		var scope = this;
+		var wanted = new Set();
+		this.model.levels.forEach(function (level)
+		{
+			wanted.add(level.id);
+			if (!scope.levelViews.has(level.id))
+			{
+				var view = new Floorplan3D(
+					scope.scene.levelScene(level), level.floorplan, scope.controls, scope.renderProfile);
+				// Caught up once, on construction. `Floorplan3D` only subscribes -
+				// it builds when a change arrives - which was right when there was
+				// one of them built before anything was loaded. A storey's view is
+				// created when its storey appears, which is after its plan already
+				// has walls in it, and without this the upper floors were empty.
+				// Measured: three storeys loaded, levels 1 and 2 had no meshes at all.
+				view.redraw();
+				scope.levelViews.set(level.id, view);
+			}
+			if (!scope._watchedPlans.has(level.floorplan))
+			{
+				level.floorplan.addEventListener(EVENT_CHANGESET, scope.updatedevent);
+				level.floorplan.addEventListener(EVENT_ITEMS_PROJECTED, scope.itemsprojectedevent);
+				scope._watchedPlans.add(level.floorplan);
+			}
+		});
+		this.levelViews.forEach(function (view, id)
+		{
+			if (!wanted.has(id))
+			{
+				view.dispose();
+				scope.levelViews.delete(id);
+			}
+		});
+		// A plan whose level is gone must stop being listened to, or a disposed
+		// document keeps this view alive - the class of leak RM-003 A0 and A1 both
+		// spent sprints on.
+		var livePlans = new Set(this.model.levels.map(function (level) {return level.floorplan;}));
+		this._watchedPlans.forEach(function (plan)
+		{
+			if (!livePlans.has(plan))
+			{
+				plan.removeEventListener(EVENT_CHANGESET, scope.updatedevent);
+				plan.removeEventListener(EVENT_ITEMS_PROJECTED, scope.itemsprojectedevent);
+				scope._watchedPlans.delete(plan);
+			}
+		});
+		// With the mode the view is in, not unconditionally: switching storey while
+		// showing one at a time has to move which one is shown (G3).
+		this.scene.syncLevels({activeOnly: !this._allStoreys});
+		this.syncRoof();
+		this.syncSun();
+	}
+
+	/**
+	 * Point the key light at wherever the building's sun is (RM-011 H2).
+	 *
+	 * Here rather than in `Lights` because a sun belongs to the building and
+	 * `Lights` is handed a `Floorplan` - one storey's plan. `Main` is the object
+	 * that has both, which makes it the seam, and it keeps the model free of any
+	 * knowledge that a renderer exists.
+	 *
+	 * @returns {void}
+	 */
+	syncSun()
+	{
+		if (this.lights)
+		{
+			this.lights.setSun(this.model.sun, this.model.north);
+		}
+	}
+
+	/**
+	 * Build or drop the post-processing chain for the current profile (H2).
+	 *
+	 * Called wherever the profile can change, which is construction and
+	 * `applyRenderProfile`. There is no chain unless the profile asks for one,
+	 * so a build that wants none pays nothing at all - not an if per frame, not
+	 * a full-screen copy, not the render targets.
+	 *
+	 * @returns {void}
+	 */
+	buildPostProcessing()
+	{
+		if (this.post)
+		{
+			this.post.dispose();
+			this.post = null;
+		}
+		if (!this.renderer || !this.camera)
 		{
 			return;
 		}
-		this.floorplan.switchWireframe(flag);
+		// Asynchronous because the chain's four modules are fetched on demand -
+		// see `post.js` for the 10.6 KB that bought. A viewer disposed or
+		// re-profiled while the chunk is in flight must not take delivery of it,
+		// which is what the generation counter below is for; without it, switching
+		// profiles twice quickly leaves two composers and frees neither.
+		var scope = this;
+		var generation = (this._postGeneration || 0) + 1;
+		this._postGeneration = generation;
+		createPostProcessing(this.renderer, this.scene.getScene(), this.camera,
+			this.renderProfile, {width: Number(this.elementWidth) || 1, height: Number(this.elementHeight) || 1})
+			.then(function (built)
+			{
+				if (!built)
+				{
+					return;
+				}
+				if (scope._postGeneration !== generation || !scope.renderer)
+				{
+					built.dispose();
+					return;
+				}
+				scope.post = built;
+				scope.needsUpdate = true;
+				scope.render(true);
+			});
+	}
+
+	/**
+	 * Build, replace or remove the building's roof (RM-010 G2).
+	 *
+	 * Not a `Floorplan3D` and not in a level's group: a roof is over the whole
+	 * building rather than on one storey, so it goes into the scene at the height
+	 * `Model.roofBase()` derives. Rebuilt rather than reconciled, because it is
+	 * one mesh from five numbers and reconciling it would cost more code than
+	 * regenerating it.
+	 *
+	 * @returns {void}
+	 */
+	syncRoof()
+	{
+		if (this._roofMesh)
+		{
+			this.scene.remove(this._roofMesh);
+			disposeObject(this._roofMesh);
+			this._roofMesh = null;
+		}
+		var roof = this.model.roof;
+		var footprint = this.model.roofFootprint();
+		if (!roof || !footprint)
+		{
+			return;
+		}
+		var built = buildRoofGeometry(roof, footprint);
+		this._roofMesh = new Mesh(built.geometry, built.materials[0]);
+		this._roofMesh.name = 'roof';
+		// Rebuilt from scratch every time, so the visibility the storey mode
+		// decided has to be re-applied rather than assumed (G3).
+		this._roofMesh.visible = this._allStoreys;
+		this._roofMesh.position.set(footprint.cx, this.model.roofBase(), footprint.cy);
+		this._roofMesh.castShadow = true;
+		this.scene.add(this._roofMesh);
+	}
+
+	switchWireframe(flag)
+	{
+		this.model.switchWireframe(flag);
+		if (!this.levelViews.size)
+		{
+			return;
+		}
+		// Every storey, not just the one being edited: wireframe is a way of
+		// looking at the whole model.
+		this.levelViews.forEach((view) => {view.switchWireframe(flag);});
 		this.render(true);
 	}
 
@@ -1027,6 +1790,13 @@ export class Main extends EventDispatcher
 		// one that has been torn down must not resurrect anything (RM-005 C2).
 		if (!this.camera || !this.controls)
 		{
+			return;
+		}
+		// The one viewpoint that is about the building rather than about the
+		// storey being edited, so it frames its own subject and returns (G3).
+		if (viewpoint === VIEW_EXTERIOR)
+		{
+			this.showExterior();
 			return;
 		}
 		var center = this.model.floorplan.getCenter();
@@ -1063,6 +1833,95 @@ export class Main extends EventDispatcher
 		this.controls.signalCameraActive();
 		this.controls.needsUpdate = true;
 		this.controls.update();
+		this.render(true);
+	}
+
+	/**
+	 * Show every storey, or only the one being edited (RM-010 G3).
+	 *
+	 * The affordance G1 built and did not connect. What it is *for* is picking:
+	 * `Controller.updateIntersections` raycasts `Scene.getItems()`, which is the
+	 * active storey's furniture, and `checkWallsAndFloors` asks the active
+	 * storey's plan for its walls and floors - so with every storey drawn, the
+	 * first floor's walls are visible and inert, and a click aimed at one lands
+	 * on whatever the ground floor has behind it. Showing one storey at a time
+	 * makes what you see and what you can click the same set.
+	 *
+	 * The roof follows, and that is the one derived consequence rather than a
+	 * second switch: a roof over a single visible storey is a lid on a box you
+	 * are looking into. A design with no roof has nothing to follow.
+	 *
+	 * @param {boolean} flag True for the whole building, false for one storey.
+	 * @returns {void}
+	 */
+	showStoreys(flag)
+	{
+		this._allStoreys = flag !== false;
+		this.scene.syncLevels({activeOnly: !this._allStoreys});
+		if (this._roofMesh)
+		{
+			this._roofMesh.visible = this._allStoreys;
+		}
+		this.render(true);
+	}
+
+	/**
+	 * Frame the whole building from outside (RM-010 G3).
+	 *
+	 * RM-007 costed "an exterior view" inside G2 and named nothing else about it;
+	 * what it turns out to be, once there are storeys and a roof to look at, is
+	 * three things that have to happen together. Every storey is shown, because
+	 * the outside of a house is not the outside of its ground floor. The roof
+	 * comes with them. And the camera is placed against `Model.buildingBounds()`
+	 * rather than against the plan being edited, which is the difference between
+	 * framing a building and framing a footprint.
+	 *
+	 * The distance is derived from the camera's own field of view and aspect, so
+	 * the whole box fits whatever shape the viewport is - a wide viewer is
+	 * limited by height and a tall one by width, and taking the larger of the two
+	 * is what covers both. Isometric rather than square-on, because a single
+	 * elevation of a building tells you less than a corner of it does.
+	 *
+	 * @returns {void}
+	 */
+	showExterior()
+	{
+		if (!this.camera || !this.controls)
+		{
+			return;
+		}
+		this.showStoreys(true);
+		var bounds = this.model.buildingBounds();
+		if (!bounds)
+		{
+			return;
+		}
+		var target = new Vector3(bounds.cx, bounds.height / 2, bounds.cy);
+		// Half the diagonal of the box, which is the radius of the sphere that
+		// contains it however the camera is turned.
+		var radius = 0.5 * Math.sqrt(
+			(bounds.width * bounds.width) + (bounds.depth * bounds.depth)
+			+ (bounds.height * bounds.height));
+		// Read off the perspective camera rather than off `this.camera`, which may
+		// be the orthographic one: a field of view is what turns a radius into a
+		// distance, and an orthographic camera has none. It frames by zoom
+		// instead, which `switchOrthographicMode` owns; the position below is
+		// still the right position for it.
+		var lens = this.perspectivecamera;
+		var fov = ((lens && lens.fov) || 45) * Math.PI / 180;
+		var aspect = (lens && lens.aspect) || 1;
+		var vertical = radius / Math.sin(fov / 2);
+		var horizontal = radius / Math.sin((2 * Math.atan(Math.tan(fov / 2) * aspect)) / 2);
+		// A tenth of clear air, so the building is framed rather than touching
+		// the edges of the viewport.
+		var distance = Math.max(vertical, horizontal) * 1.1;
+		var direction = new Vector3(1, 0.6, 1).normalize();
+		this.controls.target.copy(target);
+		this.camera.position.copy(target.clone().add(direction.multiplyScalar(distance)));
+		this.controls.signalCameraActive();
+		this.controls.needsUpdate = true;
+		this.controls.update();
+		this.dispatchEvent({type: EVENT_CAMERA_VIEW_CHANGE, view: VIEW_EXTERIOR});
 		this.render(true);
 	}
 
@@ -1140,16 +1999,55 @@ export class Main extends EventDispatcher
 		this.render(true);
 	}
 
+	/**
+	 * Whether the pointer may move anything in the 3D view (RM-013 K2).
+	 *
+	 * `Controller.enabled` is the switch and it has existed since the fork; what
+	 * it has never had is two owners. The walkthrough turns it off so a person
+	 * walking through a room cannot shove a sofa with their face, and a read-only
+	 * design turns it off because it is read-only - and both are true at once
+	 * when somebody walks through a shared link. A single assignment means the
+	 * second event to fire wins, so the two are stored and combined.
+	 *
+	 * @param {boolean} flag
+	 * @returns {void}
+	 */
+	setReadOnly(flag)
+	{
+		this._readOnly = Boolean(flag);
+		this._applyPointerEditing();
+	}
+
+	/** Whether this viewer is showing a design nobody may edit. */
+	get readOnly()
+	{
+		return Boolean(this._readOnly);
+	}
+
+	/** @returns {void} */
+	_applyPointerEditing()
+	{
+		if (this.controller)
+		{
+			this.controller.enabled = !this._readOnly && !this.firstpersonmode;
+		}
+	}
+
 	switchFPSMode(flag)
 	{
-		if (!this.fpscontrols || !this.controls || !this.controller || !this.skybox || !this.floorplan)
+		if (!this.fpscontrols || !this.controls || !this.controller || !this.skybox || !this.levelViews.size)
 		{
 			return;
 		}
 		this.firstpersonmode = flag;
 		this.fpscontrols.enabled = flag;
 		this.controls.enabled = !flag;
-		this.controller.enabled = !flag;
+		// Through `_applyPointerEditing` rather than straight to the field
+		// (RM-013 K2): read-only and the walkthrough both want the controller off
+		// and only one of them can own a boolean. Leaving the assignment here
+		// meant that leaving a walkthrough in a shared design handed the pointer
+		// back and made the furniture draggable again.
+		this._applyPointerEditing();
 		this.controls.signalCameraActive();
 
 		if(flag)
@@ -1164,7 +2062,7 @@ export class Main extends EventDispatcher
 		}
 
 		this.model.switchWireframe(false);
-		this.floorplan.switchWireframe(false);
+		this.levelViews.forEach((view) => {view.switchWireframe(false);});
 		this.render(true);
 	}
 
@@ -1209,6 +2107,26 @@ export class Main extends EventDispatcher
 		}
 
 		scope.spin();
+		// Advance the orbit controls, so the two settings that need a per-frame
+		// update actually get one (RM-020 S-3).
+		//
+		// `enableDamping` and `autoRotate` were both switched on and neither ever
+		// moved: `controls.update()` was called only at explicit camera moves -
+		// centring, a view preset, a clipping change - and never from here.
+		// three's addon calls `update()` itself while a pointer is down, which is
+		// why damping felt like it worked; what never played was the coast after
+		// release, and auto-rotate never turned at all.
+		//
+		// This does not cost render-on-demand, which is the reason it is safe to
+		// call unconditionally. three's `update()` dispatches `change` only when
+		// the camera actually moved and returns false when it did not, so a
+		// settled scene sets no dirty flag and `shouldRender()` below still
+		// declines. The idle-frames assertion in tests/viewer-lifecycle.test.js is
+		// what holds that claim down.
+		if (scope.controls)
+		{
+			scope.controls.update();
+		}
 		if(scope.firstpersonmode)
 		{
 			// No argument: the controls keep their own clock now. THREE.Clock was
@@ -1216,7 +2134,7 @@ export class Main extends EventDispatcher
 			if (scope.fpscontrols && scope.fpscamera)
 			{
 				scope.fpscontrols.update();
-				scope.renderer.render(scope.scene.getScene(), scope.fpscamera);
+				scope.drawWith(scope.fpscamera);
 			}
 
 		}
@@ -1224,7 +2142,7 @@ export class Main extends EventDispatcher
 		{
 			if(this.shouldRender() || forced)
 			{
-				scope.renderer.render(scope.scene.getScene(), scope.camera);
+				scope.drawWith(scope.camera);
 			}
 		}
 		scope.lastRender = Date.now();

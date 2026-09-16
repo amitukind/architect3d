@@ -116,6 +116,22 @@ export class Controller extends EventDispatcher
 	 * Detach the pointer and scene listeners and drop the ground plane out of the
 	 * scene. Safe to call more than once.
 	 */
+	/**
+	 * Whether a press on a fixed item may start a drag (RM-020 S-2).
+	 *
+	 * The viewer has carried a `canMoveFixedItems` option since before this file
+	 * was typed and nothing had ever read it - both guards in `mouseDownState`
+	 * tested `item.fixed` on its own, so an embedder that set it true got no
+	 * change and no warning. Reading it in one place keeps the two guards saying
+	 * the same thing.
+	 *
+	 * @returns {boolean}
+	 */
+	get canMoveFixedItems()
+	{
+		return Boolean(this.three && this.three.options && this.three.options.canMoveFixedItems);
+	}
+
 	dispose()
 	{
 		if (this._disposed)
@@ -212,13 +228,24 @@ export class Controller extends EventDispatcher
 	{
 		var scope = this;
 		this.mouse = vec2 || this.mouse;
+		// Before `itemIntersection`, not after it (RM-008 E1).
+		//
+		// The guard was already here and sat one line too late: `itemIntersection`
+		// reads `item.freePosition` and calls `item.customIntersectionPlanes()`, so
+		// a null selection threw there and never reached the check written to
+		// prevent it. Unreachable until E1, because the only way to hold state
+		// SELECTED with nothing selected was `Main.clearSelection()`, which ran on
+		// teardown. Clearing the selection from the plan while the pointer is live
+		// over the 3D view reaches it on the first try - "Cannot read properties of
+		// null (reading 'customIntersectionPlanes')", found by driving the
+		// application rather than by reading it.
+		if (!this.selectedObject)
+		{
+			return;
+		}
 		var intersection = scope.itemIntersection(this.mouse, this.selectedObject);
 		if (intersection)
 		{
-			if (!this.selectedObject)
-			{
-				return;
-			}
 			if (scope.isRotating())
 			{
 				this.selectedObject.rotate(intersection);
@@ -325,7 +352,7 @@ export class Controller extends EventDispatcher
 				else if (this.intersectedObject != null)
 				{
 					this.setSelectedObject(this.intersectedObject);
-					if (!this.intersectedObject.fixed)
+					if (!this.intersectedObject.fixed || this.canMoveFixedItems)
 					{
 						this.switchState(states.DRAGGING);
 					}
@@ -335,7 +362,7 @@ export class Controller extends EventDispatcher
 				if (this.intersectedObject != null)
 				{
 					this.setSelectedObject(this.intersectedObject);
-					if (!this.intersectedObject.fixed)
+					if (!this.intersectedObject.fixed || this.canMoveFixedItems)
 					{
 						this.switchState(states.DRAGGING);
 					}
@@ -668,9 +695,56 @@ export class Controller extends EventDispatcher
 	}
 
 	// manage the selected object
+	/**
+	 * Drop the selection and return the state machine to rest (RM-008 E1).
+	 *
+	 * `setSelectedObject(null)` clears the object but deliberately leaves the
+	 * state alone - see the note in that method for why it cannot switch from
+	 * inside itself. That is fine for the path that always called it, which is
+	 * `onEntry(UNSELECTED)` arriving here already on its way to UNSELECTED, and
+	 * wrong for a caller outside the machine: the controller is then SELECTED
+	 * with nothing selected, and `checkWallsAndFloors` - which only runs while
+	 * UNSELECTED - stops answering. Measured as: clearing the selection on the
+	 * plan made every wall in the 3D view unclickable until an item was picked
+	 * and dropped there.
+	 *
+	 * So the way out from outside is a state transition, and `onEntry(UNSELECTED)`
+	 * does the clearing on the way through. One line, and it is the difference
+	 * between the two views sharing a selection and the 3D view quietly losing
+	 * its picking.
+	 */
+	deselect()
+	{
+		if (this.state !== states.UNSELECTED)
+		{
+			this.switchState(states.UNSELECTED);
+			return;
+		}
+		this.setSelectedObject(null);
+	}
+
 	setSelectedObject(object)
 	{
-		if (this.state === states.UNSELECTED)
+		// Only when there is something to select (RM-010 G3).
+		//
+		// It used to switch on the way in whatever it had been handed, so
+		// `setSelectedObject(null)` on a controller that was already UNSELECTED
+		// *selected*: state SELECTED, `selectedObject` null. Two public methods
+		// reach it that way - `Controller.deselect()`, which is documented as the
+		// safe way out and was therefore not idempotent, and `Main.clearSelection()`,
+		// which the application calls every time it shows the plan pane.
+		//
+		// Measured before changing it, because E1's note below says that state
+		// stopped `checkWallsAndFloors` running and made every wall unclickable:
+		// **it does not, today.** `mouseUpEvent`'s SELECTED branch transitions to
+		// UNSELECTED and checks in the same click, so a floor click after
+		// `clearSelection()` still reports the floor. What is wrong is the state
+		// itself, and a machine that claims a selection it does not have is one
+		// edit away from the failure E1 measured.
+		//
+		// It also makes the recursion the null branch below warns about
+		// impossible by construction rather than by the caller being careful.
+		if (object != null && this.state === states.UNSELECTED)
 		{
 			this.switchState(states.SELECTED);
 		}
@@ -687,6 +761,14 @@ export class Controller extends EventDispatcher
 		else
 		{
 			this.selectedObject = null;
+			// Deliberately NOT switching the state machine to UNSELECTED here.
+			// `onEntry(UNSELECTED)` calls this method, and `switchState` assigns
+			// `this.state` only after `onEntry` returns - so a switch from inside
+			// this branch re-enters through onEntry forever. Tried, and the suite
+			// returned a stack overflow rather than a wrong picture, which is the
+			// good outcome. The state may therefore be SELECTED with nothing
+			// selected; `clickDragged` is the one place that mattered, and it now
+			// checks before it dereferences.
 			this.three.itemIsUnselected();
 		}
 		this.needsUpdate = true;
